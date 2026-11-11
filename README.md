@@ -14,5 +14,6 @@
 - [docs/events/](docs/events/) — 年代未分類のイベント候補
 - [docs/ideas/gameplay.md](docs/ideas/gameplay.md) — ゲームプレイ上の工夫（未決定）
 - [docs/decisions/](docs/decisions/) — 重要な設計判断の記録
+- [assets/](assets/) — 画像・音声・フォントなどの素材置き場
 
 タスクと優先度は GitHub Issues / Projects、合意済みの仕様は docs/ で管理します。
