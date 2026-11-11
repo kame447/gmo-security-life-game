@@ -10,6 +10,7 @@
 - [docs/product.md](docs/product.md) — プロダクトの目的と体験
 - [docs/architecture.md](docs/architecture.md) — 技術構成と責務の分離
 - [docs/roadmap.md](docs/roadmap.md) — 開発方針とマイルストーン
+- [docs/branch-strategy.md](docs/branch-strategy.md) — ブランチの命名規則と開発フロー
 - [docs/features/](docs/features/) — 機能単位の仕様
 - [docs/events/](docs/events/) — 年代未分類のイベント候補
 - [docs/ideas/gameplay.md](docs/ideas/gameplay.md) — ゲームプレイ上の工夫（未決定）
