@@ -12,4 +12,6 @@
 
 検討段階の演出は [演出案](docs/ideas/time-pressure.md)、設計判断は [判断の記録](docs/decisions/README.md)、素材の配置は [素材管理](assets/README.md)、作業手順は [AGENTS.md](AGENTS.md) を参照する。
 
+PoC 用の AWS インフラは [infra/](infra/README.md) にある。
+
 タスクと進捗は GitHub Issues / Projects で管理する。

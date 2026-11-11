@@ -15,3 +15,7 @@
 プレイヤーの行動や選択を受け取り、イベントの結果を現在の状態に反映する。その状態を後の人生やイベントで参照し、選択の長期的な影響を表現する。
 
 [遊びの進行](features/gameplay.md)、[プレイヤーの状態](features/player-state.md)、[イベント共通仕様](features/events.md) で機能ごとの内容を管理する。
+
+## インフラ
+
+PoC 用の AWS インフラの構成は [infra/README.md](../infra/README.md)、判断の経緯は [0001](decisions/0001-aws-infra-terraform.md) と [0002](decisions/0002-infra-operations.md) に記載する。

@@ -4,7 +4,7 @@
 
 ## 背景
 
-EC2 / ALB / DynamoDB / S3 / CloudFront / CloudWatch を使う最小構成の IaC が必要になった。
+EC2 / ALB / DynamoDB / S3 / CloudFront / CloudWatch / Cognito を使う最小構成の IaC が必要になった。
 ユーザーが直接アクセスできるのは CloudFront だけにし、VPC 内の EC2・ALB には外部から到達できないようにする。
 
 ## 採用する方針

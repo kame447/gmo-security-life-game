@@ -53,3 +53,22 @@ resource "aws_vpc_endpoint" "s3" {
   route_table_ids   = [aws_route_table.private.id]
   tags              = { Name = "${local.name}-s3" }
 }
+
+# SSM（Session Manager / Run Command）と CloudWatch Logs 用のインターフェースエンドポイント
+# NAT なしで EC2 の運用アクセスとログ送信をするために置く。
+# 費用を抑えるため 1 サブネットだけに置く（VPC 内の他サブネットからも使える。AZ 障害時は使えない）
+locals {
+  interface_endpoint_services = ["ssm", "ssmmessages", "ec2messages", "logs"]
+}
+
+resource "aws_vpc_endpoint" "interface" {
+  for_each = toset(local.interface_endpoint_services)
+
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.region}.${each.key}"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [aws_subnet.private[0].id]
+  security_group_ids  = [aws_security_group.endpoints.id]
+  private_dns_enabled = true
+  tags                = { Name = "${local.name}-${each.key}" }
+}
