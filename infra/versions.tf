@@ -1,5 +1,6 @@
 terraform {
-  required_version = ">= 1.6"
+  # S3 backend のネイティブロック（use_lockfile）が使える 1.10 以降
+  required_version = ">= 1.10"
 
   required_providers {
     aws = {
@@ -7,9 +8,15 @@ terraform {
       # aws_cloudfront_vpc_origin が使える 5.82 以降
       version = ">= 5.82, < 7.0"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = ">= 3.4, < 4.0"
+    }
   }
 
-  # TODO: state の保存先（S3 backend など）は未決定。決まるまではローカル state。
+  # state は S3 に置く。バケット名などは backend.hcl で渡す（README 参照）
+  # バケット自体は infra/bootstrap で作成する
+  backend "s3" {}
 }
 
 provider "aws" {

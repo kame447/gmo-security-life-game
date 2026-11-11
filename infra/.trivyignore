@@ -1,0 +1,5 @@
+# CI の trivy は CRITICAL で失敗させる。ここには理由を書いたうえで受け入れた指摘だけを置く。
+
+# ALB のリスナーが HTTP。ALB は internal で、CloudFront VPC オリジンからの通信だけを受ける。
+# CloudFront と ALB 間の HTTPS 化は独自ドメイン・証明書とあわせて決める（infra/README.md の未決定事項）
+AVD-AWS-0054
