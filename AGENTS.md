@@ -5,6 +5,7 @@
 作業前に [README.md](README.md)、[全体企画書](docs/product.md)、担当範囲に関係する docs/ を読み、対象の GitHub Issue と git status を確認してください。対応する Issue がない場合は、その旨を明示してください。
 
 - 書かれていない仕様を確定事項として扱わない。未決定事項は明示する。
+- ブランチは [docs/branch-strategy.md](docs/branch-strategy.md) の命名規則に従って作る。
 - 実装は小さな単位に分け、変更の受け入れ条件を確認する。
 - 機能の仕様が変わったら、対応する [docs/features/](docs/features/README.md) の文書も更新する。全体の目的・対象・体験は全体企画書、個別イベントの発生条件・選択肢・結果・影響・分岐は [docs/events/](docs/events/README.md) で管理する。
 - docs/events/ の既存候補SEC-001〜015は、全件が採用未決定・年代未分類。[docs/ideas/](docs/ideas/time-pressure.md) の制限時間による焦りの演出も未採用。記録されているだけで仕様確定・実装決定とみなさず、内容の変更・削除・統合や年代・分岐の追加は合意した範囲で行う。
