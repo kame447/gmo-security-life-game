@@ -2,7 +2,7 @@
 
 人生シミュレーションを通じて、日常の情報セキュリティリスクを学ぶゲームの開発リポジトリです。
 
-現在はドキュメントの構成だけを用意しています。ゲーム本体・詳細設計・デプロイ設定はまだありません。
+現在はドキュメントの構成と、PoC 用の AWS インフラ（[infra/](infra/)、Terraform）を用意しています。ゲーム本体と詳細設計はまだありません。
 
 ## ドキュメント
 
@@ -15,5 +15,6 @@
 - [docs/ideas/gameplay.md](docs/ideas/gameplay.md) — ゲームプレイ上の工夫（未決定）
 - [docs/decisions/](docs/decisions/) — 重要な設計判断の記録
 - [assets/](assets/) — 画像・音声・フォントなどの素材置き場
+- [infra/](infra/) — AWS インフラの Terraform と使い方
 
 タスクと優先度は GitHub Issues / Projects、合意済みの仕様は docs/ で管理します。

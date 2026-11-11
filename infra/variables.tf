@@ -42,3 +42,39 @@ variable "alarm_email" {
   type        = string
   default     = ""
 }
+
+variable "cognito_domain_prefix" {
+  description = "Cognito Hosted UI のドメインプレフィックス。null ならアカウント ID から自動生成"
+  type        = string
+  default     = null
+}
+
+variable "cognito_allow_self_signup" {
+  description = "ユーザー自身のサインアップを許可するか。false なら管理者のみがユーザーを作成できる"
+  type        = bool
+  default     = true
+}
+
+variable "cognito_extra_callback_urls" {
+  description = "CloudFront 以外に許可するログイン後のリダイレクト先（ローカル開発用など）"
+  type        = list(string)
+  default     = []
+}
+
+variable "cognito_extra_logout_urls" {
+  description = "CloudFront 以外に許可するログアウト後のリダイレクト先"
+  type        = list(string)
+  default     = []
+}
+
+variable "log_retention_days" {
+  description = "アプリログ（CloudWatch Logs）とアクセスログ（S3）の保存日数"
+  type        = number
+  default     = 90
+}
+
+variable "content_security_policy" {
+  description = "CloudFront で付ける Content-Security-Policy。null なら self と Cognito だけを許可する既定値"
+  type        = string
+  default     = null
+}
