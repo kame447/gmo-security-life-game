@@ -5,3 +5,5 @@
 [AWSインフラ構成の判断](0001-aws-infra-terraform.md)
 
 [運用・認証・ログの判断](0002-infra-operations.md)
+
+[マップ分割構造と制作工程](map-structure-and-pipeline.md)
