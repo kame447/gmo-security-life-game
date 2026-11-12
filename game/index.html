@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <title>幼少期マップ プロトタイプ</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #1b1922; overflow: hidden; overscroll-behavior: none; }
+      body { font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; color: #fff;
+             -webkit-user-select: none; user-select: none; touch-action: none; }
+      #stage { position: fixed; inset: 0; }
+      #view { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; outline: none; }
+      .panel { background: rgba(27, 25, 34, 0.82); border: 2px solid #f4ecdc; border-radius: 8px; }
+      #hud { position: absolute; left: 10px; top: 10px; padding: 4px 10px; font-size: 14px; pointer-events: none; }
+      #menu { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
+      #menu button { font: inherit; font-size: 12px; color: #fff; padding: 4px 10px; cursor: pointer; }
+      #hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 4px 12px; font-size: 13px;
+              pointer-events: none; white-space: nowrap; }
+      #toast { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); padding: 6px 14px; font-size: 14px;
+               pointer-events: none; transition: opacity 0.25s; }
+      #dialog { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(640px, calc(100% - 28px));
+                box-sizing: border-box; padding: 10px 16px 14px; font-size: 17px; line-height: 1.6; cursor: pointer; }
+      #dialog .who { font-size: 13px; color: #ffe08a; margin-bottom: 2px; }
+      #dialog .next { position: absolute; right: 12px; bottom: 4px; font-size: 12px; opacity: 0.8; }
+      #touch { position: absolute; inset: 0; pointer-events: none; display: none; }
+      #touch.on { display: block; }
+      #touch button { position: absolute; pointer-events: auto; width: 56px; height: 56px; border-radius: 50%; font-size: 20px;
+                      color: #fff; background: rgba(27, 25, 34, 0.55); border: 2px solid rgba(244, 236, 220, 0.8); }
+      #touch [data-dir="up"] { left: 70px; bottom: 136px; }
+      #touch [data-dir="down"] { left: 70px; bottom: 24px; }
+      #touch [data-dir="left"] { left: 14px; bottom: 80px; }
+      #touch [data-dir="right"] { left: 126px; bottom: 80px; }
+      #touch [data-act] { right: 22px; bottom: 70px; width: 68px; height: 68px; }
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <canvas id="view" tabindex="0" aria-label="マップ画面"></canvas>
+      <div id="hud" class="panel"></div>
+      <div id="menu">
+        <button id="btn-touch" class="panel" type="button">タッチそうさ</button>
+        <button id="btn-reset" class="panel" type="button">さいしょから</button>
+      </div>
+      <div id="toast" class="panel" hidden></div>
+      <div id="hint" class="panel">やじるし / WASD：あるく　Shift：はしる　Z / Space：しらべる・はなす</div>
+      <div id="dialog" class="panel" hidden>
+        <div class="who"></div>
+        <div class="text"></div>
+        <div class="next">▼ Z / Space</div>
+      </div>
+      <div id="touch" aria-hidden="true">
+        <button type="button" data-dir="up">▲</button>
+        <button type="button" data-dir="down">▼</button>
+        <button type="button" data-dir="left">◀</button>
+        <button type="button" data-dir="right">▶</button>
+        <button type="button" data-act="1">A</button>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
