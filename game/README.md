@@ -2,6 +2,12 @@
 
 [Issue #7](https://github.com/kame447/gmo-security-life-game/issues/7) の探索基盤を確認するブラウザ用プロトタイプです。TypeScript・Vite・Canvas 2D 標準APIを使います。数値や技術構成は [判断記録 0003](../docs/decisions/0003-map-prototype-canvas2d.md) の提案／要検証であり、本採用の決定ではありません。
 
+## 現在の扱い（2026-11-12）
+
+このプロトタイプは [PR #14](https://github.com/kame447/gmo-security-life-game/pull/14) で `main` に統合済みです。ユーザーは動作する叩き台として受け入れており、見た目や配置の細かな不自然さは現時点で修正しません。建物間隔・町の密度や道路の配置・ドット絵・入口の視認性・操作感・描画上の警告について、後で具体的な指摘を受けて調整するための [子Issue #15](https://github.com/kame447/gmo-security-life-game/issues/15) を設けています。
+
+下記の操作・実装・検証結果は試作時点の記録です。性能のフレーム時間は警告が残り、実ディスプレイでの滑らかさ・初回ロード時間・メモリ使用量は未検証です。今後の年代差分やイベント本体は [親Issue #7](https://github.com/kame447/gmo-security-life-game/issues/7) の対象に残しています。
+
 ## 必要環境と起動
 
 Node.js 24 と npm、Canvas 2D に対応したブラウザを使用します。CI も Node.js 24 で実行します。対象ブラウザ・端末の正式なサポート範囲と性能基準は未決定です。
