@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <title>幼少期マップ プロトタイプ</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%2385b66d' d='M0 0h16v16H0z'/%3E%3Cpath fill='%23f6d88d' d='M4 8h8v7H4z'/%3E%3Cpath fill='%23bd6455' d='m2 8 6-6 6 6z'/%3E%3C/svg%3E" />
+    <style>
+      html, body { margin: 0; height: 100%; background: #1b1922; overflow: hidden; overscroll-behavior: none; }
+      body { font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; color: #fff;
+             -webkit-user-select: none; user-select: none; touch-action: none; }
+      #stage { position: fixed; inset: 0; }
+      #view { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; outline: none; }
+      .panel { background: rgba(27, 25, 34, 0.82); border: 2px solid #f4ecdc; border-radius: 8px; }
+      #hud { position: absolute; left: 10px; top: 10px; padding: 4px 10px; font-size: 14px; pointer-events: none; }
+      #menu { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
+      #menu button { font: inherit; font-size: 12px; color: #fff; padding: 4px 10px; cursor: pointer; }
+      #avatar-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(410px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow: auto; box-sizing: border-box; padding: 18px; z-index: 2; background: #242a31; }
+      #avatar-panel h1 { font-size: 20px; margin: 0 0 4px; }
+      #avatar-panel p { font-size: 12px; margin: 4px 0 10px; color: #e8e0cc; }
+      #avatar-preview { display: block; width: 160px; height: 80px; margin: 0 auto 10px; image-rendering: pixelated; }
+      .avatar-row { display: grid; grid-template-columns: 1fr 34px 1.2fr 34px; align-items: center; gap: 5px; padding: 5px; border: 2px solid transparent; border-radius: 5px; font-size: 14px; }
+      .avatar-row.selected { border-color: #ffe08a; }
+      #avatar-panel button { font: inherit; cursor: pointer; background: #e8e0cc; color: #242a31; border: 0; border-radius: 4px; padding: 5px; }
+      .avatar-value { text-align: center; }
+      .avatar-actions { display: flex; justify-content: center; gap: 14px; margin-top: 12px; }
+      .avatar-actions button { min-width: 100px; }
+      #stage.avatar-open #menu, #stage.avatar-open #touch, #stage.avatar-open #hint { visibility: hidden; }
+      @media (max-width: 620px) { #hud { max-width: 45%; font-size: 11px; } #menu { gap: 3px; } #menu button { padding: 5px; font-size: 11px; } }
+      #hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 4px 12px; font-size: 13px;
+              pointer-events: none; white-space: nowrap; }
+      #toast { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); padding: 6px 14px; font-size: 14px;
+               pointer-events: none; transition: opacity 0.25s; }
+      #dialog { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(640px, calc(100% - 28px));
+                box-sizing: border-box; padding: 10px 16px 14px; font-size: 17px; line-height: 1.6; cursor: pointer; }
+      #dialog .who { font-size: 13px; color: #ffe08a; margin-bottom: 2px; }
+      #dialog .next { position: absolute; right: 12px; bottom: 4px; font-size: 12px; opacity: 0.8; }
+      #touch { position: absolute; inset: 0; pointer-events: none; display: none; }
+      #touch.on { display: block; }
+      #touch button { position: absolute; pointer-events: auto; width: 56px; height: 56px; border-radius: 50%; font-size: 20px;
+                      color: #fff; background: rgba(27, 25, 34, 0.55); border: 2px solid rgba(244, 236, 220, 0.8); }
+      #touch [data-dir="up"] { left: 70px; bottom: 136px; }
+      #touch [data-dir="down"] { left: 70px; bottom: 24px; }
+      #touch [data-dir="left"] { left: 14px; bottom: 80px; }
+      #touch [data-dir="right"] { left: 126px; bottom: 80px; }
+      #touch [data-act] { right: 22px; bottom: 70px; width: 68px; height: 68px; }
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <canvas id="view" tabindex="0" aria-label="マップ画面"></canvas>
+      <div id="hud" class="panel"></div>
+      <div id="menu">
+        <button id="btn-avatar" class="panel" type="button">みため</button>
+        <button id="btn-touch" class="panel" type="button">タッチそうさ</button>
+        <button id="btn-reset" class="panel" type="button">さいしょから</button>
+      </div>
+      <div id="toast" class="panel" hidden></div>
+      <div id="hint" class="panel">やじるし / WASD：あるく　Shift：はしる　Z / Space：しらべる・はなす</div>
+      <div id="dialog" class="panel" hidden>
+        <div class="who"></div>
+        <div class="text"></div>
+        <div class="next">▼ Z / Space</div>
+      </div>
+      <div id="touch" aria-hidden="true">
+        <button type="button" data-dir="up">▲</button>
+        <button type="button" data-dir="down">▼</button>
+        <button type="button" data-dir="left">◀</button>
+        <button type="button" data-dir="right">▶</button>
+        <button type="button" data-act="1">A</button>
+      </div>
+      <section id="avatar-panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="avatar-title" tabindex="-1" hidden>
+        <h1 id="avatar-title">みためを えらぼう</h1>
+        <p>じゆうに えらべるよ。みためで つよさは かわらないよ。</p>
+        <canvas id="avatar-preview" width="160" height="80" aria-label="えらんだ みため"></canvas>
+        <div id="avatar-rows"></div>
+        <div class="avatar-actions">
+          <button id="avatar-ok" type="button">けってい</button>
+          <button id="avatar-cancel" type="button">もどす</button>
+        </div>
+        <p>↑↓：こうもく　←→：えらぶ　Z / Space / Enter：けってい　Esc：もどす</p>
+      </section>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
