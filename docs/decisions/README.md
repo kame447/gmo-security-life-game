@@ -9,3 +9,5 @@
 [マップ分割構造と制作工程](map-structure-and-pipeline.md)
 
 [幼少期マップの Canvas 2D プロトタイプ（提案／要検証）](0003-map-prototype-canvas2d.md)
+
+[主要タスクと人生の節目による進行](0004-task-based-life-progression.md)
