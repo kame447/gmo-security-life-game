@@ -19,7 +19,7 @@ export function statistics(values) {
 
 export function inspectFrames(frames, areas, view) {
   const violations = {}, examples = {};
-  let overTileFrames = 0, stopped = 0;
+  let overTileFrames = 0, stopped = 0, blockedFrames = 0;
   const add = (kind, sample) => {
     violations[kind] = (violations[kind] ?? 0) + 1;
     (examples[kind] ??= []);
@@ -32,14 +32,25 @@ export function inspectFrames(frames, areas, view) {
     if (!p || p.areaId !== f.areaId) { stopped = 0; continue; }
     const dx = f.px - p.px, dy = f.py - p.py;
     const distance = Math.hypot(dx, dy), expected = (f.run ? SPEED.run : SPEED.walk) * f.dt;
+    const area = areas[f.areaId];
+    const direction = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[f.dir];
+    let blocked = false;
+    if (area && direction) {
+      const nx = f.px + direction[0], ny = f.py + direction[1];
+      for (let y = Math.floor((ny - 8) / 16); y <= Math.ceil(ny / 16) - 1; y++) {
+        for (let x = Math.floor((nx - 5) / 16); x <= Math.ceil((nx + 5) / 16) - 1; x++) {
+          if (x < 0 || y < 0 || x >= area.width || y >= area.height || area.solid?.[y * area.width + x]) blocked = true;
+        }
+      }
+    }
+    if (blocked && distance + 1.5 < expected) blockedFrames++;
     if (distance > 16) overTileFrames++;
     if (f.dir && distance > expected + 1.5) add('movementExceedsProcessedTime', { i, distance, expected, frame: f });
-    if (f.dir && f.dt > 0 && Math.abs(distance - expected) > 1.5) add('movementDistanceMismatch', { i, distance, expected, frame: f });
+    if (f.dir && f.dt > 0 && !blocked && Math.abs(distance - expected) > 1.5) add('movementDistanceMismatch', { i, distance, expected, frame: f });
     if (f.dir && f.dt > 0) {
-      stopped = distance < 0.001 ? stopped + 1 : 0;
+      stopped = !blocked && distance < 0.001 ? stopped + 1 : 0;
       if (stopped >= 2) add('heldInputStopped', { i, frame: f });
     } else if (!f.dir) stopped = 0;
-    const area = areas[f.areaId];
     if (!area) { add('unknownArea', f); continue; }
     for (const [coord, camera, delta, size, viewport, offset] of [
       ['px', 'camX', dx, area.width * 16, view.viewW, 0],
@@ -60,7 +71,7 @@ export function inspectFrames(frames, areas, view) {
       if (f[camera] !== expectedCamera) add('cameraPosition', { i, coord, expectedCamera, actual: f[camera] });
     }
   }
-  return { count: Object.values(violations).reduce((s, n) => s + n, 0), violations, examples, overTileFrames };
+  return { count: Object.values(violations).reduce((s, n) => s + n, 0), violations, examples, overTileFrames, blockedFrames };
 }
 
 function summarize(frames, refreshMs) {
@@ -92,7 +103,7 @@ async function measureMode(config, mode) {
       const c = document.createElement('canvas'), gl = c.getContext('webgl');
       const debug = gl?.getExtension('WEBGL_debug_renderer_info');
       return { routes: PERF_ROUTES, landmarks: LANDMARKS, variantId: g.world.variant.id,
-        areas: Object.fromEntries([...g.world.areas].map(([id, a]) => [id, { width: a.width, height: a.height }])),
+        areas: Object.fromEntries([...g.world.areas].map(([id, a]) => [id, { width: a.width, height: a.height, solid: Array.from(a.solid) }])),
         environment: { userAgent: navigator.userAgent, devicePixelRatio,
           webglRenderer: gl ? gl.getParameter(debug ? debug.UNMASKED_RENDERER_WEBGL : gl.RENDERER) : null } };
     });
@@ -160,7 +171,8 @@ async function measureMode(config, mode) {
             const goal = corner[axis] * 16 + (axis === 'x' ? 8 : 14);
             for (let correction = 0; correction < 6; correction++) {
               const p = await state(), delta = goal - p[axis];
-              if (Math.abs(delta) <= 2.5) break;
+              const tileCoordinate = axis === 'x' ? Math.floor(p.x / 16) : Math.floor((p.y - 4) / 16);
+              if (Math.abs(delta) <= 2.5 || tileCoordinate === corner[axis]) break;
               const dir = axis === 'x' ? delta > 0 ? 'right' : 'left' : delta > 0 ? 'down' : 'up';
               const key = KEYS[scenario.keys][dir];
               const running = scenario.run && Math.abs(delta) > 32;
@@ -172,7 +184,9 @@ async function measureMode(config, mode) {
               await switchKey(null);
               await page.keyboard.up('Shift');
             }
-            if (Math.abs(goal - (await state())[axis]) > 4) throw new Error(`Navigation could not align ${axis} to ${goal}`);
+            const arrived = await state();
+            const tileCoordinate = axis === 'x' ? Math.floor(arrived.x / 16) : Math.floor((arrived.y - 4) / 16);
+            if (tileCoordinate !== corner[axis]) throw new Error(`Navigation did not reach ${axis} tile ${corner[axis]} (pixel ${arrived[axis]})`);
           }
         }
       }
@@ -249,10 +263,12 @@ async function measureMode(config, mode) {
           artifacts: { video: artifactDir ? await page.video()?.path() : null,
             screenshots: artifactDir ? await captureTask.catch(() => []) : UNMEASURED }, frames: samples };
         report.status = scenarioError || pageErrors.length || continuity.count || speed?.pass === false ? 'FAIL'
-          : report.stats.overRefresh1_5Ratio > 0.05 || continuity.overTileFrames > 0 ? 'WARN' : 'PASS';
+          : report.stats.overRefresh1_5Ratio > 0.05 || continuity.overTileFrames > 0 || continuity.blockedFrames > 0 ? 'WARN' : 'PASS';
         result.scenarios.push(report);
         await context.close();
+        if (artifactDir) await writeFile(join(artifactDir, 'scenario-result.json'), JSON.stringify(report, null, 2));
         console.log(`${mode} ${scenario.id}: ${report.status}, frames=${samples.length}, continuity=${continuity.count}`);
+        if (report.status === 'FAIL') console.log(`FAIL-DETAIL ${mode} ${scenario.id} ${JSON.stringify({ error: scenarioError, pageErrors, violations: continuity.violations, examples: continuity.examples, speed })}`);
       }
     }
   } catch (error) { result.errors.push(String(error)); }
@@ -273,7 +289,7 @@ function showSummary(result) {
       : mode.scenarios.some(r => r.status === 'WARN') ? 'WARN' : 'PASS';
     console.log(`SUMMARY ${mode.mode} ${status} interval ms avg/median/p95/p99/max=${[i?.mean, i?.median, i?.p95, i?.p99, i?.max].map(n).join('/')} over33.4=${n(s.over33_4Ratio === null ? null : s.over33_4Ratio * 100)}% idleMedian=${n(mode.environment?.estimatedRefreshIntervalMs)}`);
     console.log(`SUMMARY ${mode.mode} update median/p95/max=${[s.updateMs?.median, s.updateMs?.p95, s.updateMs?.max].map(n).join('/')} draw=${[s.drawMs?.median, s.drawMs?.p95, s.drawMs?.max].map(n).join('/')} steps median=${n(s.steps?.median)} droppedMs=${n(s.droppedMs)} lowCpuLongFrames=${s.longFrameLowCpuCount}`);
-    console.log(`SUMMARY ${mode.mode} wallSpeed walk/run=${mode.scenarios.filter(r => r.speed).map(r => `${n(r.speed.measuredPxPerSecond)}/${r.speed.expectedPxPerSecond}(${r.speed.pass ? 'PASS' : 'FAIL'})`).join(' ')} continuity=${violations} over16pxWarnings=${mode.scenarios.reduce((sum, r) => sum + (r.continuity.overTileFrames ?? 0), 0)}`);
+    console.log(`SUMMARY ${mode.mode} wallSpeed walk/run=${mode.scenarios.filter(r => r.speed).map(r => `${n(r.speed.measuredPxPerSecond)}/${r.speed.expectedPxPerSecond}(${r.speed.pass ? 'PASS' : 'FAIL'})`).join(' ')} continuity=${violations} over16pxWarnings=${mode.scenarios.reduce((sum, r) => sum + (r.continuity.overTileFrames ?? 0), 0)} wallContactFrames=${mode.scenarios.reduce((sum, r) => sum + (r.continuity.blockedFrames ?? 0), 0)}`);
     for (const error of mode.errors) console.log(`SUMMARY ${mode.mode} FAIL ${error.split('\n')[0]}`);
   }
   console.log('SUMMARY thresholds are candidates: wall speed ±5%, p95 <= idle interval ×1.5, continuity=0; frame time alone only warns. Display-vsync experience is unmeasured.');
