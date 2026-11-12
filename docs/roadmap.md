@@ -4,7 +4,9 @@
 
 ## 開発の進め方
 
-最初に、マップ探索、自由行動、イベント選択、状態変化をつなぐ基本体験を具体化して検証する。分割マップは平面配置と参考画像を照合してタイル化し、TSによるカメラ追従・衝突・屋内外遷移へ進める。[マップと探索](features/map.md) に仕様・非機能要件を記し、[Issue #7](https://github.com/kame447/gmo-security-life-game/issues/7) で進捗管理する。
+幼少期のマップ探索基盤は [PR #14](https://github.com/kame447/gmo-security-life-game/pull/14) で試作として `main` に取り込みました。現在の実装には四方向移動、カメラ追従、衝突、自宅・教室・コンビニへの出入り、外見変更、保存があります。数値・ビジュアル・町の構成は仮置きで、完成形の確定ではありません。詳細は [マップと探索](features/map.md) と [ゲームの起動・検証記録](../game/README.md) を参照してください。
+
+ユーザーが確認した細かな違和感の改善は、後続の [子Issue #15](https://github.com/kame447/gmo-security-life-game/issues/15) に集約します。現段階では細部の修正に着手せず、他のゲーム体験の具体化を優先します。マップ全体や年代・イベント接続の残課題は [親Issue #7](https://github.com/kame447/gmo-security-life-game/issues/7) に残します。
 
 次に、各年代の生活内容とイベントを加え、過去の選択が後の人生に影響する仕組みを全段階へ展開する。
 
