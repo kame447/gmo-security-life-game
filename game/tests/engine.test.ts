@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { feetAtTile, TILE, type Facing } from '../src/core/coords';
 import { DEFAULT_APPEARANCE, type PlayerAppearance } from '../src/core/appearance';
-import type { AreaDef, InteractionDef, MapEvent, PortalDef, SaveData } from '../src/core/types';
-import { Game, HITBOX, RUN_SPEED, WALK_SPEED, parseSave } from '../src/engine/game';
+import type { AreaDef, InteractionDef, MapEvent, PortalDef } from '../src/core/types';
+import { HITBOX, RUN_SPEED, WALK_SPEED } from '../src/map/explorer';
+import { Game } from '../src/session/game';
+import { parseSave, type SaveData } from '../src/state/save';
 import type { AreaRuntime, World } from '../src/world';
 
 function smallWorld(): World {

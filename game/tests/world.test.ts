@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { chunkId, CHUNK_TILES, hash2, tileToChunk } from '../src/core/coords';
-import { buildWorld, CHILDHOOD_VARIANT, districtAt, findPath, isSolidTile, LANDMARKS, PERF_ROUTES, validateWorld } from '../src/world';
+import { buildWorld, CHILDHOOD_VARIANT, districtAt, findPath, isSolidTile, LANDMARKS, validateWorld } from '../src/world';
+import { PERF_ROUTES } from './fixtures/perf-routes';
 import { T } from '../src/world/tiles';
 
 describe('childhood world', () => {

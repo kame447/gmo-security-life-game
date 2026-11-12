@@ -98,7 +98,7 @@ async function measureMode(config, mode) {
     await discovery.goto(config.url);
     await discovery.waitForFunction(() => !!window.__slg?.frames);
     const data = await discovery.evaluate(async () => {
-      const { PERF_ROUTES, LANDMARKS } = await import('/src/world/index.ts');
+      const [{ PERF_ROUTES }, { LANDMARKS }] = await Promise.all([import('/tests/fixtures/perf-routes.ts'), import('/src/world/index.ts')]);
       const g = window.__slg.game;
       const c = document.createElement('canvas'), gl = c.getContext('webgl');
       const debug = gl?.getExtension('WEBGL_debug_renderer_info');
