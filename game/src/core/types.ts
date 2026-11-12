@@ -3,6 +3,7 @@
  * ID は英小文字 kebab-case。表示名（name）とは別に持つ。
  */
 import type { Facing } from './coords';
+import type { PlayerAppearance } from './appearance';
 
 export type AreaKind = 'outdoor' | 'indoor';
 
@@ -123,4 +124,6 @@ export interface SaveData {
   x: number;
   y: number;
   facing: Facing;
+  /** Optional for v1 saves made before appearance customization was added. */
+  appearance?: PlayerAppearance;
 }

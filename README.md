@@ -14,4 +14,6 @@
 
 PoC 用の AWS インフラは [infra/](infra/README.md) にある。
 
+幼少期マップの探索プロトタイプの起動・操作方法は [game/](game/README.md) にある。
+
 タスクと進捗は GitHub Issues / Projects で管理する。
