@@ -1,0 +1,85 @@
+{
+  "_fixture": {
+    "id": "bag-layout-v1",
+    "schemaSource": "bag 0682364",
+    "synthetic": true,
+    "provisional": true,
+    "purpose": "一意な配置・選択枠とスマホ残量を持つv1",
+    "notice": "暫定の合成試験値。実ユーザーの保存や正式な初期所持・価格・物語を含まない。"
+  },
+  "v": 1,
+  "variantId": "childhood",
+  "areaId": "town-main",
+  "x": 568,
+  "y": 526,
+  "facing": "down",
+  "appearance": {
+    "silhouette": "type-b",
+    "hairStyle": "tied",
+    "hairColor": "gold",
+    "outfit": "overalls",
+    "outfitColor": "purple"
+  },
+  "assets": {
+    "moneyYen": 2480,
+    "items": [
+      {
+        "itemId": "notebook",
+        "quantity": 2
+      },
+      {
+        "itemId": "pencil",
+        "quantity": 12
+      },
+      {
+        "itemId": "bottled-water",
+        "quantity": 3
+      },
+      {
+        "itemId": "small-snack",
+        "quantity": 2
+      },
+      {
+        "itemId": "key",
+        "quantity": 1
+      }
+    ],
+    "layout": {
+      "v": 1,
+      "bag": [
+        null,
+        "pencil",
+        "small-snack",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hotbar": [
+        "notebook",
+        null,
+        "bottled-water",
+        null,
+        "key"
+      ],
+      "selectedHotbar": 4
+    }
+  },
+  "phone": {
+    "v": 1,
+    "owned": false,
+    "dataBudget": {
+      "v": 1,
+      "remainingMb": 2456.5,
+      "capacityMb": 5000
+    }
+  }
+}

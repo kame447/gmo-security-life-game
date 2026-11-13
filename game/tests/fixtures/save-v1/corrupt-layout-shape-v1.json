@@ -1,0 +1,108 @@
+{
+  "_fixture": {
+    "id": "corrupt-layout-shape-v1",
+    "schemaSource": "synthetic corruption of bag 0682364",
+    "synthetic": true,
+    "provisional": true,
+    "purpose": "未対応vと壊れた配列でも他の欄を維持する",
+    "notice": "暫定の合成試験値。実ユーザーの保存や正式な初期所持・価格・物語を含まない。"
+  },
+  "v": 1,
+  "variantId": "childhood",
+  "areaId": "town-main",
+  "x": 568,
+  "y": 526,
+  "facing": "down",
+  "appearance": {
+    "silhouette": "type-b",
+    "hairStyle": "tied",
+    "hairColor": "gold",
+    "outfit": "overalls",
+    "outfitColor": "purple"
+  },
+  "assets": {
+    "moneyYen": 2360,
+    "items": [
+      {
+        "itemId": "notebook",
+        "quantity": 2
+      },
+      {
+        "itemId": "pencil",
+        "quantity": 12
+      },
+      {
+        "itemId": "bottled-water",
+        "quantity": 3
+      },
+      {
+        "itemId": "small-snack",
+        "quantity": 2
+      },
+      {
+        "itemId": "key",
+        "quantity": 1
+      }
+    ],
+    "layout": {
+      "v": 99,
+      "bag": "broken",
+      "hotbar": [
+        null,
+        "notebook"
+      ],
+      "selectedHotbar": 999
+    }
+  },
+  "phone": {
+    "v": 1,
+    "owned": false,
+    "dataBudget": {
+      "v": 1,
+      "remainingMb": 123.75,
+      "capacityMb": 5000
+    },
+    "chat": {
+      "v": 1,
+      "contacts": [
+        {
+          "id": "compat-contact",
+          "name": "暫定の連絡先",
+          "icon": "person"
+        }
+      ],
+      "threads": [
+        {
+          "id": "compat-thread",
+          "contactId": "compat-contact",
+          "messages": [
+            {
+              "id": "event-1",
+              "from": "compat-contact",
+              "text": "暫定の受信文",
+              "atMs": 1800000000000,
+              "read": false
+            },
+            {
+              "id": "local-1",
+              "from": "self",
+              "text": "<img src=x onerror=alert(1)>",
+              "atMs": 1800000001000,
+              "read": true
+            }
+          ],
+          "pending": [
+            {
+              "id": "local-2",
+              "from": "compat-contact",
+              "text": "暫定の返信",
+              "remainingMs": 275.5
+            }
+          ],
+          "nextSequence": 6,
+          "replyCursor": 1
+        }
+      ]
+    }
+  }
+}

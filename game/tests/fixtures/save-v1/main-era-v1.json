@@ -1,0 +1,23 @@
+{
+  "_fixture": {
+    "id": "main-era-v1",
+    "schemaSource": "main ee756d5",
+    "synthetic": true,
+    "provisional": true,
+    "purpose": "資産とスマホの欄がないv1形式",
+    "notice": "暫定の合成試験値。実ユーザーの保存や正式な初期所持・価格・物語を含まない。"
+  },
+  "v": 1,
+  "variantId": "childhood",
+  "areaId": "town-main",
+  "x": 568,
+  "y": 526,
+  "facing": "down",
+  "appearance": {
+    "silhouette": "type-b",
+    "hairStyle": "tied",
+    "hairColor": "gold",
+    "outfit": "overalls",
+    "outfitColor": "purple"
+  }
+}

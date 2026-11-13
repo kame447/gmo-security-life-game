@@ -1,0 +1,91 @@
+{
+  "_fixture": {
+    "id": "shop-no-layout-v1",
+    "schemaSource": "shop 04d0506",
+    "synthetic": true,
+    "provisional": true,
+    "purpose": "会計後の資産と会話を持ち、layoutはないv1",
+    "notice": "暫定の合成試験値。実ユーザーの保存や正式な初期所持・価格・物語を含まない。"
+  },
+  "v": 1,
+  "variantId": "childhood",
+  "areaId": "shop-konbini-interior",
+  "x": 120,
+  "y": 142,
+  "facing": "up",
+  "appearance": {
+    "silhouette": "type-b",
+    "hairStyle": "tied",
+    "hairColor": "gold",
+    "outfit": "overalls",
+    "outfitColor": "purple"
+  },
+  "assets": {
+    "moneyYen": 680,
+    "items": [
+      {
+        "itemId": "notebook",
+        "quantity": 4
+      },
+      {
+        "itemId": "bottled-water",
+        "quantity": 1
+      },
+      {
+        "itemId": "shirt",
+        "quantity": 1
+      }
+    ]
+  },
+  "phone": {
+    "v": 1,
+    "owned": false,
+    "dataBudget": {
+      "v": 1,
+      "remainingMb": 123.75,
+      "capacityMb": 5000
+    },
+    "chat": {
+      "v": 1,
+      "contacts": [
+        {
+          "id": "compat-contact",
+          "name": "暫定の連絡先",
+          "icon": "person"
+        }
+      ],
+      "threads": [
+        {
+          "id": "compat-thread",
+          "contactId": "compat-contact",
+          "messages": [
+            {
+              "id": "event-1",
+              "from": "compat-contact",
+              "text": "暫定の受信文",
+              "atMs": 1800000000000,
+              "read": false
+            },
+            {
+              "id": "local-1",
+              "from": "self",
+              "text": "<img src=x onerror=alert(1)>",
+              "atMs": 1800000001000,
+              "read": true
+            }
+          ],
+          "pending": [
+            {
+              "id": "local-2",
+              "from": "compat-contact",
+              "text": "暫定の返信",
+              "remainingMs": 275.5
+            }
+          ],
+          "nextSequence": 6,
+          "replyCursor": 1
+        }
+      ]
+    }
+  }
+}
