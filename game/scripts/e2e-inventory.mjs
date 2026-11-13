@@ -99,27 +99,38 @@ try {
     assert.deepEqual(await page.evaluate(() => ({ reads: window.__saveProbe.reads, writes: window.__saveProbe.writes, value: window.__saveProbe.value() })),
       { reads: 0, writes: 0, value: '{"sentinel":"normal-save-untouched"}' });
   });
+  const normalSeed = await page.evaluate(() => ({ ...window.__slg.game.serialize(),
+    assets: { moneyYen: 1000, items: [] },
+    phone: { v: 1, owned: false, dataBudget: { v: 1, remainingMb: 123, capacityMb: 5000 } },
+  }));
   await context.close();
 
-  await check('normal sessions persist and restore wallet and inventory', async () => {
-    const normalContext = await browser.newContext();
-    await guardContext(normalContext, base, errors);
-    const normal = await normalContext.newPage();
-    await normal.goto(candidateUrl(base, 'grid', false));
-    await ready(normal);
-    assert.deepEqual(await assets(normal), { moneyYen: 1000, items: [] });
-    await normal.evaluate(() => {
-      window.__slg.game.assets.apply({ moneyDeltaYen: -320, itemDeltas: [{ itemId: 'notebook', quantityDelta: 4 }, { itemId: 'shirt', quantityDelta: 1 }] });
-      window.dispatchEvent(new Event('pagehide'));
-    });
-    const expected = await assets(normal);
-    await normal.reload();
-    await ready(normal);
-    assert.deepEqual(await assets(normal), expected);
-    await normal.locator('#btn-inventory').click();
-    assert.equal(await normal.locator('#grid-bag-money').textContent(), '680');
-    assert.equal(await normal.locator('.grid-bag-detail-count').textContent(), '× 4');
-    await normalContext.close();
+  await check('both normal candidates retain phone, wallet, inventory, position and appearance through autosave and reload', async () => {
+    for (const candidate of ['grid', 'hotbar']) {
+      const normalContext = await browser.newContext({ storageState: { cookies: [], origins: [{
+        origin: new URL(base).origin, localStorage: [{ name: 'slg-map-save-v1', value: JSON.stringify(normalSeed) }],
+      }] } });
+      await guardContext(normalContext, base, errors);
+      const normal = await normalContext.newPage();
+      await normal.goto(candidateUrl(base, candidate, false));
+      await ready(normal);
+      assert.deepEqual(await assets(normal), { moneyYen: 1000, items: [] });
+      assert.deepEqual(await normal.evaluate(() => window.__slg.game.serialize().phone), normalSeed.phone);
+      await normal.evaluate(() => {
+        window.__slg.game.assets.apply({ moneyDeltaYen: -320, itemDeltas: [{ itemId: 'notebook', quantityDelta: 4 }, { itemId: 'shirt', quantityDelta: 1 }] });
+      });
+      await normal.waitForFunction(() => JSON.parse(localStorage.getItem('slg-map-save-v1')).assets.moneyYen === 680, null, { timeout: 6000 });
+      const expected = await normal.evaluate(() => window.__slg.game.serialize());
+      assert.deepEqual(await normal.evaluate(() => JSON.parse(localStorage.getItem('slg-map-save-v1'))), expected, candidate + ' periodic save');
+      await normal.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+      assert.deepEqual(await normal.evaluate(() => JSON.parse(localStorage.getItem('slg-map-save-v1'))), expected, candidate + ' pagehide save');
+      await normal.reload();
+      await ready(normal);
+      assert.deepEqual(await normal.evaluate(() => window.__slg.game.serialize()), expected, candidate + ' reload');
+      await normal.locator('#btn-inventory').click();
+      assert.equal(await normal.locator(candidateUi[candidate].name).textContent(), 'ノート');
+      await normalContext.close();
+    }
   });
 
   await check('390x844 touch selects categories, clothes and closes within the viewport', async () => {
