@@ -13,12 +13,14 @@ import { PHONE_CONTENT } from '../phone/content';
 import { PhoneModel } from '../phone/model';
 import { createSave, parseSave, type SaveData } from '../state/save';
 import type { AreaRuntime, World } from '../world';
+import { PlayerAssets } from '../state/assets';
 
 type SinkResponse = { speaker?: string; lines: string[] } | void;
 
 export class Game {
   readonly world: World;
   appearance: PlayerAppearance;
+  readonly assets: PlayerAssets;
   readonly phone: PhoneModel;
   private readonly phoneDataConfig: Readonly<PhoneBudgetConfig>;
   private readonly explorer: MapExplorer;
@@ -34,6 +36,7 @@ export class Game {
     const initialOwned = opts?.initialPhoneOwned ?? PHONE_INITIAL_OWNED;
     const saved = parseSave(opts?.save, world, initialOwned, this.phoneDataConfig);
     this.appearance = normalizeAppearance(saved?.appearance);
+    this.assets = new PlayerAssets(saved?.assets);
     const start = saved
       ? { areaId: saved.areaId, x: saved.x, y: saved.y, facing: saved.facing }
       : positionAt(world.start);
@@ -94,7 +97,7 @@ export class Game {
   /** Settle the previous interval before switching to the player's current area. */
   updatePhoneLocation(): void { this.phone.tick(this.phoneLocation(this.player.areaId)); }
 
-  /** Back to the start point. Appearance is kept. */
+  /** Back to the start point. Appearance, money and inventory are kept. */
   reset(): void {
     this.explorer.reset(positionAt(this.world.start));
     this.updatePhoneLocation();
@@ -104,6 +107,6 @@ export class Game {
 
   serialize(): SaveData {
     this.updatePhoneLocation();
-    return createSave(this.world, this.player, this.appearance, undefined, this.phone.save(), this.phoneDataConfig);
+    return createSave(this.world, this.player, this.appearance, this.assets.snapshot(), this.phone.save(), this.phoneDataConfig);
   }
 }

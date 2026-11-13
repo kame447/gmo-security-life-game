@@ -3,6 +3,8 @@ import { chromium } from 'playwright';
 
 const url = process.env.SLG_URL || 'http://127.0.0.1:5173';
 const origin = new URL(url).origin;
+const normalUrl = new URL(url); normalUrl.searchParams.delete('review');
+const reviewUrl = new URL(url); reviewUrl.searchParams.set('review', '1');
 const browser = await chromium.launch({ headless: true, args: ['--disable-gpu-vsync', '--disable-frame-rate-limit'] });
 const errors = [], external = [];
 function watch(page) {
@@ -13,8 +15,8 @@ function watch(page) {
     if (['http:', 'https:'].includes(target.protocol) && target.origin !== origin) external.push(request.url());
   });
 }
-async function ready(page) {
-  await page.goto(url);
+async function ready(page, target = normalUrl.href) {
+  await page.goto(target);
   await page.waitForFunction(() => !!window.__slg?.game && !!document.querySelector('#hud')?.textContent.trim());
   await page.locator('#view').focus();
 }
@@ -109,9 +111,40 @@ try {
   await page.locator('#btn-avatar').click(); await page.keyboard.press('KeyP');
   assert.equal(await page.locator('#phone-overlay').isHidden(), true);
   await page.keyboard.press('Escape');
+  const seed = await page.evaluate(() => {
+    const saved = window.__slg.game.serialize();
+    saved.assets = { moneyYen: 77, items: [{ itemId: 'small-snack', quantity: 2 }] };
+    saved.phone = { v: 1, owned: false, dataBudget: { v: 1, remainingMb: 123, capacityMb: 5000 } };
+    return saved;
+  });
+  const reviewContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  await reviewContext.addInitScript(value => {
+    const nativeGet = Storage.prototype.getItem, nativeSet = Storage.prototype.setItem;
+    nativeSet.call(localStorage, 'slg-map-save-v1', JSON.stringify(value));
+    const counts = { reads: 0, writes: 0 };
+    Storage.prototype.getItem = function(key) {
+      if (key === 'slg-map-save-v1') counts.reads++;
+      return nativeGet.call(this, key);
+    };
+    Storage.prototype.setItem = function(key, data) {
+      if (key === 'slg-map-save-v1') counts.writes++;
+      return nativeSet.call(this, key, data);
+    };
+    window.__reviewStorage = { counts, original: () => nativeGet.call(localStorage, 'slg-map-save-v1') };
+  }, seed);
+  const review = await reviewContext.newPage(); watch(review); await ready(review, reviewUrl.href);
+  assert.equal(await review.evaluate(() => window.__slg.game.phone.isOwned), true, 'review ignores existing phone save');
+  assert.notEqual(await review.evaluate(() => window.__slg.game.assets.moneyYen), 77, 'review ignores existing assets');
+  await review.locator('#btn-phone').tap(); await review.locator('#phone-close').tap();
+  await review.waitForTimeout(3200); // Exercise periodic autosave as well as the pagehide boundary.
+  await review.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+  const isolation = await review.evaluate(() => ({ ...window.__reviewStorage.counts, original: window.__reviewStorage.original() }));
+  assert.deepEqual({ reads: isolation.reads, writes: isolation.writes }, { reads: 0, writes: 0 });
+  assert.deepEqual(JSON.parse(isolation.original), seed, 'review leaves the existing save unchanged');
+  console.log('PASS review mode never reads or writes the game save');
   assert.deepEqual(external, [], 'no external HTTP requests');
   assert.deepEqual(errors, [], 'no page or console errors');
   console.log('PASS outside/home usage, zero and ownership persistence, dialog/panel isolation');
   console.log('SUMMARY phone simple E2E PASS');
-  await mobile.close(); await desktop.close();
+  await reviewContext.close(); await mobile.close(); await desktop.close();
 } finally { await browser.close(); }

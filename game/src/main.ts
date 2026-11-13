@@ -14,7 +14,8 @@ import { Smartphone } from './ui/smartphone';
 import { buildWorld } from './world';
 
 const world = buildWorld();
-const game = new Game(world, { save: loadSave(world, PHONE_INITIAL_OWNED), initialPhoneOwned: PHONE_INITIAL_OWNED });
+const reviewOnly = new URLSearchParams(window.location.search).get('review') === '1';
+const game = new Game(world, { save: reviewOnly ? undefined : loadSave(world, PHONE_INITIAL_OWNED), initialPhoneOwned: PHONE_INITIAL_OWNED });
 game.phone.setVisible(!document.hidden);
 const canvas = $<HTMLCanvasElement>('#view');
 const renderer = new Renderer(canvas);
@@ -22,6 +23,7 @@ const controls = new Controls();
 const frames = new FrameRecorder();
 
 function save() {
+  if (reviewOnly) return;
   const data = game.serialize();
   // A draft is visible immediately, but autosave must preserve the last confirmed appearance.
   const confirmed = avatar.confirmedAppearance;

@@ -1,0 +1,297 @@
+{
+  "baseDocument": {
+    "areas": [
+      {
+        "ground": [
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          22,
+          22,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          22,
+          22,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          22,
+          22,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          22,
+          22,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          22,
+          22,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22
+        ],
+        "height": 8,
+        "id": "demo-outdoor",
+        "kind": "outdoor",
+        "name": "編集確認用の屋外（暫定）",
+        "width": 10
+      },
+      {
+        "ground": [
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          19,
+          19,
+          19,
+          19,
+          19,
+          19,
+          22,
+          22,
+          19,
+          19,
+          19,
+          19,
+          19,
+          19,
+          22,
+          22,
+          19,
+          19,
+          19,
+          19,
+          19,
+          19,
+          22,
+          22,
+          19,
+          19,
+          19,
+          19,
+          19,
+          19,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22,
+          22
+        ],
+        "height": 6,
+        "id": "demo-room",
+        "kind": "indoor",
+        "name": "編集確認用の部屋（暫定）",
+        "width": 8
+      }
+    ],
+    "catalogs": {
+      "eventKeys": [
+        "demo.greeting"
+      ],
+      "sprites": [
+        "friend"
+      ]
+    },
+    "facilities": [
+      {
+        "areaId": "demo-outdoor",
+        "id": "demo-house",
+        "interior": "full",
+        "name": "編集確認用の家（暫定）",
+        "state": "open"
+      }
+    ],
+    "id": "editor-prototype",
+    "interactions": [
+      {
+        "areaId": "demo-outdoor",
+        "eventKey": "demo.greeting",
+        "facing": "down",
+        "h": 1,
+        "id": "demo-npc",
+        "kind": "npc",
+        "lines": [
+          "これは編集データの確認用です。"
+        ],
+        "name": "編集確認NPC",
+        "solid": true,
+        "sprite": "friend",
+        "w": 1,
+        "x": 4,
+        "y": 4
+      }
+    ],
+    "objects": [
+      {
+        "areaId": "demo-outdoor",
+        "facilityId": "demo-house",
+        "h": 2,
+        "id": "demo-house-building",
+        "kind": "house",
+        "solid": true,
+        "w": 2,
+        "x": 7,
+        "y": 1
+      },
+      {
+        "areaId": "demo-outdoor",
+        "h": 1,
+        "id": "demo-tree",
+        "kind": "tree",
+        "solid": true,
+        "w": 1,
+        "x": 2,
+        "y": 2
+      }
+    ],
+    "portals": [
+      {
+        "areaId": "demo-outdoor",
+        "facilityId": "demo-house",
+        "from": {
+          "x": 8,
+          "y": 2
+        },
+        "id": "demo-enter",
+        "returnPortalId": "demo-exit",
+        "to": {
+          "areaId": "demo-room",
+          "facing": "up",
+          "x": 3,
+          "y": 3
+        }
+      },
+      {
+        "areaId": "demo-room",
+        "facilityId": "demo-house",
+        "from": {
+          "x": 3,
+          "y": 4
+        },
+        "id": "demo-exit",
+        "returnPortalId": "demo-enter",
+        "to": {
+          "areaId": "demo-outdoor",
+          "facing": "down",
+          "x": 8,
+          "y": 3
+        }
+      }
+    ],
+    "schemaVersion": 1,
+    "start": {
+      "areaId": "demo-outdoor",
+      "facing": "right",
+      "x": 1,
+      "y": 4
+    },
+    "tileSize": 16
+  },
+  "documentId": "editor-prototype",
+  "operations": [
+    {
+      "after": {
+        "areaId": "demo-outdoor",
+        "eventKey": "demo.greeting",
+        "facing": "down",
+        "h": 1,
+        "id": "demo-npc",
+        "kind": "npc",
+        "lines": [
+          "これは編集データの確認用です。"
+        ],
+        "name": "編集確認NPC",
+        "solid": true,
+        "sprite": "friend",
+        "w": 1,
+        "x": 5,
+        "y": 4
+      },
+      "before": {
+        "areaId": "demo-outdoor",
+        "eventKey": "demo.greeting",
+        "facing": "down",
+        "h": 1,
+        "id": "demo-npc",
+        "kind": "npc",
+        "lines": [
+          "これは編集データの確認用です。"
+        ],
+        "name": "編集確認NPC",
+        "solid": true,
+        "sprite": "friend",
+        "w": 1,
+        "x": 4,
+        "y": 4
+      },
+      "id": "demo-npc",
+      "table": "interactions",
+      "type": "move"
+    }
+  ],
+  "schemaVersion": 1
+}
