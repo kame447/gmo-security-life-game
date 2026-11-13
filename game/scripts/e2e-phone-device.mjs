@@ -14,12 +14,14 @@ function watch(page) {
   });
 }
 async function ready(page) {
-  await page.goto(url); await page.waitForFunction(() => !!window.__slg?.game); await page.locator('#view').focus();
+  await page.goto(url);
+  await page.waitForFunction(() => !!window.__slg?.game && !!document.querySelector('#hud')?.textContent.trim());
+  await page.locator('#view').focus();
 }
 async function state(page) { return page.evaluate(() => ({ ...window.__slg.game.player })); }
 async function tap(page, selector) {
-  const box = await page.locator(selector).boundingBox(); assert.ok(box, `touch target: ${selector}`);
-  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+  // Locator.tap uses touch input and waits for the target to be stable and receive the hit.
+  await page.locator(selector).tap();
 }
 
 try {
@@ -97,7 +99,14 @@ try {
   const mobile = await browser.newContext({ viewport: { width: 390, height: 720 }, isMobile: true, hasTouch: true });
   const touch = await mobile.newPage(); watch(touch); await ready(touch);
   const position = await state(touch);
+  await touch.evaluate(() => {
+    document.addEventListener('pointerdown', event => {
+      window.__phoneTouchHit = { id: event.target.closest('button')?.id, pointerType: event.pointerType };
+    }, { capture: true, once: true });
+  });
   await tap(touch, '#btn-phone');
+  assert.deepEqual(await touch.evaluate(() => window.__phoneTouchHit), { id: 'btn-phone', pointerType: 'touch' });
+  await touch.locator('#phone-device').waitFor({ state: 'visible' });
   const box = await touch.locator('#phone-device').boundingBox();
   assert.ok(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= 390 && box.y + box.height <= 720, 'device fits mobile viewport');
   await tap(touch, '[data-app="messages"]'); await tap(touch, '[data-screen="example"]');
@@ -106,15 +115,41 @@ try {
   assert.deepEqual(await state(touch), position);
   await touch.setViewportSize({ width: 640, height: 360 });
   await tap(touch, '#btn-phone');
+  await touch.locator('#phone-device').waitFor({ state: 'visible' });
   const landscape = await touch.locator('#phone-device').boundingBox();
   assert.ok(landscape && landscape.x >= 0 && landscape.y >= 0 && landscape.x + landscape.width <= 640 && landscape.y + landscape.height <= 360,
     'device fits the landscape viewport');
-  const icons = await touch.locator('.phone-app-icon').evaluateAll(nodes => nodes.map(node => {
-    const rect = node.getBoundingClientRect(); return { left: rect.left, right: rect.right, width: rect.width };
-  }));
-  assert.equal(icons.length, 4);
-  assert.ok(icons.every((icon, index) => icon.width >= 44 && (index === 0 || icons[index - 1].right <= icon.left)),
-    'landscape app icons remain legible and do not overlap');
+  const layout = await touch.evaluate(() => {
+    const rect = node => {
+      const box = node.getBoundingClientRect();
+      return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height };
+    };
+    return {
+      body: rect(document.querySelector('#phone-body')),
+      apps: [...document.querySelectorAll('.phone-app')].map(node => ({
+        button: rect(node), icon: rect(node.querySelector('.phone-app-icon')), label: rect(node.querySelector('.phone-app-label')),
+      })),
+      notice: rect(document.querySelector('.phone-notice')),
+    };
+  });
+  assert.equal(layout.apps.length, 4);
+  assert.ok(layout.apps.every(({ button, icon, label }, index) =>
+    button.width >= 44 && button.height >= 44 && icon.width >= 32 &&
+    label.top >= layout.body.top && label.bottom <= layout.body.bottom &&
+    (index === 0 || layout.apps[index - 1].icon.right <= icon.left)),
+  'landscape app labels stay visible, icons do not overlap and touch targets remain large');
+  assert.ok(layout.notice.top >= layout.body.top && layout.notice.bottom <= layout.body.bottom,
+    'landscape notification remains fully visible');
+  await tap(touch, '[data-notification="sample"]');
+  assert.equal(await touch.locator('.phone-view-title h2').innerText(), 'サンプルのおたより');
+  await tap(touch, '#phone-home');
+  await touch.evaluate(() => {
+    const phone = window.__slg.game.phone;
+    phone.setContent({ ...phone.content, notifications: [] });
+  });
+  const empty = await touch.locator('.phone-empty').boundingBox();
+  assert.ok(empty && empty.y >= layout.body.top && empty.y + empty.height <= layout.body.bottom,
+    'landscape empty-notification state remains fully visible');
   await tap(touch, '[data-app="life"]');
   assert.match(await touch.locator('.phone-view-content').innerText(), /じゅんび中/);
   await tap(touch, '#phone-close');

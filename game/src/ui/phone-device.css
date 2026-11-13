@@ -76,5 +76,21 @@
 .phone-coming-soon { margin: 15px 0 12px; padding: 5px 12px; border-radius: 20px; background: #e8eadd; color: #789082; font-size: 11px; }
 @media (max-height: 600px) {
   .phone-device { width: min(360px, calc(100vw - 24px)); height: calc(100dvh - 24px); aspect-ratio: auto; }
-  .phone-home-hero { height: 90px; }.phone-greeting { padding-top: 8px; }.phone-home-content { padding-top: 9px; }.phone-notice-heading { margin-top: 8px; }
+  .phone-home-hero { height: 44px; }
+  .phone-greeting { padding: 5px 14px; gap: 2px; }
+  .phone-greeting-label { display: none; }
+  .phone-greeting strong { margin: 0; font-size: 14px; }
+  .phone-greeting > span:last-child { font-size: 9px; }
+  .phone-home-content { padding: 5px 12px 8px; }
+  .phone-app-grid { margin-top: 3px; }
+  .phone-app { gap: 1px; padding: 2px 1px; }
+  .phone-app-icon { width: min(35px, calc(100% - 4px)); border-width: 2px; border-radius: 9px; }
+  .phone-app-label { font-size: 9px; }
+  .phone-notice-heading { margin-top: 2px; padding-bottom: 2px; }
+  .phone-notice { gap: 6px; padding: 3px 7px; }
+  .phone-notice-icon { width: 26px; height: 26px; }
+  .phone-empty { padding: 7px; }
+  .phone-nav { padding: 2px 13px 4px; }
+  .phone-nav-button { min-height: 32px; }
+  .phone-nav-label { line-height: 10px; }
 }
