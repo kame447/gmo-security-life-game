@@ -7,6 +7,7 @@ Issue #20 の資産・保存基盤と、利用者レビュー前のバッグ候�
 - 所持金は円単位の非負の安全な整数。アイテム ID、名称、説明、区分、個数上限は `game/src/data/items.ts` に置く。
 - `game.assets` の `changeMoney`、`addItem`、`removeItem`、`apply` を共通 API とする。複数の金額・数量変更は `apply` で一括検証し、失敗時は全項目を変更しない。
 - 保存は既存の v1 形式とキーを維持し、位置・外見に `assets` を加える。旧 v1 の資産欄がない場合は仮の初期値へ戻す。破損した金額・数量と位置は独立して修復し、有効な外見と資産を残す。
+- 通常保存はスマホの `phone` 欄も共通codecで保持する。バッグ・ショップだけの候補では、スマホ画面や消費時計を作らず、所持状態・通信残量・有効な任意の保存時刻情報を往復する。位置だけが不正でも `phone` を初期化しない。
 - 初期資金 1,000 円は暫定。通常起動時のバッグは空で、レビュー用サンプルを初期所持品にはしない。
 
 ## レビュー候補（未採用）
@@ -22,3 +23,9 @@ Issue #20 の資産・保存基盤と、利用者レビュー前のバッグ候�
 レビュー専用 URL は `?bag=grid&review=1` と `?bag=hotbar&review=1`。接続時は既存セーブを読まず共通サンプルで起動し、定期保存、画面離脱、リセット、みための決定などからの保存も行わない。一時セッションの変更は通常セーブへ混ぜない。`review=1` のない通常起動では既存の読込・保存を維持する。
 
 商品価格、使用・譲渡・鍵の効果、カードの用途、服の着替え操作はこの比較データでは定義しない。
+
+## 共通保存の接続
+
+`createSave(world, player, appearance, assets?, phone?, budgetConfig?)` の第4引数を資産、第5をスマホに揃える。`parseSave(raw, world, initialPhoneOwned?, budgetConfig?)` は対応するv/variantを確認した後、位置・外見・資産・スマホを別々に復旧する。未対応のv/variantは引き続き拒否する。
+
+スマホのDTOとcodecは `game/src/phone/save.ts`、通信残量のcodecと設定は `phone/budget.ts`・`budget-config.ts` を共有する。codecは時計を読まず、消費しない。スマホ側が独自設定を使う場合は `loadSave(world, { initialPhoneOwned, phoneDataConfig })`、Game、PhoneModel、保存直前の正規化へ同じ設定を渡す。通信容量の数値や時間方針はスマホ機能側の暫定設定であり、バッグは変更しない。
