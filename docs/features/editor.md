@@ -1,5 +1,7 @@
 # 編集データと差分適用の共通基盤
 
+既存マップの永続化方式を選ぶ前の読み取り評価は、[判断記録0009の測定結果](../decisions/0009-map-editor-persistence-options.md)を参照してください。`node scripts/map-persistence-check.mjs inventory|roundtrip|dry-run` でID・往復忠実度・事前検査を確認できます。出力先はstdoutまたは新しい一時ディレクトリで、実ゲームへの反映は未接続、3方式は未採用です。
+
 対象：[Issue #23](https://github.com/kame447/gmo-security-life-game/issues/23)。[マップGUI #24](https://github.com/kame447/gmo-security-life-game/issues/24) と [NPC GUI #25](https://github.com/kame447/gmo-security-life-game/issues/25) が共有する、GUIに依存しない編集APIです。
 
 状態：独立したサンプルデータに対するプロトタイプ。既存の `world/town.ts`・`interiors.ts` とNPC定義は移行・変更していません。通常ゲームの `buildWorld()` は従来のデータを使います。既存マップへの移行、全年代対応、各GUIの完成は後続作業です。サンプルの地形・施設・人物・会話は検証用の暫定値であり、採用するゲーム内容ではありません。
