@@ -26,7 +26,16 @@
       .avatar-actions { display: flex; justify-content: center; gap: 14px; margin-top: 12px; }
       .avatar-actions button { min-width: 100px; }
       #stage.avatar-open #menu, #stage.avatar-open #touch, #stage.avatar-open #hint { visibility: hidden; }
-      @media (max-width: 620px) { #hud { max-width: 45%; font-size: 11px; } #menu { gap: 3px; } #menu button { padding: 5px; font-size: 11px; } }
+      #stage.inventory-open #menu, #stage.inventory-open #touch, #stage.inventory-open #hint { visibility: hidden; }
+      #inventory-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(440px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow: auto; box-sizing: border-box; padding: 18px; z-index: 2; background: #242a31; touch-action: pan-y; }
+      #inventory-panel h1 { font-size: 20px; margin: 0 0 14px; }
+      #inventory-panel p { line-height: 1.6; }
+      #inventory-money { color: #ffe08a; }
+      #inventory-items { padding: 0; list-style: none; }
+      #inventory-items li { padding: 10px 0; border-top: 1px solid #65717b; }
+      #inventory-items p { font-size: 13px; margin: 6px 0 0; }
+      #inventory-close { font: inherit; cursor: pointer; border: 0; border-radius: 4px; background: #e8e0cc; color: #242a31; padding: 8px 18px; }
+      @media (max-width: 620px) { #hud { max-width: calc(100% - 40px); font-size: 11px; } #menu { top: 42px; gap: 3px; } #menu button { padding: 5px; font-size: 11px; } }
       #hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 4px 12px; font-size: 13px;
               pointer-events: none; white-space: nowrap; }
       #toast { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); padding: 6px 14px; font-size: 14px;
@@ -52,6 +61,7 @@
       <canvas id="view" tabindex="0" aria-label="マップ画面"></canvas>
       <div id="hud" class="panel"></div>
       <div id="menu">
+        <button id="btn-inventory" class="panel" type="button">もちもの</button>
         <button id="btn-avatar" class="panel" type="button">みため</button>
         <button id="btn-touch" class="panel" type="button">タッチそうさ</button>
         <button id="btn-reset" class="panel" type="button">さいしょから</button>
@@ -70,6 +80,14 @@
         <button type="button" data-dir="right">▶</button>
         <button type="button" data-act="1">A</button>
       </div>
+      <section id="inventory-panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="inventory-title" tabindex="-1" hidden>
+        <h1 id="inventory-title">もちもの</h1>
+        <p>おかね：<strong id="inventory-money"></strong></p>
+        <p id="inventory-empty">もちものは まだ ないよ。</p>
+        <ul id="inventory-items" aria-label="もちものの いちらん"></ul>
+        <button id="inventory-close" type="button">とじる</button>
+        <p>I / Esc：とじる</p>
+      </section>
       <section id="avatar-panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="avatar-title" tabindex="-1" hidden>
         <h1 id="avatar-title">みためを えらぼう</h1>
         <p>じゆうに えらべるよ。みためで つよさは かわらないよ。</p>

@@ -9,6 +9,7 @@ import { AvatarPanel } from './ui/avatar-panel';
 import { UiController } from './ui/controller';
 import { $ } from './ui/dom';
 import { Hud } from './ui/hud';
+import { InventoryPanel } from './ui/inventory-panel';
 import { buildWorld } from './world';
 
 const world = buildWorld();
@@ -31,7 +32,8 @@ const avatar = new AvatarPanel(game, commit => {
   if (commit) save();
   ui.focusMap();
 });
-const ui = new UiController(game, controls, avatar, canvas);
+const inventory = new InventoryPanel(game, () => { controls.clear(); ui.focusMap(); });
+const ui = new UiController(game, controls, avatar, canvas, inventory);
 const hud = new Hud(game, () => ui.primaryAction());
 ui.bind({ onReset: () => { game.reset(); save(); } });
 exposeDebug(game, renderer, frames);

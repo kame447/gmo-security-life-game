@@ -15,6 +15,7 @@ export class Hud {
   private readonly speaker = $<HTMLElement>('.who', this.dialog);
   private readonly line = $<HTMLElement>('.text', this.dialog);
   private readonly avatarButton = $<HTMLButtonElement>('#btn-avatar');
+  private readonly inventoryButton = $<HTMLButtonElement>('#btn-inventory');
   private toastUntil = 0;
 
   constructor(private readonly game: Game, onDialogClick: () => void) {
@@ -34,6 +35,7 @@ export class Hud {
   update(now: number): void {
     const game = this.game;
     this.avatarButton.disabled = !!game.dialog;
+    this.inventoryButton.disabled = !!game.dialog;
     const district = districtAt(game.area, pxToTile(game.player.x), pxToTile(game.player.y - 4));
     this.location.textContent = [game.area.def.name, district?.name].filter(Boolean).join(' / ');
     this.dialog.hidden = !game.dialog;

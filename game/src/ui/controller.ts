@@ -1,6 +1,6 @@
 /**
  * UI のモード管理と入力の振り分け。
- * どの画面が前面にあるか（探索／会話／外見パネル）を1か所で判定し、キー・タッチ・ボタンをその担当へ渡す。
+ * どの画面が前面にあるかを1か所で判定し、キー・タッチ・ボタンをその担当へ渡す。
  * 選択肢・メニューなどの新しい画面はここにモードを足して扱う。
  */
 import type { Facing } from '../core/coords';
@@ -8,9 +8,10 @@ import { ACTION_KEYS, Controls, DIRECTION_KEYS, RUN_KEYS } from '../input/contro
 import type { InputState } from '../map/explorer';
 import type { Game } from '../session/game';
 import type { AvatarPanel } from './avatar-panel';
+import type { InventoryPanel } from './inventory-panel';
 import { $ } from './dom';
 
-export type UiMode = 'explore' | 'dialog' | 'avatar';
+export type UiMode = 'explore' | 'dialog' | 'avatar' | 'inventory';
 
 const TOUCH_LABELS: Record<Facing, string> = { up: 'うえ', down: 'した', left: 'ひだり', right: 'みぎ' };
 const NO_INPUT: InputState = { dir: null, run: false };
@@ -24,9 +25,11 @@ export class UiController {
     private readonly controls: Controls,
     private readonly avatar: AvatarPanel,
     private readonly canvas: HTMLCanvasElement,
+    private readonly inventory: InventoryPanel,
   ) {}
 
   get mode(): UiMode {
+    if (this.inventory.isOpen) return 'inventory';
     if (this.avatar.isOpen) return 'avatar';
     if (this.game.dialog) return 'dialog';
     return 'explore';
@@ -34,12 +37,12 @@ export class UiController {
 
   /** Movement input for this frame. Held keys survive a dialog; the session itself pauses movement then. */
   movementInput(): InputState {
-    return this.mode === 'avatar' ? NO_INPUT : this.controls.state();
+    return this.mode === 'avatar' || this.mode === 'inventory' ? NO_INPUT : this.controls.state();
   }
 
   /** Decide / talk / advance: shared by keys, the dialog box and the touch A button. */
   primaryAction(): void {
-    if (this.mode !== 'avatar') this.game.action();
+    if (this.mode === 'explore' || this.mode === 'dialog') this.game.action();
   }
 
   focusMap(): void { this.canvas.focus({ preventScroll: true }); }
@@ -49,7 +52,11 @@ export class UiController {
     window.addEventListener('keyup', event => this.controls.release(event.code));
     window.addEventListener('blur', () => this.controls.clear());
     document.addEventListener('focusin', event => { if (event.target !== this.canvas) this.controls.clear(); });
-    this.canvas.addEventListener('pointerdown', () => this.focusMap());
+    this.canvas.addEventListener('pointerdown', () => {
+      if (this.mode !== 'inventory') this.focusMap();
+    });
+
+    $('#btn-inventory').addEventListener('click', () => this.openInventory());
 
     $<HTMLButtonElement>('#btn-avatar').addEventListener('click', () => {
       if (this.mode !== 'explore') return;
@@ -57,6 +64,7 @@ export class UiController {
       this.avatar.open();
     });
     $<HTMLButtonElement>('#btn-reset').addEventListener('click', () => {
+      if (this.mode === 'inventory' || this.mode === 'avatar') return;
       this.controls.clear();
       handlers.onReset();
       this.focusMap();
@@ -65,9 +73,15 @@ export class UiController {
   }
 
   private onKeyDown(event: KeyboardEvent): void {
+    if (this.mode === 'inventory') { this.inventory.handleKey(event); return; }
     if (this.mode === 'avatar') { this.avatar.handleKey(event); return; }
     // Let buttons retain their ordinary Enter/Space behavior.
     if (event.target instanceof HTMLElement && event.target.closest('button, input, textarea, select')) return;
+    if (event.code === 'KeyI') {
+      event.preventDefault();
+      if (!event.repeat) this.openInventory();
+      return;
+    }
     const dir = DIRECTION_KEYS[event.code];
     if (dir) {
       event.preventDefault();
@@ -78,6 +92,12 @@ export class UiController {
       event.preventDefault();
       if (!event.repeat) this.game.action();
     }
+  }
+
+  private openInventory(): void {
+    if (this.mode !== 'explore') return;
+    this.controls.clear();
+    this.inventory.open();
   }
 
   private setTouch(enabled: boolean): void {
@@ -98,6 +118,7 @@ export class UiController {
       button.setAttribute('aria-label', direction ? TOUCH_LABELS[direction] : 'しらべる・はなす');
       button.addEventListener('pointerdown', event => {
         event.preventDefault();
+        if (this.mode === 'inventory' || this.mode === 'avatar') return;
         this.focusMap();
         button.setPointerCapture(event.pointerId);
         if (direction) this.controls.press(`pointer-${event.pointerId}`, direction);
