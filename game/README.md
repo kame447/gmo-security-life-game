@@ -33,6 +33,8 @@ npm test
 
 `build` は TypeScript の型検査後に `dist/` へ出力し、`test` は Vitest を Node 環境で実行します。CI は `game/` 内で `npm ci` → `npm run build` → `npm test` を実行します。
 
+編集基盤の追加に伴い、`build` は編集用サンプルJSONも検証し、`test` はVitestの後に実CLIのNode標準テストも実行します。独立した編集データ・API・適用コマンドの利用方法は [編集データと差分適用](../docs/features/editor.md) を参照してください。
+
 ## 操作
 
 | 操作 | キー・画面上の操作 |
@@ -69,6 +71,10 @@ npm test
 | `src/core/coords.ts` | タイル・チャンク・ピクセルの変換と向き |
 | `src/core/appearance.ts` | 外見の選択肢・既定値・項目ごとの検証・キャッシュキー |
 | `src/world/` | マップの構造化データ（`town.ts`・`interiors.ts`）、目印と開始地点（`landmarks.ts`）、実行時索引（`runtime.ts`）、経路探索（`path.ts`）、検証（`validate.ts`）、組み立て（`index.ts`） |
+| `src/editor/` | 独立した編集用データ契約・検証・差分・Undo/Redo・Worldへの変換（GUI非依存） |
+| `src/editor-ui/map/` | マップの参照表示、ズーム／パン、ドラッグ、配置プロパティと関連出入口の一括移動（#24） |
+| `data/editor-prototype.json` | 編集基盤の確認用サンプル。通常ゲームの町・NPC定義とは独立 |
+| `scripts/editor.mjs` | 編集用JSONの検証、差分出力、適用前確認、安全な永続適用（Node.js 24） |
 | `src/map/` | 移動・衝突・出入口の遷移・調査対象の判定と通知（DOM 非依存） |
 | `src/events/` | 会話の進行状態（DOM 非依存） |
 | `src/state/` | 保存データの形式と検証（DOM 非依存） |
@@ -224,3 +230,36 @@ GPU指定は `--enable-gpu --use-angle=metal`、フレーム制限解除は `--d
 地面・建物・小物・NPC・主人公のスプライトはすべてコード生成で、第三者素材は使用していません。主人公の配色は既存の [男の子の基本画像](../assets/images/characters/player/base/boy-base-child.png) を参考にしていますが、この画像ファイルも読み込みません。ゲームエンジンを含むランタイム依存パッケージはありません。
 
 全体の合意事項と未決定事項は [マップと探索](../docs/features/map.md) を参照してください。
+
+## サンプルエディタ（提案／要検証）
+
+Issue #23 の編集画面です。書き出し・適用の対象は `data/editor-prototype.json` の暫定サンプルだけです。「実マップを参照」モードでは既存の町と施設の配置を読み取り専用で確認でき、通常ゲームの町・NPC のソースは変更しません。サンプルの配置物・施設・出入口はグリッド上でドラッグし、座標やプロパティを編集できます。NPC の専用フォームと実マップの永続編集は、引き続き Issue #25・#24 の後続作業です。詳細は [編集データと差分適用](../docs/features/editor.md) に記します。
+
+`game/` で以下を実行し、`http://127.0.0.1:5186/editor.html` を開きます。通常のゲームの入口は `/` のままです。
+
+```sh
+npm run dev -- --port 5186 --strictPort
+```
+
+1. エリアと対象を一覧またはグリッドから選び、座標や JSON を編集して「編集を反映」を押します。新規対象は種類を選び「追加」を押してから入力します。既存の ID は変更できません。
+2. 問題があれば検証欄に表示されます。入力中・エラー中は書き出せないため、反映するか「入力を取り消す」で戻してください。未反映の入力がある間は別の対象へ移れません。
+3. 「変更のプレビュー」で読み込み時からの追加・移動・更新・削除の前後を確認し、「差分 JSON をダウンロード」で保存します。ボタンまたは Ctrl / ⌘ + Z、Ctrl / ⌘ + Shift + Z（Ctrl + Y も可）で Undo / Redo できます。テキスト入力中のショートカットはブラウザ側の入力操作です。
+4. `game/` の別ターミナルで以下を実行します。パスはダウンロードしたファイルに置き換えてください。`preview` は変更せずに内容を確認し、`apply` は検証後に `data/editor-prototype.json` だけを書き換えます。データが読み込み時から変わっている場合は適用できないので、再読込して編集し直します。
+
+   ```sh
+   node scripts/editor.mjs preview /path/to/editor-changes.json
+   node scripts/editor.mjs apply /path/to/editor-changes.json
+   git diff -- data/editor-prototype.json
+   ```
+
+5. 開発サーバーを再起動し、エディタを再読込して変更を確認します。「適用済みサンプルでゲームを開く」または `/editor-preview.html` で、適用したサンプルを使うゲームを起動できます。ビルド済み配信を使う場合は、適用後に `npm run build` を再実行します。
+
+編集内容は画面内だけの一時状態です。リポジトリへの反映は手動の適用コマンドで行い、再読込・画面移動前に必要な差分を書き出してください。試作の操作方法・グリッド表示・サンプルデータは提案／要検証です。
+
+ブラウザ E2E は Node.js 24、インストール済みの Playwright Chromium、およびポート 5186 の空きが必要です。次のコマンドは一時コピーにサーバーを立て、GUI からの差分書き出し・CLI 適用・再読込・サンプルゲーム起動と通常ゲームを検証します。元のサンプルファイルは変更しません。`SLG_EDITOR_PORT` で別の空きポートを指定できます。
+
+```sh
+node scripts/e2e-editor.mjs
+```
+
+マップ操作と実マップ参照のブラウザ E2E は `node scripts/e2e-map-editor.mjs` で実行します。既定ポートはマップ操作用が5185、通常のサンプルエディタ用が5186です。どちらも `SLG_EDITOR_PORT` で上書きでき、CIでは5186を順番に使います。
