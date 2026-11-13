@@ -97,4 +97,28 @@ describe('bounded shared chat codec', () => {
     expect(parsed.threads.some(thread => thread.messages.length < CHAT_LIMITS.messagesPerThread)).toBe(true);
     expect(parseChatSave(parsed)).toEqual(parsed);
   });
+
+  it('keeps the byte cap after fractional play-time ticks increase pending-delay precision', () => {
+    let closest: ChatModel | undefined;
+    let mostBytes = 0;
+    for (let length = 250; length <= 280; length++) {
+      const raw: ChatSave = { v: 1, contacts: [], threads: [] };
+      for (let i = 0; i < CHAT_LIMITS.threads; i++) {
+        const id = `contact-${i}`;
+        raw.contacts.push({ id, name: '相手', icon: 'person' });
+        raw.threads.push({ id: `thread-${i}`, contactId: id, nextSequence: 1, replyCursor: 0,
+          pending: Array.from({ length: CHAT_LIMITS.pendingPerThread }, (_, j) => ({
+            id: `pending-${j}`, from: id, text: '返信', remainingMs: 10_000 })),
+          messages: Array.from({ length: CHAT_LIMITS.messagesPerThread }, (_, j) => ({
+            id: `message-${j}`, from: id, text: '😀'.repeat(length), atMs: j, read: false })),
+        });
+      }
+      const model = new ChatModel(CHAT_PROTOTYPE, raw);
+      const bytes = chatSaveBytes(model.save());
+      if (bytes > mostBytes) { closest = model; mostBytes = bytes; }
+    }
+    expect(CHAT_LIMITS.saveBytes - mostBytes).toBeLessThan(768);
+    expect(closest!.advance(1 / 3, 1)).toBe(0);
+    expect(chatSaveBytes(closest!.save())).toBeLessThanOrEqual(CHAT_LIMITS.saveBytes);
+  });
 });
