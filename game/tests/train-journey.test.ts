@@ -6,7 +6,7 @@ import { TRAIN_NETWORK } from '../src/travel/network';
 import { TrainTravelSession } from '../src/travel/session';
 import { buildWorld, findPath, LANDMARKS, STATION_ACCESS } from '../src/world';
 import { toRuntime } from '../src/world/runtime';
-import { createNeighborStation, createNeighborTown, NEIGHBOR_STATION_ACCESS } from '../src/world/towns/neighbor';
+import { createNeighborStation, createNeighborTown, NEIGHBOR_FACILITIES, NEIGHBOR_STATION_ACCESS } from '../src/world/towns/neighbor';
 
 const feetTile = (game: Game) => ({ x: pxToTile(game.player.x), y: pxToTile(game.player.y - 4) });
 
@@ -25,6 +25,7 @@ function walk(game: Game, target: { x: number; y: number }): void {
 
 it('walks from home to the real station, takes both trains and walks back after a save', () => {
   const world = buildWorld();
+  for (const facility of NEIGHBOR_FACILITIES) world.facilities.set(facility.id, { ...facility });
   // The normal factory registration is still owned by the shared wiring branch.
   for (const area of [createNeighborTown(), createNeighborStation()]) world.areas.set(area.id, toRuntime(area));
   let travel: TrainTravelSession | undefined;

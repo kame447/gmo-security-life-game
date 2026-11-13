@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { DIR, feetAtTile } from '../src/core/coords';
 import { canStand } from '../src/map/explorer';
+import { buildAreaMap } from '../src/minimap/model';
 import { findPath } from '../src/world/path';
 import { isSolidTile, toRuntime } from '../src/world/runtime';
 import { T } from '../src/world/tiles';
-import { createNeighborStation, createNeighborTown, NEIGHBOR_STATION_ACCESS as stop } from '../src/world/towns/neighbor';
+import { createNeighborStation, createNeighborTown, NEIGHBOR_FACILITIES, NEIGHBOR_STATION_ACCESS as stop } from '../src/world/towns/neighbor';
 
 describe('provisional neighboring town', () => {
   it('has different geography, a walkable bridge and reachable exploration targets', () => {
@@ -34,6 +35,16 @@ describe('provisional neighboring town', () => {
       expect(interior?.portals.some(portal => portal.to.areaId === town.id), `${shop.id} return`).toBe(true);
       expect(interior?.interactions.some(item => item.kind === 'npc' && item.eventKey.endsWith('.clerk')), `${shop.id} clerk`).toBe(true);
     }
+  });
+
+  it('registers the destination station as a semantic map landmark', () => {
+    const town = toRuntime(createNeighborTown()), station = createNeighborStation();
+    const facility = NEIGHBOR_FACILITIES.find(item => item.id === stop.stationId);
+    expect(facility).toMatchObject({ areaId: town.def.id, kind: 'station', interior: 'full' });
+    expect(town.objects.find(object => object.id === 'neighbor-station-building')?.facilityId).toBe(stop.stationId);
+    expect(town.def.portals[0].facilityId).toBe(stop.stationId);
+    expect(station.portals[0].facilityId).toBe(stop.stationId);
+    expect(buildAreaMap(town, NEIGHBOR_FACILITIES).markers).toContainEqual(expect.objectContaining({ id: stop.stationId, kind: 'station' }));
   });
 
   it('connects the town and station in both directions without rail-triggered portals', () => {

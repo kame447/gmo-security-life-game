@@ -7,11 +7,12 @@ import { TrainTravelSession } from '../src/travel/session';
 import { buildWorld, validateWorld } from '../src/world';
 import { STATION_ACCESS } from '../src/world/landmarks';
 import { toRuntime } from '../src/world/runtime';
-import { createNeighborStation, createNeighborTown, NEIGHBOR_STATION_ACCESS } from '../src/world/towns/neighbor';
+import { createNeighborStation, createNeighborTown, NEIGHBOR_FACILITIES, NEIGHBOR_STATION_ACCESS } from '../src/world/towns/neighbor';
 
 /** #35 supplies the original station; the not-yet-wired neighboring areas are added for this test. */
 function fixtureWorld() {
   const world = buildWorld();
+  for (const facility of NEIGHBOR_FACILITIES) world.facilities.set(facility.id, { ...facility });
   for (const area of [createNeighborTown(), createNeighborStation()]) world.areas.set(area.id, toRuntime(area));
   return world;
 }

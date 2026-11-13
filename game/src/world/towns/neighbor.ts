@@ -1,4 +1,4 @@
-import type { AreaDef, ObjectDef } from '../../core/types';
+import type { AreaDef, FacilityDef, ObjectDef } from '../../core/types';
 import { T } from '../tiles';
 
 /** 名前・配置は比較用の暫定案。線路へ歩いて入らず、看板に向かって乗車する。 */
@@ -12,6 +12,12 @@ export const NEIGHBOR_STATION_ACCESS = {
   townFront: { areaId: 'town-neighbor', x: 24, y: 7, facing: 'down' },
 } as const;
 
+/** 既存の施設一覧とは別に追加する、隣町駅の暫定メタデータ。 */
+export const NEIGHBOR_FACILITIES: readonly FacilityDef[] = [
+  { id: NEIGHBOR_STATION_ACCESS.stationId, name: 'となりまちのえき', areaId: NEIGHBOR_STATION_ACCESS.townFront.areaId,
+    kind: 'station', interior: 'full', state: 'open' },
+];
+
 /** 異なる地理と探索対象を持つ、暫定の小さな町。 */
 export function createNeighborTown(): AreaDef {
   const width = 48, height = 36;
@@ -21,7 +27,7 @@ export function createNeighborTown(): AreaDef {
     for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) ground[yy * width + xx] = tile;
   };
   const object = (id: string, kind: string, x: number, y: number, w: number, h: number,
-    solid = true, style?: string) => objects.push({ id, kind, x, y, w, h, solid, style, layer: solid ? 'sorted' : 'decal' });
+    solid = true, style?: string, facilityId?: string) => objects.push({ id, kind, x, y, w, h, solid, style, facilityId, layer: solid ? 'sorted' : 'decal' });
 
   // A river and its walking bridge divide the town; the station and square are on the west bank.
   rect(37, 0, 4, height, T.WATER);
@@ -30,7 +36,7 @@ export function createNeighborTown(): AreaDef {
   rect(37, 11, 4, 3, T.BRIDGE);
   rect(16, 1, 16, 9, T.PLAZA);
   rect(7, 20, 10, 7, T.GARDEN); rect(27, 18, 8, 11, T.PARKPATH);
-  object('neighbor-station-building', 'station', 18, 2, 12, 5);
+  object('neighbor-station-building', 'station', 18, 2, 12, 5, true, undefined, NEIGHBOR_STATION_ACCESS.stationId);
   object('neighbor-west-house', 'house', 5, 18, 7, 5, true, '2');
   object('neighbor-house', 'house', 14, 22, 7, 5, true, '1');
   object('neighbor-board-object', 'board', 10, 15, 1, 1);
@@ -46,7 +52,7 @@ export function createNeighborTown(): AreaDef {
       { id: 'neighbor-river-district', name: 'かわべ', x: 0, y: 15, w: 48, h: 21 },
       { id: 'neighbor-east-district', name: 'はしのむこう', x: 37, y: 0, w: 11, h: 15 },
     ],
-    portals: [{ id: 'neighbor-station-enter', from: { x: 24, y: 6 }, to: { ...NEIGHBOR_STATION_ACCESS.entrance } }],
+    portals: [{ id: 'neighbor-station-enter', from: { x: 24, y: 6 }, to: { ...NEIGHBOR_STATION_ACCESS.entrance }, facilityId: NEIGHBOR_STATION_ACCESS.stationId }],
     interactions: [
       { id: 'neighbor-town-board', kind: 'sign', name: 'まちのけいじばん', x: 10, y: 15, solid: true,
         eventKey: 'neighbor.board', lines: ['かわの むこうにも みちが つづいているよ。'] },
@@ -72,7 +78,7 @@ export function createNeighborStation(): AreaDef {
       { id: 'neighbor-station-board-object', kind: 'board', x: 9, y: 4, w: 1, h: 1, solid: true },
       { id: 'neighbor-station-bench', kind: 'bench', x: 3, y: 7, w: 2, h: 1, solid: true },
     ],
-    portals: [{ id: 'neighbor-station-exit', from: { x: 9, y: 11 }, to: { ...NEIGHBOR_STATION_ACCESS.townFront } }],
+    portals: [{ id: 'neighbor-station-exit', from: { x: 9, y: 11 }, to: { ...NEIGHBOR_STATION_ACCESS.townFront }, facilityId: NEIGHBOR_STATION_ACCESS.stationId }],
     interactions: [{ id: 'neighbor-station-boarding', kind: 'sign', name: 'でんしゃのあんない', x: 9, y: 4, solid: true,
       eventKey: 'travel.station.board', lines: ['ここから でんしゃに のれるよ。'] }],
   };

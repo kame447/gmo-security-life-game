@@ -7,7 +7,7 @@ import { TrainTravelSession } from '../src/travel/session';
 import { buildWorld } from '../src/world';
 import { RailwayNetwork, type RailwayStation } from '../src/world/railway';
 import { toRuntime } from '../src/world/runtime';
-import { createNeighborStation, createNeighborTown, NEIGHBOR_STATION_ACCESS as neighbor } from '../src/world/towns/neighbor';
+import { createNeighborStation, createNeighborTown, NEIGHBOR_FACILITIES, NEIGHBOR_STATION_ACCESS as neighbor } from '../src/world/towns/neighbor';
 
 const origin: RailwayStation = {
   id: 'test-origin', name: 'もとのまち',
@@ -18,6 +18,7 @@ const destination: RailwayStation = { id: neighbor.stationId, name: neighbor.nam
 
 function setup() {
   const world = buildWorld(), original = createNeighborStation();
+  for (const facility of NEIGHBOR_FACILITIES) world.facilities.set(facility.id, { ...facility });
   const originArea = { ...original, id: origin.boarding.areaId,
     objects: original.objects.map(object => ({ ...object, id: `origin-${object.id}` })), portals: [],
     interactions: original.interactions.map(interaction => ({ ...interaction, id: origin.boarding.interactionId })) };
