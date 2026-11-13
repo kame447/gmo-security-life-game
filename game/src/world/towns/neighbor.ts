@@ -31,7 +31,7 @@ export function createNeighborTown(): AreaDef {
   rect(16, 1, 16, 9, T.PLAZA);
   rect(7, 20, 10, 7, T.GARDEN); rect(27, 18, 8, 11, T.PARKPATH);
   object('neighbor-station-building', 'station', 18, 2, 12, 5);
-  object('neighbor-shop', 'shop', 5, 18, 7, 5, true, 'bookstore');
+  object('neighbor-west-house', 'house', 5, 18, 7, 5, true, '2');
   object('neighbor-house', 'house', 14, 22, 7, 5, true, '1');
   object('neighbor-board-object', 'board', 10, 15, 1, 1);
   object('neighbor-bench', 'bench', 31, 20, 2, 1);

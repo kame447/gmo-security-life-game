@@ -22,6 +22,20 @@ describe('provisional neighboring town', () => {
     }
   });
 
+  it('does not introduce a shop exterior without an interior, return route and clerk', () => {
+    const town = createNeighborTown(), areas = new Map([town, createNeighborStation()].map(area => [area.id, area]));
+    expect(town.objects.some(object => object.kind === 'house')).toBe(true);
+    for (const shop of town.objects.filter(object => object.kind === 'shop')) {
+      expect(shop.facilityId, shop.id).toBeTruthy();
+      const entry = town.portals.find(portal => portal.facilityId === shop.facilityId);
+      expect(entry, `${shop.id} entrance`).toBeDefined();
+      const interior = areas.get(entry!.to.areaId);
+      expect(interior?.kind, `${shop.id} interior`).toBe('indoor');
+      expect(interior?.portals.some(portal => portal.to.areaId === town.id), `${shop.id} return`).toBe(true);
+      expect(interior?.interactions.some(item => item.kind === 'npc' && item.eventKey.endsWith('.clerk')), `${shop.id} clerk`).toBe(true);
+    }
+  });
+
   it('connects the town and station in both directions without rail-triggered portals', () => {
     const town = toRuntime(createNeighborTown()), station = toRuntime(createNeighborStation());
     const enter = town.def.portals[0], exit = station.def.portals[0];
