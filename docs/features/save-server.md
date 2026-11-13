@@ -2,7 +2,7 @@
 
 [Issue #20](https://github.com/kame447/gmo-security-life-game/issues/20)（親 [#38](https://github.com/kame447/gmo-security-life-game/issues/38)）の接続準備。[保存契約](save-api.md)と[HTTP・DynamoDB アダプタ](save-api-http.md)を使い、別モジュール `game/src/save-server/` に HTTP と署名検証を追加した。
 
-**実 AWS 未接続・未デプロイ・本編未配線。** SDK 依存、実クライアント、SSM 読取、実環境の JWKS 更新、ログイン UI、起動用エントリは追加していない。既存の `save-api/`、ゲーム本体、package.json・lockfile、Terraform は変更していない。Node 24.22.1、ローカルの生成鍵、注入した DynamoDB モックだけで検証した。
+**実 AWS 未接続・未デプロイ・本編未配線。** SDK 依存、実クライアント、SSM 読取、実環境の JWKS 更新、ログイン UI は追加していない。既存の `save-api/`、ゲーム本体、package.json・lockfile、Terraform は変更していない。Node 24.22.1、ローカルの生成鍵、注入した DynamoDB モックだけで検証した。後述の「起動入口と設定の追記」で、明示的に backend を注入する起動入口を追加した。
 
 ## Terraform から読み取れる条件
 
@@ -76,7 +76,7 @@ npm test
 
 結合テストは `createSaveServer` を呼び、`server.listen(0, '127.0.0.1', callback)` でエフェメラルポートを開く。テストが既存 HttpSaveRemote の相対パスへループバック origin を加え、既存 SaveRepository → 実 HTTP → JWT → SaveService → DynamoSaveStorage → モックまで通す。各テスト後に接続・listener を閉じる。鍵はその場で生成し、保存・出力しない。テスト用署名器は `tests/` だけに置き、本番の認証経路から参照しない。
 
-汎用の HTTP モジュール自体は Node で直接 import できる。全体の起動エントリの形は以下（**接続時に用意する例で、現在のリポジトリには追加していない**）。
+汎用の HTTP モジュール自体は Node で直接 import できる。以下は初回実装時の接続例。現在の起動入口の呼び方は末尾の追記を参照する。
 
 ```ts
 import { createSaveServer } from './src/save-server/service';
@@ -109,12 +109,127 @@ server.listen(80, '0.0.0.0', () => { /* 認証情報を含まない開始通知�
    ```
 
 5. **信頼する JWKS provider を用意する。** SSM の `<prefix>/cognito/jwks` の JSON を取り込む。公開取得元 URL は固定 issuer の `/.well-known/jwks.json`。現在の EC2 は直接取得不可なので SSM を読む。キャッシュの期限・再読取・未知 kid 時の更新・更新失敗時に既知鍵を使い続ける条件を決め、provider からの取得にも期限を設ける。このモジュールは URL・取得・キャッシュを持たず、呼出しごとに provider を呼ぶ。
-6. **Node 向けに配布物を作る。** 既存フロントビルドとは別に、起動 entry を既存 esbuild（Vite の依存）等で `platform: 'node', target: 'node24', format: 'esm', bundle: true` にする。Node 組込みは external。SDK を外部化するなら対応する依存も配布する。起動は Node 24 の `node <server-entry.mjs>`。この手順のためのビルド script や entry は今回追加していない。
+6. **Node 向けに配布物を作る。** 既存フロントビルドとは別に、起動 entry を既存 esbuild（Vite の依存）等で `platform: 'node', target: 'node24', format: 'esm', bundle: true` にする。Node 組込みは external。SDK を外部化するなら対応する依存も配布する。起動は Node 24 の `node <server-entry.mjs>`。初回実装では entry を追加していなかったが、末尾の追記で SDK を含まない entry とそのローカル実行手順を追加した。配布・常駐化は未実装。
 7. **EC2 の起動手順を用意する。** user_data の Python サーバーを止める置換手順、Node/配布物の導入、非 root での80番 listen を可能にする systemd 等の設定、再起動・停止・ロールバックを決める。ALB/SG の80番を維持するか変更するかは担当者の判断が必要。現在はその変更やデプロイをしていない。
 8. **IAM・ネットワークと実到達を検証する。** 既存ロールの GetItem/PutItem、SSM prefix 読取は定義上足りる。テーブル・region・SSM prefix の実値と endpoint policy、実ロールの適用は未検証。ALB のヘルスチェック、CloudFront からの Authorization と no-store、他人の sub の隔離、条件競合・冪等再送、サイズ境界、スロット破損/未来版、障害・復元を実環境で確認する。PITR は任意履歴を返すアプリ API にはならない。
 
-## 検証結果と限界
+## 初回の検証結果と限界
 
 Node 24.22.1、既存キャッシュからの `npm ci --offline` で検証した。`npm run build` 成功、Vitest **17ファイル381件（今回追加58件）**、CLI **13件**がすべて成功。追加テストは JWT 35件、HTTP 結合23件。129KiB の本文が終わる前でも上限超過を413にすること、ちょうど128KiBの data を保存→読込→再保存できることも確認した。
 
 ブラウザの `dist/` には `save-server`、`node:http`、`node:crypto`、サーバー固有の識別子が含まれないことを検索で確認した。実 AWS・外部認証サービスへの接続、認証情報取得、Terraform init/plan/apply、デプロイ、GUI/E2E、本編配線、Issue/PR 更新は実施していない。SDK の実クライアントとサーバー配布物の本番起動は、このローカル試験の成功から保証されない。
+
+## 起動入口と設定の追記（D1・D4、AWS 未接続）
+
+2026-11-14、`ef7b9f6` の後続として追加した。読み取り監査の D1（起動入口）・D4（設定の受け渡し）のうち、運用構成の採用を伴わない部分を実装する。監査資料の実パスは `/private/tmp/slg-audit/SageFaraday/infra-save-api-gap.md`。AWS へ接続できる状態や、D1/D4 全体の解消を意味しない。
+
+| 新規モジュール | 責務 |
+| --- | --- |
+| `config.mjs` / `.d.mts` | `readSaveServerConfig(environment)`。入力を検証して変更不可の設定を返す純粋関数。環境変数の書換え・取得・DNS・AWS 呼出しなし |
+| `startup.ts` | `startSaveServer(config, createBackend, options?)`。設定を factory に渡して storage/getJwks を受け取り、JWT・HTTP を構築して listen。AWS SDK、メモリ保存、自動 backend 選択を import しない |
+| `lifecycle.mjs` / `.d.mts` | listen の成功/失敗、SIGTERM/SIGINT、`stop()` / `closed`。新規接続を止め、処理中の要求を待ってから backend.close を一度呼ぶ |
+| `runtime.mjs` / `.d.mts` | 設定読取、明示されたローカル backend module の読込、定型の開始/終了/失敗イベントと終了コード |
+| `entry.ts` | runtime から start を呼ぶ実行入口。Node 向けにバンドルして実行する。直接ブラウザのビルドへ含めない |
+
+### 必須設定と検証
+
+下記8項目には既定値を用意しない。起動用 entry では backend module の指定も必須。値が欠けている、不正な形、環境が整合しない場合は listen する前に拒否する。例外・起動出力は `INVALID_CONFIGURATION: SAVE_API_HOST, ...` のように**定型コードと項目名だけ**を示し、受け取った値を表示しない。
+
+| 環境変数 | 設定のプロパティ | 検証と出所 |
+| --- | --- | --- |
+| `SAVE_API_HOST` | `host` | 明示的な IPv4/IPv6 アドレス。ホスト名は DNS の挙動を含むため受け取らない。ローカル例は `127.0.0.1`。本番の bind 値は選んでいない |
+| `SAVE_API_PORT` | `port` | 0〜65535 の整数の十進表記。0 はローカル試験でポートを自動割当する明示指定。未設定を0や80にしない |
+| `SAVE_API_TABLE_NAME` | `tableName` | 3〜255文字の英数字・`_`・`-`・`.`。Terraform の `dynamodb_table_name` と照合する |
+| `AWS_REGION` | `region` | region の文字列形式を検査。実在リージョンや実環境の到達性を問い合わせない |
+| `COGNITO_ISSUER` | `issuer` | HTTPS の Cognito issuer、region と pool ID の region 部分が一致。中国リージョンの `.amazonaws.com.cn` も形を区別する。query・fragment・余分な path・別 region を拒否。pool ID は issuer の一部として受け取り、別の未検証値から作らない |
+| `COGNITO_CLIENT_ID` | `clientId` | 英数字1〜128文字。`cognito_user_pool_client_id` / SSM と照合。secret を受け取る項目ではない |
+| `SAVE_API_JWKS_PARAMETER` | `jwksParameterName` | `/.../jwks` の絶対 Parameter Store 名。現 Terraform の `<prefix>/cognito/jwks` を渡す。取得元の名前だけを指定し、取得・更新・キャッシュは実装しない |
+| `SAVE_API_HEALTH_PATH` | `healthPath` | 既存サーバーが受け入れる `/api/[a-z0-9/_-]+`。保存 API を health で覆わないよう `/api/saves` とその配下を拒否。ALB の実際の値を渡す |
+| `SAVE_API_BACKEND_MODULE` | entry の module path | 信頼するローカル `.mjs` ファイルの絶対パス。相対パス・公開 URL を拒否。`createBackend` の export が必要。任意の利用者入力から設定しない |
+
+client ID が実 pool に属するか、テーブル・SSM prefix が同じ環境か、実 IAM が許可するかは、文字列の検証からは確定できない。デプロイ担当が設定の出所を揃えて照合する。
+
+### 起動・終了と factory の契約
+
+`createBackend(config, drivers)` は `{ storage, getJwks, close? }` を同期または非同期に返す。起動入口は factory を一度だけ呼ぶ。メモリ保存への fallback はなく、factory/module を省略して起動すると失敗する。ローカル確認はテストが MemorySaveStorage と生成した公開 JWKS を**明示的に注入**する。実行用の entry にテスト鍵やメモリ実装は含めない。
+
+`drivers.createDynamoStorage(client)` は entry と同じモジュールの既存 DynamoSaveStorage を、検証済み `tableName` で作る。別バンドルの backend module が DynamoSaveStorage/SaveError まで再バンドルすると、entry の `instanceof SaveError` が別クラスを見て500/422を503として扱う。この生成関数を使い、SDK クライアントのポートだけを渡すことで型の同一性を保つ。SDK の import/生成は外部 factory の責務のままで、今回追加していない。
+
+初期化・listen に失敗した場合も、返された backend の close があれば呼ぶ。ポート使用中は `ADDRESS_IN_USE`、他の listen 失敗は `LISTEN_FAILED`、module 読込失敗は `BACKEND_MODULE_FAILED`、factory の失敗や不正な戻り値は `BACKEND_INITIALIZATION_FAILED`。元の例外の message、スタック、ファイルパス、AWS エラーや資格情報は出力しない。factory が戻り値を返す前に作ったリソースの失敗時解放は、その factory 自身が担当する。
+
+SIGTERM/SIGINT と `stop()` は Node の server.close で受付を止め、処理中の要求が終わってから backend.close を呼ぶ。同じシグナルの繰返しや stop の再呼出しは同じ停止処理を待つ。`process.exit()`、`closeAllConnections()`、処理の強制取消は呼ばない。正常なシグナル終了は Node が自然に終了する code 0、起動・停止の失敗は code 1。シグナルハンドラーは停止後に外す。`closed` で停止完了を待てる。
+
+強制終了までの猶予時間や SDK/provider の処理期限は選んでいない。provider が完了しない処理を返せば停止も待ち続ける。常駐管理側の停止期限、SDK/provider の timeout/retry、リソースを解放する close の設計は接続担当と決める。ログは entry が `SAVE_API_STARTED`、`SAVE_API_STOPPED`、`STOP_FAILED` 等の定型イベントを stderr に出すだけで、収集先・保存期間・アクセス/業務ログは配線していない。
+
+### 実行可能な entry の作成とローカル試験
+
+既存 esbuild（Vite の依存）を使い、SDK を含まない Node 実行用 entry を作れる。これは手元で作る例で、配布経路・常駐方法の選択ではない。既存の `game/package.json` やフロントビルドを変更しない。
+
+```sh
+export PATH=/Users/Shogo/.local/share/fnm/node-versions/v24.22.1/installation/bin:$PATH
+cd game
+node --input-type=module <<'JS'
+import { build } from 'esbuild';
+await build({
+  entryPoints: ['src/save-server/entry.ts'],
+  outfile: '/private/tmp/slg-save-server-build/entry.mjs',
+  platform: 'node', target: 'node24', format: 'esm', bundle: true,
+});
+JS
+# 上表の必須環境変数を供給した上で、信頼する factory を明示する。
+SAVE_API_BACKEND_MODULE=/absolute/path/to/backend.mjs \
+  node /private/tmp/slg-save-server-build/entry.mjs
+```
+
+factory がまだ無いため、実 AWS 用の起動はこの変更だけではできない。ローカルの確認は以下のテストで行う。固定ポート・実 AWS・外部サービスは使わない。
+
+```sh
+npx vitest run tests/save-server-startup.test.ts
+```
+
+テスト内で entry をバンドルし、明示注入のメモリ保存/生成鍵で127.0.0.1:0を listen する。ネイティブ Node 子プロセスでも実行し、実 SIGTERM/SIGINT と処理中の要求の完了を試す。試験用の一時 module/配布物はテスト後に削除する。
+
+### 実 SDK/SSM factory の接続例（未実装・未実行）
+
+下記は必要な依存を別途追加した後の形を示すだけで、今回の実行用ファイルには含めない。SSM の更新/キャッシュ・SDK の retry/timeout 方針を採用した例ではない。
+
+```ts
+import { DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
+import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+
+export function createBackend(config, { createDynamoStorage }) {
+  const dynamo = new DynamoDBClient({ region: config.region });
+  const ssm = new SSMClient({ region: config.region });
+  return {
+    storage: createDynamoStorage({
+      getItem: input => dynamo.send(new GetItemCommand(input)),
+      putItem: input => dynamo.send(new PutItemCommand(input)),
+    }),
+    getJwks: async () => {
+      const result = await ssm.send(new GetParameterCommand({ Name: config.jwksParameterName }));
+      if (!result.Parameter?.Value) throw new Error('JWKS_UNAVAILABLE');
+      return JSON.parse(result.Parameter.Value);
+    },
+    close: () => { dynamo.destroy(); ssm.destroy(); },
+  };
+}
+```
+
+設定は上表から config を経由して渡され、request の Host/query/未検証 JWT は使わない。資格情報は実接続時の EC2 instance profile / デフォルト provider に任せる前提で、entry に静的 AWS key を渡す仕組みは追加していない。factory 自体も Node ESM と必要な依存を配布できる形にする必要がある。
+
+### 実装しなかった選択と影響
+
+| 未採用の選択 | 選択肢と影響 |
+| --- | --- |
+| SDK 依存の置き場 | 既存 package/lockfile に追加すると共有ファイルの変更とブラウザ側の依存管理が伴う。サーバーを別 package にするとビルド・lockfile・配布単位が増える。どちらも選ばず factory 契約のみ用意 |
+| 配布 | 依存込み成果物を SSM/S3 等で渡す方式は版の固定・artifact 読取権限・配置/rollback が必要。イメージに runtime と成果物を含める方式はイメージ作成・更新運用が必要。NAT の無い EC2 で公開 npm registry を使う前提にしない |
+| 80番と bind | Node 直接80番なら実行権限、local proxy を置くならその監視/設定、ターゲット port を変えるなら ALB target/attachment/SG をまとめて変更する必要がある。entry は入力された値だけで listen し、どの構成も選んでいない |
+| 常駐・停止期限 | systemd 等の再起動・依存関係・起動順・猶予時間・rollback が必要。現 Python 仮サーバーの置換は別作業。entry は要求を待つ停止機構だけを提供 |
+| token/鍵運用 | ID token 前提を維持。access token 採用なら claims/権限契約の変更が必要。SSM 更新主体・取得期限・キャッシュ・未知 kid・個別失効は別判断 |
+| CORS・ログ収集 | 同一 origin の既存前提を維持。別 origin は client/server/CSP を一緒に設計する必要がある。stderr 定型イベントの収集・保存/監視は別判断 |
+
+### 追記の検証結果
+
+Node 24.22.1 で `npm run build && npm test` 成功。Vitest **18ファイル425件（この追記で44件追加）**、CLI **13件**が全件成功。追加試験は設定欠落/不正、明示 factory、メモリ保存の明示注入、鍵取得失敗による503と storage 未アクセス、port 競合、backend 解放、停止例外の秘匿、両シグナル、受付停止と処理中の要求の完了、実 entry の code 0/1、別 module の DynamoDB 破損500/未来422、起動ログ/例外の秘密値非出力を確認した。
+
+今回も AWS/外部サービス接続、資格情報取得、Terraform、デプロイ、SDK 依存追加、実 client/SSM 取得、配布/常駐/80番変更、ゲーム本編への配線、Issue/PR 編集は行っていない。
