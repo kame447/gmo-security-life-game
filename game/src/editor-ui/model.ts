@@ -1,7 +1,8 @@
-import { EditorValidationError, type ChangeSet, type EditOperation, type EditorDocument, type EditorEntity, type EditorTable, type ValidationIssue } from '../editor/index.ts';
+import { applyChangeSet, createChangeSet, EditorValidationError, type ChangeSet, type EditOperation, type EditorDocument, type EditorEntity, type EditorTable, type ValidationIssue } from '../editor/index.ts';
 import type { EditorBackend } from './backend.ts';
 
 export interface Selection { table: EditorTable; id: string }
+export type DraftOperationBuilder = (table: EditorTable, before: EditorEntity | undefined, after: EditorEntity) => readonly EditOperation[];
 export interface Draft {
   table: EditorTable;
   id: string | null;
@@ -139,7 +140,7 @@ export class EditorModel {
     } else this.draft = null;
     this.issues = []; this.notice = '';
   }
-  applyDraft(): boolean {
+  applyDraft(buildOperations?: DraftOperationBuilder): boolean {
     const d = this.draft;
     if (!d) return false;
     try {
@@ -156,7 +157,12 @@ export class EditorModel {
       }
       const before = d.id === null ? undefined : this.entity({ table: d.table, id: d.id });
       if (d.id !== null && !before) throw new Error('対象が見つかりません。');
-      this.backend.commit([operationFromForm(d.table, before, after)]);
+      const operations = buildOperations ? buildOperations(d.table, before, after) : [operationFromForm(d.table, before, after)];
+      if (buildOperations) {
+        const base = this.document, candidate = applyChangeSet(base, createChangeSet(base, operations));
+        if (!(candidate[d.table] as EditorEntity[]).some(entity => entity.id === after.id)) throw new Error('操作列は選択した対象を保持してください。');
+      }
+      this.backend.commit(operations);
       this.selection = { table: d.table, id: after.id };
       const committed = this.entity(this.selection);
       if (!committed) throw new Error('反映後の対象が見つかりません。');
