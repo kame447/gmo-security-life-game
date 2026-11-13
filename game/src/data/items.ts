@@ -16,7 +16,7 @@ export const ITEM_DEFINITIONS: readonly ItemDefinition[] = [
   { id: 'small-snack', name: 'おかし', description: '小さな袋に入った、ひと口サイズのおかし。', category: 'normal', maxQuantity: 20 },
   { id: 'hand-towel', name: 'ハンカチ', description: 'きれいにたたんだ、やわらかいハンカチ。', category: 'normal', maxQuantity: 20 },
   { id: 'bread', name: 'パン', description: 'こんがり焼けた、小さな丸パン。', category: 'normal', maxQuantity: 20 },
-  { id: 'shirt', name: 'シャツ', description: '白い半袖のシャツ。', category: 'normal', maxQuantity: 10 },
+  { id: 'shirt', name: 'シャツ', description: '半袖のシャツ。', category: 'normal', maxQuantity: 10 },
   { id: 'umbrella', name: 'かさ', description: '持ち手の曲がった、折りたたみのかさ。', category: 'normal', maxQuantity: 10 },
   { id: 'key', name: '鍵', description: '小さな金属の鍵。', category: 'important', maxQuantity: 1 },
   { id: 'card', name: 'カード', description: '番号が印字されたカード。', category: 'important', maxQuantity: 1 },
