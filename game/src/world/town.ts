@@ -12,7 +12,7 @@ const shops = [
 export const FACILITIES: FacilityDef[] = [
   { id: 'home-family', name: 'じぶんのいえ', areaId: 'town-main', interior: 'full', state: 'open' },
   { id: 'school', name: 'しょうがっこう', areaId: 'town-main', interior: 'full', state: 'open' },
-  { id: 'station', name: 'まちのえき', areaId: 'town-main', interior: 'interaction', state: 'open' },
+  { id: 'station', name: 'まちのえき', areaId: 'town-main', interior: 'full', state: 'open' },
   { id: 'park', name: 'かわぞいこうえん', areaId: 'town-main', interior: 'interaction', state: 'open' },
   ...shops.map(([id, name]) => ({ id: `shop-${id}`, name, areaId: 'town-main', interior: id === 'konbini' ? 'full' as const : 'interaction' as const, state: 'open' as const })),
 ];
@@ -67,10 +67,18 @@ export function createTown(): AreaDef {
   water(84, 0, 5, 46); water(84, 44, 37, 5); water(116, 44, 5, 36);
   rect(100, 41, 2, 14, T.PARKPATH); rect(100, 44, 2, 5, T.BRIDGE);
   for (let y = 70; y <= 73; y++) for (let x = 0; x < width; x++) {
-    // Water stays a river; only roads become level crossings.
-    if (at(x, y) !== T.WATER) ground[y * width + x] = isRoad(at(x, y)) ? T.CROSSING : T.RAIL;
+    // The same ground tile controls rendering and collision. Include the public sidewalks in each crossing.
+    const previous = at(x, y);
+    ground[y * width + x] = previous === T.WATER ? T.RAIL_BRIDGE
+      : isRoad(previous) || previous === T.SIDEWALK ? T.CROSSING : T.RAIL;
   }
-  rect(6, 68, 45, 2, T.PLATFORM);
+  // Signal posts stand on blocked railway land, preserving the public door fronts alongside it.
+  for (const y of [70, 73]) for (let x = 0; x < width; x++) {
+    if (at(x, y) === T.RAIL && ((x > 0 && at(x - 1, y) === T.CROSSING) || (x + 1 < width && at(x + 1, y) === T.CROSSING))) {
+      ground[y * width + x] = T.CROSSING_SIGNAL;
+    }
+  }
+  rect(6, 68, 45, 2, T.PLAZA);
   object('train', 18, 71, 16, 2, undefined, false);
 
   // Two rows share a narrow garden/lane in deep blocks. Short frontages remain one row.
@@ -218,6 +226,7 @@ export function createTown(): AreaDef {
       { id: 'home-enter', from: { x: 35, y: 31 }, to: { ...INTERIOR_ENTRIES.home }, facilityId: 'home-family' },
       { id: 'school-enter', from: { x: 103, y: 19, w: 2 }, to: { ...INTERIOR_ENTRIES.classroom }, facilityId: 'school' },
       { id: 'konbini-enter', from: { x: 54, y: 52 }, to: { ...INTERIOR_ENTRIES.konbini }, facilityId: 'shop-konbini' },
+      { id: 'station-enter', from: { x: 28, y: 63 }, to: { ...INTERIOR_ENTRIES.station }, facilityId: 'station' },
     ],
     interactions: [
       { id: 'neighbor-grandma', kind: 'npc', name: 'きんじょのおばあさん', x: 40, y: 33, sprite: 'grandma', facing: 'left', solid: true, eventKey: 'neighborhood.grandma', lines: ['おかえり。きょうも がっこう、たのしかった？'] },
@@ -228,7 +237,6 @@ export function createTown(): AreaDef {
       { id: 'park-slide', kind: 'object', name: 'すべりだい', x: 106, y: 64, w: 2, h: 2, solid: true, eventKey: 'park.slide', lines: ['てっぺんから、かわと でんしゃが みえるよ。'] },
       { id: 'candy-shopkeeper', kind: 'npc', name: 'だがしやさん', x: 48, y: 53, sprite: 'shopkeeper', facing: 'down', solid: true, eventKey: 'shopping.candy', lines: ['いらっしゃい。きょうの おやつは どれにする？'] },
       { id: 'station-staff', kind: 'npc', name: 'えきいんさん', x: 32, y: 65, sprite: 'staff', facing: 'left', solid: true, eventKey: 'station.staff', lines: ['でんしゃは もうすぐ くるよ。きいろい せんの うちがわで まってね。'] },
-      { id: 'station-ticket', kind: 'object', name: 'かいさつ', x: 28, y: 63, solid: true, eventKey: 'station.ticket', lines: ['きっぷを とおすところだ。きょうは まちを たんけんしよう。'] },
       { id: 'shopping-vending', kind: 'object', name: 'じどうはんばいき', x: 50, y: 53, solid: true, eventKey: 'shopping.vending', lines: ['つめたい のみものが ならんでいる。どれにしようかな。'] },
       { id: 'neighborhood-postbox', kind: 'object', name: 'ポスト', x: 41, y: 36, solid: true, eventKey: 'neighborhood.postbox', lines: ['おてがみは ここから たびにでるんだね。'] },
       { id: 'station-busstop', kind: 'sign', name: 'バスてい', x: 50, y: 61, solid: true, eventKey: 'station.busstop', lines: ['つぎの バスは、えきから としょかんまで いくんだって。'] },
