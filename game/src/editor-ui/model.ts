@@ -92,6 +92,27 @@ export class EditorModel {
     this.notice = '未反映の入力があります。反映するか、入力を取り消してください。';
     return false;
   }
+  private syncSelection(): void {
+    if (!this.document.areas.some(area => area.id === this.areaId)) this.areaId = this.document.start.areaId;
+    const entity = this.selection && this.entity(this.selection);
+    if (this.selection && entity) {
+      if ('areaId' in entity) this.areaId = entity.areaId;
+      this.draft = draftFor(this.selection.table, entity, false);
+    } else { this.selection = null; this.draft = null; }
+  }
+  /** Shared port for extension panels: the same session and undo history as the GUI. */
+  commit(operations: readonly EditOperation[]): EditorDocument {
+    if (!this.mayLeave()) throw new Error(this.notice);
+    try {
+      const document = this.backend.commit(operations);
+      this.syncSelection(); this.issues = []; this.notice = '編集を反映しました。';
+      return document;
+    } catch (error) {
+      this.issues = error instanceof EditorValidationError ? error.issues : [{ path: '編集', code: 'error', message: error instanceof Error ? error.message : '編集できません。' }];
+      this.notice = '反映できませんでした。検証結果を確認してください。';
+      throw error;
+    }
+  }
   selectArea(id: string): boolean {
     if (!this.mayLeave() || !this.document.areas.some(area => area.id === id)) return false;
     this.areaId = id; this.selection = null; this.draft = null; this.issues = []; this.notice = '';
@@ -164,10 +185,7 @@ export class EditorModel {
   history(direction: 'undo' | 'redo'): boolean {
     if (!this.mayLeave() || !(direction === 'undo' ? this.backend.canUndo : this.backend.canRedo)) return false;
     this.backend[direction]();
-    if (!this.document.areas.some(area => area.id === this.areaId)) this.areaId = this.document.start.areaId;
-    const entity = this.selection && this.entity(this.selection);
-    if (this.selection && entity) this.draft = draftFor(this.selection.table, entity, false);
-    else { this.selection = null; this.draft = null; }
+    this.syncSelection();
     this.issues = []; this.notice = direction === 'undo' ? '変更を取り消しました。' : '変更をやり直しました。';
     return true;
   }

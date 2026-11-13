@@ -87,6 +87,40 @@ describe('editor UI state', () => {
     expect(model.document.objects.some(item => item.id === 'new-object')).toBe(true);
   });
 
+  it('commits property edits from JSON and restores the form on undo', () => {
+    const model = makeModel();
+    model.select(tree);
+    const edited = JSON.parse(model.draft!.text) as EditorObject;
+    edited.kind = 'bench';
+    model.draft!.text = JSON.stringify(edited);
+    expect(model.applyDraft()).toBe(true);
+    expect(model.changes.operations[0]).toMatchObject({ type: 'update', id: 'demo-tree', after: { kind: 'bench' } });
+    expect(model.history('undo')).toBe(true);
+    expect(JSON.parse(model.draft!.text).kind).toBe('tree');
+    expect(model.history('redo')).toBe(true);
+    expect(JSON.parse(model.draft!.text).kind).toBe('bench');
+  });
+
+  it('shares an extension commit port without losing draft state or history', () => {
+    const model = makeModel();
+    model.select(tree);
+    const before = model.document.objects.find(item => item.id === 'demo-tree')!;
+    const operation = operationFromForm('objects', before, { ...before, kind: 'bench' });
+    model.draft!.x = '3';
+    expect(() => model.commit([operation])).toThrow('未反映');
+    expect(model.backend.canUndo).toBe(false);
+    model.cancelDraft();
+    expect(() => model.commit([operationFromForm('objects', before, { ...before, x: 0 })])).toThrow();
+    expect(model.issues.some(issue => issue.code === 'overlap')).toBe(true);
+    expect(model.backend.canUndo).toBe(false);
+    expect(model.commit([operation]).objects.find(item => item.id === 'demo-tree')?.kind).toBe('bench');
+    expect(JSON.parse(model.draft!.text).kind).toBe('bench');
+    expect(model.history('undo')).toBe(true);
+    expect(JSON.parse(model.draft!.text).kind).toBe('tree');
+    expect(model.history('redo')).toBe(true);
+    expect(JSON.parse(model.draft!.text).kind).toBe('bench');
+  });
+
   it('exports validated changes that recreate the document from the original data', () => {
     const model = makeModel();
     model.select(tree);

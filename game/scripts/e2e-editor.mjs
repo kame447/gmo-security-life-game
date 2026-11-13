@@ -85,6 +85,12 @@ try {
   await page.fill('#position-x', '3');
   await page.click('#apply');
   assert.equal(await page.locator('[data-operation="move"]').count(), 1, 'move diff');
+  const editedTree = JSON.parse(await page.locator('#entity-json').inputValue());
+  await page.fill('#entity-json', JSON.stringify({ ...editedTree, kind: 'bench' }, null, 2));
+  await page.click('#apply');
+  assert.equal(await page.locator('[data-operation="update"]').count(), 1, 'property update diff');
+  await page.click('#undo');
+  assert.equal(await page.locator('[data-operation="move"]').count(), 1, 'undo property update');
   await page.locator('[data-operation="move"] summary').click();
   const diff = await text(page.locator('[data-operation="move"]'));
   assert.match(diff, /変更前/); assert.match(diff, /変更後/);
