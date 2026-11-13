@@ -33,6 +33,7 @@ export function sourceFingerprint(world: World): Promise<string> { return finger
 export type CheckStage = 'fingerprint' | 'ids' | 'backend' | 'scope';
 export type CheckStatus = 'passed' | 'failed' | 'skipped';
 export interface EditTarget { table: EditorTable; id: string }
+export interface SourceIdentity extends EditTarget { areaId: string; sourceId: boolean; sourceIndex?: number }
 export interface DryRunRequest {
   schemaVersion: 1;
   sourceFingerprint: string;
