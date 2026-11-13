@@ -19,3 +19,5 @@
 [headless ブラウザ E2E を CI で実行する（提案／要検証）](0010-ci-headless-e2e.md)
 
 [実行中のエリアからミニマップを生成する（提案／要検証）](0012-runtime-minimap.md)
+
+[列車の確認と到着を分担し、既存のエリア変更通知を使う（試作／要検証）](0014-train-arrival-area-enter.md)
