@@ -4,15 +4,18 @@ import { startLoop } from './app/loop';
 import { loadSave, writeSave } from './app/save-store';
 import { Controls } from './input/controls';
 import { Renderer } from './render/renderer';
+import { PHONE_INITIAL_OWNED } from './phone/config';
 import { Game } from './session/game';
 import { AvatarPanel } from './ui/avatar-panel';
 import { UiController } from './ui/controller';
 import { $ } from './ui/dom';
 import { Hud } from './ui/hud';
+import { Smartphone } from './ui/smartphone';
 import { buildWorld } from './world';
 
 const world = buildWorld();
-const game = new Game(world, { save: loadSave(world) });
+const game = new Game(world, { save: loadSave(world, PHONE_INITIAL_OWNED), initialPhoneOwned: PHONE_INITIAL_OWNED });
+game.phone.setVisible(!document.hidden);
 const canvas = $<HTMLCanvasElement>('#view');
 const renderer = new Renderer(canvas);
 const controls = new Controls();
@@ -33,6 +36,11 @@ const avatar = new AvatarPanel(game, commit => {
 });
 const ui = new UiController(game, controls, canvas);
 ui.registerPanel({ id: 'avatar', panel: avatar, open: () => avatar.open(), button: $<HTMLButtonElement>('#btn-avatar') });
+const phone = new Smartphone(game.phone, $<HTMLElement>('#stage'), () => { controls.clear(); ui.focusMap(); },
+  () => ({ remainingMb: game.phone.remainingDataMb, capacityMb: game.phone.dataCapacityMb }));
+ui.registerPanel({ id: 'phone', panel: phone, open: () => phone.open(), button: phone.button,
+  shortcut: 'KeyP', canOpen: () => phone.isAvailable });
+game.phone.onChange(() => { save(); ui.update(); });
 const hud = new Hud(game, () => ui.primaryAction());
 ui.bind({ onReset: () => { game.reset(); save(); } });
 exposeDebug(game, renderer, frames);
@@ -59,11 +67,16 @@ const loop = startLoop({
   draw: now => renderer.draw(game, now / 1000),
   measuring: () => frames.recording,
   afterFrame: (now, frame, input) => {
+    game.updatePhoneLocation();
+    phone.update();
     frames.record(now, frame, input, game, renderer);
     avatar.drawPreview(now);
     hud.update(now);
     ui.update();
   },
 });
-document.addEventListener('visibilitychange', () => { controls.clear(); loop.resetClock(); });
+document.addEventListener('visibilitychange', () => {
+  game.phone.setVisible(!document.hidden);
+  controls.clear(); loop.resetClock(); save();
+});
 ui.focusMap();

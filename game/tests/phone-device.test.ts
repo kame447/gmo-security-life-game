@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PHONE_CONTENT, type PhoneContent } from '../src/phone/content';
+import { PHONE_BUDGET_PROTOTYPE } from '../src/phone/budget-config';
 import { PhoneModel, parsePhoneSave } from '../src/phone/model';
 
 describe('smartphone state', () => {
@@ -39,8 +40,10 @@ describe('smartphone state', () => {
 
   it('repairs missing or damaged saves independently and never restores an open screen', () => {
     for (const raw of [undefined, null, {}, [], { v: 2, owned: false }, { v: 1, owned: 'false' }]) {
-      expect(parsePhoneSave(raw, true)).toEqual({ v: 1, owned: true });
-      expect(parsePhoneSave(raw, false)).toEqual({ v: 1, owned: false });
+      expect(parsePhoneSave(raw, true)).toEqual({ v: 1, owned: true, dataBudget: { v: 1,
+        remainingMb: PHONE_BUDGET_PROTOTYPE.capacityMb, capacityMb: PHONE_BUDGET_PROTOTYPE.capacityMb } });
+      expect(parsePhoneSave(raw, false)).toEqual({ v: 1, owned: false, dataBudget: { v: 1,
+        remainingMb: PHONE_BUDGET_PROTOTYPE.capacityMb, capacityMb: PHONE_BUDGET_PROTOTYPE.capacityMb } });
     }
     const phone = new PhoneModel(PHONE_CONTENT, { initialOwned: true });
     phone.open(); phone.launch('web'); phone.navigate('example');

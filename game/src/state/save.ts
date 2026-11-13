@@ -5,6 +5,9 @@
 import { normalizeAppearance, type PlayerAppearance } from '../core/appearance';
 import type { Facing } from '../core/coords';
 import { canStand, type PlayerPosition } from '../map/explorer';
+import { PHONE_INITIAL_OWNED } from '../phone/config';
+import { PHONE_BUDGET_PROTOTYPE, type PhoneBudgetConfig } from '../phone/budget-config';
+import { parsePhoneSave, type PhoneSave } from '../phone/model';
 import type { World } from '../world';
 
 export interface SaveData {
@@ -16,16 +19,21 @@ export interface SaveData {
   facing: Facing;
   /** Optional for v1 saves made before appearance customization was added. */
   appearance?: PlayerAppearance;
+  /** Optional for v1 saves from before the phone prototype. */
+  phone?: PhoneSave;
 }
 
 const FACINGS: readonly unknown[] = ['up', 'down', 'left', 'right'];
 
-export function createSave(world: World, player: PlayerPosition, appearance: PlayerAppearance): SaveData {
-  return { v: 1, variantId: world.variant.id, ...player, appearance: normalizeAppearance(appearance) };
+export function createSave(world: World, player: PlayerPosition, appearance: PlayerAppearance,
+  _reservedForAssets?: never, phone?: PhoneSave, config: Readonly<PhoneBudgetConfig> = PHONE_BUDGET_PROTOTYPE): SaveData {
+  return { v: 1, variantId: world.variant.id, ...player, appearance: normalizeAppearance(appearance),
+    phone: parsePhoneSave(phone, PHONE_INITIAL_OWNED, config) };
 }
 
 /** Returns a normalized save, or null when it is corrupt or does not fit this world. */
-export function parseSave(raw: unknown, world: World): SaveData | null {
+export function parseSave(raw: unknown, world: World, initialPhoneOwned = PHONE_INITIAL_OWNED,
+  config: Readonly<PhoneBudgetConfig> = PHONE_BUDGET_PROTOTYPE): SaveData | null {
   if (!raw || typeof raw !== 'object') return null;
   const s = raw as Partial<SaveData>;
   if (s.v !== 1 || s.variantId !== world.variant.id || typeof s.areaId !== 'string' ||
@@ -34,5 +42,6 @@ export function parseSave(raw: unknown, world: World): SaveData | null {
   const area = world.areas.get(s.areaId);
   if (!area || !canStand(area, s.x, s.y)) return null;
   return { v: 1, variantId: world.variant.id, areaId: s.areaId, x: s.x, y: s.y,
-    facing: s.facing as Facing, appearance: normalizeAppearance(s.appearance) };
+    facing: s.facing as Facing, appearance: normalizeAppearance(s.appearance),
+    phone: parsePhoneSave(s.phone, initialPhoneOwned, config) };
 }
