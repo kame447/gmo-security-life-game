@@ -2,23 +2,28 @@
 import { exposeDebug, FrameRecorder } from './app/debug';
 import { startLoop } from './app/loop';
 import { loadSave, writeSave } from './app/save-store';
+import { applyBagReviewFixture } from './data/bag-review-fixture';
 import { Controls } from './input/controls';
 import { Renderer } from './render/renderer';
 import { Game } from './session/game';
 import { AvatarPanel } from './ui/avatar-panel';
+import { HotbarPanel } from './ui/bag-hotbar/panel';
 import { UiController } from './ui/controller';
 import { $ } from './ui/dom';
 import { Hud } from './ui/hud';
 import { buildWorld } from './world';
 
 const world = buildWorld();
-const game = new Game(world, { save: loadSave(world) });
+const isBagReview = new URLSearchParams(window.location.search).get('review') === '1';
+const game = new Game(world, { save: isBagReview ? undefined : loadSave(world) });
+if (isBagReview && !applyBagReviewFixture(game.assets).ok) throw new Error('Bag review fixture is invalid');
 const canvas = $<HTMLCanvasElement>('#view');
 const renderer = new Renderer(canvas);
 const controls = new Controls();
 const frames = new FrameRecorder();
 
 function save() {
+  if (isBagReview) return;
   const data = game.serialize();
   // A draft is visible immediately, but autosave must preserve the last confirmed appearance.
   const confirmed = avatar.confirmedAppearance;
@@ -33,8 +38,11 @@ const avatar = new AvatarPanel(game, commit => {
 });
 const ui = new UiController(game, controls, canvas);
 ui.registerPanel({ id: 'avatar', panel: avatar, open: () => avatar.open(), button: $<HTMLButtonElement>('#btn-avatar') });
+const bag = new HotbarPanel(game, () => { controls.clear(); ui.focusMap(); }, () => { controls.clear(); ui.focusMap(); });
+ui.registerPanel({ id: 'inventory', panel: bag, open: () => bag.open(), button: bag.button, shortcut: 'KeyI' });
 const hud = new Hud(game, () => ui.primaryAction());
 ui.bind({ onReset: () => { game.reset(); save(); } });
+window.addEventListener('keydown', event => bag.handleHudKey(event, ui.mode === 'explore'));
 exposeDebug(game, renderer, frames);
 
 game.on(event => {
@@ -63,6 +71,7 @@ const loop = startLoop({
     avatar.drawPreview(now);
     hud.update(now);
     ui.update();
+    bag.update(ui.mode === 'explore');
   },
 });
 document.addEventListener('visibilitychange', () => { controls.clear(); loop.resetClock(); });
