@@ -3,12 +3,13 @@ import { FIXED_STEP } from '../src/app/loop';
 import { feetAtTile, type Facing } from '../src/core/coords';
 import type { AreaDef, MapEvent } from '../src/core/types';
 import { STORE_CONTACTS, storeForClerk, type StoreContact } from '../src/data/stores';
-import { RUN_SPEED } from '../src/map/explorer';
+import { canStand, HITBOX, RUN_SPEED } from '../src/map/explorer';
 import { Game } from '../src/session/game';
 import { validateStoreContacts, type StoreProblemCode } from '../src/stores/validate';
-import { buildWorld, findPath, type World } from '../src/world';
+import { buildWorld, findPath, validateWorld, type World } from '../src/world';
 import { toRuntime } from '../src/world/runtime';
-import { STORE_INVENTORY } from './fixtures/stores';
+import { SHOP_INTERIORS } from '../src/world/shops';
+import { buildStoreFixtureWorld, STORE_INVENTORY } from './fixtures/stores';
 
 const contact: StoreContact = { storeId: 'test-store', interiorAreaId: 'test-room',
   entrancePortalId: 'test-enter', clerkEventKey: 'test.clerk', catalogId: 'test-catalog' };
@@ -30,8 +31,8 @@ function fakeWorld(edit?: (areas: AreaDef[]) => void): World {
 }
 
 describe('UI-independent store connection validation', () => {
-  it('accepts the existing konbini contract without changing the world or records', () => {
-    const world = buildWorld(), before = structuredClone(world), records = structuredClone(STORE_CONTACTS);
+  it('accepts all seven store contracts without changing the composed world or records', () => {
+    const world = buildStoreFixtureWorld(), before = structuredClone(world), records = structuredClone(STORE_CONTACTS);
     expect(validateStoreContacts(world, STORE_CONTACTS)).toEqual([]);
     expect(world).toEqual(before);
     expect(STORE_CONTACTS).toEqual(records);
@@ -78,8 +79,8 @@ describe('UI-independent store connection validation', () => {
   });
 });
 
-describe('current store inventory (facts, not future ID decisions)', () => {
-  const world = buildWorld(), town = world.areas.get('town-main')!;
+describe('named store inventory in the module composition', () => {
+  const world = buildStoreFixtureWorld(), town = world.areas.get('town-main')!;
 
   it('lists every shop building, including the cafe exterior without a facility', () => {
     expect(town.objects.filter(item => item.kind === 'shop').map(item => item.id).sort())
@@ -114,6 +115,106 @@ describe('current store inventory (facts, not future ID decisions)', () => {
   it('classifies every contract as an inventoried connected store', () => {
     expect(STORE_CONTACTS.map(store => store.storeId).sort()).toEqual(STORE_INVENTORY
       .filter(entry => entry.status === 'connected').map(entry => entry.facilityId).sort());
+  });
+});
+
+type TileRect = { x: number; y: number; w?: number; h?: number };
+
+/** Find a real walking route to any edge of a display, table or NPC. */
+function approach(game: Game, target: TileRect): { x: number; y: number; facing: Facing } {
+  const from = { x: Math.floor(game.player.x / 16), y: Math.floor((game.player.y - 4) / 16) };
+  for (let dy = 0; dy < (target.h ?? 1); dy++) for (let dx = 0; dx < (target.w ?? 1); dx++) {
+    const x = target.x + dx, y = target.y + dy;
+    const choices: { x: number; y: number; facing: Facing }[] = [
+      { x, y: y + 1, facing: 'up' }, { x: x - 1, y, facing: 'right' },
+      { x, y: y - 1, facing: 'down' }, { x: x + 1, y, facing: 'left' },
+    ];
+    const result = choices.find(tile => findPath(game.area, from, tile));
+    if (result) return result;
+  }
+  throw new Error(`Unreachable object in ${game.player.areaId}: ${JSON.stringify(target)}`);
+}
+
+describe('six store modules: movement, displays, greetings and save/resume', () => {
+  it('connects every named store and keeps the unidentified cafe outside the contract', () => {
+    const world = buildStoreFixtureWorld();
+    expect(validateWorld(world)).toEqual([]);
+    expect(validateStoreContacts(world, STORE_CONTACTS)).toEqual([]);
+    expect(STORE_CONTACTS).toHaveLength(7);
+    expect(world.areas.get('town-main')!.objects.find(item => item.id === 'town-shop-60-59')?.facilityId).toBeUndefined();
+  });
+
+  it.each(SHOP_INTERIORS)('walks into $name, reaches its displays and clerk, saves inside and returns', definition => {
+    const world = buildStoreFixtureWorld(), game = new Game(world), events: MapEvent[] = [];
+    const store = STORE_CONTACTS.find(item => item.storeId === `shop-${definition.id}`)!;
+    game.on(event => events.push(event));
+    game.setAppearance({ ...game.appearance, hairColor: 'black', outfit: 'shirt', outfitColor: 'green' });
+    const entrance = game.area.def.portals.find(portal => portal.id === store.entrancePortalId)!;
+    walkToTile(game, entrance.from);
+    expect(game.player).toEqual({ areaId: store.interiorAreaId, ...feetAtTile(entrance.to.x, entrance.to.y), facing: 'up' });
+    const indoor = game.area;
+
+    for (const display of indoor.interactions.filter(item => item.kind === 'object')) {
+      const tile = approach(game, display);
+      walkToTile(game, tile);
+      game.player.facing = tile.facing;
+      expect(game.facingInteraction()).toBe(display);
+      game.action();
+      expect(game.dialog).toMatchObject({ speaker: display.name, lines: display.lines });
+      for (let i = 0; i < display.lines.length; i++) game.action();
+      expect(game.dialog).toBeNull();
+    }
+
+    const clerk = indoor.interactions.find(item => item.kind === 'npc' && item.eventKey === store.clerkEventKey)!;
+    const tile = approach(game, clerk);
+    walkToTile(game, tile);
+    game.player.facing = tile.facing;
+    expect(storeForClerk(indoor.def.id, clerk.eventKey)).toBe(store);
+    expect(storeForClerk('town-main', clerk.eventKey)).toBeUndefined();
+    const before = { ...game.player }, save = JSON.parse(JSON.stringify(game.serialize()));
+    const resumed = new Game(world, { save });
+    expect(resumed.player).toEqual(before);
+    expect(resumed.appearance).toEqual(game.appearance);
+    expect(resumed.facingInteraction()?.eventKey).toBe(store.clerkEventKey);
+    game.action();
+    expect(game.dialog).toMatchObject({ speaker: clerk.name, lines: clerk.lines });
+    for (const dir of ['up', 'down', 'left', 'right'] as const) {
+      for (let frame = 0; frame < 40; frame++) game.update(FIXED_STEP, { dir, run: true });
+      expect(game.player).toEqual(before);
+    }
+    for (let i = 0; i < clerk.lines.length; i++) game.action();
+    expect(game.dialog).toBeNull();
+    expect(game.player).toEqual(before);
+    const exit = indoor.def.portals[0];
+    walkToTile(game, exit.from);
+    expect(game.player).toEqual({ areaId: 'town-main', ...feetAtTile(exit.to.x, exit.to.y), facing: 'down' });
+    expect(exit.to).toMatchObject({ x: entrance.from.x, y: entrance.from.y + 1 });
+    expect(events.filter(event => event.type === 'portal').map(event => event.portalId)).toEqual([entrance.id, exit.id]);
+    expect(events).toContainEqual({ type: 'interact', areaId: indoor.def.id, interactionId: clerk.id, eventKey: store.clerkEventKey });
+    const returned = new Game(world, { save: JSON.parse(JSON.stringify(game.serialize())) });
+    expect(returned.player).toEqual(game.player);
+    expect(returned.appearance).toEqual(game.appearance);
+  });
+
+  it.each(SHOP_INTERIORS)('stops real movement at every solid furnishing in $name', definition => {
+    const world = buildStoreFixtureWorld(), game = new Game(world);
+    const entry = world.areas.get('town-main')!.def.portals.find(portal => portal.id === `${definition.id}-enter`)!;
+    walkToTile(game, entry.from);
+    const area = game.area;
+    for (const item of area.objects.filter(object => object.solid)) {
+      const tile = approach(game, item);
+      walkToTile(game, tile);
+      game.update(0.6, { dir: tile.facing, run: true });
+      const stopped = { ...game.player };
+      expect(stopped.areaId).toBe(area.def.id);
+      expect(canStand(area, stopped.x, stopped.y)).toBe(true);
+      if (tile.facing === 'up') expect(stopped.y).toBeCloseTo((item.y + item.h) * 16 + HITBOX.h, 7);
+      if (tile.facing === 'down') expect(stopped.y).toBeCloseTo(item.y * 16, 7);
+      if (tile.facing === 'left') expect(stopped.x).toBeCloseTo((item.x + item.w) * 16 + HITBOX.halfW, 7);
+      if (tile.facing === 'right') expect(stopped.x).toBeCloseTo(item.x * 16 - HITBOX.halfW, 7);
+      game.update(0.6, { dir: tile.facing, run: true });
+      expect(game.player).toEqual(stopped);
+    }
   });
 });
 
