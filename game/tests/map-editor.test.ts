@@ -81,6 +81,19 @@ describe('map editor operations', () => {
     expect(model.document).toEqual(fixture());
   });
 });
+describe('indoor map editing contract', () => {
+  it('supports shelves, counters, aisle collision and an outdoor return without creating actual shops', () => {
+    const d = fixture();
+    d.objects.push({ id: 'test-shelf', areaId: 'demo-room', kind: 'shelf', x: 5, y: 1, w: 1, h: 2, solid: true },
+      { id: 'test-counter', areaId: 'demo-room', kind: 'counter', x: 1, y: 1, w: 2, h: 1, solid: true });
+    expect(parseDocument(d).areas.find(a => a.id === 'demo-room')!.kind).toBe('indoor');
+    const moved = applyChangeSet(d, createChangeSet(d, mapMoveOperations(d, { table: 'objects', id: 'test-shelf' }, 6, 1)));
+    expect(moved.objects.find(o => o.id === 'test-shelf')).toMatchObject({ x: 6, h: 2, solid: true });
+    expect(moved.portals.find(p => p.id === 'demo-exit')!.to).toMatchObject({ areaId: 'demo-outdoor', x: 8, y: 3 });
+    expect(validateMapOperations(d, mapMoveOperations(d, { table: 'objects', id: 'test-counter' }, 5, 1)).some(i => i.code === 'overlap')).toBe(true);
+    expect(d.objects.find(o => o.id === 'test-shelf')!.x).toBe(5);
+  });
+});
 describe('map viewport and selection', () => {
   it('converts CSS-scaled coordinates and preserves zoom anchors', () => {
     expect(tileFromClient(329, 203, { left: 100, top: 50, width: 760, height: 608 }, { width: 380, height: 304 })).toEqual({ x: 3, y: 2 });

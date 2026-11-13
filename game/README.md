@@ -72,6 +72,7 @@ npm test
 | `src/core/appearance.ts` | 外見の選択肢・既定値・項目ごとの検証・キャッシュキー |
 | `src/world/` | マップの構造化データ（`town.ts`・`interiors.ts`）、目印と開始地点（`landmarks.ts`）、実行時索引（`runtime.ts`）、経路探索（`path.ts`）、検証（`validate.ts`）、組み立て（`index.ts`） |
 | `src/editor/` | 独立した編集用データ契約・検証・差分・Undo/Redo・Worldへの変換（GUI非依存） |
+| `src/editor-ui/map/` | マップの参照表示、ズーム／パン、ドラッグ、配置プロパティと関連出入口の一括移動（#24） |
 | `data/editor-prototype.json` | 編集基盤の確認用サンプル。通常ゲームの町・NPC定義とは独立 |
 | `scripts/editor.mjs` | 編集用JSONの検証、差分出力、適用前確認、安全な永続適用（Node.js 24） |
 | `src/map/` | 移動・衝突・出入口の遷移・調査対象の判定と通知（DOM 非依存） |

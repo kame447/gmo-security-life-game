@@ -68,7 +68,7 @@ export function operationsFromDraft(document: EditorDocument, draft: Draft): Edi
     if (draft.table === 'portals') Object.assign((after as EditorDocument['portals'][number]).from, { x, y });
     else Object.assign(after, { x, y });
   }
-  const anchored = draft.table === 'facilities' && draft.x !== '' && draft.y !== '';
+  const anchored = draft.table === 'facilities' && (draft.originalX !== '' || draft.x !== '');
   return mapDraftOperations(document, draft.table, before, after, anchored ? { x, y } : undefined);
 }
 export function validateMapOperations(document: EditorDocument, operations: readonly EditOperation[]): ValidationIssue[] {
