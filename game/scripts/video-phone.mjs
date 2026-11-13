@@ -1,5 +1,4 @@
 /** Record the real review-only phone flow; video files stay under SLG_VIDEOS. */
-import { chromium } from 'playwright';
 import { mkdir, rename } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 
@@ -16,6 +15,7 @@ await mkdir(outputDir, { recursive: true });
 process.env.TMPDIR = outputDir;
 process.env.TMP = outputDir;
 process.env.TEMP = outputDir;
+const { chromium } = await import('playwright');
 
 const browser = await chromium.launch({ headless: true, args: [
   '--disable-background-networking', '--disable-component-update', '--disable-sync',
