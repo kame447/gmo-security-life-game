@@ -1,6 +1,6 @@
 # ゲーム内スマートフォン
 
-対象: [Issue #22](https://github.com/kame447/gmo-security-life-game/issues/22)。見た目と操作は利用者のレビューを待つ候補であり、採用済みではありません。
+対象: [Issue #22](https://github.com/kame447/gmo-security-life-game/issues/22)。画面と操作は2026-11-14の実画面レビューで合格しました。通信容量の設定値や仮の会話内容は未確定で、統合後の回帰検証とmainへのマージは別の確認を経ます。
 
 ## 画面候補
 
