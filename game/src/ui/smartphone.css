@@ -15,12 +15,12 @@
 .smartphone-battery::after { content: ''; position: absolute; right: -3px; top: 2px; width: 2px; height: 3px; border-radius: 0 2px 2px 0; background: currentColor; }
 .smartphone-camera { z-index: 3; position: absolute; top: 9px; left: 50%; width: 72px; height: 16px; transform: translateX(-50%); background: #11151b; border-radius: 14px; }
 .smartphone-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; touch-action: pan-y; }
-.smartphone-app-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 21px 4px; padding: 30px 15px; }
+.smartphone-app-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 21px 2px; padding: 30px 9px; }
 .smartphone button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.smartphone-app { position: relative; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 3px 0 5px; border: 2px solid transparent; border-radius: 14px; background: transparent; color: #fff; }
+.smartphone-app { position: relative; min-width: 0; min-height: 44px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 3px 0 5px; border: 2px solid transparent; border-radius: 14px; background: transparent; color: #fff; }
 .smartphone-app.is-selected, .smartphone-app:focus-visible { outline: none; border-color: #ffffffc9; background: #ffffff1a; }
 .smartphone-app-icon, .smartphone-entry-icon { position: relative; display: grid; place-items: center; flex: none; color: #fff; }
-.smartphone-app-icon { width: min(54px, 90%); aspect-ratio: 1; border-radius: 15px; box-shadow: 0 4px 9px #0003, inset 0 1px #ffffff40; }
+.smartphone-app-icon { width: min(68px, 100%); aspect-ratio: 1; border-radius: 18px; box-shadow: 0 4px 9px #0003, inset 0 1px #ffffff40; }
 .smartphone-app-icon svg { width: 62%; height: 62%; }.smartphone-entry-icon svg { width: 70%; height: 70%; }
 .icon-mint { background: #38a579; }.icon-blue { background: #3989d2; }.icon-peach { background: #c18864; }.icon-lilac { background: #8b78b8; }.icon-slate { background: #71839a; }
 .smartphone-app-label { max-width: 100%; font-size: 10px; white-space: nowrap; text-shadow: 0 1px 3px #000; }
@@ -49,6 +49,6 @@
   .smartphone { width: min(340px, calc(100vw - 24px)); height: calc(100dvh - 24px); aspect-ratio: auto; }
   .smartphone-status { min-height: 32px; padding-top: 6px; }.smartphone-camera { top: 5px; height: 13px; }
   .smartphone-app-grid { padding-top: 5px; gap: 4px; }.smartphone-app { gap: 2px; padding: 1px 0; }
-  .smartphone-app-icon { width: min(43px, 90%); border-radius: 12px; }.smartphone-nav { padding-bottom: 3px; }.smartphone-nav-button, .smartphone-home-button { min-height: 32px; }
+  .smartphone-nav { padding-bottom: 3px; }.smartphone-nav-button, .smartphone-home-button { min-height: 32px; }
   .smartphone-view { padding-top: 5px; }.smartphone-view-title { margin-bottom: 8px; font-size: 19px; }
 }

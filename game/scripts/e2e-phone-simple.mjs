@@ -50,6 +50,19 @@ try {
   await touch.locator('#phone-device').waitFor({ state: 'visible' });
   let box = await touch.locator('#phone-device').boundingBox();
   assert.ok(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= 390 && box.y + box.height <= 844);
+  const homeApps = await touch.locator('.smartphone-app').evaluateAll(buttons => buttons.map(button => {
+    const tap = button.getBoundingClientRect(), icon = button.querySelector('.smartphone-app-icon').getBoundingClientRect();
+    return { x: tap.x, y: tap.y, width: tap.width, height: tap.height, iconWidth: icon.width, iconHeight: icon.height };
+  }));
+  assert.equal(homeApps.length, 5);
+  for (const app of homeApps) {
+    assert.ok(app.iconWidth >= 64 && app.iconWidth <= 70 && app.iconHeight >= 64 && app.iconHeight <= 70,
+      `icon must be 64–70px: ${JSON.stringify(app)}`);
+    assert.ok(app.width >= 44 && app.height >= 44, `tap target must be at least 44px: ${JSON.stringify(app)}`);
+  }
+  assert.ok(homeApps.slice(0, 4).every(app => Math.abs(app.y - homeApps[0].y) < 1), 'first four apps share a row');
+  assert.ok(homeApps.slice(1, 4).every((app, index) => app.x > homeApps[index].x), 'four distinct columns');
+  assert.doesNotMatch(await touch.locator('#phone-body').innerText(), /MY DAY|こんにちは/);
   await touch.locator('[data-app="data"]').tap();
   assert.equal(await touch.locator('.smartphone-usage-title').innerText(), '通信残量');
   await touch.locator('#phone-home').tap();
