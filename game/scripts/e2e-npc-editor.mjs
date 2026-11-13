@@ -33,7 +33,14 @@ async function stopServer() {
   child.kill('SIGTERM'); await ended;
 }
 function cli(...args) { return execFileSync(process.execPath, [path.join(fixture, 'scripts/editor.mjs'), ...args], { cwd: fixture, encoding: 'utf8' }); }
-async function grid(page, x, y) { await page.locator('#grid').click({ position: { x: x * 38 + 19, y: y * 38 + 19 } }); }
+async function grid(page, x, y) {
+  const point = await page.locator('#grid').evaluate((canvas, position) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = rect.width / canvas.width, scaleY = rect.height / canvas.height;
+    return { x: (position.x + .5) * 38 * scaleX, y: (position.y + .5) * 38 * scaleY };
+  }, { x, y });
+  await page.locator('#grid').click({ position: point });
+}
 
 try {
   await cp(gameDir, fixture, { recursive: true, filter: source => {

@@ -11,6 +11,7 @@ import { sceneEntries } from './map/scene.ts';
 import { operationsFromDraft } from './map/operations.ts';
 import { MAP_CELL, tileFromClient } from './map/viewport.ts';
 import { NpcPanel } from './npc/panel.ts';
+import { characterSprite } from '../render/sprites.ts';
 
 const model = new EditorModel(createEditorBackend(JSON.parse(source)));
 const $ = <T extends Element>(selector: string): T => {
@@ -54,13 +55,32 @@ function renderList(): void {
     const option = node('option', `${area.name} (${area.id})`); option.value = area.id; return option;
   }));
   areaSelect.value = mapView.areaId;
-  const entries = areaEntities();
+  const filter = $<HTMLSelectElement>('#entity-filter').value;
+  const query = $<HTMLInputElement>('#entity-search').value.trim().toLocaleLowerCase();
+  const entries = areaEntities().filter(({ table, entity }) => {
+    const npc = table === 'interactions' && 'kind' in entity && entity.kind === 'npc';
+    if (filter === 'npc' ? !npc : filter !== 'all' && (filter !== table || filter === 'interactions' && npc)) return false;
+    return !query || (name(entity) + ' ' + entity.id).toLocaleLowerCase().includes(query);
+  });
   $('#entity-count').textContent = `${entries.length} 件`;
   list.replaceChildren(...entries.map(({ table, entity }) => {
     const button = node('button'); button.type = 'button'; button.className = 'entity';
     button.dataset.table = table; button.dataset.id = entity.id;
     button.setAttribute('aria-pressed', String(mapView.selection?.table === table && mapView.selection.id === entity.id));
-    button.append(node('span', `${labels[table]} · ${name(entity)}`), node('small', entity.id));
+    const info = node('span');
+    info.className = 'entity-info';
+    info.append(node('span', labels[table] + ' · ' + name(entity)), node('small', entity.id));
+    if (table === 'interactions' && 'kind' in entity && entity.kind === 'npc' && 'sprite' in entity && typeof entity.sprite === 'string') {
+      const avatar = node('canvas'); avatar.width = 42; avatar.height = 46; avatar.className = 'entity-avatar';
+      const context = avatar.getContext('2d');
+      if (context) {
+        const sprite = characterSprite(entity.sprite, 'down', 0);
+        context.imageSmoothingEnabled = false;
+        context.drawImage(sprite.canvas, 6, 2, 30, 42);
+      }
+      button.append(avatar);
+    }
+    button.append(info);
     button.addEventListener('click', () => select({ table, id: entity.id }));
     return button;
   }));
@@ -132,6 +152,8 @@ function renderControls(): void {
 function render(): void { renderList(); renderGrid(); renderInspector(); renderValidation(); renderChanges(); renderControls(); mapView.afterRender(); }
 
 areaSelect.addEventListener('change', () => { mapView.selectArea(areaSelect.value); render(); });
+$('#entity-filter').addEventListener('change', renderList);
+$('#entity-search').addEventListener('input', renderList);
 $('#add').addEventListener('click', () => { if (mapView.readOnly) return; model.startAdd($<HTMLSelectElement>('#add-type').value as Exclude<EditorTable, 'areas'>); render(); });
 for (const [element, key] of [[json, 'text'], [xInput, 'x'], [yInput, 'y']] as const) element.addEventListener('input', () => {
   if (model.draft) model.draft[key] = element.value;
@@ -183,3 +205,4 @@ window.addEventListener('beforeunload', event => {
   }
 });
 render();
+$<HTMLButtonElement>('#map-fit').click();
