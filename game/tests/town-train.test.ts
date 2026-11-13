@@ -47,13 +47,28 @@ describe('town train prototype', () => {
     }
   });
 
-  it('does not bridge gaps, invent rails in another town, or animate indoor station trains', () => {
+  it('does not bridge gaps, invent rails on empty ground, or animate indoor station trains', () => {
     const split = syntheticRail(36, 4, 24), strips = findRailStrips(split);
     expect(strips).toHaveLength(2);
     for (const strip of strips) expectRailOnly(split, strip);
     const world = buildWorld();
-    expect(findRailStrips(world.areas.get('town-neighbor')!)).toEqual([]);
+    const original = world.areas.get('town-neighbor')!;
+    const ground = new Uint8Array(original.width * original.height).fill(T.GRASS);
+    const empty = { ...original, def: { ...original.def, ground }, ground };
+    expect(findRailStrips(empty)).toEqual([]);
     expect(findRailStrips(world.areas.get('station-neighbor-interior')!)).toEqual([]);
+  });
+
+  it('detects actual neighbor-town rails whenever the World contains them', () => {
+    const neighbor = buildWorld().areas.get('town-neighbor')!, strips = findRailStrips(neighbor);
+    // The base version has no outdoor rail. The station geography adds it later.
+    const hasRail = neighbor.ground.some(tile => tile === T.RAIL || tile === T.RAIL_BRIDGE);
+    expect(strips.length > 0).toBe(hasRail);
+    const frames = new TownTrainService().frames(neighbor, 2);
+    for (const strip of strips) {
+      expectRailOnly(neighbor, strip);
+      expect(frames).toContainEqual(expect.objectContaining({ strip }));
+    }
   });
 
   it('uses periodic elapsed time instead of accumulated frames, and accommodates multiple trains', () => {
