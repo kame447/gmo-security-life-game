@@ -1,28 +1,6 @@
 {
-  "schemaVersion": 1,
-  "id": "editor-prototype",
-  "tileSize": 16,
-  "start": {
-    "areaId": "demo-outdoor",
-    "x": 1,
-    "y": 4,
-    "facing": "right"
-  },
-  "catalogs": {
-    "sprites": [
-      "friend"
-    ],
-    "eventKeys": [
-      "demo.greeting"
-    ]
-  },
   "areas": [
     {
-      "id": "demo-outdoor",
-      "name": "編集確認用の屋外（暫定）",
-      "kind": "outdoor",
-      "width": 10,
-      "height": 8,
       "ground": [
         22,
         22,
@@ -104,14 +82,14 @@
         22,
         22,
         22
-      ]
+      ],
+      "height": 8,
+      "id": "demo-outdoor",
+      "kind": "outdoor",
+      "name": "編集確認用の屋外（暫定）",
+      "width": 10
     },
     {
-      "id": "demo-room",
-      "name": "編集確認用の部屋（暫定）",
-      "kind": "indoor",
-      "width": 8,
-      "height": 6,
       "ground": [
         22,
         22,
@@ -161,92 +139,114 @@
         22,
         22,
         22
-      ]
+      ],
+      "height": 6,
+      "id": "demo-room",
+      "kind": "indoor",
+      "name": "編集確認用の部屋（暫定）",
+      "width": 8
     }
   ],
+  "catalogs": {
+    "eventKeys": [
+      "demo.greeting"
+    ],
+    "sprites": [
+      "friend"
+    ]
+  },
   "facilities": [
     {
-      "id": "demo-house",
-      "name": "編集確認用の家（暫定）",
       "areaId": "demo-outdoor",
+      "id": "demo-house",
       "interior": "full",
+      "name": "編集確認用の家（暫定）",
       "state": "open"
+    }
+  ],
+  "id": "editor-prototype",
+  "interactions": [
+    {
+      "areaId": "demo-outdoor",
+      "eventKey": "demo.greeting",
+      "facing": "down",
+      "h": 1,
+      "id": "demo-npc",
+      "kind": "npc",
+      "lines": [
+        "これは編集データの確認用です。"
+      ],
+      "name": "編集確認NPC",
+      "solid": true,
+      "sprite": "friend",
+      "w": 1,
+      "x": 4,
+      "y": 4
     }
   ],
   "objects": [
     {
-      "id": "demo-house-building",
       "areaId": "demo-outdoor",
-      "kind": "house",
-      "x": 7,
-      "y": 1,
-      "w": 2,
+      "facilityId": "demo-house",
       "h": 2,
+      "id": "demo-house-building",
+      "kind": "house",
       "solid": true,
-      "facilityId": "demo-house"
+      "w": 2,
+      "x": 7,
+      "y": 1
     },
     {
+      "areaId": "demo-outdoor",
+      "h": 1,
       "id": "demo-tree",
-      "areaId": "demo-outdoor",
       "kind": "tree",
-      "x": 2,
-      "y": 2,
-      "w": 1,
-      "h": 1,
-      "solid": true
-    }
-  ],
-  "interactions": [
-    {
-      "id": "demo-npc",
-      "areaId": "demo-outdoor",
-      "kind": "npc",
-      "name": "編集確認NPC",
-      "x": 4,
-      "y": 4,
-      "w": 1,
-      "h": 1,
       "solid": true,
-      "sprite": "friend",
-      "facing": "down",
-      "eventKey": "demo.greeting",
-      "lines": [
-        "これは編集データの確認用です。"
-      ]
+      "w": 1,
+      "x": 2,
+      "y": 2
     }
   ],
   "portals": [
     {
-      "id": "demo-enter",
       "areaId": "demo-outdoor",
+      "facilityId": "demo-house",
       "from": {
         "x": 8,
         "y": 2
       },
+      "id": "demo-enter",
+      "returnPortalId": "demo-exit",
       "to": {
         "areaId": "demo-room",
+        "facing": "up",
         "x": 3,
-        "y": 3,
-        "facing": "up"
-      },
-      "facilityId": "demo-house",
-      "returnPortalId": "demo-exit"
+        "y": 3
+      }
     },
     {
-      "id": "demo-exit",
       "areaId": "demo-room",
+      "facilityId": "demo-house",
       "from": {
         "x": 3,
         "y": 4
       },
+      "id": "demo-exit",
+      "returnPortalId": "demo-enter",
       "to": {
         "areaId": "demo-outdoor",
+        "facing": "down",
         "x": 8,
-        "y": 3,
-        "facing": "down"
-      },
-      "facilityId": "demo-house",
-      "returnPortalId": "demo-enter"
+        "y": 3
+      }
     }
-  ]
+  ],
+  "schemaVersion": 1,
+  "start": {
+    "areaId": "demo-outdoor",
+    "facing": "right",
+    "x": 1,
+    "y": 4
+  },
+  "tileSize": 16
 }
