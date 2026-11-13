@@ -29,8 +29,22 @@ try {
     await page.keyboard.press('ArrowLeft'); await page.keyboard.press('ArrowDown');
     assert.deepEqual(await page.evaluate(() => ({ ...window.__slg.game.player })), position);
     await conserved(page, before);
-    await page.locator('.bag-close').focus(); await page.keyboard.press('Space');
-    assert.equal(await page.locator('.bag-window').isVisible(), false);
+    await page.locator('.bag-close').focus(); await page.keyboard.press('Shift+Tab');
+    assert.equal(await page.locator('.bag-window').evaluate(node => node.contains(document.activeElement)), true);
+    await page.keyboard.press('Tab');
+    assert.equal(await page.locator('.bag-close').evaluate(node => node === document.activeElement), true);
+    for (const key of ['Enter', 'Space']) {
+      await slot(page, 'bag', 3).click();
+      await page.locator('.bag-cancel-move').focus(); await page.keyboard.press(key);
+      assert.equal(await page.locator('.is-held').count(), 0);
+      assert.equal(await page.locator('.bag-window').isVisible(), true);
+      await conserved(page, before);
+      await page.locator('.bag-close').focus(); await page.keyboard.press(key);
+      assert.equal(await page.locator('.bag-window').isVisible(), false);
+      assert.equal(await page.locator('#view').evaluate(node => node === document.activeElement), true);
+      await openBag(page);
+    }
+    await page.locator('.bag-close').click();
   });
   await check('HUD selection is shared and modal guards prevent hidden interactions', async () => {
     await page.locator('#view').focus(); await page.keyboard.press('3');
@@ -41,9 +55,24 @@ try {
     assert.equal(await page.locator('.bag-quick-hud').isVisible(), false);
     await page.keyboard.press('i'); assert.equal(await page.locator('.bag-window').isVisible(), false);
     await page.keyboard.press('Escape');
+    await page.evaluate(() => { window.__slg.game.dialog = { speaker: '確認', lines: ['確認中'], index: 0 }; });
+    await page.waitForFunction(() => document.querySelector('#btn-inventory').disabled);
+    await page.locator('#view').focus(); await page.keyboard.press('i');
+    assert.equal(await page.locator('.bag-window').isVisible(), false);
+    assert.equal(await page.locator('.bag-quick-hud').isVisible(), false);
+    await page.evaluate(() => { window.__slg.game.dialog = null; });
+    await page.waitForFunction(() => !document.querySelector('#btn-inventory').disabled);
   });
   await check('review never reads or writes the normal save', async () => {
-    await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+    await page.locator('#btn-avatar').click();
+    await page.locator('[data-field="hairColor"] [data-step="1"]').click();
+    await page.locator('#avatar-ok').click();
+    await page.locator('#btn-reset').click();
+    await page.evaluate(() => {
+      window.__slg.game.assets.changeMoney(7); window.__slg.game.reset();
+      window.dispatchEvent(new Event('pagehide'));
+    });
+    await page.waitForTimeout(3200);
     const counts = await page.evaluate(() => ({ reads: window.__inventoryStorage.reads, writes: window.__inventoryStorage.writes, value: window.__inventoryStorage.peek() }));
     assert.deepEqual(counts, { reads: 0, writes: 0, value: '{"review-sentinel":true}' });
   });
@@ -73,12 +102,17 @@ try {
     let saved = await p.evaluate(() => JSON.parse(window.__inventoryStorage.peek()));
     assert.deepEqual(saved.phone, seed.phone); assert.deepEqual(saved.appearance, seed.appearance);
     assert.equal(saved.assets.layout.hotbar[3], 'notebook'); assert.equal(saved.assets.layout.selectedHotbar, 3);
+    const change = await p.evaluate(() => window.__slg.game.assets.apply({ moneyDeltaYen: -120,
+      itemDeltas: [{ itemId: 'bottled-water', quantityDelta: 1 }] }));
+    assert.deepEqual(change, { ok: true });
+    const expectedAssets = await state(p);
+    assert.equal(expectedAssets.moneyYen, seed.assets.moneyYen - 120);
     await p.waitForFunction(() => window.__inventoryStorage.writes >= 2, null, { timeout: 7000 });
     await p.evaluate(() => window.dispatchEvent(new Event('pagehide')));
     saved = await p.evaluate(() => JSON.parse(window.__inventoryStorage.peek()));
     await p.reload(); await p.waitForFunction(() => !!window.__slg?.game?.assets?.inventory);
     const after = await p.evaluate(() => window.__slg.game.serialize()); assert.deepEqual(after, saved);
-    assert.deepEqual(after.assets.items, seed.assets.items); assert.deepEqual(after.phone, seed.phone);
+    assert.deepEqual(after.assets, expectedAssets); assert.deepEqual(after.phone, seed.phone);
     await normal.close();
   });
   console.log(`SUMMARY ${passed}/${passed} PASS: unified inventory, input, storage and isolation`);
