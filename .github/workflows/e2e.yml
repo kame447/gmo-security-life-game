@@ -50,7 +50,7 @@ jobs:
               cat "$output_dir/vite.log"
               exit 1
             fi
-            if grep -q 'Local:' "$output_dir/vite.log" && curl --fail --silent "$SLG_URL/" > /dev/null; then
+            if grep -q 'Local' "$output_dir/vite.log" && curl --fail --silent "$SLG_URL/" > /dev/null; then
               ready=1
               break
             fi
