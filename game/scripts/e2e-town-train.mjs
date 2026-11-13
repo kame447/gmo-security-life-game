@@ -14,7 +14,8 @@ const errors = [], blocked = [], passed = [];
 const browser = await chromium.launch({ headless: true });
 
 try {
-  for (const size of [{ name: 'desktop', width: 1280, height: 800 }, { name: 'mobile', width: 390, height: 844, touch: true }]) {
+  for (const size of [{ name: 'desktop', width: 1280, height: 800 }, { name: 'mobile', width: 390, height: 844, touch: true },
+    { name: 'landscape', width: 844, height: 390, touch: true }]) {
     const context = await browser.newContext({ viewport: { width: size.width, height: size.height }, hasTouch: !!size.touch,
       isMobile: !!size.touch, deviceScaleFactor: 1, serviceWorkers: 'block', acceptDownloads: false });
     try {
