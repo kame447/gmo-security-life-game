@@ -11,3 +11,5 @@
 [幼少期マップの Canvas 2D プロトタイプ（提案／要検証）](0003-map-prototype-canvas2d.md)
 
 [ゲームのコードを責務ごとのモジュールに分ける](0004-game-module-structure.md)
+
+[資産の共通操作とバッグ画面の試作](0005-player-assets-and-bag-ui.md)

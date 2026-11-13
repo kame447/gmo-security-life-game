@@ -1,4 +1,5 @@
 .bag-menu-button { display: inline-flex; align-items: center; gap: 4px; }
+.bag-menu-button, .bag-overlay { -webkit-tap-highlight-color: transparent; }
 .bag-menu-button canvas { width: 18px; height: 18px; image-rendering: pixelated; }
 .bag-overlay {
   --bag-ink: #364b42; --bag-paper: #f4e9c9; --bag-green: #426c5b; --bag-gold: #ecc27c;
