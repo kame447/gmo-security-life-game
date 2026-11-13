@@ -11,3 +11,5 @@
 [幼少期マップの Canvas 2D プロトタイプ（提案／要検証）](0003-map-prototype-canvas2d.md)
 
 [ゲームのコードを責務ごとのモジュールに分ける](0004-game-module-structure.md)
+
+[headless ブラウザ E2E を CI で実行する（提案／要検証）](0010-ci-headless-e2e.md)
