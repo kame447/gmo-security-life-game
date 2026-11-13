@@ -1,0 +1,131 @@
+# 編集データと差分適用の共通基盤
+
+対象：[Issue #23](https://github.com/kame447/gmo-security-life-game/issues/23)。[マップGUI #24](https://github.com/kame447/gmo-security-life-game/issues/24) と [NPC GUI #25](https://github.com/kame447/gmo-security-life-game/issues/25) が共有する、GUIに依存しない編集APIです。
+
+状態：独立したサンプルデータに対するプロトタイプ。既存の `world/town.ts`・`interiors.ts` とNPC定義は移行・変更していません。通常ゲームの `buildWorld()` は従来のデータを使います。既存マップへの移行、全年代対応、各GUIの完成は後続作業です。サンプルの地形・施設・人物・会話は検証用の暫定値であり、採用するゲーム内容ではありません。
+
+設計理由は [判断記録 0007](../decisions/0007-editor-data-boundary.md)、上位の座標・ID方針は [マップと探索](map.md) を参照してください。
+
+## ファイルと責務
+
+| ファイル | 責務 |
+| --- | --- |
+| `game/src/editor/types.ts` | JSONデータ、編集操作、差分、検証エラーの型 |
+| `game/src/editor/index.ts` | GUIと外部ツールが利用する公開API |
+| `game/src/editor/schema.ts` | 厳密なフィールド検証、ID・参照・衝突・到達性、決定的なJSON出力 |
+| `game/src/editor/changes.ts` | 差分生成・検証・プレビュー・純粋なトランザクション適用 |
+| `game/src/editor/history.ts` | `EditorSession` の編集状態とUndo/Redo |
+| `game/src/editor/runtime.ts` | 検証済みデータから既存の `World` への変換 |
+| `game/data/editor-prototype.json` | ソース管理する唯一の編集用サンプルデータ |
+| `game/scripts/editor.mjs` | 同じ検証処理を使うNode.js 24用の適用コマンド |
+| `game/examples/editor-move-npc.json` | サンプルNPCのX座標を4から5に動かす差分 |
+
+画像・描画コード、配置データ、イベント条件・分岐は分離します。NPCの `eventKey` はイベント管理へ渡す参照、`lines` はイベント側から応答がない場合の既定会話です。イベント条件やシナリオ本体を実行する仕組みは含みません。
+
+## データ契約（schemaVersion: 1）
+
+`EditorDocument` は `schemaVersion`・`id`・`tileSize`・`start`・`catalogs` と次の5テーブルを持ちます。全テーブルのエンティティに安定した必須 `id` を付け、全体で一意の英小文字kebab-caseとします。表示名・表示順・配列添字をIDに使いません。
+
+| テーブル | 主な属性と参照 |
+| --- | --- |
+| `areas` | 名前、屋内外、幅・高さ、既存 `T` に対応する地面タイルID配列 |
+| `facilities` | 名前、所属 `areaId`、内部区分、開閉状態 |
+| `objects` | 所属エリア、種別、タイル座標・幅・高さ、衝突、表示スタイル・レイヤー、任意の施設参照 |
+| `interactions` | NPC／物／看板の種別、名前、所属エリア、タイル座標・範囲・向き、衝突、スプライトID、イベントキー、既定会話 |
+| `portals` | 所属エリアと入口タイル範囲、到着エリア・タイル・向き、任意の施設と往復出入口参照 |
+
+座標は北西原点・東が+X・南が+Yの整数タイル座標です。プレイヤーのピクセル座標には既存の `feetAtTile()` で変換します。`tileSize: 16` は現プロトタイプとの接続値で、ゲーム全体の正式規格を決めるものではありません。
+
+`catalogs.sprites` と `catalogs.eventKeys` は参照可能なIDの宣言です。イベントキーは小文字のドット／ハイフン区切りを許容します。NPCには宣言済みスプライトを必須とし、全インタラクションに宣言済みイベントキーを要求します。この宣言だけで描画素材やイベント実装を生成することはありません。
+
+`objectId` を持つ物／看板のインタラクションだけは、同じエリア・座標・範囲の配置物と足元を共有できます。NPCとの共有、無関係な物との重複は拒否します。`returnPortalId` がある場合は、相手からの逆参照・エリア・施設が整合していることを検証します。意図した一方通行では省略できます。
+
+プロトタイプの入力上限は、64エリア、各辺256タイル、全体262144タイル、各エンティティテーブル10000件、会話100行、CLI入力JSON 32 MiBです。処理量を制限するための仮置きで、完成ゲームの容量要件ではありません。
+
+## 編集操作と差分
+
+`EditOperation` は次の4種類に限定します。操作にファイルパス・実行コード・任意の深いプロパティパスは含められません。未知のフィールドも拒否します。
+
+| 操作 | 保持する値 |
+| --- | --- |
+| `add` | `table`・`id`・追加するエンティティ全体 `after` |
+| `delete` | `table`・`id`・削除前のエンティティ全体 `before` |
+| `update` | `table`・`id`・変更前後のエンティティ全体 |
+| `move` | 変更前後のエンティティ全体。配置物・インタラクション・出入口の所属エリアと元座標だけを変更可能 |
+
+操作内でIDを書き換えません。改名が必要なら、参照も含めて削除と追加を一組の操作列として表します。`update` は位置と属性を同時に変更できます。
+
+`ChangeSet` は版番号、文書ID、編集元の完全な `baseDocument`、`operations` を持ちます。適用時は現在の文書と編集元を構造として比較し、差があれば拒否します。手修正や他ツールの変更を無視して古い差分を上書きすることはありません。個別操作の `before` も一致確認します。
+
+一連の操作をコピーへ適用し、最後に全体を検証してから返します。施設と配置物、往復の扉などの関連データを同じ操作列で追加・削除できます。途中・最終状態に問題があれば入力文書は変わりません。
+
+文書ID・開始点・タイル寸法・カタログはv1の編集操作の対象外です。これらはJSONを手修正して再読込します。`diffDocuments()` に対象外の変更を渡すと、変更を黙って捨てずエラーにします。
+
+出力時はプロパティ名、ID付きテーブル、参照カタログを並べ替えます。地面セルと会話文の順序は保ちます。時刻・乱数・端末依存の値を含めず、同じ編集結果を同じJSONとして出力します。
+
+## GUIからの利用
+
+```ts
+import {
+  EditorSession, buildEditorWorld, previewChangeSet, serializeChangeSet,
+} from './editor/index.ts';
+
+const session = new EditorSession(loadedDocument);
+const before = session.document.interactions.find(i => i.id === 'demo-npc')!;
+session.commit([{
+  type: 'move', table: 'interactions', id: before.id,
+  before, after: { ...before, x: 5 },
+}]);
+const changes = session.exportChanges();
+const preview = previewChangeSet(loadedDocument, changes);
+const exportedJSON = serializeChangeSet(changes);
+const world = buildEditorWorld(preview.document);
+```
+
+`session.document` は編集可能なコピーです。選択・ドラッグ中の一時座標・ズーム等はGUI側で保持し、確定した一操作列を `commit()` に渡します。成功した操作列一つがUndoの一段階になります。`undo()`・`redo()` と `canUndo`・`canRedo` を利用できます。履歴は既定100段階です。不正な操作や変更のない操作は履歴を壊さず、新しい有効な編集はRedoを消去します。
+
+`exportChanges()` は最初に読み込んだ文書との差分を返します。適用後は永続JSONを再読込して新しいセッションを作り、ブラウザ内の編集状態と永続ソースを一致させます。
+
+`validateDocument()` は `{ path, code, message }[]`、`parseDocument()`・各適用関数は問題があれば `EditorValidationError` を投げます。GUIは `issues` を表示できます。`previewChangeSet()` は検証済み結果と前後JSON・操作要約を返し、ファイルには書き込みません。
+
+`buildEditorWorld()` は検証後に独立した `World` を構築します。既存の `session/game.ts` の `new Game(world)` と描画側へ渡せます。通常ゲームの起動口へこのサンプルを自動注入することはありません。
+
+## CLIでの出力・確認・適用
+
+以下は `game/` で実行します。
+
+```sh
+npm run editor -- validate
+npm run editor -- preview examples/editor-move-npc.json
+npm run editor -- apply examples/editor-move-npc.json
+npm run editor -- validate
+git diff -- data/editor-prototype.json
+```
+
+GUIでダウンロードした差分も、同じ `preview`・`apply` に渡します。編集済み文書JSONから差分を作る場合は、npmのログを出さずに保存します。
+
+```sh
+npm run --silent editor -- diff /path/to/candidate.json > /private/tmp/editor-changes.json
+npm run editor -- preview /private/tmp/editor-changes.json
+npm run editor -- apply /private/tmp/editor-changes.json
+```
+
+書込み先は、スクリプト位置から解決した `game/data/editor-prototype.json` 一つに固定します。差分や引数による出力先の指定、TypeScriptの手書きコードへの置換、自由記述コードの実行はありません。対象ファイル・データフォルダのシンボリックリンクも拒否します。
+
+適用は全検証後、排他ロックを取得し、元ファイルを再確認してから同じディレクトリの一時ファイルへ書きます。書込み完了後に元データの再確認と単一のrenameを行います。検証・競合・書込みで失敗した場合は元ファイルを置換せず、一時ファイルと自分のロックを片付けます。適用後の同じ差分を再実行すると、編集元の不一致として拒否します。変更のない差分は元のバイト列を保ちます。
+
+強制終了がrenameより前なら旧ファイル、後なら新ファイル全体が残ります。強制終了で `.lock` や `.tmp` が残った場合は、適用処理が動いていないことを確認してから取り除きます。他の適用者のロックを自動削除しません。ロックを利用しない外部エディタとの完全な比較交換ではないため、適用中の同時手編集は行わない運用です。
+
+適用後の取消には `diffDocuments(appliedDocument, previousDocument)` で逆向きの差分を作り、同じ検証・確認を通して適用できます。永続適用前の取消は `EditorSession` のUndo/Redoで扱います。
+
+## 検証
+
+`npm run build` はサンプルJSON検証・型検査・ゲームビルドを実行します。`npm test` は既存のVitestに加えて、実CLIを一時コピーで動かすNode標準テストを実行します。追加パッケージはありません。
+
+- ID不正・重複、座標・範囲・地面データ、施設・NPC・イベントキー・往復出入口の参照不整合を検出。
+- 壁・固い配置物・NPC・出入口の重複と、開始点・到着点・対象への到達不能を検出。出入口は強制遷移として辿り、通過セルをNPCへ接近できる足場として扱いません。
+- 追加・更新・移動・削除、関連データの一括編集、古い差分、失敗時の元データ保持、Undo/Redo、逆差分を検証。
+- 差分出力→CLI確認→適用→再読込の一致、手書きソースの維持、ロック・シンボリックリンクの拒否を検証。
+- 再読込した編集データで既存 `Game` を起動し、NPCの位置・名前・会話・通知、往復出入口、通常ゲームのデータが変化しないことを確認。
+
+ブラウザ上の編集操作はGUI側のE2Eで別途検証します。この文書のbackendテストだけを、#24/#25のGUIや既存マップ移行の完了とは扱いません。
