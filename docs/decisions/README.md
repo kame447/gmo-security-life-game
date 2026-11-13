@@ -17,3 +17,5 @@
 [生成マップの編集結果を永続化する方式の検討（未採用）](0009-map-editor-persistence-options.md)
 
 [headless ブラウザ E2E を CI で実行する（提案／要検証）](0010-ci-headless-e2e.md)
+
+[既存 NPC の編集・永続化の検討（提案／要検証）](0011-existing-npc-editing-options.md)

@@ -184,3 +184,5 @@ npm run editor -- apply /private/tmp/editor-changes.json
 NPC には空でない会話を要求し、ID・名前・参照・範囲・衝突・到達性などの検証は共通基盤を使います。不正な入力は未反映のまま残り、別の対象への切替や差分出力で失われません。反映・削除は共通の Undo／Redo と差分出力に入り、適用先はサンプル JSON のみです。NPC・会話は機能検証用で、実マップや既存 NPC の変更、人物・シナリオの採否は含みません。
 
 NPC の操作モデルは `game/src/editor-npc/`、GUI 接続は `game/src/editor-ui/npc/` に分けます。ブラウザ検証 `game/scripts/e2e-npc-editor.mjs` は一時コピーを使い、フォーム・グリッド操作から差分出力、CLI 適用、再読込とサンプルゲームでの会話通知まで確認します。
+
+既存 NPC を編集可能にするための読み取り評価は [0011](../decisions/0011-existing-npc-editing-options.md) に記録します。`game/scripts/npc-persistence-check.mjs` の棚卸し・raw 往復・一時ディレクトリ限定の dry-run は提案の検証用であり、実マップへの適用口ではありません。現状の実 World は NPC 外の形式不整合で厳密検証を通らず、永続化方式も未採用です。
