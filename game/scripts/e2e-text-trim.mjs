@@ -11,7 +11,22 @@ try {
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(`${base}/?hint=quiet`, { waitUntil: 'networkidle' });
+  await page.addInitScript(() => {
+    const key = 'slg-map-save-v1';
+    localStorage.setItem(key, '{"sentinel":"unchanged"}');
+    const originalGet = Storage.prototype.getItem, originalSet = Storage.prototype.setItem;
+    window.__reviewStorage = { reads: 0, writes: 0 };
+    window.__reviewSentinel = () => originalGet.call(localStorage, key);
+    Storage.prototype.getItem = function(name) {
+      if (this === localStorage && name === key) window.__reviewStorage.reads++;
+      return originalGet.call(this, name);
+    };
+    Storage.prototype.setItem = function(name, value) {
+      if (this === localStorage && name === key) window.__reviewStorage.writes++;
+      return originalSet.call(this, name, value);
+    };
+  });
+  await page.goto(`${base}/?hint=quiet&review=1`, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => !!window.__slg?.game);
   await check('quiet exploration and keyboard-accessible help', async () => {
     await page.locator('#hint').waitFor({ state: 'hidden' });
@@ -67,11 +82,20 @@ try {
     assert.equal(await page.evaluate(() => window.__slg.game.dialog.index), before);
     await page.keyboard.press('Escape');
   });
+  await check('review does not read or write the normal save', async () => {
+    await page.evaluate(() => { window.__slg.game.dialog = null; window.dispatchEvent(new Event('pagehide')); });
+    await page.locator('#btn-reset').click();
+    await page.locator('#btn-avatar').click();
+    await page.locator('#avatar-ok').click();
+    await page.waitForTimeout(3200);
+    assert.deepEqual(await page.evaluate(() => window.__reviewStorage), { reads: 0, writes: 0 });
+    assert.equal(await page.evaluate(() => window.__reviewSentinel()), '{"sentinel":"unchanged"}');
+  });
   await context.close();
 
   const firstContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const first = await firstContext.newPage();
-  await first.goto(`${base}/?hint=first`, { waitUntil: 'networkidle' });
+  await first.goto(`${base}/?hint=first&review=1`, { waitUntil: 'networkidle' });
   await check('first-only hint expires and help remains available', async () => {
     await first.locator('#hint').waitFor({ state: 'visible' });
     assert.equal(await first.locator('#hint').textContent(), '↑↓←→ あるく　Z しらべる');

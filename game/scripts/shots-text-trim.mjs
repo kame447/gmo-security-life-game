@@ -21,7 +21,7 @@ try {
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
       const url = new URL(origin);
-      if (hint) url.searchParams.set('hint', hint);
+      if (hint) { url.searchParams.set('hint', hint); url.searchParams.set('review', '1'); }
       await page.goto(url.href, { waitUntil: 'networkidle' });
       await page.waitForFunction(() => !!window.__slg?.game);
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));

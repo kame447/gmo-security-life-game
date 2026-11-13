@@ -12,13 +12,16 @@ import { Hud } from './ui/hud';
 import { buildWorld } from './world';
 
 const world = buildWorld();
-const game = new Game(world, { save: loadSave(world) });
+// Review links must not read or overwrite another prototype's saved fields.
+const isReview = new URLSearchParams(window.location.search).get('review') === '1';
+const game = new Game(world, { save: isReview ? undefined : loadSave(world) });
 const canvas = $<HTMLCanvasElement>('#view');
 const renderer = new Renderer(canvas);
 const controls = new Controls();
 const frames = new FrameRecorder();
 
 function save() {
+  if (isReview) return;
   const data = game.serialize();
   // A draft is visible immediately, but autosave must preserve the last confirmed appearance.
   const confirmed = avatar.confirmedAppearance;
