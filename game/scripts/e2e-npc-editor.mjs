@@ -75,8 +75,21 @@ try {
   await page.fill('#npc-name', '編集後のサンプル');
   await page.fill('#npc-lines', 'テストの会話');
   await page.selectOption('#npc-facing', 'left');
+  await page.locator('#grid').evaluate(canvas => { canvas.dataset.mapReadOnly = 'true'; });
+  await page.click('#npc-place');
+  assert.equal(await page.locator('#grid').getAttribute('data-npc-placement'), 'false', 'read-only map blocks starting placement');
+  await page.locator('#grid').evaluate(canvas => { canvas.dataset.mapReadOnly = 'false'; });
+  // The click above updates the disabled state; trigger a normal re-render after leaving reference mode.
+  await page.locator('[data-id="demo-tree"]').click();
   await page.click('#npc-place');
   assert.equal(await page.locator('#grid').getAttribute('data-npc-placement'), 'true');
+  await page.locator('#grid').evaluate(canvas => { canvas.dataset.mapReadOnly = 'true'; });
+  await grid(page, 5, 4);
+  assert.equal(await page.locator('#npc-x').inputValue(), '4', 'read-only map blocks confirming placement');
+  assert.equal(await page.locator('#grid').getAttribute('data-npc-placement'), 'false');
+  await page.locator('#grid').evaluate(canvas => { canvas.dataset.mapReadOnly = 'false'; });
+  await page.locator('[data-id="demo-tree"]').click();
+  await page.click('#npc-place');
   await grid(page, 5, 4);
   assert.equal(await page.locator('#grid').getAttribute('data-npc-placement'), 'false');
   assert.equal(await page.locator('#npc-x').inputValue(), '5');

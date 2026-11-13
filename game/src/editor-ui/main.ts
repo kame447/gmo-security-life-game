@@ -179,6 +179,7 @@ canvas.addEventListener('click', event => {
   const x = Math.floor((event.clientX - rect.left) * canvas.width / rect.width / cell);
   const y = Math.floor((event.clientY - rect.top) * canvas.height / rect.height / cell);
   if (npcPanel.placeAt(x, y)) return;
+  if (canvas.dataset.mapReadOnly === 'true') return;
   const selection = hit(area, x, y);
   if (selection) select(selection);
 });

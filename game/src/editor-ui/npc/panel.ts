@@ -55,11 +55,17 @@ export class NpcPanel {
     this.form.addEventListener('submit', event => { event.preventDefault(); this.draft.apply(); this.renderAll(); });
     $('#npc-cancel').addEventListener('click', () => { this.model.cancelDraft(); this.placing = false; this.renderAll(); });
     $('#npc-delete').addEventListener('click', () => { this.model.deleteSelection(); this.placing = false; this.renderAll(); });
-    this.placeButton.addEventListener('click', () => { this.placing = !this.placing; this.updateControls(); });
+    this.placeButton.addEventListener('click', () => {
+      if (this.grid.dataset.mapReadOnly === 'true') { this.placing = false; this.updateControls(); return; }
+      this.placing = !this.placing; this.updateControls();
+    });
   }
 
   /** Called before ordinary grid hit-testing; a placement remains a draft until confirmed. */
   placeAt(x: number, y: number): boolean {
+    if (this.grid.dataset.mapReadOnly === 'true') {
+      this.placing = false; this.grid.dataset.npcPlacement = 'false'; this.updateControls(); return false;
+    }
     if (!this.placing || !this.draft.value) return false;
     this.draft.setPosition(String(x), String(y));
     this.placing = false;
@@ -75,7 +81,7 @@ export class NpcPanel {
 
   get placementPreview(): { areaId: string; x: number; y: number; w: number; h: number } | null {
     const npc = this.draft.value, draft = this.model.draft;
-    if (!npc || !draft || !this.model.pending || !/^\d+$/.test(draft.x) || !/^\d+$/.test(draft.y)) return null;
+    if (!npc || !draft || this.grid.dataset.mapReadOnly === 'true' || !this.model.pending || !/^\d+$/.test(draft.x) || !/^\d+$/.test(draft.y)) return null;
     const x = Number(draft.x), y = Number(draft.y), w = npc.w ?? 1, h = npc.h ?? 1;
     if (![x, y, w, h].every(Number.isSafeInteger) || w < 1 || h < 1 || w > 256 || h > 256) return null;
     return { areaId: npc.areaId, x, y, w, h };
@@ -84,6 +90,7 @@ export class NpcPanel {
   render(): boolean {
     const npc = this.draft.value, draft = this.model.draft;
     if (draft !== this.activeDraft) { this.placing = false; this.activeDraft = draft; }
+    if (this.grid.dataset.mapReadOnly === 'true') this.placing = false;
     this.grid.dataset.npcPlacement = String(this.placing && !!npc);
     this.form.hidden = !npc;
     if (!npc || !draft) return false;
@@ -108,6 +115,7 @@ export class NpcPanel {
     const remove = $<HTMLButtonElement>('#npc-delete');
     remove.hidden = this.model.draft.id === null;
     remove.disabled = this.model.pending;
+    this.placeButton.disabled = this.grid.dataset.mapReadOnly === 'true';
     this.placeButton.setAttribute('aria-pressed', String(this.placing));
     this.grid.dataset.npcPlacement = String(this.placing);
     $('#npc-place-help').textContent = this.placing ? 'グリッドをクリックして位置を指定してください。' : 'ボタンの後にグリッドをクリックして位置を指定できます。';
