@@ -11,6 +11,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "test:e2e": "node scripts/e2e.mjs",
+    "test:e2e:inventory": "node scripts/e2e-inventory.mjs",
+    "shots:inventory": "node scripts/shots-inventory.mjs",
     "test:perf": "node scripts/perf.mjs"
   },
   "devDependencies": {

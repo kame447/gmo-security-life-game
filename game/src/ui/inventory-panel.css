@@ -1,0 +1,151 @@
+.bag-menu-button { display: inline-flex; align-items: center; gap: 4px; }
+.bag-menu-button canvas { width: 18px; height: 18px; image-rendering: pixelated; }
+.bag-overlay {
+  --bag-ink: #364b42; --bag-paper: #f4e9c9; --bag-green: #426c5b; --bag-gold: #ecc27c;
+  position: absolute; inset: 0; z-index: 10; display: grid; place-items: center;
+  background: #142b28b8; color: var(--bag-ink); font-size: 14px; touch-action: pan-y;
+}
+.bag-overlay *, .bag-overlay *::before, .bag-overlay *::after { box-sizing: border-box; }
+.bag-overlay button { font: inherit; color: inherit; cursor: pointer; }
+.bag-overlay canvas { image-rendering: pixelated; display: block; }
+.bag-window {
+  width: min(980px, calc(100% - 64px)); max-height: calc(100dvh - 64px); display: flex; flex-direction: column;
+  border: 4px solid #293f36; border-radius: 4px; overflow: hidden; background: var(--bag-paper);
+  box-shadow: 0 0 0 4px var(--bag-gold), 0 9px 0 4px #142c26, 0 20px 48px #0007;
+}
+.bag-topbar { display: flex; align-items: center; gap: 20px; padding: 18px 22px; color: #fff1ce;
+  background: var(--bag-green); border-bottom: 4px solid #2c4d40; }
+.bag-brand { display: flex; align-items: center; gap: 14px; margin-right: auto; }
+.bag-brand > canvas { width: 64px; height: 64px; }
+.bag-eyebrow { font-size: 11px; letter-spacing: .12em; color: #d1dfbd; }
+.bag-brand h1 { font-size: 29px; margin: 3px 0 0; letter-spacing: .12em; line-height: 1.2; }
+.bag-wallet { display: flex; gap: 8px; align-items: center; padding: 8px 16px 8px 10px;
+  color: #624c2d; border: 2px solid #b58d4d; background: #f7e1a4; box-shadow: inset 0 0 0 2px #fff0c6, 0 3px 0 #294b3e; }
+.bag-wallet canvas { width: 34px; height: 34px; }
+.bag-wallet span { display: block; font-size: 10px; }
+.bag-wallet strong { display: block; font-size: 23px; line-height: 1.25; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bag-close { display: flex; align-items: center; gap: 10px; padding: 10px; background: #2f5445; color: #f9e8b8 !important;
+  border: 2px solid #90ac83; box-shadow: 0 3px 0 #284337; }
+.bag-close > span:last-child { font-size: 27px; line-height: 22px; }
+.bag-close-label { font-size: 12px; }
+.bag-body { display: grid; grid-template-columns: 150px minmax(0, 1fr) 246px; gap: 20px; padding: 22px; min-height: 0; overflow: auto;
+  background-image: repeating-linear-gradient(0deg, #c9bc9520 0 1px, transparent 1px 4px); }
+.bag-rail { border-right: 2px dashed #b6a77e; padding-right: 15px; }
+.bag-rail h2 { font-size: 12px; margin: 0 0 12px; color: #7b7757; letter-spacing: .12em; }
+#inventory-categories { display: flex; flex-direction: column; gap: 8px; }
+.bag-category { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 5px; min-height: 54px; padding: 7px 5px;
+  border: 2px solid transparent; border-bottom-color: #c3b58d; background: transparent; text-align: left; font-weight: 700 !important; font-size: 12px !important; }
+.bag-category canvas { width: 28px; height: 28px; }
+.bag-category.selected { border-color: #456a50; background: #d4d9ad; box-shadow: 3px 3px 0 #b3b68d; }
+.bag-category-count { min-width: 17px; padding: 2px; background: #fff8dc; text-align: center; border: 1px solid #c4b790; font-size: 10px; }
+.bag-pocket-picture { padding-top: 26px; display: grid; justify-items: center; gap: 9px; }
+.bag-pocket-picture canvas { width: 100px; height: 100px; }
+.bag-pocket-picture span { color: #8c805e; font-size: 10px; }
+.bag-contents { min-width: 0; }
+.bag-list-heading { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin: 0 0 12px; }
+.bag-list-heading h2 { font-size: 15px; margin: 0; }
+.bag-list-heading > span { font-size: 11px; color: #817956; white-space: nowrap; }
+.bag-grid-wrap { position: relative; }
+.bag-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; max-height: 348px; overflow: auto; padding: 3px; }
+.bag-slot { position: relative; min-width: 0; height: 100px; border: 2px solid #bbac84; background: #fff6da;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 6px 3px;
+  box-shadow: inset 0 -4px 0 #ddd0aa, inset 0 2px 0 #fffced; border-radius: 3px; }
+.bag-slot canvas { width: 48px; height: 48px; }
+.bag-slot-name { font-size: 11px; font-weight: 700; white-space: nowrap; }
+.bag-slot-quantity { position: absolute; top: 4px; right: 5px; padding: 0 2px; background: #fff6da; font-size: 11px; font-weight: 700; }
+.bag-slot.selected { border-color: #9b673a; background: #ffedaf; box-shadow: inset 0 0 0 2px #efbd67, inset 0 -5px 0 #e3b061; }
+.bag-slot.selected::before { content: '▶'; position: absolute; left: 3px; top: 5px; color: #a56432; font-size: 9px; }
+.bag-slot-empty { background: #e6dbb8; border-color: #d0c39d; box-shadow: inset 0 2px 0 #cdbf9844; }
+.bag-slot-empty::after { content: ''; width: 7px; height: 7px; border: 2px solid #c6b98f; transform: rotate(45deg); opacity: .65; }
+.bag-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px;
+  padding: 18px; text-align: center; background: #eee3c5d9; border: 2px dashed #b9ad87; pointer-events: none; }
+.bag-empty canvas { width: 64px; height: 64px; opacity: .7; }
+.bag-empty strong { font-size: 16px; }
+.bag-empty p { margin: 0; font-size: 12px; line-height: 1.7; }
+.bag-list-note { font-size: 11px; color: #857a59; margin: 12px 0 0; text-align: center; }
+.bag-touch-note { display: none; }
+.bag-detail { padding: 14px; border: 2px solid #b9aa7f; background: #fff8de; box-shadow: 4px 4px 0 #d0c49f; }
+.bag-detail-picture { display: grid; place-items: center; min-height: 128px; border: 2px solid #cfc29a; margin-bottom: 15px;
+  background: repeating-conic-gradient(#e7e4ba 0% 25%, #e0dfb1 0% 50%) 50% / 16px 16px; }
+.bag-detail-picture canvas { width: 96px; height: 96px; }
+.bag-category-tag { display: inline-block; color: #697250; padding: 3px 7px; border: 1px solid #c5c49a; background: #eeeed0; font-size: 10px; }
+.bag-detail h2 { margin: 9px 0 14px; font-size: 22px; line-height: 1.4; }
+.bag-detail-amount { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-block: 1px dashed #b7b18c; padding: 9px 0; }
+.bag-detail-amount span { color: #7c775b; font-size: 11px; }
+.bag-detail-amount strong { font-size: 18px; }
+#inventory-detail-description { font-size: 13px; line-height: 1.9; margin: 12px 0 0; }
+.bag-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 3px solid #c0b187; padding: 13px 22px; background: #e0d4af; color: #71684d; font-size: 11px; }
+.bag-footer kbd { font: inherit; display: inline-block; min-width: 20px; text-align: center; padding: 3px 5px; border: 1px solid #b5aa89; border-bottom-width: 3px; background: #fff6d9; margin-right: 3px; border-radius: 3px; }
+.bag-overlay button:focus-visible { outline: 3px solid #578a91; outline-offset: 2px; }
+.bag-overlay button:hover { filter: brightness(1.035); }
+@media (max-width: 900px) {
+  .bag-body { grid-template-columns: 125px minmax(0, 1fr) 210px; gap: 14px; padding: 16px; }
+  .bag-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .bag-slot { height: 88px; }
+  .bag-slot-empty:nth-child(n+10) { display: none; }
+}
+@media (max-width: 760px), (max-height: 540px) {
+  .bag-window { width: calc(100% - 28px); max-height: calc(100dvh - 28px); }
+  .bag-topbar { padding: 10px 14px; gap: 10px; }
+  .bag-brand { gap: 8px; }
+  .bag-brand > canvas { width: 42px; height: 42px; }
+  .bag-brand h1 { font-size: 23px; }
+  .bag-eyebrow { font-size: 9px; }
+  .bag-wallet { padding: 5px 8px 5px 4px; gap: 3px; }
+  .bag-wallet canvas { width: 26px; height: 26px; }
+  .bag-wallet strong { font-size: 18px; }
+  .bag-close { padding: 8px; }
+  .bag-close-label { display: none; }
+  .bag-body { grid-template-columns: minmax(0, 1fr) minmax(0, .8fr); gap: 12px; padding: 12px; }
+  .bag-rail { grid-column: 1 / -1; padding: 0 0 10px; border-right: 0; border-bottom: 2px dashed #b6a77e; }
+  .bag-rail h2, .bag-pocket-picture { display: none; }
+  #inventory-categories { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+  .bag-category { min-height: 42px; padding: 4px; font-size: 10px !important; grid-template-columns: 24px 1fr; gap: 3px; }
+  .bag-category canvas { width: 24px; height: 24px; }
+  .bag-category-count { display: none; }
+  .bag-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); max-height: 195px; gap: 6px; }
+  .bag-slot { height: 82px; }
+  .bag-slot canvas { width: 38px; height: 38px; }
+  .bag-slot-empty:nth-child(n+9) { display: none; }
+  .bag-detail { padding: 10px; }
+  .bag-detail-picture { min-height: 80px; margin-bottom: 8px; }
+  .bag-detail-picture canvas { width: 64px; height: 64px; }
+  .bag-detail h2 { font-size: 18px; margin: 7px 0; }
+  #inventory-detail-description { font-size: 12px; line-height: 1.7; margin-top: 8px; }
+  .bag-footer { padding: 8px 12px; }
+}
+@media (max-width: 540px) {
+  .bag-topbar { gap: 6px; padding: 12px 10px; }
+  .bag-brand > canvas { width: 38px; height: 38px; }
+  .bag-brand h1 { font-size: 21px; letter-spacing: .05em; }
+  .bag-wallet { padding-inline: 3px 6px; }
+  .bag-wallet canvas { width: 22px; height: 22px; }
+  .bag-wallet strong { font-size: 16px; }
+  .bag-wallet span { font-size: 9px; }
+  .bag-close { padding: 6px; }
+  .bag-body { display: flex; flex-direction: column; padding: 12px; gap: 12px; }
+  .bag-rail { flex: none; }
+  .bag-category { display: flex; flex-direction: column; font-size: 10px !important; gap: 3px; min-height: 55px; }
+  .bag-list-heading { margin-bottom: 7px; }
+  .bag-list-heading h2 { font-size: 13px; }
+  .bag-grid { max-height: 182px; }
+  .bag-slot { height: 78px; }
+  .bag-slot-name { font-size: 10px; }
+  .bag-list-note { margin-top: 7px; font-size: 10px; }
+  .bag-detail { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; flex: none; }
+  .bag-detail-picture { height: 84px; margin: 0; }
+  .bag-detail h2 { font-size: 19px; margin: 4px 0; }
+  .bag-detail-amount { padding: 5px 0; }
+  .bag-detail-amount strong { font-size: 15px; }
+  .bag-category-tag { padding: 1px 5px; font-size: 9px; }
+  .bag-empty { padding: 9px; gap: 4px; }
+  .bag-empty canvas { width: 44px; height: 44px; }
+  .bag-empty strong { font-size: 14px; }
+  .bag-empty p { font-size: 10px; }
+  .bag-footer { font-size: 10px; padding: 8px 10px; }
+  .bag-footer kbd { padding: 2px 4px; min-width: 16px; }
+}
+@media (pointer: coarse) {
+  .bag-keyboard-note { display: none; }
+  .bag-touch-note { display: inline; }
+}
