@@ -96,7 +96,7 @@ npm test
 
 ## 検証
 
-買い物候補の単体は `tests/clerk-*.test.ts`・`tests/shop-review.test.ts`。ブラウザは `SLG_URL=http://127.0.0.1:5182 node scripts/e2e-shop-candidates.mjs`、比較撮影は同じURLと `SLG_SHOTS` を指定して `node scripts/shots-shop.mjs` を実行します。既存E2Eの店員会話の分岐だけは候補画面へ対応させ、SUMMARYの13項目を維持します。撮影は1280×800・390×844の42枚、実行と利用者レビューは別途確認します。
+買い物候補の単体は `tests/clerk-*.test.ts`・`tests/shop-review.test.ts`・`tests/shop-cross-save.test.ts`。ブラウザは `SLG_URL=http://127.0.0.1:5182 node scripts/e2e-shop-candidates.mjs`（通常保存の全欄保持を含む17項目）、比較撮影は同じURLと `SLG_SHOTS` を指定して `node scripts/shots-shop.mjs` を実行します。既存E2Eの店員会話の分岐だけは候補画面へ対応させ、SUMMARYの13項目を維持します。撮影は1280×800・390×844の42枚、実行と利用者レビューは別途確認します。
 
 2026-11-12の最終ビルドは成功、単体テストは3ファイル・54件すべて成功しました。ブラウザ実行担当の最終E2Eログでも `SUMMARY` 13項目すべてPASS、終了コード0を確認しました。外見UIと移動停止、主人公の画素変化とNPC表示の維持、外見の保存・開始地点復帰後の保持・取消、自宅・教室・コンビニの往復と会話、屋内の黒とフェード、壁の遮蔽・整数カメラ、各種衝突、スクリーンショット、位置復元・フォーカス離脱時の入力解除が対象で、ページ・コンソールエラーは0件でした。
 

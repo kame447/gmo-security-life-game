@@ -4,6 +4,7 @@ import { assets, assertFits, browse, closeShop, observe, openClerk, phase, posit
 
 const browser = await chromium.launch({ headless: true });
 let passed = 0;
+let crossSaveSeed;
 const pass = label => { passed++; console.log(`PASS ${label}`); };
 try {
   for (const layout of ['split', 'compact', 'dialog']) {
@@ -16,6 +17,7 @@ try {
       assert.equal(await page.locator(layout === 'dialog' ? '#shop-prompt' : '#shop-line').innerText(), greeting.lines[0]);
       const conversationFrame = layout === 'dialog' ? await page.locator('#shop-dialogue').boundingBox() : null;
       const still = await position(page), initial = await assets(page);
+      if (!crossSaveSeed) crossSaveSeed = await page.evaluate(() => window.__slg.game.serialize());
       await page.keyboard.down('ArrowDown'); await page.waitForTimeout(150); await page.keyboard.up('ArrowDown');
       for (const key of ['KeyI', 'KeyP', 'KeyC']) await page.keyboard.press(key);
       assert.deepEqual(await position(page), still);
@@ -91,6 +93,41 @@ try {
     } finally { await context.close(); }
   }
 
+  const phone = { v: 1, owned: false, dataBudget: { v: 1, remainingMb: 123, capacityMb: 5000 } };
+  const appearance = { ...crossSaveSeed.appearance, hairColor: 'black', outfitColor: 'red' };
+  const crossContext = await browser.newContext({ storageState: { cookies: [], origins: [{
+    origin: new URL(shopUrl('split')).origin,
+    localStorage: [{ name: 'slg-map-save-v1', value: JSON.stringify({ ...crossSaveSeed, phone, appearance }) }],
+  }] } });
+  try {
+    const page = await crossContext.newPage(), errors = observe(page);
+    await page.goto(shopUrl('split')); await ready(page);
+    const originalPosition = await position(page);
+    const readStored = () => page.evaluate(() => JSON.parse(localStorage.getItem('slg-map-save-v1')));
+    const checkFields = saved => {
+      assert.deepEqual(saved.phone, phone);
+      assert.deepEqual(saved.appearance, appearance);
+      for (const key of ['areaId', 'x', 'y', 'facing']) assert.equal(saved[key], originalPosition[key]);
+    };
+    await openClerk(page); await browse(page); await page.locator('#shop-review').click(); await page.locator('#shop-confirm').click();
+    const paid = await assets(page), afterPurchase = await readStored();
+    assert.equal(paid.moneyYen, 2360); assert.deepEqual(afterPurchase.assets, paid); checkFields(afterPurchase);
+    await closeShop(page);
+    await page.evaluate(() => { window.__slg.game.assets.changeMoney(1); localStorage.removeItem('slg-map-save-v1'); });
+    await page.waitForFunction(() => {
+      const raw = localStorage.getItem('slg-map-save-v1'); return raw && JSON.parse(raw).assets.moneyYen === 2361;
+    });
+    const afterTimer = await readStored(); checkFields(afterTimer);
+    assert.equal(afterTimer.assets.moneyYen, 2361);
+    await page.evaluate(() => { window.__slg.game.assets.changeMoney(1); localStorage.removeItem('slg-map-save-v1'); });
+    await page.goto('about:blank'); await page.goto(shopUrl('split')); await ready(page);
+    const afterPagehide = await readStored(); checkFields(afterPagehide);
+    assert.equal(afterPagehide.assets.moneyYen, 2362);
+    assert.deepEqual(await assets(page), afterPagehide.assets);
+    assert.deepEqual(errors, []);
+    pass('normal purchase, periodic save and pagehide preserve assets, phone, position and appearance');
+  } finally { await crossContext.close(); }
+
   const context = await browser.newContext();
   try {
     const page = await context.newPage(), errors = observe(page);
@@ -116,7 +153,7 @@ try {
     assert.deepEqual(errors, []);
     pass('review=1 ignores the real save and blocks payment/reset/timer/pagehide writes');
   } finally { await context.close(); }
-  console.log(`SUMMARY ${passed}/16 PASS`);
+  console.log(`SUMMARY ${passed}/17 PASS`);
 } catch (error) {
-  console.error('FAIL', error); console.error(`SUMMARY ${passed}/16 PASS; FAILED`); process.exitCode = 1;
+  console.error('FAIL', error); console.error(`SUMMARY ${passed}/17 PASS; FAILED`); process.exitCode = 1;
 } finally { await browser.close(); }
