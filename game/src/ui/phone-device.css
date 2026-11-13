@@ -33,7 +33,7 @@
 .phone-device button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .phone-app { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 5px 1px 6px; border: 2px solid transparent; border-radius: 10px; background: transparent; color: #385249; }
 .phone-app-icon, .phone-view-icon, .phone-entry-icon, .phone-placeholder-icon, .phone-notice-icon { display: grid; place-items: center; flex: none; }
-.phone-app-icon { width: 48px; height: 48px; border: 3px solid #fff9; border-radius: 13px; box-shadow: 0 3px 0 #3c62512b; }
+.phone-app-icon { width: min(48px, calc(100% - 6px)); height: auto; aspect-ratio: 1; border: 3px solid #fff9; border-radius: 13px; box-shadow: 0 3px 0 #3c62512b; }
 .phone-pixel-icon { width: 70%; height: 70%; }
 .tone-mint { color: #43816e; background: #bce5c9; }.tone-blue { color: #557e9b; background: #c3dfed; }
 .tone-peach { color: #a46e57; background: #f2d1b5; }.tone-lilac { color: #8173a0; background: #dcd3ef; }
@@ -74,4 +74,7 @@
 .phone-view-placeholder .phone-view-content { display: flex; flex-direction: column; align-items: center; padding-top: 38px; text-align: center; }
 .phone-placeholder-icon { width: 72px; height: 72px; border: 4px solid #fff9; border-radius: 20px; }
 .phone-coming-soon { margin: 15px 0 12px; padding: 5px 12px; border-radius: 20px; background: #e8eadd; color: #789082; font-size: 11px; }
-@media (max-height: 600px) { .phone-home-hero { height: 90px; }.phone-greeting { padding-top: 8px; }.phone-home-content { padding-top: 9px; }.phone-notice-heading { margin-top: 8px; } }
+@media (max-height: 600px) {
+  .phone-device { width: min(360px, calc(100vw - 24px)); height: calc(100dvh - 24px); aspect-ratio: auto; }
+  .phone-home-hero { height: 90px; }.phone-greeting { padding-top: 8px; }.phone-home-content { padding-top: 9px; }.phone-notice-heading { margin-top: 8px; }
+}

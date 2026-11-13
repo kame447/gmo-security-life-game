@@ -104,7 +104,21 @@ try {
   assert.equal(await touch.locator('.phone-view-title h2').innerText(), 'サンプルのおたより');
   await tap(touch, '#phone-home'); await tap(touch, '#phone-close');
   assert.deepEqual(await state(touch), position);
-  console.log('PASS touch navigation and small-screen layout');
+  await touch.setViewportSize({ width: 640, height: 360 });
+  await tap(touch, '#btn-phone');
+  const landscape = await touch.locator('#phone-device').boundingBox();
+  assert.ok(landscape && landscape.x >= 0 && landscape.y >= 0 && landscape.x + landscape.width <= 640 && landscape.y + landscape.height <= 360,
+    'device fits the landscape viewport');
+  const icons = await touch.locator('.phone-app-icon').evaluateAll(nodes => nodes.map(node => {
+    const rect = node.getBoundingClientRect(); return { left: rect.left, right: rect.right, width: rect.width };
+  }));
+  assert.equal(icons.length, 4);
+  assert.ok(icons.every((icon, index) => icon.width >= 44 && (index === 0 || icons[index - 1].right <= icon.left)),
+    'landscape app icons remain legible and do not overlap');
+  await tap(touch, '[data-app="life"]');
+  assert.match(await touch.locator('.phone-view-content').innerText(), /じゅんび中/);
+  await tap(touch, '#phone-close');
+  console.log('PASS touch navigation and portrait/landscape layout');
   assert.deepEqual(external, [], 'no external HTTP requests');
   assert.deepEqual(errors, [], 'no page or console errors');
   console.log('SUMMARY phone device E2E PASS');

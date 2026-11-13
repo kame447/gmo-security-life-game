@@ -24,6 +24,7 @@ try {
     await page.evaluate(() => {
       const menu = document.querySelector('#menu'), touch = document.querySelector('#btn-touch');
       for (const [id, label] of [['btn-inventory', 'もちもの'], ['btn-phone', 'スマホ']]) {
+        if (menu.querySelector(`#${id}`)) continue;
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'panel'; button.id = id; button.textContent = label;
         menu.insertBefore(button, touch);

@@ -12,6 +12,7 @@ try {
   for (const [name, viewport, mobile] of [
     ['desktop', { width: 1280, height: 800 }, false],
     ['mobile', { width: 390, height: 720 }, true],
+    ['landscape', { width: 640, height: 360 }, true],
   ]) {
     const dir = join(output, name); await mkdir(dir, { recursive: true });
     const context = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile });
