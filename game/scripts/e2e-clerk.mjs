@@ -9,11 +9,17 @@ page.on('pageerror', error => errors.push(String(error)));
 page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
 const pass = name => { passed.push(name); console.log('PASS', name); };
 async function speakerUncovered(targetPage) {
-  assert.equal(await targetPage.locator('#clerk-speaker').evaluate(element => {
+  const visibility = await targetPage.locator('#clerk-speaker').evaluate(element => {
     const rect = element.getBoundingClientRect();
-    const painted = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
-    return rect.height >= 18 && (painted === element || element.contains(painted));
-  }), true, 'The clerk name is painted above the product/detail region');
+    const points = [[rect.x + 4, rect.y + 4], [rect.right - 4, rect.y + 4], [rect.x + rect.width / 2, rect.y + rect.height / 2],
+      [rect.x + 4, rect.bottom - 4], [rect.right - 4, rect.bottom - 4]];
+    const hits = points.map(([x, y]) => {
+      const painted = document.elementFromPoint(x, y);
+      return { x, y, visible: painted === element || element.contains(painted), target: painted?.id || painted?.className };
+    });
+    return { height: rect.height, hits };
+  });
+  assert.ok(visibility.height >= 18 && visibility.hits.every(hit => hit.visible), `The entire clerk name must stay uncovered: ${JSON.stringify(visibility)}`);
 }
 try {
   await page.goto(url); await ready(page);
@@ -48,7 +54,12 @@ try {
   await page.locator('#clerk-panel').waitFor({ state: 'hidden' });
   assert.deepEqual(await assets(page), initial); assert.deepEqual(await position(page), inRoom);
   pass('real entry, original clerk greeting, buy/quit choice and return to the same room');
-  await talkToClerk(page); await browse(page);
+  const beforeSecondApproach = await position(page);
+  await talkToClerk(page);
+  const buyingPosition = await position(page);
+  console.log('DIAGNOSTIC second clerk approach', JSON.stringify({ beforeSecondApproach, buyingPosition }));
+  await browse(page);
+  assert.deepEqual(await position(page), buyingPosition, 'Opening the catalog keeps this visit stationary');
   await speakerUncovered(page);
   await page.locator('[data-item-id="bottled-water"]').click();
   assert.equal(await phase(page), 'catalog');
@@ -56,6 +67,7 @@ try {
   assert.match(await page.locator('#clerk-item-description').innerText(), /ペットボトル/);
   assert.deepEqual(await assets(page), initial);
   await page.locator('#clerk-review').click();
+  assert.deepEqual(await position(page), buyingPosition, 'Opening confirmation keeps this visit stationary');
   await speakerUncovered(page);
   assert.match(await page.locator('#clerk-after').innerText(), new RegExp(String(initial.moneyYen - 120)));
   const pay = await page.$('#clerk-pay');
@@ -63,11 +75,12 @@ try {
   assert.equal(await phase(page), 'receipt');
   await pay.evaluate(button => { button.click(); button.click(); });
   const bought = await assets(page);
+  assert.deepEqual(await position(page), buyingPosition, 'Confirming payment keeps this visit stationary');
   assert.equal(bought.moneyYen, initial.moneyYen - 120);
   assert.equal(bought.items.find(item => item.itemId === 'bottled-water')?.quantity, 1);
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('slg-map-save-v1')).assets), bought);
   await page.locator('#clerk-leave').click();
-  assert.deepEqual(await position(page), inRoom);
+  assert.deepEqual(await position(page), buyingPosition, 'Closing returns to this conversation position');
   await page.reload(); await ready(page);
   assert.deepEqual(await assets(page), bought); assert.equal(await page.locator('#clerk-panel').isVisible(), false);
   pass('selection/details, explicit confirmation, repeat/click guard, atomic save and reload');
