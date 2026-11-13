@@ -80,11 +80,16 @@ try {
         const panel = page.locator('#train-travel-panel');
         assert.equal(await panel.count(), 1, 'The travel panel exists');
         assert.equal(await panel.isVisible(), false, 'Train must run without the travel panel');
-        await page.waitForFunction(id => window.__townTrainPaint.some(paint => paint.areaId === id &&
-          paint.x < window.__slg.renderer.stats.camX + window.__slg.renderer.stats.viewW - 60), areaId, { timeout: 16000 });
+        await page.waitForFunction(id => {
+          const paint = window.__townTrainPaint.at(-1), { camX, viewW } = window.__slg.renderer.stats;
+          return paint?.areaId === id && paint.x >= camX + 8 && paint.x + paint.w <= camX + viewW - 40;
+        }, areaId, { timeout: 16000 });
         const first = await page.evaluate(() => window.__townTrainPaint.at(-1));
         await page.screenshot({ path: resolve(shots, `${size.name}-${areaId}-01.png`) });
-        await page.waitForFunction(({ areaId: id, firstX }) => window.__townTrainPaint.some(paint => paint.areaId === id && paint.x >= firstX + 20),
+        await page.waitForFunction(({ areaId: id, firstX }) => {
+          const paint = window.__townTrainPaint.at(-1), { camX, viewW } = window.__slg.renderer.stats;
+          return paint?.areaId === id && paint.x >= firstX + 20 && paint.x + paint.w <= camX + viewW;
+        },
           { areaId, firstX: first.x }, { timeout: 4000 });
         const second = await page.evaluate(() => window.__townTrainPaint.at(-1));
         await page.screenshot({ path: resolve(shots, `${size.name}-${areaId}-02.png`) });
