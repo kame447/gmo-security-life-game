@@ -4,6 +4,7 @@ import { canStand, positionAt } from '../src/map/explorer';
 import { buildAreaMap } from '../src/minimap/model';
 import { Game } from '../src/session/game';
 import { TRAIN_NETWORK } from '../src/travel/network';
+import { findRailStrips, TownTrainService } from '../src/town-train/service';
 import { buildWorld, findPath, isSolidTile, LANDMARKS, STATION_ACCESS, validateWorld } from '../src/world';
 import { MAIN_STATION_LAYOUT } from '../src/world/landmarks';
 import { isRailGround, T } from '../src/world/tiles';
@@ -70,6 +71,23 @@ describe('station geography', () => {
     expect(game.player).toEqual(positionAt({ areaId: 'town-neighbor', x, y: trackY + trackRows, facing: 'down' }));
     for (let i = 0; i < trackRows + 1; i++) game.update(16 / 128, { dir: 'up', run: true });
     expect(game.player).toEqual(positionAt({ areaId: 'town-neighbor', x, y: trackY - 1, facing: 'up' }));
+  });
+
+  it.each(['town-main', 'town-neighbor'])('animates only the actual outdoor railway in %s', areaId => {
+    const area = buildWorld().areas.get(areaId)!, solid = area.solid.slice(), ground = area.ground.slice();
+    const strips = findRailStrips(area), service = new TownTrainService();
+    expect(strips).toHaveLength(1);
+    const [strip] = strips;
+    expect(strip.left).toBe(0);
+    expect(strip.right).toBe(area.width * 16);
+    for (let y = strip.top / 16; y < strip.bottom / 16; y++) for (let x = 0; x < area.width; x++) {
+      expect(isRailGround(area.ground[y * area.width + x])).toBe(true);
+    }
+    const before = service.frames(area, 2), after = service.frames(area, 2.5);
+    expect(before.length).toBeGreaterThan(0);
+    expect(after[0].x).toBeGreaterThan(before[0].x);
+    expect(area.solid).toEqual(solid);
+    expect(area.ground).toEqual(ground);
   });
 
   it('keeps the neighboring railway bridge solid and the original walking bridge open', () => {
