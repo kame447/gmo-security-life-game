@@ -6,12 +6,13 @@ import type { ClerkContext } from '../shop/clerk-visit';
 import type { ShopAssetsPort } from '../shop/purchase';
 import { $ } from './dom';
 import { shopIcon } from './shop-icons';
+import type { ModalPanel } from './modal-panels';
 import './clerk-panel.css';
 
 const KINDS: Record<string, string> = { snack: 'おやつ', drink: 'のみもの', stationery: 'ぶんぼうぐ' };
 const yen = (value: number) => `${value.toLocaleString('ja-JP')} 円`;
 
-export class ClerkPanel {
+export class ClerkPanel implements ModalPanel {
   readonly element = document.createElement('section');
   private flow: ClerkFlow | null = null;
   private products: HTMLButtonElement[] = [];

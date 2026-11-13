@@ -11,3 +11,5 @@
 [幼少期マップの Canvas 2D プロトタイプ（提案／要検証）](0003-map-prototype-canvas2d.md)
 
 [ゲームのコードを責務ごとのモジュールに分ける](0004-game-module-structure.md)
+
+[店内の店員との会話から買い物を始める（UIレビュー前の試作）](0008-clerk-led-shopping.md)

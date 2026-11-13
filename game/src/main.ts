@@ -1,18 +1,22 @@
 /** 起動：各部品を組み立てて接続するだけ。個別の処理は app/・ui/・input/ 以下に置く。 */
 import { exposeDebug, FrameRecorder } from './app/debug';
+import { clerkEvents } from './app/clerk-events';
 import { startLoop } from './app/loop';
 import { loadSave, writeSave } from './app/save-store';
 import { Controls } from './input/controls';
+import type { MapEventSink } from './core/types';
 import { Renderer } from './render/renderer';
 import { Game } from './session/game';
 import { AvatarPanel } from './ui/avatar-panel';
+import { ClerkPanel } from './ui/clerk-panel';
 import { UiController } from './ui/controller';
 import { $ } from './ui/dom';
 import { Hud } from './ui/hud';
 import { buildWorld } from './world';
 
 const world = buildWorld();
-const game = new Game(world, { save: loadSave(world) });
+let shopEvents: MapEventSink | undefined;
+const game = new Game(world, { save: loadSave(world), sink: { onMapEvent: event => shopEvents?.onMapEvent(event) } });
 const canvas = $<HTMLCanvasElement>('#view');
 const renderer = new Renderer(canvas);
 const controls = new Controls();
@@ -33,6 +37,9 @@ const avatar = new AvatarPanel(game, commit => {
 });
 const ui = new UiController(game, controls, canvas);
 ui.registerPanel({ id: 'avatar', panel: avatar, open: () => avatar.open(), button: $<HTMLButtonElement>('#btn-avatar') });
+const clerk = new ClerkPanel(game.assets, () => { controls.clear(); ui.focusMap(); }, save);
+ui.registerPanel({ id: 'shop', panel: clerk });
+shopEvents = clerkEvents(game, ui, context => clerk.open(context));
 const hud = new Hud(game, () => ui.primaryAction());
 ui.bind({ onReset: () => { game.reset(); save(); } });
 exposeDebug(game, renderer, frames);
