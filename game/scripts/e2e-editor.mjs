@@ -1,14 +1,15 @@
 /** Run outside the Codex sandbox: a temporary game copy keeps CLI writes isolated. */
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
-import { cp, mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, realpath, rm, symlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 const gameDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const temp = await mkdtemp(path.join(os.tmpdir(), 'slg-editor-e2e-'));
+// The CLI rejects symlinked data directories; macOS TMPDIR can contain /var -> /private/var.
+const temp = await realpath(await mkdtemp(path.join(os.tmpdir(), 'slg-editor-e2e-')));
 const fixture = path.join(temp, 'game');
 const port = Number(process.env.SLG_EDITOR_PORT || '5186');
 const base = `http://127.0.0.1:${port}/`;
