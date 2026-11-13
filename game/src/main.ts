@@ -38,7 +38,7 @@ const avatar = new AvatarPanel(game, commit => {
 });
 const ui = new UiController(game, controls, canvas);
 ui.registerPanel({ id: 'avatar', panel: avatar, open: () => avatar.open(), button: $<HTMLButtonElement>('#btn-avatar') });
-const bag = new HotbarPanel(game, () => { controls.clear(); ui.focusMap(); }, () => { controls.clear(); ui.focusMap(); });
+const bag = new HotbarPanel(game, () => { controls.clear(); ui.update(); ui.focusMap(); }, () => { controls.clear(); ui.focusMap(); });
 ui.registerPanel({ id: 'inventory', panel: bag, open: () => bag.open(), button: bag.button, shortcut: 'KeyI' });
 const hud = new Hud(game, () => ui.primaryAction());
 ui.bind({ onReset: () => { game.reset(); save(); } });
