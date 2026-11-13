@@ -36,7 +36,7 @@ it('walks from home to the real station, takes both trains and walks back after 
   const appearance = { ...game.appearance }, age = world.variant.stage;
 
   walk(game, LANDMARKS.stationFront);
-  walk(game, { x: 28, y: 63 });
+  walk(game, STATION_ACCESS.outdoorEntrance);
   expect(game.player.areaId).toBe(STATION_ACCESS.areaId);
   walk(game, STATION_ACCESS.boarding);
   game.update(1 / 120, { dir: STATION_ACCESS.boarding.facing, run: false });
@@ -55,7 +55,7 @@ it('walks from home to the real station, takes both trains and walks back after 
   game = new Game(world, { save: saved, sink });
   travel = new TrainTravelSession(game, TRAIN_NETWORK);
   expect(game.serialize()).toEqual(saved);
-  walk(game, { x: 24, y: 6 });
+  walk(game, world.areas.get('town-neighbor')!.def.portals.find(p => p.id === 'neighbor-station-enter')!.from);
   expect(game.player.areaId).toBe(NEIGHBOR_STATION_ACCESS.boarding.areaId);
   walk(game, NEIGHBOR_STATION_ACCESS.boarding);
   game.update(1 / 120, { dir: NEIGHBOR_STATION_ACCESS.boarding.facing, run: false });

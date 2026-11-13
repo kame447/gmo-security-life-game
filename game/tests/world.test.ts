@@ -4,6 +4,7 @@ import { buildWorld, CHILDHOOD_VARIANT, districtAt, findPath, isSolidTile, LANDM
 import { PERF_ROUTES } from './fixtures/perf-routes';
 import { T } from '../src/world/tiles';
 import { TRAIN_NETWORK } from '../src/travel/network';
+import { MAIN_STATION_LAYOUT } from '../src/world/landmarks';
 
 describe('childhood world', () => {
   it('has valid IDs, bounds, references and reachable portals/interactions', () => {
@@ -22,9 +23,9 @@ describe('childhood world', () => {
   });
   it('blocks bounds, water, banks, buildings, fences and rail while allowing bridges/crossings', () => {
     const town = buildWorld().areas.get('town-main')!;
-    for (const [x, y] of [[-1, 20], [128, 20], [50, -1], [50, 80], [NaN, 1], [1.5, 1]]) expect(isSolidTile(town, x, y)).toBe(true);
-    for (const [x, y] of [[86, 20], [83, 20], [32, 28], [90, 25], [10, 71]]) expect(isSolidTile(town, x, y)).toBe(true);
-    for (const [x, y, tile] of [[86, 9, T.BRIDGE], [86, 39, T.BRIDGE], [100, 46, T.BRIDGE], [80, 71, T.CROSSING], [56, 71, T.CROSSING], [125, 71, T.CROSSING]]) {
+    for (const [x, y] of [[-1, 20], [128, 20], [50, -1], [50, town.height], [NaN, 1], [1.5, 1]]) expect(isSolidTile(town, x, y)).toBe(true);
+    for (const [x, y] of [[86, 20], [83, 20], [32, 28], [90, 25], [10, MAIN_STATION_LAYOUT.trackY + 1]]) expect(isSolidTile(town, x, y)).toBe(true);
+    for (const [x, y, tile] of [[86, 9, T.BRIDGE], [86, 39, T.BRIDGE], [100, 46, T.BRIDGE], [80, MAIN_STATION_LAYOUT.trackY + 1, T.CROSSING], [56, MAIN_STATION_LAYOUT.trackY + 1, T.CROSSING], [125, MAIN_STATION_LAYOUT.trackY + 1, T.CROSSING]]) {
       expect(town.ground[y * town.width + x]).toBe(tile);
       expect(isSolidTile(town, x, y)).toBe(false);
     }
@@ -61,13 +62,13 @@ describe('childhood world', () => {
     expect(changed.facilities.get('school')?.state).toBe('closed');
     expect(validateWorld(buildWorld(), { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
   });
-  it('uses stable chunk IDs for all 40 outdoor chunks', () => {
-    const ids = new Set<string>();
-    for (let y = 0; y < 80; y += CHUNK_TILES) for (let x = 0; x < 128; x += CHUNK_TILES) {
+  it('uses stable chunk IDs for every outdoor chunk', () => {
+    const ids = new Set<string>(), town = buildWorld().areas.get('town-main')!;
+    for (let y = 0; y < town.height; y += CHUNK_TILES) for (let x = 0; x < town.width; x += CHUNK_TILES) {
       const id = chunkId('town-main', tileToChunk(x), tileToChunk(y));
       expect(id).toMatch(/^town-main\/chunk-x\d{3}-y\d{3}$/); ids.add(id);
     }
-    expect(ids.size).toBe(40);
+    expect(ids.size).toBe(Math.ceil(town.width / CHUNK_TILES) * Math.ceil(town.height / CHUNK_TILES));
     expect(chunkId('town-main', 0, 1)).toBe('town-main/chunk-x000-y001');
   });
   it('opens the konbini interior and reaches its everyday conversations from the entrance', () => {

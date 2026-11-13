@@ -5,13 +5,14 @@ import { buildAreaMap } from '../src/minimap/model';
 import { findPath } from '../src/world/path';
 import { isSolidTile, toRuntime } from '../src/world/runtime';
 import { T } from '../src/world/tiles';
-import { createNeighborStation, createNeighborTown, NEIGHBOR_FACILITIES, NEIGHBOR_STATION_ACCESS as stop } from '../src/world/towns/neighbor';
+import { createNeighborStation, createNeighborTown, NEIGHBOR_FACILITIES, NEIGHBOR_STATION_ACCESS as stop, NEIGHBOR_STATION_LAYOUT as layout } from '../src/world/towns/neighbor';
 
 describe('provisional neighboring town', () => {
   it('has different geography, a walkable bridge and reachable exploration targets', () => {
     const town = toRuntime(createNeighborTown());
     expect(town.def.id).toBe('town-neighbor');
     expect(town.def.kind).toBe('outdoor');
+    expect(town.height).toBe(layout.townHeight);
     expect(town.def.interactions.length).toBeGreaterThanOrEqual(2);
     expect(town.ground[12 * town.width + 38]).toBe(T.BRIDGE);
     expect(isSolidTile(town, 38, 12)).toBe(false);
@@ -44,7 +45,10 @@ describe('provisional neighboring town', () => {
     expect(town.objects.find(object => object.id === 'neighbor-station-building')?.facilityId).toBe(stop.stationId);
     expect(town.def.portals[0].facilityId).toBe(stop.stationId);
     expect(station.portals[0].facilityId).toBe(stop.stationId);
-    expect(buildAreaMap(town, NEIGHBOR_FACILITIES).markers).toContainEqual(expect.objectContaining({ id: stop.stationId, kind: 'station' }));
+    const building = layout.building;
+    expect(buildAreaMap(town, NEIGHBOR_FACILITIES).markers).toContainEqual(expect.objectContaining({
+      id: stop.stationId, kind: 'station', x: building.x + building.w / 2, y: building.y + building.h / 2,
+    }));
   });
 
   it('connects the town and station in both directions without rail-triggered portals', () => {
@@ -54,7 +58,9 @@ describe('provisional neighboring town', () => {
     expect(exit.to).toEqual(stop.townFront);
     expect(findPath(town, stop.townFront, enter.from)).not.toBeNull();
     expect(findPath(station, stop.entrance, exit.from)).not.toBeNull();
-    expect(findPath(station, stop.entrance, stop.boarding)).not.toBeNull();
+    const route = findPath(station, stop.entrance, stop.boarding);
+    expect(route).not.toBeNull();
+    expect(route!.some(p => station.ground[p.y * station.width + p.x] === T.TICKET_GATE)).toBe(true);
     expect(findPath(station, stop.arrival, stop.boarding)).not.toBeNull();
     expect(station.portalAt.has(stop.arrival.y * station.width + stop.arrival.x)).toBe(false);
     expect(station.portalAt.has(stop.boarding.y * station.width + stop.boarding.x)).toBe(false);

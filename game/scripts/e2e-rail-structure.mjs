@@ -95,14 +95,18 @@ try {
     page.on('download', download => { report.downloads.push(download.suggestedFilename()); void download.cancel(); });
     try {
       await page.goto(target.href); await ready(page);
-      const access = await page.evaluate(async () => (await import('/src/world/landmarks.ts')).STATION_ACCESS);
+      const { access, layout, landmarks } = await page.evaluate(async () => {
+        const m = await import('/src/world/landmarks.ts');
+        return { access: m.STATION_ACCESS, layout: m.MAIN_STATION_LAYOUT, landmarks: m.LANDMARKS };
+      });
       const problems = await page.evaluate(async () => {
         const { validateWorld, isSolidTile } = await import('/src/world/index.ts');
         const { isRailGround, T } = await import('/src/world/tiles.ts');
         const { TRAIN_NETWORK } = await import('/src/travel/network.ts');
+        const { MAIN_STATION_LAYOUT: layout } = await import('/src/world/landmarks.ts');
         const world = window.__slg.game.world, town = world.areas.get('town-main');
         const errors = validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() });
-        for (let y = 70; y <= 73; y++) for (let x = 0; x < town.width; x++) {
+        for (let y = layout.trackY; y < layout.trackY + layout.trackRows; y++) for (let x = 0; x < town.width; x++) {
           const t = town.ground[y * town.width + x];
           if (!isRailGround(t) || (t !== T.CROSSING && !isSolidTile(town, x, y))) errors.push(`Invalid track at ${x},${y}`);
           if (x >= 116 && x <= 120 && t !== T.RAIL_BRIDGE) errors.push(`Missing railway bridge at ${x},${y}`);
@@ -122,8 +126,8 @@ try {
         await walkTo(page, await page.evaluate(async () => (await import('/src/world/landmarks.ts')).LANDMARKS.parkPlaza));
         pass('desktop: home, school, konbini portals and park remain accessible');
       }
-      await walkTo(page, { x: 28, y: 64 }); await shot(page, `${name}-01-station-exterior`);
-      await walkTo(page, { x: 28, y: 63 }); await landing(page, access.entrancePortalId, access.entry);
+      await walkTo(page, landmarks.stationFront); await shot(page, `${name}-01-station-exterior`);
+      await walkTo(page, access.outdoorEntrance); await landing(page, access.entrancePortalId, access.entry);
       assert.equal((await state(page)).areaId, access.areaId);
       await shot(page, `${name}-02-concourse-gates`);
       await walkTo(page, access.boarding);
@@ -140,20 +144,20 @@ try {
       assert.equal(tile(stopped).y, 8); await hold(page, 'ArrowUp', 200); assert.deepEqual(await state(page), stopped);
       await shot(page, `${name}-04-platform-boundary`);
       await walkTo(page, { x: 17, y: 17 });
-      await landing(page, access.exitPortalId, { areaId: 'town-main', x: 28, y: 64, facing: 'down' });
+      await landing(page, access.exitPortalId, { areaId: 'town-main', ...landmarks.stationFront, facing: 'down' });
       pass(`${name}: platform edge rejects walking onto rails and the original exit returns outdoors`);
 
       for (const x of [56, 80, 125]) {
-        await walkTo(page, { x, y: 69 }); await walkTo(page, { x, y: 71 });
-        assert.equal(tile(await state(page)).y, 71); await shot(page, `${name}-crossing-${x}`);
-        await walkTo(page, { x, y: 75 }); await walkTo(page, { x, y: 69 });
+        await walkTo(page, { x, y: layout.trackY - 1 }); await walkTo(page, { x, y: layout.trackY + 1 });
+        assert.equal(tile(await state(page)).y, layout.trackY + 1); await shot(page, `${name}-crossing-${x}`);
+        await walkTo(page, { x, y: layout.trackY + layout.trackRows + 1 }); await walkTo(page, { x, y: layout.trackY - 1 });
       }
       pass(`${name}: all three level crossings connect both sides`);
-      await walkTo(page, { x: 123, y: 74 }); await shot(page, `${name}-05-railway-bridge`);
+      await walkTo(page, { x: 123, y: layout.trackY + layout.trackRows }); await shot(page, `${name}-05-railway-bridge`);
       await reloadExact(page); pass(`${name}: bridge approach preserves exact outdoor save and appearance`);
-      await walkTo(page, { x: 10, y: 69 });
+      await walkTo(page, { x: 10, y: layout.trackY - 1 });
       await hold(page, 'ArrowDown', 280); const outside = await state(page);
-      assert.equal(tile(outside).y, 69); await hold(page, 'ArrowDown', 200); assert.deepEqual(await state(page), outside);
+      assert.equal(tile(outside).y, layout.trackY - 1); await hold(page, 'ArrowDown', 200); assert.deepEqual(await state(page), outside);
       pass(`${name}: ordinary street movement cannot enter the track band`);
     } catch (error) {
       if (output) await shot(page, `${name}-failure`).catch(() => {});

@@ -5,6 +5,7 @@ import { Game } from '../src/session/game';
 import { buildWorld, findPath, isSolidTile, LANDMARKS, STATION_ACCESS, validateWorld, type AreaRuntime } from '../src/world';
 import { isRailGround, T } from '../src/world/tiles';
 import { TRAIN_NETWORK } from '../src/travel/network';
+import { MAIN_STATION_LAYOUT as layout } from '../src/world/landmarks';
 
 const feetTile = (game: Game) => ({ x: Math.floor(game.player.x / 16), y: Math.floor((game.player.y - 4) / 16) });
 function walk(game: Game, target: { x: number; y: number }) {
@@ -28,14 +29,14 @@ describe('station, crossings and railway bridge', () => {
     expect(world.facilities.get('station')?.interior).toBe('full');
     expect(world.areas.get(STATION_ACCESS.areaId)?.width).toBe(36);
     expect(town.interactions.find(i => i.id === 'station-staff')).toMatchObject({
-      name: 'えきいんさん', x: 32, y: 65, sprite: 'staff',
+      name: 'えきいんさん', x: 32, y: 90, sprite: 'staff',
       lines: ['でんしゃは もうすぐ くるよ。きいろい せんの うちがわで まってね。'],
     });
   });
   it('walks from home through the station entrance, ticket gate and platform and returns through the original door', () => {
     const game = new Game(buildWorld());
     walk(game, LANDMARKS.stationFront);
-    walk(game, { x: 28, y: 63 });
+    walk(game, STATION_ACCESS.outdoorEntrance);
     expect(game.player).toEqual(positionAt(STATION_ACCESS.entry));
     const route = findPath(game.area, STATION_ACCESS.entry, STATION_ACCESS.boarding)!;
     expect(route.some(p => p.y === 12 && [17, 18].includes(p.x))).toBe(true);
@@ -59,7 +60,7 @@ describe('station, crossings and railway bridge', () => {
   });
   it('continues the rails across both river banks on a railway-only bridge', () => {
     const town = buildWorld().areas.get('town-main')!;
-    for (let y = 70; y <= 73; y++) {
+    for (let y = layout.trackY; y < layout.trackY + layout.trackRows; y++) {
       for (let x = 0; x < town.width; x++) expect(isRailGround(town.ground[y * town.width + x]), `${x},${y}`).toBe(true);
       for (let x = 116; x <= 120; x++) {
         expect(town.ground[y * town.width + x]).toBe(T.RAIL_BRIDGE);
@@ -69,21 +70,21 @@ describe('station, crossings and railway bridge', () => {
       expect(isRailGround(town.ground[y * town.width + 115])).toBe(true);
       expect(isRailGround(town.ground[y * town.width + 121])).toBe(true);
     }
-    for (const y of [69, 74]) for (let x = 116; x <= 120; x++) expect(town.ground[y * town.width + x]).toBe(T.WATER);
+    for (const y of [layout.trackY - 1, layout.trackY + layout.trackRows]) for (let x = 116; x <= 120; x++) expect(town.ground[y * town.width + x]).toBe(T.WATER);
   });
   it.each([56, 80, 125])('crosses the road and sidewalks at x=%i in both directions using Game movement', x => {
     const world = buildWorld(), town = world.areas.get('town-main')!;
-    for (let y = 70; y <= 73; y++) {
+    for (let y = layout.trackY; y < layout.trackY + layout.trackRows; y++) {
       expect(town.ground[y * town.width + x]).toBe(T.CROSSING);
       expect(isSolidTile(town, x, y)).toBe(false);
     }
     const game = new Game(world);
-    game.player = positionAt({ areaId: 'town-main', x, y: 69, facing: 'down' });
-    walk(game, { x, y: 75 }); walk(game, { x, y: 69 });
-    expect(feetTile(game)).toEqual({ x, y: 69 });
+    game.player = positionAt({ areaId: 'town-main', x, y: layout.trackY - 1, facing: 'down' });
+    walk(game, { x, y: layout.trackY + layout.trackRows + 1 }); walk(game, { x, y: layout.trackY - 1 });
+    expect(feetTile(game)).toEqual({ x, y: layout.trackY - 1 });
     // Sidewalks beside each carriageway also have the crossing surface and no hidden fence.
     const roadEdges = x === 56 ? [55, 58] : x === 80 ? [78, 82] : [124, 127];
-    for (const edge of roadEdges) for (let y = 70; y <= 73; y++) {
+    for (const edge of roadEdges) for (let y = layout.trackY; y < layout.trackY + layout.trackRows; y++) {
       expect(town.ground[y * town.width + edge]).toBe(T.CROSSING);
       expect(isSolidTile(town, edge, y)).toBe(false);
     }
@@ -112,7 +113,7 @@ describe('station, crossings and railway bridge', () => {
   it('preserves station/platform and crossing saves without changing variant or appearance', () => {
     const world = buildWorld();
     for (const spawn of [STATION_ACCESS.entry, STATION_ACCESS.boarding, STATION_ACCESS.arrival,
-      { areaId: 'town-main', x: 56, y: 71, facing: 'down' as const }]) {
+      { areaId: 'town-main', x: 56, y: layout.trackY + 1, facing: 'down' as const }]) {
       const game = new Game(world); game.player = positionAt(spawn);
       const saved = game.serialize(), restored = new Game(buildWorld(), { save: saved });
       expect(restored.serialize()).toEqual(saved);

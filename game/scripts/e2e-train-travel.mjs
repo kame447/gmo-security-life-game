@@ -104,6 +104,7 @@ try {
   });
   const appearance = await page.evaluate(() => ({ ...window.__slg.game.appearance }));
   const stage = await page.evaluate(() => window.__slg.game.world.variant.stage);
+  let neighborExteriorSave, neighborGateSave;
   await shot(page, 'desktop-01-town');
 
   await check('walk from the original town into its station', async () => {
@@ -188,6 +189,8 @@ try {
   await check('walk out, explore the different town and cross its bridge', async () => {
     const exit = await page.evaluate(() => window.__slg.game.area.def.portals.find(portal => portal.id === 'neighbor-station-exit')?.from);
     assert.ok(exit); await walkTo(page, exit); await waitArea(page, 'town-neighbor');
+    await shot(page, 'desktop-06b-neighbor-exterior');
+    neighborExteriorSave = await page.evaluate(() => window.__slg.game.serialize());
     await walkTo(page, { x: 43, y: 12 });
     assert.equal((await player(page)).areaId, 'town-neighbor');
   });
@@ -210,6 +213,8 @@ try {
   await check('walk back to the station and explicitly take the return train', async () => {
     const entrance = await page.evaluate(() => window.__slg.game.area.def.portals.find(portal => portal.id === 'neighbor-station-enter')?.from);
     assert.ok(entrance); await walkTo(page, entrance); await waitArea(page, neighbor.boarding.areaId);
+    await shot(page, 'desktop-07c-neighbor-concourse');
+    neighborGateSave = await page.evaluate(() => window.__slg.game.serialize());
     await walkTo(page, neighbor.boarding); await face(page, neighbor.boarding.facing);
     await board(page, neighbor.boarding.interactionId);
     await page.locator(`[data-action="select"][data-station-id="${access.stationId}"]`).click();
@@ -227,10 +232,11 @@ try {
     const exit = await page.evaluate(id => window.__slg.game.area.def.portals.find(portal => portal.id === id), access.exitPortalId);
     assert.ok(exit, 'Original station exit is registered');
     assert.equal(exit.to.areaId, 'town-main');
-    assert.deepEqual({ x: exit.to.x, y: exit.to.y }, { x: 28, y: 64 });
+    const front = await page.evaluate(async () => (await import('/src/world/landmarks.ts')).LANDMARKS.stationFront);
+    assert.deepEqual({ x: exit.to.x, y: exit.to.y }, front);
     await walkTo(page, exit.from); await waitArea(page, 'town-main'); await waitSavedArea(page, 'town-main');
     const arrived = await player(page);
-    const nearExit = point => Math.abs(Math.floor(point.x / 16) - 28) <= 1 && Math.abs(Math.floor((point.y - 4) / 16) - 64) <= 1;
+    const nearExit = point => Math.abs(Math.floor(point.x / 16) - front.x) <= 1 && Math.abs(Math.floor((point.y - 4) / 16) - front.y) <= 1;
     assert.ok(nearExit(arrived), 'Return position is near the original station exit');
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('slg-map-save-v1') || 'null'));
     assert.equal(saved?.areaId, 'town-main');
@@ -273,6 +279,10 @@ try {
       const town = await contextFor(size, townSave); page = town.page;
       try { assert.equal((await player(page)).areaId, 'town-neighbor'); await shot(page, `${size.name}-05-town`); }
       finally { await town.context.close(); }
+      for (const [name, save] of [['neighbor-exterior', neighborExteriorSave], ['neighbor-concourse', neighborGateSave]]) {
+        const view = await contextFor(size, save); page = view.page;
+        try { await shot(page, `${size.name}-${name}`); } finally { await view.context.close(); }
+      }
     });
   }
   assert.deepEqual(errors, []);

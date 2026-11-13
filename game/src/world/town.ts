@@ -1,7 +1,7 @@
 import { hash2 } from '../core/coords';
 import type { AreaDef, FacilityDef, ObjectDef } from '../core/types';
 import { INTERIOR_ENTRIES } from './interiors';
-import { LANDMARKS } from './landmarks';
+import { LANDMARKS, MAIN_STATION_LAYOUT } from './landmarks';
 import { isRoad, isSolidGround, T } from './tiles';
 
 const shops = [
@@ -20,19 +20,19 @@ export const FACILITIES: FacilityDef[] = [
 
 /** Pure, deterministic map data. Reference PNG is a design reference, never a runtime asset. */
 export function createTown(): AreaDef {
-  const width = 128, height = 80;
+  const width = 128, height = MAIN_STATION_LAYOUT.townHeight;
   const ground = new Uint8Array(width * height).fill(T.GRASS);
   const objects: ObjectDef[] = [];
   const at = (x: number, y: number) => ground[y * width + x];
   const rect = (x: number, y: number, w: number, h: number, tile: number) => {
     for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) ground[yy * width + xx] = tile;
   };
-  const object = (kind: string, x: number, y: number, w: number, h: number, style?: string, solid = true, facilityId?: string) => {
-    objects.push({ id: `town-${kind}-${x}-${y}`, kind, x, y, w, h, style, solid, facilityId,
+  const object = (kind: string, x: number, y: number, w: number, h: number, style?: string, solid = true, facilityId?: string, id = `town-${kind}-${x}-${y}`) => {
+    objects.push({ id, kind, x, y, w, h, style, solid, facilityId,
       layer: solid ? 'sorted' : 'decal' });
   };
   const horizontal = [[9, 2, 128], [23, 2, 82], [38, 3, 128], [55, 3, 82], [76, 3, 128]];
-  const vertical = [[26, 3, 0, 58], [44, 2, 9, 41], [62, 2, 9, 41], [79, 3, 9, 79], [56, 2, 55, 79], [125, 3, 0, 80]];
+  const vertical = [[26, 3, 0, 58], [44, 2, 9, 41], [62, 2, 9, 41], [79, 3, 9, height], [56, 2, 55, height], [125, 3, 0, height]];
   horizontal.forEach(([y, h, w]) => rect(0, y, w, h, T.ASPHALT));
   vertical.forEach(([x, w, y, end]) => rect(x, y, w, end - y, T.ASPHALT));
   const roadMask = ground.slice();
@@ -65,22 +65,20 @@ export function createTown(): AreaDef {
       ground[yy * width + xx] = isRoad(at(xx, yy)) || at(xx, yy) === T.BRIDGE ? T.BRIDGE : T.WATER;
     }
   };
-  water(84, 0, 5, 46); water(84, 44, 37, 5); water(116, 44, 5, 36);
+  water(84, 0, 5, 46); water(84, 44, 37, 5); water(116, 44, 5, height - 44);
   rect(100, 41, 2, 14, T.PARKPATH); rect(100, 44, 2, 5, T.BRIDGE);
-  for (let y = 70; y <= 73; y++) for (let x = 0; x < width; x++) {
+  for (let y = MAIN_STATION_LAYOUT.trackY; y < MAIN_STATION_LAYOUT.trackY + MAIN_STATION_LAYOUT.trackRows; y++) for (let x = 0; x < width; x++) {
     // The same ground tile controls rendering and collision. Include the public sidewalks in each crossing.
     const previous = at(x, y);
     ground[y * width + x] = previous === T.WATER ? T.RAIL_BRIDGE
       : isRoad(previous) || previous === T.SIDEWALK ? T.CROSSING : T.RAIL;
   }
   // Signal posts stand on blocked railway land, preserving the public door fronts alongside it.
-  for (const y of [70, 73]) for (let x = 0; x < width; x++) {
+  for (const y of [MAIN_STATION_LAYOUT.trackY, MAIN_STATION_LAYOUT.trackY + MAIN_STATION_LAYOUT.trackRows - 1]) for (let x = 0; x < width; x++) {
     if (at(x, y) === T.RAIL && ((x > 0 && at(x - 1, y) === T.CROSSING) || (x + 1 < width && at(x + 1, y) === T.CROSSING))) {
       ground[y * width + x] = T.CROSSING_SIGNAL;
     }
   }
-  rect(6, 68, 45, 2, T.PLAZA);
-  object('train', 18, 71, 16, 2, undefined, false);
 
   // Two rows share a narrow garden/lane in deep blocks. Short frontages remain one row.
   const blocks = [
@@ -150,7 +148,11 @@ export function createTown(): AreaDef {
   // The one-tile gaps between shop footprints are paved alleys connecting both sides.
   rect(30, 47, 48, 7, T.PLAZA);
   rect(2, 59, 53, 9, T.PLAZA);
-  object('station', 12, 59, 33, 5, undefined, true, 'station');
+  // The station faces south; its north side adjoins the railway in the new southern area.
+  rect(2, 84, 53, height - 84, T.PLAZA);
+  const station = MAIN_STATION_LAYOUT.building;
+  // Keep the old object ID even though the building moved.
+  object('station', station.x, station.y, station.w, station.h, undefined, true, 'station', 'town-station-12-59');
   object('busstop', 50, 61, 1, 1);
   object('vending', 50, 53, 1, 1);
   object('board', 30, 34, 2, 1);
@@ -219,7 +221,7 @@ export function createTown(): AreaDef {
     id: 'town-main', name: 'いつものまち', kind: 'outdoor', width, height, ground, objects,
     districts: [
       { id: 'town-residential-west', name: 'じゅうたくがい', x: 0, y: 0, w: 84, h: 41 },
-      { id: 'town-center', name: 'えきまえ・しょうてんがい', x: 0, y: 41, w: 84, h: 39 },
+      { id: 'town-center', name: 'えきまえ・しょうてんがい', x: 0, y: 41, w: 84, h: height - 41 },
       { id: 'town-school-north', name: 'がっこうのまわり', x: 84, y: 0, w: 44, h: 42 },
       { id: 'town-riverside-park', name: 'かわぞいこうえん', x: 84, y: 42, w: 44, h: 38 },
     ],
@@ -227,7 +229,7 @@ export function createTown(): AreaDef {
       { id: 'home-enter', from: { x: 35, y: 31 }, to: { ...INTERIOR_ENTRIES.home }, facilityId: 'home-family' },
       { id: 'school-enter', from: { x: 103, y: 19, w: 2 }, to: { ...INTERIOR_ENTRIES.classroom }, facilityId: 'school' },
       { id: 'konbini-enter', from: { x: 54, y: 52 }, to: { ...INTERIOR_ENTRIES.konbini }, facilityId: 'shop-konbini' },
-      { id: 'station-enter', from: { x: 28, y: 63 }, to: { ...INTERIOR_ENTRIES.station }, facilityId: 'station' },
+      { id: 'station-enter', from: { ...MAIN_STATION_LAYOUT.entrance }, to: { ...INTERIOR_ENTRIES.station }, facilityId: 'station' },
     ],
     interactions: [
       { id: 'neighbor-grandma', kind: 'npc', name: 'きんじょのおばあさん', x: 40, y: 33, sprite: 'grandma', facing: 'left', solid: true, eventKey: 'neighborhood.grandma', lines: ['おかえり。きょうも がっこう、たのしかった？'] },
@@ -237,7 +239,7 @@ export function createTown(): AreaDef {
       { id: 'park-friend', kind: 'npc', name: 'ともだち', x: 100, y: 61, sprite: 'friend', facing: 'left', solid: true, eventKey: 'park.friend', lines: ['いっしょに あそぼう！ なにして あそぶ？'] },
       { id: 'park-slide', kind: 'object', name: 'すべりだい', x: 106, y: 64, w: 2, h: 2, solid: true, eventKey: 'park.slide', lines: ['てっぺんから、かわと でんしゃが みえるよ。'] },
       { id: 'candy-shopkeeper', kind: 'npc', name: 'だがしやさん', x: 48, y: 53, sprite: 'shopkeeper', facing: 'down', solid: true, eventKey: 'shopping.candy', lines: ['いらっしゃい。きょうの おやつは どれにする？'] },
-      { id: 'station-staff', kind: 'npc', name: 'えきいんさん', x: 32, y: 65, sprite: 'staff', facing: 'left', solid: true, eventKey: 'station.staff', lines: ['でんしゃは もうすぐ くるよ。きいろい せんの うちがわで まってね。'] },
+      { id: 'station-staff', kind: 'npc', name: 'えきいんさん', x: 32, y: 90, sprite: 'staff', facing: 'left', solid: true, eventKey: 'station.staff', lines: ['でんしゃは もうすぐ くるよ。きいろい せんの うちがわで まってね。'] },
       { id: 'shopping-vending', kind: 'object', name: 'じどうはんばいき', x: 50, y: 53, solid: true, eventKey: 'shopping.vending', lines: ['つめたい のみものが ならんでいる。どれにしようかな。'] },
       { id: 'neighborhood-postbox', kind: 'object', name: 'ポスト', x: 41, y: 36, solid: true, eventKey: 'neighborhood.postbox', lines: ['おてがみは ここから たびにでるんだね。'] },
       { id: 'station-busstop', kind: 'sign', name: 'バスてい', x: 50, y: 61, solid: true, eventKey: 'station.busstop', lines: ['つぎの バスは、えきから としょかんまで いくんだって。'] },
