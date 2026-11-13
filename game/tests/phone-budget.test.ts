@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PhoneDataBudget, isHomeLocation, parsePhoneDataSave, type PhoneUsageContext } from '../src/phone/budget';
 import { PHONE_BUDGET_PROTOTYPE, type PhoneBudgetConfig } from '../src/phone/budget-config';
-import { parsePhoneSave } from '../src/phone/model';
+import { PhoneModel, parsePhoneSave } from '../src/phone/model';
+import { PHONE_CONTENT } from '../src/phone/content';
 import { buildWorld } from '../src/world';
 
 const config = (patch: Partial<PhoneBudgetConfig> = {}): PhoneBudgetConfig => ({ ...PHONE_BUDGET_PROTOTYPE,
@@ -68,7 +69,7 @@ describe('phone data budget timing and context boundaries', () => {
     budget.update(2000, outside); budget.update(3000, outside);
     expect(budget.remainingMb).toBe(98);
   });
-  it('skips a discontinuity under the default policy and can instead consume the complete gap', () => {
+  it('can skip a discontinuity or consume the complete foreground gap according to configuration', () => {
     for (const largeGapUsage of ['ignore', 'consume'] as const) {
       const budget = new PhoneDataBudget(config({ largeGapUsage }));
       budget.update(0, outside); budget.update(1000, outside); budget.update(100_000, outside);
@@ -76,6 +77,14 @@ describe('phone data budget timing and context boundaries', () => {
       budget.update(101_000, outside);
       expect(budget.remainingMb).toBe(largeGapUsage === 'ignore' ? 98 : 0);
     }
+  });
+  it('matches sparse and frequent foreground samples across the large-gap threshold by default', () => {
+    const sparse = new PhoneDataBudget(config()), frequent = new PhoneDataBudget(config());
+    sparse.update(0, outside); frequent.update(0, outside);
+    sparse.update(90_000, outside);
+    for (let n = 1; n <= 90 * 60; n++) frequent.update(n * 1000 / 60, outside);
+    expect(sparse.remainingMb).toBe(10);
+    expect(frequent.remainingMb).toBe(sparse.remainingMb);
   });
   it('clamps to zero and exposes the configured exhaustion effect without closing the phone', () => {
     for (const exhaustion of ['none', 'block-network'] as const) {
@@ -96,6 +105,21 @@ describe('phone data budget timing and context boundaries', () => {
     const automatic = new PhoneDataBudget(config({ recovery: 'on-home-entry' }), { v: 1, remainingMb: 0 });
     automatic.update(0, home); expect(automatic.remainingMb).toBe(0); // Loading at home is not an arrival event.
     automatic.update(1, outside); automatic.update(2, home); expect(automatic.remainingMb).toBe(100);
+  });
+  it('handles real PhoneModel navigation callbacks and panel/area transitions without double consumption', () => {
+    const phone = new PhoneModel(PHONE_CONTENT, { initialOwned: true }), budget = new PhoneDataBudget(config());
+    let now = 0, location = outside;
+    const sync = () => budget.update(now, { ...location, owned: phone.isOwned, open: phone.isOpen });
+    phone.onChange(sync); sync(); phone.open();
+    now = 1000; phone.launch('messages'); phone.navigate('example'); phone.home();
+    expect(budget.remainingMb).toBe(99);
+    now = 2000; phone.close(); // A conversation or another modal takes input ownership.
+    now = 20_000; sync(); expect(budget.remainingMb).toBe(98);
+    phone.open(); now = 21_000; location = home; sync();
+    now = 30_000; phone.launch('web'); expect(budget.remainingMb).toBe(97);
+    location = outside; sync(); now = 31_000; phone.setOwned(false);
+    now = 50_000; sync(); expect(budget.remainingMb).toBe(96);
+    expect(phone.isOpen).toBe(false);
   });
 });
 
