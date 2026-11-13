@@ -16,6 +16,7 @@ const frame = page => page.evaluate(() => new Promise(resolve => requestAnimatio
 async function ready(page) {
   await page.waitForFunction(() => !!window.__slg?.game);
   await page.waitForFunction(() => !window.__slg.renderer.stats.fading);
+  await page.waitForFunction(() => document.querySelector('#minimap-button')?.dataset.areaId === window.__slg.game.player.areaId);
   await page.locator('#view').focus(); await frame(page);
 }
 async function shot(page, name) { await frame(page); await page.screenshot({ path: resolve(shots, `${name}.png`) }); }
@@ -65,6 +66,7 @@ async function face(page, direction) {
 }
 async function waitArea(page, areaId) {
   await page.waitForFunction(areaId => window.__slg.game.player.areaId === areaId, areaId, { timeout: 10000 });
+  await page.waitForFunction(areaId => document.querySelector('#minimap-button')?.dataset.areaId === areaId, areaId, { timeout: 5000 });
   await page.waitForFunction(() => !window.__slg.renderer.stats.fading); await frame(page);
 }
 async function waitSavedArea(page, areaId) {
@@ -112,6 +114,17 @@ try {
   const boardSave = await page.evaluate(() => window.__slg.game.serialize());
   await shot(page, 'desktop-03-boarding');
 
+  await check('full map and boarding are mutually exclusive', async () => {
+    const before = await player(page);
+    await page.locator('#minimap-button').click();
+    await page.locator('#full-map-overlay').waitFor({ state: 'visible' });
+    await page.keyboard.press('KeyZ'); await page.keyboard.press('ArrowUp');
+    assert.equal(await page.locator('#train-travel-panel').isVisible(), false);
+    assert.deepEqual(await player(page), before);
+    await page.keyboard.press('Escape');
+    await page.locator('#full-map-overlay').waitFor({ state: 'hidden' });
+  });
+
   await check('backing out of either choice does not move the player', async () => {
     const before = await player(page);
     await board(page, access.interaction.id);
@@ -126,6 +139,9 @@ try {
   await check('destination requires a separate confirmation and blocks field movement', async () => {
     await board(page, access.interaction.id);
     const before = await player(page);
+    await page.waitForFunction(() => document.querySelector('#minimap-button').disabled);
+    await page.locator('#minimap-button').evaluate(button => button.click());
+    assert.equal(await page.locator('#full-map-overlay').isVisible(), false);
     await page.keyboard.down('ArrowDown'); await page.waitForTimeout(150); await page.keyboard.up('ArrowDown');
     assert.deepEqual(await player(page), before);
     await shot(page, 'desktop-04-destinations');
@@ -167,6 +183,19 @@ try {
   });
   const townSave = await page.evaluate(() => window.__slg.game.serialize());
   await shot(page, 'desktop-07-neighbor-town');
+  await check('full map follows the destination town and contains its station landmark', async () => {
+    await page.locator('#minimap-button').click();
+    await page.locator('#full-map-overlay').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#full-map-canvas').getAttribute('data-area-id'), 'town-neighbor');
+    const markers = await page.evaluate(async () => {
+      const { buildAreaMap } = await import('/src/minimap/model.ts');
+      return buildAreaMap(window.__slg.game.area, window.__slg.game.world.facilities.values()).markers;
+    });
+    assert.ok(markers.some(marker => marker.id === neighbor.stationId && marker.kind === 'station'));
+    await shot(page, 'desktop-07b-neighbor-map');
+    await page.keyboard.press('Escape');
+    await page.locator('#full-map-overlay').waitFor({ state: 'hidden' });
+  });
 
   await check('walk back to the station and explicitly take the return train', async () => {
     const entrance = await page.evaluate(() => window.__slg.game.area.def.portals.find(portal => portal.id === 'neighbor-station-enter')?.from);
