@@ -8,7 +8,8 @@ export function assembleEditorWorld(document: EditorDocument): World {
   const areas = new Map<string, AreaRuntime>();
   for (const area of document.areas) {
     const def: AreaDef = {
-      ...area, ground: Uint8Array.from(area.ground),
+      ...area, ...(area.districts ? { districts: area.districts.map(district => ({ ...district })) } : {}),
+      ground: Uint8Array.from(area.ground),
       objects: document.objects.filter(o => o.areaId === area.id).map(({ areaId: _, ...o }) => ({ ...o })),
       interactions: document.interactions.filter(i => i.areaId === area.id).map(({ areaId: _, objectId: __, ...i }) => ({ ...i, lines: [...i.lines] })),
       portals: document.portals.filter(p => p.areaId === area.id).map(({ areaId: _, returnPortalId: __, ...p }) => ({ ...p, from: { ...p.from }, to: { ...p.to } })),
@@ -29,5 +30,5 @@ export function assembleEditorWorld(document: EditorDocument): World {
     areas.set(area.id, runtime);
   }
   return { areas, facilities: new Map(document.facilities.map(f => [f.id, { ...f }])),
-    start: { ...document.start }, variant: { id: document.id, stage: 'childhood' } };
+    start: { ...document.start }, variant: document.variant ? structuredClone(document.variant) : { id: document.id, stage: 'childhood' } };
 }

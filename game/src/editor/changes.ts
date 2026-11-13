@@ -1,16 +1,16 @@
 import { canonicalJSON, checkEntity, fail, idCheck, locationless, parseDocument, shape } from './schema.ts';
-import { EDITOR_TABLES, EditorValidationError, type ChangeSet, type EditOperation, type EditorDocument, type EditorEntity, type EditorTable, type ValidationIssue } from './types.ts';
+import { EDITOR_TABLES, EditorValidationError, type ChangeSet, type EditOperation, type EditorDocument, type EditorEntity, type EditorTable, type EditorValidationContext, type ValidationIssue } from './types.ts';
 
 const equal = (a: unknown, b: unknown) => canonicalJSON(a) === canonicalJSON(b);
 
-export function parseChangeSet(raw: unknown): ChangeSet {
+export function parseChangeSet(raw: unknown, context?: EditorValidationContext): ChangeSet {
   const issues: ValidationIssue[] = [];
   const addIssue = (path: string, message: string) => { issues.push({ path, code: 'schema', message }); };
   shape({
     schemaVersion: (v, p) => { if (v !== 1) addIssue(p, 'Expected change-set schemaVersion 1'); },
     documentId: idCheck,
     baseDocument: (v, p) => {
-      try { parseDocument(v); } catch (error) {
+      try { parseDocument(v, context); } catch (error) {
         if (!(error instanceof EditorValidationError)) throw error;
         issues.push(...error.issues.map(i => ({ ...i, path: `${p}.${i.path}` })));
       }
@@ -35,13 +35,13 @@ export function parseChangeSet(raw: unknown): ChangeSet {
   })(raw, '$', issues);
   if (issues.length) throw new EditorValidationError(issues);
   const copy: ChangeSet = JSON.parse(canonicalJSON(raw));
-  copy.baseDocument = parseDocument(copy.baseDocument);
+  copy.baseDocument = parseDocument(copy.baseDocument, context);
   if (copy.documentId !== copy.baseDocument.id) fail('documentId', 'conflict', 'Change set belongs to another document');
   return copy;
 }
 
 /** Pure transaction: validate the complete candidate before returning; never mutates the input. */
-function applyParsed(document: EditorDocument, changes: ChangeSet): EditorDocument {
+function applyParsed(document: EditorDocument, changes: ChangeSet, context?: EditorValidationContext): EditorDocument {
   if (document.id !== changes.documentId || !equal(document, changes.baseDocument)) {
     fail('baseDocument', 'conflict', 'Source data changed; reload and re-export the edit before applying');
   }
@@ -65,24 +65,24 @@ function applyParsed(document: EditorDocument, changes: ChangeSet): EditorDocume
     else if (op.type === 'add') list.push(structuredClone(op.after));
     else list[index] = structuredClone(op.after);
   }
-  return parseDocument(draft);
+  return parseDocument(draft, context);
 }
 
-export function applyChangeSet(document: unknown, changes: unknown): EditorDocument {
-  return applyParsed(parseDocument(document), parseChangeSet(changes));
+export function applyChangeSet(document: unknown, changes: unknown, context?: EditorValidationContext): EditorDocument {
+  return applyParsed(parseDocument(document, context), parseChangeSet(changes, context), context);
 }
 
 /** GUI entry point; a multi-object gesture is one atomic transaction and one undo step. */
-export function createChangeSet(document: unknown, operations: readonly EditOperation[]): ChangeSet {
-  const baseDocument = parseDocument(document);
-  const changes = parseChangeSet({ schemaVersion: 1, documentId: baseDocument.id, baseDocument, operations });
-  applyParsed(baseDocument, changes);
+export function createChangeSet(document: unknown, operations: readonly EditOperation[], context?: EditorValidationContext): ChangeSet {
+  const baseDocument = parseDocument(document, context);
+  const changes = parseChangeSet({ schemaVersion: 1, documentId: baseDocument.id, baseDocument, operations }, context);
+  applyParsed(baseDocument, changes, context);
   return changes;
 }
 
 /** Stable ID-based output, independent of insertion order or JSON property order. */
-export function diffDocuments(before: unknown, after: unknown): ChangeSet {
-  const base = parseDocument(before), next = parseDocument(after);
+export function diffDocuments(before: unknown, after: unknown, context?: EditorValidationContext): ChangeSet {
+  const base = parseDocument(before, context), next = parseDocument(after, context);
   const metadata = (document: EditorDocument) => {
     const { areas: _, facilities: __, objects: ___, interactions: ____, portals: _____, ...rest } = document;
     return rest;
@@ -104,25 +104,25 @@ export function diffDocuments(before: unknown, after: unknown): ChangeSet {
     }
     for (const [id, entity] of updated) if (!old.has(id)) operations.push({ type: 'add', table, id, after: entity } as EditOperation);
   }
-  return createChangeSet(base, operations);
+  return createChangeSet(base, operations, context);
 }
 
-export function serializeChangeSet(raw: unknown): string {
-  const changes = parseChangeSet(raw);
-  applyParsed(changes.baseDocument, changes);
+export function serializeChangeSet(raw: unknown, context?: EditorValidationContext): string {
+  const changes = parseChangeSet(raw, context);
+  applyParsed(changes.baseDocument, changes, context);
   return canonicalJSON(changes);
 }
-export function loadChangeSet(json: string): ChangeSet {
+export function loadChangeSet(json: string, context?: EditorValidationContext): ChangeSet {
   let raw: unknown;
   try { raw = JSON.parse(json); } catch { return fail('$', 'json', 'Invalid change-set JSON'); }
-  const changes = parseChangeSet(raw);
-  applyParsed(changes.baseDocument, changes);
+  const changes = parseChangeSet(raw, context);
+  applyParsed(changes.baseDocument, changes, context);
   return changes;
 }
 
 export interface ChangePreview { changes: ChangeSet; document: EditorDocument; before: string; after: string; summary: string[] }
-export function previewChangeSet(document: unknown, raw: unknown): ChangePreview {
-  const base = parseDocument(document), changes = parseChangeSet(raw), next = applyParsed(base, changes);
+export function previewChangeSet(document: unknown, raw: unknown, context?: EditorValidationContext): ChangePreview {
+  const base = parseDocument(document, context), changes = parseChangeSet(raw, context), next = applyParsed(base, changes, context);
   return { changes, document: next, before: canonicalJSON(base), after: canonicalJSON(next),
     summary: changes.operations.map(op => `${op.type} ${op.table}/${op.id}`) };
 }
