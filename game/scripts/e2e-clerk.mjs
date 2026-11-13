@@ -55,9 +55,9 @@ try {
   assert.deepEqual(await assets(page), initial); assert.deepEqual(await position(page), inRoom);
   pass('real entry, original clerk greeting, buy/quit choice and return to the same room');
   const beforeSecondApproach = await position(page);
-  await talkToClerk(page);
-  const buyingPosition = await position(page);
-  console.log('DIAGNOSTIC second clerk approach', JSON.stringify({ beforeSecondApproach, buyingPosition }));
+  const buyingVisit = await talkToClerk(page);
+  const buyingPosition = buyingVisit.beforeOpening;
+  console.log('DIAGNOSTIC second clerk approach', JSON.stringify({ beforeSecondApproach, ...buyingVisit }));
   await browse(page);
   assert.deepEqual(await position(page), buyingPosition, 'Opening the catalog keeps this visit stationary');
   await speakerUncovered(page);
@@ -82,6 +82,7 @@ try {
   await page.locator('#clerk-leave').click();
   assert.deepEqual(await position(page), buyingPosition, 'Closing returns to this conversation position');
   await page.reload(); await ready(page);
+  assert.deepEqual(await position(page), buyingPosition, 'Reload preserves this conversation position');
   assert.deepEqual(await assets(page), bought); assert.equal(await page.locator('#clerk-panel').isVisible(), false);
   pass('selection/details, explicit confirmation, repeat/click guard, atomic save and reload');
   for (const key of ['Enter', 'Space', 'KeyZ']) {

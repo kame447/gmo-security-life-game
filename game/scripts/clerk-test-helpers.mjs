@@ -60,8 +60,13 @@ export async function enterStore(page) {
   await page.waitForFunction(() => !window.__slg.renderer.stats.fading);
 }
 export async function talkToClerk(page) {
-  await face(page, 'shopping.konbini.clerk'); await page.keyboard.press('KeyZ');
+  await face(page, 'shopping.konbini.clerk');
+  const beforeOpening = await position(page);
+  await page.keyboard.press('KeyZ');
   await page.locator('#clerk-panel[data-phase="greeting"]').waitFor({ state: 'visible' });
+  const afterOpening = await position(page);
+  assert.deepEqual(afterOpening, beforeOpening, 'Opening the clerk conversation preserves its own approach position');
+  return { beforeOpening, afterOpening };
 }
 export async function browse(page) {
   await page.locator('#clerk-next').click(); await page.locator('#clerk-start').click();
