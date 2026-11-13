@@ -1,4 +1,4 @@
-// Execute against feat/store-interiors-wiring. This checks the real town, never the unit fixture.
+// Execute against the real #33 World or its shop-connected rehearsal; never the unit fixture.
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { approach, assertSessionClean, closeTalk, connections, lastPortal, openStoreSession,
@@ -42,9 +42,12 @@ try {
     try { await page.waitForTimeout(200); } finally { await page.keyboard.up('ArrowDown'); }
     assert.deepEqual(await state(page), before, 'Greeting blocks movement');
     assert.equal(await page.locator('#btn-avatar').isDisabled(), true);
-    assert.equal(await page.locator('#shop-panel, #clerk-panel').count(), 0, 'Purchase UI remains outside this map branch');
+    const shopOpened = await page.locator('#shop-panel').isVisible();
+    const dialogOpened = await page.locator('#dialog').isVisible();
+    assert.equal(Number(shopOpened) + Number(dialogOpened), 1, 'Exactly one clerk conversation surface is visible');
+    if (shopOpened) assert.equal(await page.evaluate(() => window.__slg.game.dialog), null);
     await closeTalk(page);
-    pass(`${store.catalogId}: clerk greeting stops and restores input`, before);
+    pass(`${store.catalogId}: exclusive clerk greeting stops input and cancels without changing assets or position`, { before, shopOpened });
 
     const inside = await snapshot(page);
     await page.reload(); await ready(page);

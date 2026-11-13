@@ -1,7 +1,8 @@
-// Existing map connection regression only. No purchasing UI or map/NPC fixtures.
+// Existing connection regression; supports ordinary greeting and the integrated clerk modal. No map/NPC fixtures.
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { closeTalk, talk } from './store-interior-helpers.mjs';
 
 const url = process.env.SLG_URL || 'http://127.0.0.1:5173';
 const origin = new URL(url).origin;
@@ -100,23 +101,18 @@ try {
   }
   assert.equal(await page.evaluate(() => window.__slg.game.facingInteraction()?.eventKey), connection.store.clerkEventKey);
   // Take the baseline after all approach input has been released, immediately before talking.
-  const beforeTalking = await state();
-  await page.keyboard.press('KeyZ');
-  await page.locator('#dialog').waitFor({ state: 'visible' });
-  assert.deepEqual(await state(), beforeTalking, 'Opening the conversation cannot move the player');
-  assert.deepEqual(await page.evaluate(() => window.__slg.game.dialog),
-    { speaker: approach.clerk.name, lines: approach.clerk.lines, index: 0 });
-  assert.equal(await page.locator('#dialog .who').innerText(), approach.clerk.name);
-  assert.equal(await page.locator('#dialog .text').innerText(), approach.clerk.lines[0]);
+  const beforeTalking = await talk(page);
+  const shopOpened = await page.locator('#shop-panel').isVisible();
   await page.keyboard.down('ArrowDown');
   try { await page.waitForTimeout(200); }
   finally { await page.keyboard.up('ArrowDown'); }
   assert.deepEqual(await state(), beforeTalking, 'Conversation blocks movement');
+  assert.equal(await page.locator('#btn-avatar').isDisabled(), true);
   await shot('clerk');
-  for (let line = 0; line < approach.clerk.lines.length; line++) await page.keyboard.press('KeyZ');
-  await page.locator('#dialog').waitFor({ state: 'hidden' });
+  await closeTalk(page);
   assert.deepEqual(await state(), beforeTalking, 'Closing returns to the same indoor position');
-  pass('reaches the registered clerk and talks without changing position', { clerkId: approach.clerk.id, beforeTalking });
+  pass('reaches the registered clerk, blocks input and cancels without changing assets or position',
+    { clerkId: approach.clerk.id, beforeTalking, shopOpened });
 
   const exit = await page.evaluate(outdoorId => window.__slg.game.area.def.portals
     .find(portal => portal.to.areaId === outdoorId), connection.outdoorId);
