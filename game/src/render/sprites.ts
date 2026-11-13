@@ -3,6 +3,7 @@ import type { ObjectDef } from '../core/types';
 import { TILE, hash2, type Facing } from '../core/coords';
 import { DEFAULT_APPEARANCE, normalizeAppearance, appearanceKey, type PlayerAppearance } from '../core/appearance';
 import { makeCanvas, R, type C2D } from './draw';
+import { buildingRepresentativeColor } from './building-colors';
 import { drawPlayer, PLAYER_H, PLAYER_W } from './player-sprite';
 
 export interface Sprite { canvas: HTMLCanvasElement; ox: number; oy: number }
@@ -54,11 +55,12 @@ function building(c: C2D, o: ObjectDef, w: number, h: number): void {
   // Door centre follows the tile contract, including even-width houses.
   const center = (Math.floor(o.w / 2) + 0.5) * TILE;
   const style = o.style ?? '0', index = Number(style) || 0;
+  const topColor = buildingRepresentativeColor(o)!;
   const wall = ['#ead9b8', '#e5d6c6', '#dadbc6', '#e3c8ac', '#dad9d4'][index % 5];
   box(c, 3, 5, w - 6, h - 5, wall);
   R(c, '#b5aa95', 4, h - 5, w - 8, 4); R(c, '#bcb19c', w - 8, 9, 4, h - 14);
   if (o.kind === 'house') {
-    roof(c, w, 0, Math.floor(h * 0.43), ['#56718a', '#99705c', '#656d71', '#61796a', '#8d7d91'][index % 5]);
+    roof(c, w, 0, Math.floor(h * 0.43), topColor);
     const top = Math.floor(h * 0.43) + 6;
     for (let x = 12; x < w - 15; x += 24) glass(c, x, top, 16, 12);
     R(c, '#b6a58c', 5, h - 29, w - 10, 2);
@@ -68,7 +70,7 @@ function building(c: C2D, o: ObjectDef, w: number, h: number): void {
     return;
   }
   if (o.kind === 'apartment') {
-    box(c, 2, 0, w - 4, 16, '#b5bec0'); box(c, 6, 3, w - 12, 9, '#dfe1d6');
+    box(c, 2, 0, w - 4, 16, topColor); box(c, 6, 3, w - 12, 9, '#dfe1d6');
     box(c, w - 26, 4, 14, 7, '#acb6b8');
     for (let y = 20; y < h - 22; y += 20) {
       for (let x = 10; x < w - 18; x += 20) glass(c, x, y, 14, 10);
@@ -88,9 +90,9 @@ function building(c: C2D, o: ObjectDef, w: number, h: number): void {
         for (let x = 8 + (y % 2) * 4; x < w - 5; x += 11) R(c, '#dfb69a', x, y - 4, 1, 4);
       }
     }
-    if (style === 'bakery' || style === 'cafe') roof(c, w, 0, 17, style === 'bakery' ? '#a27855' : '#64776a');
+    if (style === 'bakery' || style === 'cafe') roof(c, w, 0, 17, topColor);
     else {
-      box(c, 2, 1, w - 4, style === 'konbini' ? 9 : 15, style === 'bookstore' ? '#6f7779' : '#c7c9bd');
+      box(c, 2, 1, w - 4, style === 'konbini' ? 9 : 15, topColor);
       if (style !== 'konbini') box(c, style === 'pharmacy' ? 9 : w - 26, 4, 16, 8, '#e3e5da');
     }
     const count = style === 'bookstore' || style === 'cafe' ? 2 : style === 'konbini' ? 4 : 3;
@@ -124,7 +126,7 @@ function building(c: C2D, o: ObjectDef, w: number, h: number): void {
     return;
   }
   if (o.kind === 'school') {
-    box(c, 1, 13, w - 2, 15, '#c2cbcb');
+    box(c, 1, 13, w - 2, 15, topColor);
     for (let y = 36; y < h - 23; y += 25) {
       R(c, '#bba98b', 5, y - 4, w - 10, 3);
       for (let x = 10; x < w - 19; x += 20) glass(c, x, y, 15, 15);
@@ -143,14 +145,14 @@ function building(c: C2D, o: ObjectDef, w: number, h: number): void {
     for (let x = 0; x < w; x++) {
       const curve = Math.round(18 * Math.sqrt(Math.max(0, 1 - ((x - w / 2) / (w / 2)) ** 2)));
       R(c, ink, x, 22 - curve, 1, 39 + curve);
-      R(c, x % 9 === 0 ? '#a3beca' : '#6b8c9f', x, 24 - curve, 1, 35 + curve);
+      R(c, x % 9 === 0 ? '#a3beca' : topColor, x, 24 - curve, 1, 35 + curve);
     }
     R(c, '#e8daba', 4, 62, w - 8, h - 64);
     for (let x = 12; x < w - 15; x += 22) glass(c, x, 69, 16, 12);
     door(c, center, h, true); return;
   }
   if (o.kind === 'station') {
-    roof(c, w, 0, 32, '#607f98');
+    roof(c, w, 0, 32, topColor);
     for (let x = 12; x < w - 18; x += 23) glass(c, x, 39, 17, 16, true);
     R(c, '#536678', 6, 59, w - 12, 4);
     for (let x = 13; x < w - 9; x += 39) R(c, '#c4bba1', x, 61, 4, h - 62);
@@ -161,7 +163,7 @@ function building(c: C2D, o: ObjectDef, w: number, h: number): void {
   c.clearRect(0, 0, w, h);
   R(c, '#baa17c', 3, h - 6, w - 6, 5);
   for (const x of [9, w - 12]) { R(c, ink, x, 15, 4, h - 18); R(c, lightWood, x + 1, 15, 2, h - 19); }
-  R(c, wood, 12, h - 13, w - 24, 4); roof(c, w, 1, 20, '#a37a52');
+  R(c, wood, 12, h - 13, w - 24, 4); roof(c, w, 1, 20, topColor);
 }
 
 function furnishing(c: C2D, kind: string, w: number, h: number): boolean {
@@ -341,7 +343,7 @@ export function objectSprite(o: ObjectDef): Sprite {
   const tree = o.kind === 'tree', lamp = o.kind === 'lamp';
   const w = o.w * TILE, h = o.h * TILE;
   const [canvas, c] = makeCanvas(tree ? 34 : w, tree ? 40 : lamp ? h + 20 : h);
-  if (['house', 'apartment', 'shop', 'school', 'gym', 'station', 'gazebo'].includes(o.kind)) building(c, o, w, h);
+  if (buildingRepresentativeColor(o)) building(c, o, w, h);
   else prop(c, o, w, lamp ? h + 20 : h);
   const sprite = { canvas, ox: tree ? -9 : 0, oy: tree ? -24 : lamp ? -20 : 0 };
   objects.set(key, sprite); return sprite;
