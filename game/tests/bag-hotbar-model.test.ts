@@ -1,42 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { HotbarModel, type BagItem } from '../src/ui/bag-hotbar/model';
-
-const item = (id: string, group: BagItem['group'] = 'normal', quantity = 1): BagItem =>
-  ({ id, name: id, description: '', group, quantity });
-
-describe('review quick bar', () => {
-  it('selects items within the current group and keeps important items distinct', () => {
-    const model = new HotbarModel([item('a'), item('b'), item('key', 'important')]);
-    expect(model.selectedItem?.id).toBe('a');
-    model.moveSelection(1, 0);
-    expect(model.selectedItem?.id).toBe('b');
-    expect(model.selectItem('key')).toBe(false);
-    model.setGroup('important');
-    expect(model.selectedItem?.id).toBe('key');
-    model.setGroup('normal');
-    expect(model.selectedItem?.id).toBe('a');
+import { PlayerAssets } from '../src/state/assets';
+import { HotbarModel } from '../src/ui/bag-hotbar/model';
+const make = () => {
+  const assets = new PlayerAssets({ moneyYen: 1000, items: [{ itemId: 'notebook', quantity: 2 }, { itemId: 'pencil', quantity: 12 }] });
+  return { assets, model: new HotbarModel(assets) };
+};
+describe('inventory cursor and move interaction', () => {
+  it('moves a whole stack with two activations instead of registering a shortcut', () => {
+    const { assets, model } = make(); model.activate({ section: 'bag', index: 0 });
+    expect(model.carrying).toEqual({ section: 'bag', index: 0 });
+    expect(model.view.bag[0]?.itemId).toBe('notebook');
+    model.activate({ section: 'hotbar', index: 2 });
+    expect(model.carrying).toBeNull(); expect(model.view.bag[0]).toBeNull();
+    expect(model.view.hotbar[2]).toEqual({ itemId: 'notebook', quantity: 2 });
+    expect(assets.inventoryLayout.selectedHotbar).toBe(2);
   });
-
-  it('assigns and removes references without changing the owned quantities', () => {
-    const items = [item('a', 'normal', 3), item('b')];
-    const model = new HotbarModel(items);
-    expect(model.assignSelected(3)).toBe(true);
-    expect(model.slots.map(slot => slot?.id)).toEqual([undefined, 'b', undefined, 'a', undefined]);
-    expect(model.slots[3]?.quantity).toBe(3);
-    model.clearSelectedSlot();
-    expect(model.slots[3]).toBeNull();
-    expect(items[0].quantity).toBe(3);
-    expect(model.assignSelected(10)).toBe(false);
+  it('cancels a pending move without changing any asset and rejects a stale emptied source', () => {
+    const { assets, model } = make(); const before = assets.snapshot();
+    model.startMove({ section: 'bag', index: 0 }); model.cancelMove();
+    expect(assets.snapshot()).toEqual(before);
+    model.startMove({ section: 'bag', index: 0 }); assets.removeItem('notebook', 2);
+    expect(model.finishMove({ section: 'hotbar', index: 0 })).toEqual({ ok: false, reason: 'empty-slot' });
+    expect(model.view.hotbar[0]).toBeNull(); expect(assets.quantity('notebook')).toBe(0);
   });
-
-  it('drops a stale slot after a quantity reaches zero and selects a remaining item', () => {
-    const model = new HotbarModel([item('a'), item('b')]);
-    model.sync([item('a', 'normal', 0), item('b', 'normal', 2)]);
-    expect(model.slots[0]).toBeNull();
-    expect(model.slots[1]?.quantity).toBe(2);
-    expect(model.selectedItem?.id).toBe('b');
-    model.sync([]);
-    expect(model.selectedItem).toBeUndefined();
-    expect(model.assignSelected(0)).toBe(false);
+  it('navigates from the backpack to the same selected hotbar slot shown by assets', () => {
+    const { assets, model } = make(); model.focus({ section: 'bag', index: 12 }); model.moveSelection(0, 1);
+    expect(model.selection).toEqual({ section: 'hotbar', index: 2 });
+    expect(assets.inventoryLayout.selectedHotbar).toBe(2);
+    model.moveSelection(-1, 0); expect(assets.inventoryLayout.selectedHotbar).toBe(1);
+    expect(model.selectHotbar(9)).toBe(false);
   });
 });

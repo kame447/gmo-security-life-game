@@ -1,10 +1,13 @@
 import { getItemDefinition } from '../../data/items';
+import { INVENTORY_PROTOTYPE } from '../../data/inventory-config';
 import type { Game } from '../../session/game';
+import type { ItemStack } from '../../state/assets';
+import type { SlotAddress } from '../../state/inventory';
 import { itemIcon } from './icons';
-import { HotbarModel, QUICK_SLOT_COUNT, type BagGroup, type BagItem } from './model';
+import { HotbarModel } from './model';
 import './style.css';
 
-/** Candidate A: the quick slots are references, never item consumption or equipment. */
+/** One inventory, rendered in the bag and in the exploration HUD. */
 export class HotbarPanel {
   readonly button: HTMLButtonElement;
   private readonly overlay: HTMLElement;
@@ -14,263 +17,174 @@ export class HotbarPanel {
   private fingerprint = '';
   private opened = false;
   private hudAvailable = false;
+  private dragging = false;
 
-  constructor(private readonly game: Game, private readonly onClose: () => void, private readonly onHudSelect: () => void = () => {}) {
+  constructor(private readonly game: Game, private readonly onClose: () => void,
+    private readonly onHudSelect: () => void = () => {}, private readonly onChange: () => void = () => {}) {
     const menu = document.querySelector<HTMLElement>('#menu')!;
     const stage = document.querySelector<HTMLElement>('#stage')!;
-    this.button = document.createElement('button');
-    this.button.id = 'btn-inventory';
-    this.button.type = 'button';
-    this.button.className = 'panel';
-    this.button.textContent = 'もちもの';
+    this.button = document.createElement('button'); this.button.id = 'btn-inventory';
+    this.button.type = 'button'; this.button.className = 'panel'; this.button.textContent = 'もちもの';
     menu.querySelector('#btn-avatar')!.after(this.button);
-
-    this.hud = document.createElement('div');
-    this.hud.className = 'bag-quick-hud';
-    this.hud.setAttribute('role', 'toolbar');
-    this.hud.setAttribute('aria-label', 'クイック枠');
-    this.hud.hidden = true;
-    stage.append(this.hud);
-
-    this.overlay = document.createElement('div');
-    this.overlay.className = 'bag-overlay';
-    this.overlay.hidden = true;
-    this.overlay.innerHTML = `
-      <section class="bag-window" role="dialog" aria-modal="true" aria-labelledby="bag-title" tabindex="-1">
-        <header class="bag-header">
-          <div class="bag-title-mark" aria-hidden="true"><span></span></div>
-          <div class="bag-heading"><span class="bag-eyebrow">BAG</span><h1 id="bag-title">もちもの</h1></div>
-          <div class="bag-money"><span>おさいふ</span><strong></strong></div>
-          <button class="bag-close" type="button" aria-label="もちものを閉じる">×</button>
-        </header>
-        <div class="bag-content">
-          <div class="bag-inventory">
-            <div class="bag-tabs" role="group" aria-label="もちものの種類">
-              <button type="button" data-group="normal">ふつう</button>
-              <button type="button" data-group="important">たいせつ</button>
-            </div>
-            <div class="bag-grid" aria-label="バッグの中"></div>
-          </div>
-          <aside class="bag-detail" aria-live="polite">
-            <div class="bag-detail-icon"></div>
-            <div class="bag-detail-copy"><div class="bag-detail-label">えらんだもの</div>
-              <h2></h2><div class="bag-detail-quantity"></div><p></p>
-            </div>
-          </aside>
-        </div>
-        <footer class="bag-quick-panel">
-          <div class="bag-quick-heading"><div><span>QUICK</span><strong>クイック枠</strong></div><button class="bag-clear" type="button">はずす</button></div>
-          <div class="bag-quick-slots" role="group" aria-label="クイック枠に登録"></div>
-          <div class="bag-quick-caption">もちものを えらんで、枠をタップ</div>
-        </footer>
-      </section>`;
-    stage.append(this.overlay);
-    this.panel = this.overlay.querySelector('.bag-window')!;
-    this.overlay.querySelector<HTMLButtonElement>('.bag-close')!.addEventListener('click', () => this.close());
-    this.overlay.querySelector<HTMLButtonElement>('.bag-clear')!.addEventListener('click', () => {
-      this.model.clearSelectedSlot(); this.render();
-    });
-    for (const tab of this.overlay.querySelectorAll<HTMLButtonElement>('[data-group]')) {
-      tab.addEventListener('click', () => { this.model.setGroup(tab.dataset.group as BagGroup); this.render(); });
-    }
-    this.model = new HotbarModel(this.readItems());
-    this.fingerprint = this.assetFingerprint();
-    this.render();
+    this.hud = document.createElement('div'); this.hud.className = 'bag-quick-hud';
+    this.hud.setAttribute('role', 'toolbar'); this.hud.setAttribute('aria-label', 'ホットバー');
+    this.hud.hidden = true; stage.append(this.hud);
+    this.overlay = document.createElement('div'); this.overlay.className = 'bag-overlay'; this.overlay.hidden = true;
+    this.overlay.innerHTML = `<section class="bag-window" role="dialog" aria-modal="true" aria-labelledby="bag-title" tabindex="-1">
+      <header class="bag-header"><div class="bag-title-mark" aria-hidden="true"><span></span></div>
+        <h1 id="bag-title">もちもの</h1><div class="bag-money"><span>所持金</span><strong></strong></div>
+        <button class="bag-close" type="button" aria-label="もちものを閉じる">×</button></header>
+      <div class="bag-content"><div class="bag-storage"><div class="bag-grid" role="group" aria-label="バッグの中"></div>
+        <div class="bag-hotbar-title">ホットバー</div><div class="bag-quick-slots" role="group" aria-label="ホットバー"></div></div>
+        <aside class="bag-detail" aria-live="polite"><div class="bag-detail-icon"></div><div class="bag-detail-copy">
+          <span class="bag-detail-category"></span><h2></h2><div class="bag-detail-quantity"></div><p></p></div></aside></div>
+      <footer class="bag-footer"><span class="bag-status" aria-live="polite"></span><button class="bag-cancel-move" type="button" hidden>移動をやめる</button></footer>
+    </section>`;
+    stage.append(this.overlay); this.panel = this.overlay.querySelector('.bag-window')!;
+    this.panel.style.setProperty('--bag-columns', String(INVENTORY_PROTOTYPE.columns));
+    this.panel.style.setProperty('--hotbar-slots', String(INVENTORY_PROTOTYPE.hotbarSlots));
+    this.overlay.querySelector('.bag-close')!.addEventListener('click', () => this.close());
+    this.overlay.querySelector('.bag-cancel-move')!.addEventListener('click', () => { this.model.cancelMove(); this.render(true); });
+    // Materialize the deterministic legacy layout before later acquisitions can shift it.
+    game.assets.selectHotbar(game.assets.inventoryLayout.selectedHotbar);
+    this.model = new HotbarModel(game.assets); this.render();
   }
-
   get isOpen(): boolean { return this.opened; }
-
   open(): void {
     if (this.opened) return;
-    this.sync();
-    this.opened = true;
-    document.body.classList.add('bag-open');
-    this.overlay.hidden = false;
-    this.hud.hidden = true;
-    this.render();
-    this.panel.focus({ preventScroll: true });
+    this.opened = true; this.model.cancelMove(); document.body.classList.add('bag-open');
+    this.overlay.hidden = false; this.hud.hidden = true; this.render(); this.panel.focus({ preventScroll: true });
   }
-
   close(): void {
     if (!this.opened) return;
-    this.opened = false;
-    document.body.classList.remove('bag-open');
-    this.overlay.hidden = true;
-    // Do not wait for the next animation frame to restore the exploration bar.
-    this.hudAvailable = !this.game.dialog;
-    this.hud.hidden = !this.hudAvailable;
-    this.onClose();
+    this.model.cancelMove(); this.opened = false; document.body.classList.remove('bag-open'); this.overlay.hidden = true;
+    this.hudAvailable = !this.game.dialog; this.hud.hidden = !this.hudAvailable; this.onClose();
   }
-
-  /** Call after the modal host update; quick slots are hidden during dialogs or other panels. */
   update(exploring: boolean): void {
-    this.hudAvailable = exploring && !this.opened;
-    this.hud.hidden = !this.hudAvailable;
-    this.sync();
+    this.hudAvailable = exploring && !this.opened; this.hud.hidden = !this.hudAvailable;
+    const fingerprint = JSON.stringify(this.game.assets.snapshot());
+    if (fingerprint !== this.fingerprint && !this.dragging) this.render();
   }
-
-  /** Map key handling is deliberately separate from modal handling. */
   handleHudKey(event: KeyboardEvent, exploring: boolean): void {
     if (!exploring || this.opened || event.repeat || event.altKey || event.ctrlKey || event.metaKey) return;
-    if (event.target instanceof HTMLElement && event.target.closest('button, input, textarea, select')) return;
-    const index = this.digitIndex(event.code);
-    if (index < 0) return;
-    event.preventDefault();
-    this.model.selectSlot(index);
-    this.renderHud();
+    if (event.target instanceof HTMLElement && event.target.closest('button,input,textarea,select')) return;
+    const index = this.digitIndex(event.code); if (index < 0) return;
+    event.preventDefault(); this.change(() => this.model.selectHotbar(index)); this.onHudSelect();
   }
-
   handleKey(event: KeyboardEvent): void {
     if (!this.opened) return;
     if (event.code === 'Escape' || event.code === 'KeyI') {
-      event.preventDefault();
-      this.close();
+      event.preventDefault(); if (event.repeat) return;
+      if (this.model.carrying && event.code === 'Escape') { this.model.cancelMove(); this.render(true); }
+      else this.close();
       return;
     }
     if (event.code === 'Tab') { this.cycleFocus(event); return; }
     if ((event.code === 'Enter' || event.code === 'Space') && event.target instanceof HTMLButtonElement) return;
-    const directions: Record<string, readonly [number, number]> = {
-      ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0],
-      ArrowUp: [0, -1], KeyW: [0, -1], ArrowDown: [0, 1], KeyS: [0, 1],
-    };
-    const direction = directions[event.code];
+    const direction = ({ ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0],
+      ArrowUp: [0, -1], KeyW: [0, -1], ArrowDown: [0, 1], KeyS: [0, 1] } as Record<string, [number, number]>)[event.code];
     if (direction) {
-      event.preventDefault();
-      this.model.moveSelection(...direction);
-      this.render();
-      return;
-    }
-    if (event.code === 'KeyQ' || event.code === 'KeyE') {
-      event.preventDefault();
-      this.model.setGroup(event.code === 'KeyQ' ? 'normal' : 'important');
-      this.render();
-      return;
+      event.preventDefault(); this.change(() => {
+        const target = event.target;
+        if (target instanceof HTMLElement && (target.dataset.section === 'bag' || target.dataset.section === 'hotbar')) {
+          this.model.focus({ section: target.dataset.section, index: Number(target.dataset.index) });
+        }
+        this.model.moveSelection(...direction);
+      }, true); return;
     }
     const digit = this.digitIndex(event.code);
     if (digit >= 0) {
-      event.preventDefault();
-      if (!event.repeat) this.model.assignSelected(digit);
-      this.render();
+      event.preventDefault(); if (!event.repeat) this.change(() => this.model.activate({ section: 'hotbar', index: digit }), true);
     } else if (event.code === 'Enter' || event.code === 'Space' || event.code === 'KeyZ') {
-      event.preventDefault();
-      if (!event.repeat) this.model.assignSelected(this.model.selectedSlot);
-      this.render();
+      event.preventDefault(); if (!event.repeat) this.change(() => {
+        const target = event.target;
+        const address = target instanceof HTMLElement && (target.dataset.section === 'bag' || target.dataset.section === 'hotbar')
+          ? { section: target.dataset.section, index: Number(target.dataset.index) } as SlotAddress : this.model.selection;
+        this.model.activate(address);
+      }, true);
     }
   }
-
-  private readItems(): BagItem[] {
-    return this.game.assets.snapshot().items.flatMap(stack => {
-      const def = getItemDefinition(stack.itemId);
-      return def ? [{ id: def.id, name: def.name, description: def.description, quantity: stack.quantity,
-        group: def.category === 'important' ? 'important' as const : 'normal' as const }] : [];
-    });
+  private change(action: () => unknown, focus = false): void {
+    const before = JSON.stringify(this.game.assets.snapshot()); action(); this.render(focus);
+    if (before !== JSON.stringify(this.game.assets.snapshot())) this.onChange();
   }
-
-  private assetFingerprint(): string { return JSON.stringify(this.game.assets.snapshot()); }
-
-  private sync(): void {
-    const fingerprint = this.assetFingerprint();
-    if (fingerprint === this.fingerprint) return;
-    this.fingerprint = fingerprint;
-    this.model.sync(this.readItems());
-    this.render();
-  }
-
-  private render(): void {
-    const selected = this.model.selectedItem;
-    const money = this.overlay.querySelector<HTMLElement>('.bag-money strong')!;
-    money.textContent = `¥ ${this.game.assets.moneyYen.toLocaleString('ja-JP')}`;
-    for (const tab of this.overlay.querySelectorAll<HTMLButtonElement>('[data-group]')) {
-      const active = tab.dataset.group === this.model.group;
-      tab.classList.toggle('is-active', active);
-      tab.setAttribute('aria-pressed', String(active));
+  private render(focusSlot = false): void {
+    const active = document.activeElement instanceof HTMLElement && !!document.activeElement.closest('.bag-storage');
+    const view = this.model.view;
+    this.overlay.querySelector('.bag-money strong')!.textContent = `¥ ${this.game.assets.moneyYen.toLocaleString('ja-JP')}`;
+    this.overlay.querySelector('.bag-grid')!.replaceChildren(...view.bag.map((item, index) => this.slot(item, { section: 'bag', index }, false)));
+    this.overlay.querySelector('.bag-quick-slots')!.replaceChildren(...view.hotbar.map((item, index) => this.slot(item, { section: 'hotbar', index }, false)));
+    const selected = this.model.selectedStack; const def = selected && getItemDefinition(selected.itemId);
+    this.overlay.querySelector('.bag-detail-icon')!.replaceChildren(...(selected ? [itemIcon(selected.itemId)] : []));
+    this.overlay.querySelector('.bag-detail h2')!.textContent = def?.name ?? (this.game.assets.snapshot().items.length ? '空き' : 'もちものなし');
+    this.overlay.querySelector('.bag-detail-category')!.textContent = def ? (def.category === 'important' ? '重要アイテム' : '通常アイテム') : '';
+    this.overlay.querySelector('.bag-detail-quantity')!.textContent = selected ? `${selected.quantity}個` : '';
+    this.overlay.querySelector('.bag-detail p')!.textContent = def?.description ?? '';
+    const held = this.model.carrying;
+    this.overlay.querySelector('.bag-status')!.textContent = held ? '移動先を選ぶ' : '選んで、移動先を選ぶ';
+    (this.overlay.querySelector('.bag-cancel-move')! as HTMLElement).hidden = !held;
+    this.renderHud(); this.fingerprint = JSON.stringify(this.game.assets.snapshot());
+    if (this.opened && (focusSlot || active)) {
+      const { section, index } = this.model.selection;
+      this.overlay.querySelector<HTMLButtonElement>(`[data-section="${section}"][data-index="${index}"]`)?.focus({ preventScroll: true });
     }
-    const grid = this.overlay.querySelector<HTMLElement>('.bag-grid')!;
-    grid.replaceChildren();
-    const items = this.model.visibleItems;
-    for (let i = 0; i < Math.max(16, items.length); i++) {
-      const item = items[i];
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'bag-cell';
-      button.dataset.itemId = item?.id ?? '';
-      button.disabled = !item;
-      if (item) {
-        button.setAttribute('aria-label', `${item.name} ${item.quantity}こ`);
-        button.setAttribute('aria-pressed', String(item.id === selected?.id));
-        button.classList.toggle('is-selected', item.id === selected?.id);
-        button.append(itemIcon(item.id), this.quantity(item.quantity));
-        button.addEventListener('click', () => { this.model.selectItem(item.id); this.render(); this.panel.focus({ preventScroll: true }); });
-      } else button.setAttribute('aria-label', '空き');
-      grid.append(button);
-    }
-    const detailIcon = this.overlay.querySelector<HTMLElement>('.bag-detail-icon')!;
-    detailIcon.replaceChildren(...(selected ? [itemIcon(selected.id)] : []));
-    this.overlay.querySelector<HTMLElement>('.bag-detail h2')!.textContent = selected?.name ?? 'もちものなし';
-    this.overlay.querySelector<HTMLElement>('.bag-detail-quantity')!.textContent = selected ? `${selected.quantity}こ` : '';
-    this.overlay.querySelector<HTMLElement>('.bag-detail p')!.textContent = selected?.description ?? '';
-    const slots = this.overlay.querySelector<HTMLElement>('.bag-quick-slots')!;
-    slots.replaceChildren(...this.makeSlots(true));
-    this.overlay.querySelector<HTMLButtonElement>('.bag-clear')!.disabled = !this.model.slots[this.model.selectedSlot];
-    this.renderHud();
   }
-
   private renderHud(): void {
-    const selected = this.model.slots[this.model.selectedSlot];
-    const label = document.createElement('div');
-    label.className = 'bag-hud-label';
-    label.textContent = selected?.name ?? '―';
-    const slots = document.createElement('div');
-    slots.className = 'bag-hud-slots';
-    slots.append(...this.makeSlots(false));
+    const view = this.model.view; const current = view.hotbar[view.selectedHotbar];
+    const label = document.createElement('div'); label.className = 'bag-hud-label';
+    label.textContent = current ? getItemDefinition(current.itemId)!.name : 'ホットバー';
+    const slots = document.createElement('div'); slots.className = 'bag-hud-slots';
+    slots.append(...view.hotbar.map((item, index) => this.slot(item, { section: 'hotbar', index }, true)));
     this.hud.replaceChildren(label, slots);
   }
-
-  private makeSlots(assign: boolean): HTMLButtonElement[] {
-    return this.model.slots.map((item, index) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'bag-quick-slot';
-      button.dataset.slot = String(index);
-      button.dataset.itemId = item?.id ?? '';
-      button.classList.toggle('is-active', index === this.model.selectedSlot);
-      button.setAttribute('aria-label', `${index + 1}：${item ? `${item.name} ${item.quantity}こ` : '空き'}${assign ? ' に登録' : ' を選択'}`);
-      button.setAttribute('aria-pressed', String(index === this.model.selectedSlot));
-      const number = document.createElement('span');
-      number.className = 'bag-slot-number';
-      number.textContent = String(index + 1);
-      button.append(number);
-      if (item) button.append(itemIcon(item.id), this.quantity(item.quantity));
-      button.addEventListener('click', () => {
-        if (assign) this.model.assignSelected(index);
-        else if (this.hudAvailable && !this.game.dialog) { this.model.selectSlot(index); this.onHudSelect(); }
-        this.render();
-        if (assign) this.panel.focus({ preventScroll: true });
-      });
-      return button;
+  private slot(item: ItemStack | null, address: SlotAddress, hud: boolean): HTMLButtonElement {
+    const def = item && getItemDefinition(item.itemId);
+    const button = document.createElement('button'); button.type = 'button';
+    button.className = address.section === 'hotbar' ? 'bag-quick-slot' : 'bag-cell';
+    button.dataset.section = address.section; button.dataset.index = String(address.index); button.dataset.slot = String(address.index);
+    button.dataset.itemId = item?.itemId ?? ''; button.dataset.quantity = String(item?.quantity ?? 0);
+    const selected = this.model.selection; const held = this.model.carrying;
+    const active = address.section === 'hotbar' && address.index === this.model.view.selectedHotbar;
+    button.classList.toggle('is-active', active);
+    button.classList.toggle('is-selected', !hud && address.section === selected.section && address.index === selected.index);
+    button.classList.toggle('is-held', !hud && !!held && address.section === held.section && address.index === held.index);
+    button.classList.toggle('is-empty', !item); button.classList.toggle('is-important', def?.category === 'important');
+    button.setAttribute('aria-pressed', String(hud ? active : !!held && held.section === address.section && held.index === address.index));
+    button.setAttribute('aria-label', `${address.section === 'hotbar' ? 'ホットバー' : 'バッグ'} ${address.index + 1}：${def ? `${def.name} ${item!.quantity}個` : '空き'}`);
+    if (address.section === 'hotbar') { const number = document.createElement('span'); number.className = 'bag-slot-number'; number.textContent = String(address.index + 1); button.append(number); }
+    if (item) { const count = document.createElement('span'); count.className = 'bag-cell-count'; count.textContent = String(item.quantity); button.append(itemIcon(item.itemId), count); }
+    button.addEventListener('click', () => {
+      if (hud) { if (this.hudAvailable && !this.game.dialog) { this.change(() => this.model.selectHotbar(address.index)); this.onHudSelect(); } }
+      else this.change(() => this.model.activate(address), true);
     });
+    if (!hud) this.dragEvents(button, address, !!item);
+    return button;
   }
-
-  private quantity(count: number): HTMLElement {
-    const quantity = document.createElement('span');
-    quantity.className = 'bag-cell-count';
-    quantity.textContent = String(count);
-    return quantity;
+  private dragEvents(button: HTMLButtonElement, address: SlotAddress, occupied: boolean): void {
+    button.draggable = occupied;
+    button.addEventListener('dragstart', event => {
+      const before = JSON.stringify(this.game.assets.snapshot());
+      if (!this.model.startMove(address)) { event.preventDefault(); return; }
+      this.dragging = true; button.classList.add('is-held');
+      event.dataTransfer!.effectAllowed = 'move'; event.dataTransfer!.setData('text/plain', 'slg-inventory-stack');
+      if (before !== JSON.stringify(this.game.assets.snapshot())) this.onChange();
+    });
+    button.addEventListener('dragover', event => { if (this.dragging) { event.preventDefault(); event.dataTransfer!.dropEffect = 'move'; } });
+    button.addEventListener('drop', event => {
+      if (!this.dragging) return; event.preventDefault(); this.dragging = false;
+      this.change(() => this.model.finishMove(address), true);
+    });
+    button.addEventListener('dragend', () => { this.dragging = false; this.model.cancelMove(); this.render(); });
   }
-
   private digitIndex(code: string): number {
-    const match = /^Digit([1-9])$/.exec(code);
-    const index = match ? Number(match[1]) - 1 : -1;
-    return index >= 0 && index < QUICK_SLOT_COUNT ? index : -1;
+    const match = /^Digit([1-9])$/.exec(code); const index = match ? Number(match[1]) - 1 : -1;
+    return index >= 0 && index < this.model.view.hotbar.length ? index : -1;
   }
-
   private cycleFocus(event: KeyboardEvent): void {
-    const buttons = [...this.panel.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
-    if (!buttons.length) { event.preventDefault(); this.panel.focus(); return; }
+    const buttons = [...this.panel.querySelectorAll<HTMLButtonElement>('button:not(:disabled):not([hidden])')];
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    if (index === -1 || (event.shiftKey && index === 0) || (!event.shiftKey && index === buttons.length - 1)) {
-      event.preventDefault();
-      buttons[event.shiftKey ? buttons.length - 1 : 0].focus();
+    if (index < 0 || (event.shiftKey && index === 0) || (!event.shiftKey && index === buttons.length - 1)) {
+      event.preventDefault(); buttons[event.shiftKey ? buttons.length - 1 : 0]?.focus();
     }
   }
 }

@@ -8,7 +8,6 @@ import { Controls } from './input/controls';
 import { Renderer } from './render/renderer';
 import { Game } from './session/game';
 import { AvatarPanel } from './ui/avatar-panel';
-import { GridBagPanel } from './ui/bag-grid/panel';
 import { HotbarPanel } from './ui/bag-hotbar/panel';
 import { UiController } from './ui/controller';
 import { $ } from './ui/dom';
@@ -41,9 +40,7 @@ const avatar = new AvatarPanel(game, commit => {
 const ui = new UiController(game, controls, canvas);
 ui.registerPanel({ id: 'avatar', panel: avatar, open: () => avatar.open(), button: $<HTMLButtonElement>('#btn-avatar') });
 const closeBag = () => { controls.clear(); ui.update(); ui.focusMap(); };
-const bag = review.candidate === 'hotbar'
-  ? new HotbarPanel(game, closeBag, () => { controls.clear(); ui.focusMap(); })
-  : new GridBagPanel(game, closeBag);
+const bag = new HotbarPanel(game, closeBag, () => { controls.clear(); ui.focusMap(); }, save);
 ui.registerPanel({ id: 'inventory', panel: bag, open: () => bag.open(), button: bag.button, shortcut: 'KeyI' });
 const hud = new Hud(game, () => ui.primaryAction());
 ui.bind({ onReset: () => { game.reset(); save(); } });

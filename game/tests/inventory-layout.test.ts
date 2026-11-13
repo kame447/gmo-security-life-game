@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadSave, writeSave } from '../src/app/save-store';
 import { BAG_REVIEW_ASSETS } from '../src/data/bag-review-fixture';
 import { INVENTORY_PROTOTYPE } from '../src/data/inventory-config';
+import { CHAT_PROTOTYPE } from '../src/data/chat-prototype';
+import { ChatModel } from '../src/phone/chat/model';
 import { PlayerAssets, normalizeAssets } from '../src/state/assets';
 import { normalizeInventoryLayout, type SlotAddress } from '../src/state/inventory';
 import { Game } from '../src/session/game';
@@ -88,7 +90,8 @@ describe('one inventory across backpack and hotbar', () => {
     expect(assets.inventory().hotbar[0]).toEqual({ itemId: 'notebook', quantity: 2 });
   });
   it('persists layout and selected slot through actual storage, position repair and reset', () => {
-    const world = buildWorld(); const game = new Game(world, { save: { ...new Game(world).serialize(), assets: BAG_REVIEW_ASSETS } });
+    const world = buildWorld(); const phone = { v: 1, owned: false, dataBudget: { v: 1, remainingMb: 123, capacityMb: 5000 }, chat: new ChatModel(CHAT_PROTOTYPE).save() };
+    const game = new Game(world, { save: { ...new Game(world).serialize(), assets: BAG_REVIEW_ASSETS, phone } });
     game.assets.moveStack(bag(0), hotbar(3)); game.assets.selectHotbar(3);
     let stored = '';
     vi.stubGlobal('localStorage', { getItem: () => stored, setItem: (_key: string, value: string) => { stored = value; } });
@@ -97,5 +100,6 @@ describe('one inventory across backpack and hotbar', () => {
     stored = JSON.stringify({ ...game.serialize(), x: -9999 });
     const restored = new Game(world, { save: loadSave(world) }); restored.reset();
     expect(restored.assets.snapshot()).toEqual(game.assets.snapshot());
+    expect(restored.serialize().phone).toEqual(phone);
   });
 });
