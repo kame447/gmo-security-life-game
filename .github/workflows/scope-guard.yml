@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: '24'
       - name: Test
-        run: node --test scripts/scope-guard/
+        run: node --test scripts/scope-guard/lib.test.mjs
       - name: Check scope
         env:
           GH_TOKEN: ${{ github.token }}
