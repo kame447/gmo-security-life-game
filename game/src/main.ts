@@ -3,6 +3,7 @@ import { exposeDebug, FrameRecorder } from './app/debug';
 import { startLoop } from './app/loop';
 import { loadSave, writeSave } from './app/save-store';
 import { Controls } from './input/controls';
+import { Minimap } from './minimap/view';
 import { Renderer } from './render/renderer';
 import { PHONE_INITIAL_OWNED } from './phone/config';
 import { PHONE_BUDGET_PROTOTYPE } from './phone/budget-config';
@@ -38,7 +39,10 @@ const avatar = new AvatarPanel(game, commit => {
   if (commit) save();
   ui.focusMap();
 });
-const ui = new UiController(game, controls, canvas);
+const minimap: Minimap = new Minimap(game, (): boolean => ui.mode === 'explore',
+  () => { controls.clear(); ui.update(); },
+  () => { controls.clear(); ui.update(); ui.focusMap(); });
+const ui: UiController = new UiController(game, controls, canvas, minimap);
 ui.registerPanel({ id: 'avatar', panel: avatar, open: () => avatar.open(), button: $<HTMLButtonElement>('#btn-avatar') });
 const phone = new Smartphone(game.phone, $<HTMLElement>('#stage'), () => { controls.clear(); ui.focusMap(); },
   () => ({ remainingMb: game.phone.remainingDataMb, capacityMb: game.phone.dataCapacityMb }));
@@ -67,7 +71,7 @@ resize();
 const loop = startLoop({
   beforeFrame: () => { if (dpr !== window.devicePixelRatio) resize(); },
   input: () => ui.movementInput(),
-  update: (dt, input) => game.update(dt, input),
+  update: (dt, input) => { if (!minimap.isOpen) game.update(dt, input); },
   draw: now => renderer.draw(game, now / 1000),
   measuring: () => frames.recording,
   afterFrame: (now, frame, input) => {
@@ -77,6 +81,7 @@ const loop = startLoop({
     avatar.drawPreview(now);
     hud.update(now);
     ui.update();
+    minimap.update();
   },
 });
 document.addEventListener('visibilitychange', () => {
