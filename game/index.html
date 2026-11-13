@@ -28,7 +28,12 @@
       #stage.avatar-open #menu, #stage.avatar-open #touch, #stage.avatar-open #hint { visibility: hidden; }
       #stage.modal-open #menu, #stage.modal-open #touch, #stage.modal-open #hint,
       #stage.modal-open [data-modal-trigger] { visibility: hidden; }
-      @media (max-width: 620px) { #hud { max-width: 45%; font-size: 11px; } #menu { gap: 3px; } #menu button { padding: 5px; font-size: 11px; } }
+      @media (max-width: 640px) {
+        #stage { display: flex; flex-direction: column; align-items: flex-start; }
+        #hud { position: relative; left: auto; top: auto; margin: 10px 10px 0; max-width: calc(100% - 44px); font-size: 11px; }
+        #menu { position: relative; right: auto; top: auto; align-self: flex-end; margin: 6px 10px 0; max-width: calc(100% - 20px); flex-wrap: wrap; justify-content: flex-end; gap: 3px; }
+        #menu button { padding: 5px; font-size: 11px; }
+      }
       #hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 4px 12px; font-size: 13px;
               pointer-events: none; white-space: nowrap; }
       #toast { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); padding: 6px 14px; font-size: 14px;
