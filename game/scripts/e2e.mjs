@@ -93,6 +93,18 @@ async function talk() {
     return window.__slg.game.player.facing === faces[key];
   }, interaction.key);
   await page.keyboard.press('KeyZ');
+  if (interaction.eventKey === 'shopping.konbini.clerk') {
+    await page.locator('#shop-panel[data-phase="choice"]').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#shop-line').innerText(), await page.evaluate(() => window.__slg.game.facingInteraction().lines[0]));
+    const duringShop = await state();
+    await hold('ArrowDown', 180);
+    assert.deepEqual(await state(), duringShop, 'Clerk conversation blocks movement');
+    await page.keyboard.press('Escape');
+    await page.locator('#shop-panel').waitFor({ state: 'hidden' });
+    assert.equal(await page.locator('#view').evaluate(e => document.activeElement === e), true);
+    console.log('PASS indoor clerk greeting, movement lock and in-room return', JSON.stringify({ interaction, duringShop }));
+    return;
+  }
   await page.locator('#dialog').waitFor({ state: 'visible' });
   assert.ok(await page.evaluate(() => window.__slg.game.dialog));
   assert.equal(await page.locator('#btn-avatar').isDisabled(), true);
