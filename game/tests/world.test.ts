@@ -3,10 +3,11 @@ import { chunkId, CHUNK_TILES, hash2, tileToChunk } from '../src/core/coords';
 import { buildWorld, CHILDHOOD_VARIANT, districtAt, findPath, isSolidTile, LANDMARKS, validateWorld } from '../src/world';
 import { PERF_ROUTES } from './fixtures/perf-routes';
 import { T } from '../src/world/tiles';
+import { TRAIN_NETWORK } from '../src/travel/network';
 
 describe('childhood world', () => {
   it('has valid IDs, bounds, references and reachable portals/interactions', () => {
-    expect(validateWorld(buildWorld())).toEqual([]);
+    expect(validateWorld(buildWorld(), { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
   });
   it.each(['schoolGate', 'schoolDoorFront', 'stationFront', 'parkPlaza', 'shoppingStreet', 'konbiniDoorFront'] as const)('connects home to %s', key => {
     const town = buildWorld().areas.get('town-main')!;
@@ -58,7 +59,7 @@ describe('childhood world', () => {
     expect(isSolidTile(town, 40, 33)).toBe(false);
     expect(town.interactionAt.get(33 * 128 + 36)?.id).toBe('test-friend');
     expect(changed.facilities.get('school')?.state).toBe('closed');
-    expect(validateWorld(buildWorld())).toEqual([]);
+    expect(validateWorld(buildWorld(), { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
   });
   it('uses stable chunk IDs for all 40 outdoor chunks', () => {
     const ids = new Set<string>();

@@ -3,9 +3,9 @@
  * 入力（update/action）を各担当へ振り分ける（DOM 非依存）。
  */
 import { normalizeAppearance, type PlayerAppearance } from '../core/appearance';
-import type { InteractionDef, MapEvent, MapEventSink } from '../core/types';
+import type { InteractionDef, MapEvent, MapEventSink, SpawnPoint } from '../core/types';
 import { DialogController, type DialogState } from '../events/dialog';
-import { MapExplorer, positionAt, type InputState, type PlayerPosition } from '../map/explorer';
+import { canStand, MapExplorer, positionAt, type InputState, type PlayerPosition } from '../map/explorer';
 import { createSave, parseSave, type SaveData } from '../state/save';
 import type { AreaRuntime, World } from '../world';
 
@@ -69,6 +69,19 @@ export class Game {
 
   setAppearance(a: PlayerAppearance): void {
     this.appearance = normalizeAppearance(a);
+  }
+
+  /** The travel session confirms the trip; Game validates landing and emits the normal area notification. */
+  arriveByTrain(destination: Readonly<SpawnPoint>): boolean {
+    if (this.dialogs.current || !Number.isInteger(destination.x) || !Number.isInteger(destination.y) ||
+        !['up', 'down', 'left', 'right'].includes(destination.facing)) return false;
+    const area = this.world.areas.get(destination.areaId);
+    const player = positionAt(destination);
+    if (!area || !canStand(area, player.x, player.y) || area.portalAt.has(destination.y * area.width + destination.x)) return false;
+    this.explorer.halt();
+    this.explorer.player = player;
+    this.emit({ type: 'area-enter', areaId: destination.areaId });
+    return true;
   }
 
   /** Back to the start point. Appearance is kept. */

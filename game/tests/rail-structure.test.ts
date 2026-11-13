@@ -4,6 +4,7 @@ import { positionAt, canStand } from '../src/map/explorer';
 import { Game } from '../src/session/game';
 import { buildWorld, findPath, isSolidTile, LANDMARKS, STATION_ACCESS, validateWorld, type AreaRuntime } from '../src/world';
 import { isRailGround, T } from '../src/world/tiles';
+import { TRAIN_NETWORK } from '../src/travel/network';
 
 const feetTile = (game: Game) => ({ x: Math.floor(game.player.x / 16), y: Math.floor((game.player.y - 4) / 16) });
 function walk(game: Game, target: { x: number; y: number }) {
@@ -23,7 +24,7 @@ const railCells = (area: AreaRuntime) => Array.from(area.ground, (tile, i) => ({
 describe('station, crossings and railway bridge', () => {
   it('registers a reachable station using the existing facility and preserves the station staff', () => {
     const world = buildWorld(), town = world.areas.get('town-main')!;
-    expect(validateWorld(world)).toEqual([]);
+    expect(validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
     expect(world.facilities.get('station')?.interior).toBe('full');
     expect(world.areas.get(STATION_ACCESS.areaId)?.width).toBe(36);
     expect(town.interactions.find(i => i.id === 'station-staff')).toMatchObject({

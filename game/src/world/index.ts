@@ -7,6 +7,7 @@ import { createClassroom, createHome, createKonbini, createStation } from './int
 import { START } from './landmarks';
 import { toRuntime, type AreaRuntime, type World } from './runtime';
 import { createTown, FACILITIES } from './town';
+import { createNeighborStation, createNeighborTown, NEIGHBOR_FACILITIES } from './towns/neighbor';
 
 export { LANDMARKS, START, STATION_ACCESS } from './landmarks';
 export { districtAt, isSolidTile, type AreaRuntime, type World } from './runtime';
@@ -20,7 +21,7 @@ export const CHILDHOOD_VARIANT: VariantDef = {
 };
 
 /** 読み込むエリアの一覧。新しいエリアはここに定義関数を追加する。 */
-export const AREA_FACTORIES: readonly (() => AreaDef)[] = [createTown, createHome, createClassroom, createKonbini, createStation];
+export const AREA_FACTORIES: readonly (() => AreaDef)[] = [createTown, createHome, createClassroom, createKonbini, createStation, createNeighborTown, createNeighborStation];
 
 /** 年代差分で無効化された出入口・調査対象を除き、追加分を足した定義を返す。 */
 function applyVariant(base: AreaDef, variant: VariantDef, isClosed: (facilityId: string) => boolean): AreaDef {
@@ -33,7 +34,7 @@ function applyVariant(base: AreaDef, variant: VariantDef, isClosed: (facilityId:
 }
 
 export function buildWorld(variant: VariantDef = CHILDHOOD_VARIANT): World {
-  const facilities = new Map(FACILITIES.map(f => [f.id, { ...f, state: variant.facilityStates?.[f.id] ?? f.state }]));
+  const facilities = new Map([...FACILITIES, ...NEIGHBOR_FACILITIES].map(f => [f.id, { ...f, state: variant.facilityStates?.[f.id] ?? f.state }]));
   const isClosed = (id: string) => facilities.get(id)?.state === 'closed';
   const areas = new Map<string, AreaRuntime>();
   for (const create of AREA_FACTORIES) {

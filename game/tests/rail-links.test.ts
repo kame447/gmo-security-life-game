@@ -26,7 +26,11 @@ function fixture() {
 
 describe('explicit railway reachability', () => {
   it('keeps existing calls compatible and publishes separate boarding/arrival points', () => {
-    expect(validateWorld(buildWorld())).toEqual([]);
+    // Default validation remains backward compatible when no train-only areas are registered.
+    const base = buildWorld();
+    base.areas.delete('town-neighbor'); base.areas.delete('station-neighbor-interior');
+    base.facilities.delete('station-neighbor');
+    expect(validateWorld(base)).toEqual([]);
     expect(STATION_ACCESS.boarding).toEqual({ areaId: 'station-main-interior', x: 17, y: 9, facing: 'up' });
     expect(STATION_ACCESS.arrival.y).not.toBe(STATION_ACCESS.boarding.y);
   });

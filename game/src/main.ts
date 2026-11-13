@@ -6,6 +6,8 @@ import { Controls } from './input/controls';
 import { Minimap } from './minimap/view';
 import { Renderer } from './render/renderer';
 import { Game } from './session/game';
+import { TRAIN_NETWORK } from './travel/network';
+import { TrainTravelPanel } from './travel/panel';
 import { AvatarPanel } from './ui/avatar-panel';
 import { UiController } from './ui/controller';
 import { $ } from './ui/dom';
@@ -13,7 +15,10 @@ import { Hud } from './ui/hud';
 import { buildWorld } from './world';
 
 const world = buildWorld();
-const game = new Game(world, { save: loadSave(world) });
+let train: TrainTravelPanel | undefined;
+const game = new Game(world, { save: loadSave(world), sink: {
+  onMapEvent: event => train?.tryOpen(event) ? { lines: [] } : undefined,
+} });
 const canvas = $<HTMLCanvasElement>('#view');
 const renderer = new Renderer(canvas);
 const controls = new Controls();
@@ -33,7 +38,13 @@ const avatar = new AvatarPanel(game, commit => {
   ui.focusMap();
 });
 const minimap: Minimap = new Minimap(game, (): boolean => ui.mode === 'explore', () => controls.clear(), () => { controls.clear(); ui.focusMap(); });
-const ui: UiController = new UiController(game, controls, avatar, canvas, minimap);
+const ui: UiController = new UiController(game, controls, avatar, canvas, minimap, () => train);
+train = new TrainTravelPanel(game, TRAIN_NETWORK, $<HTMLElement>('#stage'), {
+  canOpen: () => ui.mode === 'explore',
+  onOpen: () => controls.clear(),
+  onClose: () => { controls.clear(); save(); ui.focusMap(); },
+  arrive: destination => game.arriveByTrain(destination),
+});
 const hud = new Hud(game, () => ui.primaryAction());
 ui.bind({ onReset: () => { game.reset(); save(); } });
 exposeDebug(game, renderer, frames);
