@@ -25,5 +25,5 @@ export const PHONE_BUDGET_PROTOTYPE: Readonly<PhoneBudgetConfig> = Object.freeze
   recovery: 'manual',
   exhaustion: 'none',
   largeGapMs: 60_000,
-  largeGapUsage: 'ignore',
+  largeGapUsage: 'consume',
 });
