@@ -112,7 +112,8 @@ export class MapView {
       tileX: tile.x, tileY: tile.y, origin, target: null, issuesBefore: [...this.model.issues] };
     this.canvas.setPointerCapture(event.pointerId);
     if (pan) event.preventDefault();
-    this.notify();
+    // Pan does not change the selection. Redrawing here would reset the canvas while dragging.
+    if (!pan) this.notify();
   }
   private move(event: PointerEvent): void {
     const tile = this.tile(event), coordinate = document.getElementById('map-coordinate')!;
