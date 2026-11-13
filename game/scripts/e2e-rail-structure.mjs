@@ -99,7 +99,9 @@ try {
       const problems = await page.evaluate(async () => {
         const { validateWorld, isSolidTile } = await import('/src/world/index.ts');
         const { isRailGround, T } = await import('/src/world/tiles.ts');
-        const world = window.__slg.game.world, town = world.areas.get('town-main'), errors = validateWorld(world);
+        const { TRAIN_NETWORK } = await import('/src/travel/network.ts');
+        const world = window.__slg.game.world, town = world.areas.get('town-main');
+        const errors = validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() });
         for (let y = 70; y <= 73; y++) for (let x = 0; x < town.width; x++) {
           const t = town.ground[y * town.width + x];
           if (!isRailGround(t) || (t !== T.CROSSING && !isSolidTile(town, x, y))) errors.push(`Invalid track at ${x},${y}`);
@@ -128,10 +130,10 @@ try {
       await hold(page, 'ArrowUp', 100);
       assert.equal(await page.evaluate(() => window.__slg.game.facingInteraction()?.id), access.interaction.id);
       await shot(page, `${name}-03-platform-boarding`);
-      await page.keyboard.press('z'); await page.locator('#dialog').waitFor({ state: 'visible' });
+      await page.keyboard.press('z'); await page.locator('#train-travel-panel').waitFor({ state: 'visible' });
       const during = await state(page); await hold(page, 'ArrowDown', 160); assert.deepEqual(await state(page), during);
-      await page.keyboard.press('Space'); await page.locator('#dialog').waitFor({ state: 'hidden' });
-      await reloadExact(page); pass(`${name}: gates lead to a safe boarding action, dialogue and exact indoor reload`);
+      await page.keyboard.press('Escape'); await page.locator('#train-travel-panel').waitFor({ state: 'hidden' });
+      await reloadExact(page); pass(`${name}: gates lead to a safe boarding choice, cancellation and exact indoor reload`);
       await walkTo(page, { x: 10, y: 8 });
       await hold(page, 'ArrowUp', 280); const stopped = await state(page);
       assert.equal(tile(stopped).y, 8); await hold(page, 'ArrowUp', 200); assert.deepEqual(await state(page), stopped);
