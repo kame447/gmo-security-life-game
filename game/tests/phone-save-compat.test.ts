@@ -65,4 +65,18 @@ describe('phone and assets in an existing v1 save', () => {
     writeSave(restored.serialize());
     expect(JSON.parse(stored).phone).toEqual(seed.phone);
   });
+
+  it('saves the active phone state instead of a stale offline timestamp', () => {
+    const world = buildWorld(), config = { ...PHONE_BUDGET_PROTOTYPE, capacityMb: 1234 };
+    const seed = { ...new Game(world, { phoneDataConfig: config, phoneClock: () => 0 }).serialize(),
+      phone: { v: 1 as const, owned: false, dataBudget: { v: 1 as const, remainingMb: 123.75,
+        capacityMb: 1234, savedAtEpochMs: 1000, activeAtSave: true } } };
+    const ignored = new Game(world, { save: seed, phoneDataConfig: config, phoneClock: () => 0 });
+    expect(ignored.serialize().phone).toEqual({ v: 1, owned: false,
+      dataBudget: { v: 1, remainingMb: 123.75, capacityMb: 1234 } });
+    const offlineConfig = { ...config, offlineUsage: 'consume-if-active' as const };
+    const tracked = new Game(world, { save: seed, phoneDataConfig: offlineConfig,
+      phoneClock: () => 0, phoneEpochClock: () => 1000 });
+    expect(tracked.serialize().phone?.dataBudget).toEqual({ ...seed.phone.dataBudget, activeAtSave: false });
+  });
 });
