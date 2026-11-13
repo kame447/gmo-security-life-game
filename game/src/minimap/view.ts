@@ -2,12 +2,9 @@ import type { Facing } from '../core/coords';
 import type { Game } from '../session/game';
 import type { AreaRuntime } from '../world';
 import { AreaMapCache, fitProjection, localProjection, playerMapPoint, projectPoint, type AreaMap, type MapProjection } from './model';
+import { drawFacilityIcon, layoutFacilityLabels } from './markers';
 import './minimap.css';
 
-const COLORS: readonly (readonly [number, number, number])[] = [
-  [35, 46, 49], [130, 170, 111], [132, 141, 139], [213, 202, 172], [80, 145, 166],
-  [208, 180, 140], [69, 97, 79], [152, 103, 83], [248, 214, 110],
-];
 const ANGLES: Record<Facing, number> = { up: 0, right: Math.PI / 2, down: Math.PI, left: -Math.PI / 2 };
 
 /** The canvases display only data from the current runtime area; no separate map is stored. */
@@ -18,7 +15,7 @@ export class Minimap {
   private readonly mini: HTMLCanvasElement;
   private readonly full: HTMLCanvasElement;
   private readonly closeButton: HTMLButtonElement;
-  private readonly cache = new AreaMapCache();
+  private readonly cache: AreaMapCache;
   private readonly images = new WeakMap<AreaRuntime, HTMLCanvasElement>();
   private currentArea?: AreaRuntime;
   private map?: AreaMap;
@@ -32,6 +29,7 @@ export class Minimap {
     private readonly onOpen: () => void,
     private readonly onClose: () => void,
   ) {
+    this.cache = new AreaMapCache(game.world.facilities);
     this.button = document.createElement('button');
     this.button.id = 'minimap-button';
     this.button.type = 'button';
@@ -58,6 +56,7 @@ export class Minimap {
     this.closeButton = this.overlay.querySelector<HTMLButtonElement>('#full-map-close')!;
     this.closeButton.addEventListener('click', () => this.close());
     this.overlay.addEventListener('click', event => { if (event.target === this.overlay) this.close(); });
+    new ResizeObserver(() => { if (this.opened) { this.lastFrame = ''; this.update(); } }).observe(this.full);
   }
 
   get isOpen(): boolean { return this.opened; }
@@ -101,11 +100,22 @@ export class Minimap {
       this.button.dataset.areaId = this.map.areaId;
       this.full.dataset.areaId = this.map.areaId;
       this.button.setAttribute('aria-label', `${area.def.name}の周辺地図を開く`);
-      this.full.setAttribute('aria-label', `${area.def.name}の全体地図と現在地`);
+      this.full.setAttribute('aria-label', `${area.def.name}の全体地図と現在地。${this.map.markers.map(marker => marker.name).join('、')}`);
+      this.full.dataset.markerCount = String(this.map.markers.length);
       this.overlay.querySelector<HTMLElement>('#full-map-title')!.textContent = area.def.name;
       this.lastFrame = '';
     }
     this.button.disabled = this.opened || !this.canOpen();
+    if (this.opened) {
+      // One logical canvas pixel per CSS pixel keeps Japanese labels readable on phones.
+      const width = Math.max(1, Math.floor(this.full.clientWidth));
+      const height = Math.max(1, Math.min(window.innerHeight - 130, width < 600 ? 470 : Math.floor(width * .625)));
+      if (this.full.width !== width || this.full.height !== height) {
+        this.full.width = width; this.full.height = height;
+        this.full.style.height = `${height}px`;
+        this.lastFrame = '';
+      }
+    }
     const player = this.game.player;
     const frame = `${player.areaId}:${player.x}:${player.y}:${player.facing}:${this.opened}`;
     if (frame === this.lastFrame) return;
@@ -127,9 +137,9 @@ export class Minimap {
     const context = image.getContext('2d')!;
     const pixels = context.createImageData(map.width, map.height);
     for (let i = 0; i < map.cells.length; i++) {
-      const [r, g, b] = COLORS[map.cells[i]];
+      const color = Number.parseInt(map.colors[i].slice(1), 16);
       const offset = i * 4;
-      pixels.data[offset] = r; pixels.data[offset + 1] = g; pixels.data[offset + 2] = b; pixels.data[offset + 3] = 255;
+      pixels.data[offset] = color >> 16; pixels.data[offset + 1] = (color >> 8) & 255; pixels.data[offset + 2] = color & 255; pixels.data[offset + 3] = 255;
     }
     context.putImageData(pixels, 0, 0);
     this.images.set(area, image);
@@ -144,7 +154,31 @@ export class Minimap {
     context.drawImage(this.image!, projection.left, projection.top,
       this.map!.width * projection.scale, this.map!.height * projection.scale);
     const point = projectPoint(projection, { x, y });
-    const radius = this.opened ? 15 : 8;
+    if (this.opened) {
+      context.font = 'bold 13px sans-serif';
+      context.textBaseline = 'middle';
+      const labels = layoutFacilityLabels(this.map!.markers, projection, canvas.width, canvas.height, text => context.measureText(text).width, point);
+      this.full.dataset.labelCount = String(labels.length);
+      for (const label of labels) {
+        const endX = Math.max(label.x, Math.min(label.x + label.width, label.anchor.x));
+        const endY = Math.max(label.y, Math.min(label.y + label.height, label.anchor.y));
+        context.beginPath(); context.moveTo(label.anchor.x, label.anchor.y); context.lineTo(endX, endY);
+        context.strokeStyle = '#fff9e9'; context.lineWidth = 3; context.stroke();
+        context.strokeStyle = '#243034'; context.lineWidth = 1; context.stroke();
+      }
+      for (const label of labels) {
+        context.fillStyle = '#fff9e9'; context.fillRect(label.x, label.y, label.width, label.height);
+        context.strokeStyle = '#243034'; context.lineWidth = 1; context.strokeRect(label.x, label.y, label.width, label.height);
+        context.fillStyle = '#243034'; context.fillText(label.marker.name, label.x + 6, label.y + label.height / 2);
+      }
+    }
+    for (const marker of this.map!.markers) {
+      const anchor = projectPoint(projection, marker);
+      const margin = this.opened ? 12 : 8;
+      if (anchor.x < margin || anchor.y < margin || anchor.x > canvas.width - margin || anchor.y > canvas.height - margin) continue;
+      drawFacilityIcon(context, marker, anchor, this.opened && projection.scale >= 4 ? 2 : 1);
+    }
+    const radius = this.opened && canvas.width >= 600 ? 15 : 8;
     context.save();
     context.translate(point.x, point.y);
     context.rotate(ANGLES[facing]);

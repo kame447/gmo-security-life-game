@@ -14,7 +14,7 @@
 .full-map-panel h2 { margin: 0 0 0 4px; font-size: 17px; }
 #full-map-close { width: 34px; height: 34px; padding: 0; color: #fff9e9; background: #283b34; border: 1px solid #e8e0cc;
   border-radius: 5px; font: inherit; font-size: 24px; line-height: 1; cursor: pointer; }
-#full-map-canvas { display: block; width: min(100%, 900px, calc(160vh - 152px)); height: auto; image-rendering: pixelated;
+#full-map-canvas { display: block; width: min(100%, 900px); height: auto;
   background: #243034; border-radius: 3px; }
 @media (max-width: 640px) {
   #stage #hud { max-width: calc(100% - 44px); }

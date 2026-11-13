@@ -10,11 +10,12 @@ const shops = [
 ] as const;
 
 export const FACILITIES: FacilityDef[] = [
-  { id: 'home-family', name: 'じぶんのいえ', areaId: 'town-main', interior: 'full', state: 'open' },
-  { id: 'school', name: 'しょうがっこう', areaId: 'town-main', interior: 'full', state: 'open' },
-  { id: 'station', name: 'まちのえき', areaId: 'town-main', interior: 'interaction', state: 'open' },
-  { id: 'park', name: 'かわぞいこうえん', areaId: 'town-main', interior: 'interaction', state: 'open' },
-  ...shops.map(([id, name]) => ({ id: `shop-${id}`, name, areaId: 'town-main', interior: id === 'konbini' ? 'full' as const : 'interaction' as const, state: 'open' as const })),
+  { id: 'home-family', kind: 'home', name: 'じぶんのいえ', areaId: 'town-main', interior: 'full', state: 'open' },
+  { id: 'school', kind: 'school', name: 'しょうがっこう', areaId: 'town-main', interior: 'full', state: 'open' },
+  { id: 'school-gym', kind: 'gym', name: 'たいいくかん', areaId: 'town-main', interior: 'background', state: 'open' },
+  { id: 'station', kind: 'station', name: 'まちのえき', areaId: 'town-main', interior: 'interaction', state: 'open' },
+  { id: 'park', kind: 'park', name: 'かわぞいこうえん', areaId: 'town-main', interior: 'interaction', state: 'open' },
+  ...shops.map(([id, name]) => ({ id: `shop-${id}`, kind: id, name, areaId: 'town-main', interior: id === 'konbini' ? 'full' as const : 'interaction' as const, state: 'open' as const })),
 ];
 
 /** Pure, deterministic map data. Reference PNG is a design reference, never a runtime asset. */
@@ -155,7 +156,7 @@ export function createTown(): AreaDef {
   rect(90, 35, 33, 1, T.FENCE); rect(100, 35, 3, 2, T.SIDEWALK);
   rect(91, 21, 31, 14, T.DIRT);
   object('school', 94, 13, 20, 7, undefined, true, 'school');
-  object('gym', 115, 14, 6, 7);
+  object('gym', 115, 14, 6, 7, undefined, true, 'school-gym');
   object('track', 98, 23, 16, 9, undefined, false);
   object('goal', 94, 26, 1, 2); object('goal', 118, 26, 1, 2);
   [92, 120].forEach(x => { object('tree', x, 17, 1, 1, 'cherry'); object('tree', x, 33, 1, 1, 'cherry'); });

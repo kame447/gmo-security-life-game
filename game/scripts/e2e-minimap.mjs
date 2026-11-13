@@ -18,6 +18,14 @@ try {
   ]) {
     const context = await browser.newContext({ viewport, hasTouch: touch, deviceScaleFactor: 1 });
     const page = await context.newPage();
+    await page.addInitScript(() => {
+      window.__mapTexts = [];
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...args) {
+        if (this.canvas.id === 'full-map-canvas') window.__mapTexts.push({ text, font: this.font });
+        return fillText.call(this, text, ...args);
+      };
+    });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     try {
@@ -74,12 +82,23 @@ try {
         if (touch) await mini.tap(); else await mini.click();
         await page.locator('#full-map-overlay').waitFor({ state: 'visible' });
         assert.equal(await page.locator('#full-map-canvas').getAttribute('data-area-id'), 'town-main');
+        await page.waitForFunction(() => document.querySelector('#full-map-canvas')?.dataset.labelCount === '12');
+        assert.equal(await page.locator('#full-map-canvas').getAttribute('data-marker-count'), '12');
+        const labels = await page.evaluate(() => ({
+          names: [...window.__slg.game.world.facilities.values()].map(facility => facility.name),
+          painted: window.__mapTexts,
+          canvasWidth: document.querySelector('#full-map-canvas').width,
+          displayWidth: document.querySelector('#full-map-canvas').clientWidth,
+        }));
+        assert.ok(Math.abs(labels.canvasWidth - labels.displayWidth) <= 1, 'labels use screen pixels, without shrinking on phones');
+        for (const text of labels.names) assert.ok(labels.painted.some(label => label.text === text && label.font.includes('13px')), `missing readable name ${text}`);
         const full = await page.locator('#full-map-canvas').boundingBox();
         const close = await page.locator('#full-map-close').boundingBox();
         assert.ok(full && full.x >= 0 && full.y >= 0 && full.x + full.width <= viewport.width && full.y + full.height <= viewport.height);
         assert.ok(close && close.x >= 0 && close.y >= 0 && close.x + close.width <= viewport.width && close.y + close.height <= viewport.height);
         await page.waitForTimeout(120);
         const before = await page.evaluate(() => ({ player: { ...window.__slg.game.player }, ...window.__minimapProbe }));
+        assert.equal(await mini.locator('canvas').evaluate(canvas => `${canvas.width}x${canvas.height}`), '192x128');
         await page.keyboard.down('ArrowUp');
         await page.keyboard.press('z');
         await page.locator('#full-map-canvas').click();
@@ -107,6 +126,9 @@ try {
         if (touch) await mini.tap(); else await mini.click();
         await page.locator('#full-map-overlay').waitFor({ state: 'visible' });
         assert.equal(await page.locator('#full-map-canvas').getAttribute('data-area-id'), 'home-family-interior');
+        assert.equal(await page.locator('#full-map-canvas').getAttribute('data-marker-count'), '0');
+        assert.equal(await page.locator('#full-map-canvas').getAttribute('data-label-count'), '0');
+        assert.ok(!(await page.locator('#full-map-canvas').getAttribute('aria-label')).includes('しょうがっこう'));
         await page.locator('#full-map-close').click();
         await page.keyboard.down('ArrowDown');
         try { await page.waitForFunction(() => window.__slg.game.player.areaId === 'town-main', null, { timeout: 10000 }); }
