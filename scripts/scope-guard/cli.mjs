@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // 作業範囲ガード。使い方は docs/team-workflow.md を参照。
 //
-//   node scripts/scope-guard/cli.mjs status            進行中の作業と占有範囲を表示
-//   node scripts/scope-guard/cli.mjs check <path...>   編集予定のパスが他の作業と重なるか確認
+//   node scripts/scope-guard/cli.mjs status [--snapshot <path>]            進行中の作業と占有範囲を表示
+//   node scripts/scope-guard/cli.mjs check <path...> [--snapshot <path>]  編集予定のパスが他の作業と重なるか確認
 //   node scripts/scope-guard/cli.mjs pre-commit        ステージしたファイルを確認（Git フック用）
 //   node scripts/scope-guard/cli.mjs claude-hook       Claude Code の PreToolUse フック用
 //   node scripts/scope-guard/cli.mjs ci                PR の範囲外変更と重複を確認（GitHub Actions 用）
@@ -24,11 +24,13 @@ import {
   currentBranch,
   loadConfig,
   repoRoot,
+  run,
   selfNames,
   splitOwn,
   stagedFiles,
   trackedFiles,
 } from './github.mjs';
+import { parseSnapshotOption, revisionText, updateSnapshot } from './head-snapshot.mjs';
 
 const HOOK_CACHE_SECONDS = 120;
 const LABELS = { conflict: '[重複]', shared: '[共有]', self: '[自分]' };
@@ -52,7 +54,8 @@ function reportLocal(files, { label, patterns = [] }) {
   const root = repoRoot();
   const config = loadConfig(root);
   const branch = currentBranch();
-  const works = collectWorks({ root, baseBranch: config.baseBranch, cacheSeconds: label === 'pre-commit' ? HOOK_CACHE_SECONDS : 0 });
+  const works = collectWorks({ root, baseBranch: config.baseBranch, cacheSeconds: label === 'pre-commit' ? HOOK_CACHE_SECONDS : 0,
+    includeRevisions: label === 'check' });
   const { own, others } = splitOwn(works, { branch });
   const self = selfNames();
   const conflicts = findFileConflicts(files, others, config.shared, self);
@@ -65,7 +68,7 @@ function reportLocal(files, { label, patterns = [] }) {
 
   if (conflicts.length === 0 && outOfScope.length === 0) {
     console.log(`scope-guard: 他の作業との重なりはありません（${files.length} ファイル、${patterns.length} パターン）。`);
-    return { hard: 0 };
+    return { hard: 0, works, others };
   }
   if (conflicts.length > 0) {
     console.log('scope-guard: 他の作業が占有しているファイルがあります。');
@@ -82,16 +85,35 @@ function reportLocal(files, { label, patterns = [] }) {
   if (!own) {
     console.log('scope-guard: このブランチの PR がありません。作業開始時に scope を書いた Draft PR を出してください。');
   }
-  return { hard: hard.length, mode: config.mode };
+  return { hard: hard.length, mode: config.mode, works, others };
 }
 
-function cmdStatus() {
+function snapshotResult(works, snapshot) {
+  if (snapshot === undefined) {
+    console.log('\n過去の HEAD: 不明（snapshot 未指定）。HEAD の一致だけでは変更パスの非重複を証明できません。');
+    return true;
+  }
+  try {
+    const root = repoRoot(), common = path.resolve(root, run('git', ['rev-parse', '--git-common-dir'], { cwd: root }));
+    const messages = updateSnapshot(snapshot, root, common, works);
+    console.log('\nsnapshot 比較:');
+    for (const message of messages) console.log(`  ${message}`);
+    console.log('  HEAD の一致だけでは変更パスの非重複を証明できません。');
+    return true;
+  } catch (error) {
+    console.error(`scope-guard: snapshot を記録できません（${error.message.split('\n')[0]}）。`);
+    return false;
+  }
+}
+
+function cmdStatus(snapshot) {
   const root = repoRoot();
   const config = loadConfig(root);
-  const works = collectWorks({ root, baseBranch: config.baseBranch });
+  const works = collectWorks({ root, baseBranch: config.baseBranch, includeRevisions: true });
   console.log(`進行中の作業: ${works.length} 件（モード: ${config.mode}）\n`);
   for (const work of works) {
     console.log(`■ ${describeWork(work)}${work.title ? ` ${work.title}` : ''}`);
+    console.log(`  ${revisionText(work)}`);
     if (work.scope) console.log(`  scope: ${work.scope.join(', ')}`);
     console.log(`  変更ファイル: ${work.files.length} 件`);
   }
@@ -104,9 +126,10 @@ function cmdStatus() {
     console.log('\n複数の作業が占有しているパス:');
     for (const [f, n] of hot.slice(0, 30)) console.log(`  ${String(n).padStart(2)} 件  ${f}`);
   }
+  if (!snapshotResult(works, snapshot)) process.exitCode = 2;
 }
 
-function cmdCheck(paths) {
+function cmdCheck(paths, snapshot) {
   if (paths.length === 0) {
     console.error('使い方: node scripts/scope-guard/cli.mjs check <path...>');
     process.exit(2);
@@ -132,8 +155,10 @@ function cmdCheck(paths) {
     if (expanded.length > 0) files.push(...expanded);
     else patterns.push(pattern);
   }
-  const { hard } = reportLocal(files, { label: 'check', patterns });
-  process.exit(hard > 0 ? 1 : 0);
+  const { hard, works, others } = reportLocal(files, { label: 'check', patterns });
+  console.log('\n取得時の HEAD（現在の作業は比較対象外）:');
+  for (const work of works) console.log(`  ${describeWork(work)}${others.includes(work) ? '' : ' [比較対象外]'}: ${revisionText(work)}`);
+  process.exitCode = snapshotResult(works, snapshot) ? (hard > 0 ? 1 : 0) : 2;
 }
 
 function cmdPreCommit() {
@@ -255,11 +280,19 @@ function cmdCi() {
 const [command, ...rest] = process.argv.slice(2);
 switch (command) {
   case 'status':
-    cmdStatus();
+  case 'check': {
+    let options;
+    try {
+      options = parseSnapshotOption(rest);
+    } catch (error) {
+      console.error(`scope-guard: ${error.message.split('\n')[0]}`);
+      process.exitCode = 2;
+      break;
+    }
+    if (command === 'status') cmdStatus(options.snapshot);
+    else cmdCheck(options.rest, options.snapshot);
     break;
-  case 'check':
-    cmdCheck(rest);
-    break;
+  }
   case 'pre-commit':
     cmdPreCommit();
     break;

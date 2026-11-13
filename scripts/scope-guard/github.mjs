@@ -48,47 +48,70 @@ function prFiles(number) {
   return out.split('\n').filter(Boolean);
 }
 
-export function openPullRequests() {
+export function openPullRequests({ includeRevisions = false } = {}) {
+  const fields = ['number', 'title', 'author', 'headRefName', 'body', 'isDraft', 'createdAt', 'url'];
+  if (includeRevisions) fields.push('headRefOid', 'baseRefName', 'baseRefOid', 'isCrossRepository');
   const list = JSON.parse(
     run('gh', [
       'pr', 'list', '--state', 'open', '--limit', '100',
-      '--json', 'number,title,author,headRefName,body,isDraft,createdAt,url',
+      '--json', fields.join(','),
     ]),
   );
-  return list.map((pr) => ({
-    kind: 'pr',
-    number: pr.number,
-    title: pr.title,
-    author: pr.author?.login ?? 'unknown',
-    branch: pr.headRefName,
-    isDraft: pr.isDraft,
-    createdAt: pr.createdAt,
-    url: pr.url,
-    scope: parseScope(pr.body),
-    files: prFiles(pr.number),
-  }));
+  return list.map((pr) => {
+    const files = prFiles(pr.number);
+    const work = {
+      kind: 'pr', number: pr.number, title: pr.title, author: pr.author?.login ?? 'unknown',
+      branch: pr.headRefName, isDraft: pr.isDraft, createdAt: pr.createdAt, url: pr.url,
+      scope: parseScope(pr.body), files,
+    };
+    if (includeRevisions) {
+      let after = null;
+      try {
+        after = JSON.parse(run('gh', ['api', `repos/{owner}/{repo}/pulls/${pr.number}`, '-q', '{head:.head.sha,base:.base.sha,headRef:.head.ref,baseRef:.base.ref}']));
+      } catch {
+        // A failed recheck makes the snapshot uncertain; it does not change scope decisions.
+      }
+      work.revision = {
+        head: pr.headRefOid ?? null, apiBase: pr.baseRefOid ?? null, baseRef: pr.baseRefName ?? null,
+        isCrossRepository: !!pr.isCrossRepository,
+        headAfter: after?.head ?? null, apiBaseAfter: after?.base ?? null,
+        uncertain: !after || !pr.headRefOid || !pr.baseRefOid || after.head !== pr.headRefOid || after.base !== pr.baseRefOid ||
+          after.headRef !== pr.headRefName || after.baseRef !== pr.baseRefName,
+      };
+    }
+    return work;
+  });
 }
 
-function branchesInNamespace(prBranches, baseBranch, namespace) {
+function mergeBase(base, head) {
+  if (!base || !head) return null;
+  try { return run('git', ['merge-base', base, head]) || null; } catch { return null; }
+}
+
+function branchesInNamespace(prBranches, baseBranch, namespace, includeRevisions) {
   const base = `${namespace}/${baseBranch}`;
-  const refs = run('git', ['for-each-ref', '--format=%(refname)%09%(authorname)', namespace])
+  const refs = run('git', ['for-each-ref', '--format=%(refname)%09%(authorname)%09%(objectname)', namespace])
     .split('\n')
     .filter(Boolean)
     .map((line) => line.split('\t'));
+  const heads = new Map(refs.map(([ref, , sha]) => [ref.slice(namespace.length + 1), sha]));
+  const baseHead = heads.get(baseBranch) ?? null;
   const works = [];
-  for (const [ref, author] of refs) {
+  for (const [ref, author, head] of refs) {
     const branch = ref.slice(namespace.length + 1);
     if (branch === 'HEAD' || branch === baseBranch || prBranches.has(branch)) continue;
     const ahead = Number(run('git', ['rev-list', '--count', `${base}..${ref}`]));
     if (ahead === 0) continue;
     const files = run('git', ['diff', '--name-only', `${base}...${ref}`]).split('\n').filter(Boolean);
-    works.push({ kind: 'branch', branch, author, scope: null, files });
+    const work = { kind: 'branch', branch, author, scope: null, files };
+    if (includeRevisions) work.revision = { head, baseRef: baseBranch, baseHead, comparisonBase: mergeBase(baseHead, head), uncertain: false };
+    works.push(work);
   }
-  return works;
+  return { works, heads };
 }
 
 /** PR のない remote branch を取得する。利用者の追跡 ref は更新しない。 */
-export function branchesWithoutPr(prBranches, baseBranch) {
+function remoteBranchSnapshot(prBranches, baseBranch, includeRevisions = false) {
   const namespace = `refs/scope-guard/${randomUUID()}`;
   let fetched = false;
   try {
@@ -101,7 +124,9 @@ export function branchesWithoutPr(prBranches, baseBranch) {
     } catch {
       console.error('scope-guard: git fetch に失敗しました。手元のリモート追跡ブランチで判定します。');
     }
-    return branchesInNamespace(prBranches, baseBranch, fetched ? namespace : 'refs/remotes/origin');
+    const result = branchesInNamespace(prBranches, baseBranch, fetched ? namespace : 'refs/remotes/origin', includeRevisions);
+    if (includeRevisions && !fetched) for (const work of result.works) work.revision.uncertain = true;
+    return { ...result, fetched };
   } finally {
     try {
       const refs = run('git', ['for-each-ref', '--format=%(refname)', namespace]).split('\n').filter(Boolean);
@@ -112,13 +137,17 @@ export function branchesWithoutPr(prBranches, baseBranch) {
   }
 }
 
+export function branchesWithoutPr(prBranches, baseBranch) {
+  return remoteBranchSnapshot(prBranches, baseBranch).works;
+}
+
 /**
  * 進行中の作業一覧。短時間に何度も呼ばれるフック向けに .git 内へキャッシュする。
  * includeBranches は一時 ref に取得した remote branch を使う。
  */
-export function collectWorks({ root, baseBranch, includeBranches = true, cacheSeconds = 0 }) {
+export function collectWorks({ root, baseBranch, includeBranches = true, cacheSeconds = 0, includeRevisions = false }) {
   const cacheFile = path.join(run('git', ['rev-parse', '--git-common-dir'], { cwd: root }), 'scope-guard-cache.json');
-  if (cacheSeconds > 0 && existsSync(cacheFile)) {
+  if (cacheSeconds > 0 && !includeRevisions && existsSync(cacheFile)) {
     try {
       const cached = JSON.parse(readFileSync(cacheFile, 'utf8'));
       if (Date.now() - cached.savedAt < cacheSeconds * 1000 && cached.includeBranches === includeBranches) {
@@ -128,11 +157,19 @@ export function collectWorks({ root, baseBranch, includeBranches = true, cacheSe
       // 壊れたキャッシュは取り直す
     }
   }
-  const prs = openPullRequests();
-  const works = includeBranches
-    ? [...prs, ...branchesWithoutPr(new Set(prs.map((p) => p.branch)), baseBranch)]
-    : prs;
-  if (cacheSeconds > 0) {
+  const prs = openPullRequests({ includeRevisions });
+  const remote = includeBranches ? remoteBranchSnapshot(new Set(prs.map((p) => p.branch)), baseBranch, includeRevisions) : null;
+  if (includeRevisions && remote) {
+    for (const pr of prs) {
+      pr.revision.baseHead = remote.heads.get(pr.revision.baseRef) ?? null;
+      pr.revision.comparisonBase = mergeBase(pr.revision.apiBase, pr.revision.head);
+      const remoteHead = remote.heads.get(pr.branch);
+      if (!remote.fetched || !pr.revision.baseHead || !pr.revision.comparisonBase ||
+        (!pr.revision.isCrossRepository && remoteHead !== pr.revision.head)) pr.revision.uncertain = true;
+    }
+  }
+  const works = remote ? [...prs, ...remote.works] : prs;
+  if (cacheSeconds > 0 && !includeRevisions) {
     try {
       writeFileSync(cacheFile, JSON.stringify({ savedAt: Date.now(), includeBranches, works }));
     } catch {
