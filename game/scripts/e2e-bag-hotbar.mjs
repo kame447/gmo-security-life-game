@@ -24,6 +24,7 @@ try {
   });
   await check('keyboard selection and movement isolation', async () => {
     const before = await page.evaluate(() => ({ ...window.__slg.game.player }));
+    const assetsBefore = await page.evaluate(() => window.__slg.game.assets.snapshot());
     await page.keyboard.press('i');
     assert.equal(await page.locator('.bag-window').isVisible(), true);
     const first = await page.locator('.bag-cell.is-selected').getAttribute('data-item-id');
@@ -33,11 +34,13 @@ try {
     await page.keyboard.press('4');
     assert.equal(await page.locator('.bag-quick-slots [data-slot="3"]').getAttribute('aria-pressed'), 'true');
     assert.equal(await page.locator('.bag-quick-slots [data-slot="3"]').getAttribute('data-item-id'), next);
+    assert.deepEqual(await page.evaluate(() => window.__slg.game.assets.snapshot()), assetsBefore);
     const after = await page.evaluate(() => ({ ...window.__slg.game.player }));
     assert.deepEqual(after, before);
     await page.keyboard.press('Escape');
     assert.equal(await page.locator('.bag-window').isVisible(), false);
-    assert.equal(await page.locator('.bag-quick-hud').isVisible(), true);
+    assert.equal(await page.locator('.bag-quick-hud').evaluate(node => node.hidden), false);
+    await page.locator('.bag-quick-hud').waitFor({ state: 'visible' });
   });
   await check('modal exclusivity', async () => {
     await page.locator('#btn-avatar').click();

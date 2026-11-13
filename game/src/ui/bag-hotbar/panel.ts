@@ -96,6 +96,9 @@ export class HotbarPanel {
     this.opened = false;
     document.body.classList.remove('bag-open');
     this.overlay.hidden = true;
+    // Do not wait for the next animation frame to restore the exploration bar.
+    this.hudAvailable = !this.game.dialog;
+    this.hud.hidden = !this.hudAvailable;
     this.onClose();
   }
 

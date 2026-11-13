@@ -31,7 +31,7 @@ body.bag-open { touch-action: auto; }
   border: 2px solid #a49270; border-radius: 6px; font-size: 13px; font-weight: 700; }
 .bag-tabs button.is-active { color: #fff9e6; background: #587969; border-color: #405b4e; box-shadow: inset 0 -3px #405b4e; }
 .bag-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px;
-  padding: 10px; max-height: 330px; overflow: auto; background: #ae9b7b; border: 2px solid #8b795c; border-radius: 7px; }
+  padding: 10px; max-height: 430px; overflow: auto; background: #ae9b7b; border: 2px solid #8b795c; border-radius: 7px; }
 .bag-cell, .bag-quick-slot { position: relative; display: grid; place-items: center; min-width: 0; padding: 0;
   aspect-ratio: 1; background: #d6c8a8; border: 3px solid #8d8066; border-radius: 5px; box-shadow: inset 0 2px #f7eaca; }
 .bag-cell:disabled { opacity: 1; background: #c6b797; border-color: #a09171; box-shadow: inset 0 2px #e2d3b0; }
