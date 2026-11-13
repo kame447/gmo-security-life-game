@@ -70,7 +70,9 @@ export class ShopPanel {
       event.preventDefault();
       const buttons = [...this.panel.querySelectorAll<HTMLButtonElement>('button')].filter(b => !b.hidden && !b.closest('[hidden]'));
       const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
-      buttons[(current + (event.shiftKey ? -1 : 1) + buttons.length) % buttons.length]?.focus();
+      const next = current < 0 ? (event.shiftKey ? buttons.length - 1 : 0)
+        : (current + (event.shiftKey ? -1 : 1) + buttons.length) % buttons.length;
+      buttons[next]?.focus();
       return;
     }
     const before = this.flow.phase;

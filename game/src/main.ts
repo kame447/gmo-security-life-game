@@ -10,10 +10,15 @@ import { UiController } from './ui/controller';
 import { $ } from './ui/dom';
 import { Hud } from './ui/hud';
 import { InventoryPanel } from './ui/inventory-panel';
+import { ShopPanel } from './ui/shop-panel';
 import { buildWorld } from './world';
 
 const world = buildWorld();
-const game = new Game(world, { save: loadSave(world) });
+const game = new Game(world, { save: loadSave(world), sink: {
+  onMapEvent: event => {
+    if (event.type === 'interact' && ui.openShop(event.eventKey)) return { lines: [] };
+  },
+} });
 const canvas = $<HTMLCanvasElement>('#view');
 const renderer = new Renderer(canvas);
 const controls = new Controls();
@@ -33,7 +38,8 @@ const avatar = new AvatarPanel(game, commit => {
   ui.focusMap();
 });
 const inventory = new InventoryPanel(game, () => { controls.clear(); ui.focusMap(); });
-const ui = new UiController(game, controls, avatar, canvas, inventory);
+const shop = new ShopPanel(game.assets, () => { controls.clear(); ui.focusMap(); }, save);
+const ui = new UiController(game, controls, avatar, canvas, inventory, shop);
 const hud = new Hud(game, () => ui.primaryAction());
 ui.bind({ onReset: () => { game.reset(); save(); } });
 exposeDebug(game, renderer, frames);

@@ -53,6 +53,16 @@
       #touch [data-dir="left"] { left: 14px; bottom: 80px; }
       #touch [data-dir="right"] { left: 126px; bottom: 80px; }
       #touch [data-act] { right: 22px; bottom: 70px; width: 68px; height: 68px; }
+      #shop-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(480px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow: auto; box-sizing: border-box; padding: 18px; z-index: 2; background: #242a31; touch-action: pan-y; }
+      #shop-panel h1 { font-size: 20px; margin: 0 0 10px; }
+      #shop-panel p { font-size: 13px; line-height: 1.6; white-space: pre-line; }
+      #shop-list { display: grid; gap: 8px; }
+      #shop-panel button { font: inherit; cursor: pointer; background: #e8e0cc; color: #242a31; border: 2px solid transparent; border-radius: 4px; padding: 9px; min-height: 44px; }
+      #shop-panel button:focus-visible { outline: 3px solid #ffe08a; outline-offset: 2px; }
+      #shop-list .selected { border-color: #b56c18; background: #ffe3a6; }
+      .shop-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+      #shop-result { color: #ffe08a; }
+      #stage.shop-open #menu, #stage.shop-open #touch, #stage.shop-open #hint { visibility: hidden; }
       [hidden] { display: none !important; }
     </style>
   </head>
@@ -98,6 +108,19 @@
           <button id="avatar-cancel" type="button">もどす</button>
         </div>
         <p>↑↓：こうもく　←→：えらぶ　Z / Space / Enter：けってい　Esc：もどす</p>
+      </section>
+      <section id="shop-panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="shop-title" tabindex="-1" hidden>
+        <h1 id="shop-title">おみせ</h1>
+        <p id="shop-balance"></p>
+        <div id="shop-list" aria-label="商品"></div>
+        <p id="shop-details" aria-live="polite"></p>
+        <p id="shop-result" role="status"></p>
+        <div class="shop-actions">
+          <button id="shop-buy" type="button" hidden>1こ かう</button>
+          <button id="shop-back" type="button" hidden>商品にもどる</button>
+          <button id="shop-close" type="button">おみせを出る</button>
+        </div>
+        <p>矢印 / WASD：えらぶ　Z / Space / Enter：えらぶ・かう<br>Esc：商品にもどる・とじる</p>
       </section>
     </div>
     <script type="module" src="/src/main.ts"></script>
