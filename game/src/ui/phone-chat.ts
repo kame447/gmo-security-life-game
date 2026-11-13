@@ -54,7 +54,7 @@ export function renderChatList(threads: readonly ChatThreadView[], open: (id: st
 export interface ChatComposerOptions {
   draft: string;
   maxLength: number;
-  canSend: boolean;
+  canSend: () => boolean;
   onDraft: (value: string) => void;
   onSend: (value: string) => void;
 }
@@ -75,12 +75,20 @@ export function renderChatConversation(thread: ChatThreadView, messages: readonl
   }
   const form = make('form', 'phone-chat-composer');
   const input = make('input', 'phone-chat-input'); input.type = 'text'; input.autocomplete = 'off';
-  input.setAttribute('aria-label', 'メッセージ'); input.placeholder = 'メッセージ'; input.maxLength = options.maxLength;
+  input.setAttribute('aria-label', 'メッセージ'); input.placeholder = 'メッセージ'; input.maxLength = options.maxLength * 2;
   input.value = options.draft;
   const send = make('button', 'phone-chat-send', '送信'); send.type = 'submit';
-  const update = () => { send.disabled = !options.canSend || !input.value.trim(); };
+  const update = () => { send.disabled = !options.canSend() || !input.value.trim(); };
   input.addEventListener('input', event => {
-    if (!(event instanceof InputEvent) || !event.isComposing) input.value = input.value.replace(/[\u0000-\u001f\u007f-\u009f]/g, '');
+    if (!(event instanceof InputEvent) || !event.isComposing) {
+      const clean = [...input.value.replace(/[\u0000-\u001f\u007f-\u009f]/g, '')]
+        .filter(character => !/^[\ud800-\udfff]$/.test(character)).slice(0, options.maxLength).join('');
+      if (clean !== input.value) {
+        const start = input.selectionStart, end = input.selectionEnd;
+        input.value = clean;
+        if (start !== null && end !== null) input.setSelectionRange(Math.min(start, clean.length), Math.min(end, clean.length));
+      }
+    }
     options.onDraft(input.value); update();
   });
   form.addEventListener('submit', event => { event.preventDefault(); if (!send.disabled) options.onSend(input.value); });

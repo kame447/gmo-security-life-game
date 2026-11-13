@@ -1,6 +1,9 @@
 import type { PhoneApp, PhoneScreen } from '../phone/content';
 import type { PhoneModel } from '../phone/model';
+import { CHAT_SELF } from '../phone/chat/types';
+import { renderChatConversation, renderChatList, type ChatThreadView } from './phone-chat';
 import './smartphone.css';
+import './phone-chat.css';
 
 const make = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text?: string): HTMLElementTagNameMap[K] => {
   const node = document.createElement(tag);
@@ -39,6 +42,8 @@ export class Smartphone {
   private readonly back = make('button', 'smartphone-nav-button', '‹');
   private readonly home = make('button', 'smartphone-home-button');
   private readonly closeButton = make('button', 'smartphone-nav-button', '×');
+  private readonly chatDrafts = new Map<string, string>();
+  private scrollChatToEnd = false;
   private visible = false;
 
   constructor(private readonly model: PhoneModel, stage: HTMLElement,
@@ -97,9 +102,21 @@ export class Smartphone {
     if (label) label.textContent = `${format(usage.remainingMb)} / ${format(usage.capacityMb)}`;
     const meter = this.body.querySelector<HTMLElement>('[data-usage-meter]');
     if (meter) meter.style.width = `${Math.max(0, Math.min(100, usage.remainingMb / usage.capacityMb * 100))}%`;
+    const input = this.body.querySelector<HTMLInputElement>('.phone-chat-input');
+    const send = this.body.querySelector<HTMLButtonElement>('.phone-chat-send');
+    if (input && send) send.disabled = !this.model.networkAllowed || !input.value.trim();
   }
 
   handleKey(event: KeyboardEvent): void {
+    const target = event.target;
+    if (target instanceof HTMLInputElement && target.classList.contains('phone-chat-input') && this.device.contains(target)) {
+      if (event.code === 'Escape') { event.preventDefault(); return; }
+      if (event.key === 'Enter') {
+        if (!event.isComposing && !event.repeat) { event.preventDefault(); target.form?.requestSubmit(); }
+        return;
+      }
+      if (event.code !== 'Tab') return;
+    }
     if (event.code === 'Escape') { event.preventDefault(); if (!event.repeat) this.model.close(); return; }
     if (event.code === 'Backspace') { event.preventDefault(); if (!event.repeat) this.model.back(); return; }
     if (event.code === 'KeyH') { event.preventDefault(); if (!event.repeat) this.model.home(); return; }
@@ -108,10 +125,10 @@ export class Smartphone {
       if (!event.repeat && document.activeElement instanceof HTMLButtonElement && this.device.contains(document.activeElement)) document.activeElement.click();
       return;
     }
-    const buttons = [...this.device.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+    const buttons = [...this.device.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)')];
     if (event.code === 'Tab') {
       event.preventDefault();
-      const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      const index = buttons.indexOf(document.activeElement as HTMLElement);
       const next = index < 0 ? (event.shiftKey ? buttons.length - 1 : 0) : (index + (event.shiftKey ? -1 : 1) + buttons.length) % buttons.length;
       buttons[next]?.focus();
     } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
@@ -119,8 +136,8 @@ export class Smartphone {
     }
   }
 
-  private moveFocus(code: string, buttons: HTMLButtonElement[]): void {
-    const current = document.activeElement as HTMLButtonElement;
+  private moveFocus(code: string, buttons: HTMLElement[]): void {
+    const current = document.activeElement as HTMLElement;
     if (!buttons.includes(current)) { buttons[0]?.focus(); return; }
     const from = current.getBoundingClientRect(), cx = from.left + from.width / 2, cy = from.top + from.height / 2;
     const candidates = buttons.filter(button => button !== current).map(button => {
@@ -138,16 +155,35 @@ export class Smartphone {
       return;
     }
     this.visible = true; this.overlay.hidden = false;
+    const oldThread = this.body.querySelector<HTMLElement>('[data-chat-conversation]')?.dataset.chatConversation;
+    const oldInput = this.body.querySelector<HTMLInputElement>('.phone-chat-input');
+    const oldSend = this.body.querySelector<HTMLButtonElement>('.phone-chat-send');
+    const keepInput = document.activeElement === oldInput || document.activeElement === oldSend;
+    const selection = oldInput && document.activeElement === oldInput ? [oldInput.selectionStart, oldInput.selectionEnd] : null;
+    const oldScroll = this.body.querySelector<HTMLElement>('.phone-chat-messages');
+    const scrollTop = oldScroll?.scrollTop ?? 0;
+    const nearBottom = !oldScroll || oldScroll.scrollHeight - oldScroll.clientHeight - oldScroll.scrollTop < 24;
     this.render(); this.update();
-    (this.body.querySelector<HTMLButtonElement>('button') ?? this.home).focus({ preventScroll: true });
+    const nextThread = this.body.querySelector<HTMLElement>('[data-chat-conversation]')?.dataset.chatConversation;
+    const nextScroll = this.body.querySelector<HTMLElement>('.phone-chat-messages');
+    if (nextScroll) nextScroll.scrollTop = this.scrollChatToEnd || oldThread !== nextThread || nearBottom ? nextScroll.scrollHeight : scrollTop;
+    this.scrollChatToEnd = false;
+    const nextInput = this.body.querySelector<HTMLInputElement>('.phone-chat-input');
+    if (nextInput && oldThread === nextThread && keepInput) {
+      nextInput.focus({ preventScroll: true });
+      if (selection && selection[0] !== null && selection[1] !== null) nextInput.setSelectionRange(selection[0], selection[1]);
+    } else if (nextInput) this.back.focus({ preventScroll: true });
+    else (this.body.querySelector<HTMLButtonElement>('button') ?? this.home).focus({ preventScroll: true });
   }
 
   private render(): void {
     const app = this.model.currentApp, screen = this.model.currentScreen;
     this.device.classList.toggle('showing-app', !!app);
     this.back.disabled = !app; this.home.disabled = !app;
+    this.body.classList.remove('chat-thread-open');
     this.body.replaceChildren(); this.body.scrollTop = 0;
     if (!app || !screen) { this.renderHome(); return; }
+    if (app.id === 'messages') { this.renderChat(); return; }
     this.renderApp(app, screen);
   }
 
@@ -156,7 +192,7 @@ export class Smartphone {
     for (const app of this.model.content.apps) {
       const button = make('button', 'smartphone-app'); button.type = 'button'; button.dataset.app = app.id;
       const tile = make('span', `smartphone-app-icon icon-${app.tone}`); tile.append(appIcon(app.icon));
-      const count = this.model.notifications.filter(notice => notice.appId === app.id).length;
+      const count = app.id === 'messages' ? this.model.chatUnreadCount : this.model.notifications.filter(notice => notice.appId === app.id).length;
       if (count) { const badge = make('span', 'smartphone-badge', String(count)); badge.setAttribute('aria-label', `通知 ${count}件`); tile.append(badge); }
       button.setAttribute('aria-label', app.caption === 'じゅんび中' ? `${app.label}（準備中）` : app.label);
       button.append(tile, make('span', 'smartphone-app-label', app.label));
@@ -169,6 +205,37 @@ export class Smartphone {
       }); grid.append(button);
     }
     this.body.append(grid);
+  }
+
+  private chatTime(atMs: number): string {
+    const date = new Date(atMs);
+    if (!Number.isFinite(date.getTime())) return '';
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  }
+
+  private renderChat(): void {
+    const threads: ChatThreadView[] = this.model.chatThreads.map(thread => ({ id: thread.id, name: thread.contact.name,
+      preview: thread.lastMessage?.text ?? '', time: thread.lastMessage ? this.chatTime(thread.lastMessage.atMs) : '',
+      unread: thread.unreadCount }));
+    const selected = threads.find(thread => thread.id === this.model.currentChatThread);
+    if (!selected) { this.body.append(renderChatList(threads, id => { this.model.openChatThread(id); })); return; }
+    const messages = this.model.chatMessages(selected.id).map(message => ({ id: message.id, text: message.text,
+      time: this.chatTime(message.atMs), outgoing: message.from === CHAT_SELF }));
+    const chat = renderChatConversation(selected, messages, {
+      draft: this.chatDrafts.get(selected.id) ?? '', maxLength: this.model.chatTextLimit,
+      canSend: () => this.model.networkAllowed,
+      onDraft: text => { this.chatDrafts.set(selected.id, text); },
+      onSend: text => {
+        this.chatDrafts.delete(selected.id); this.scrollChatToEnd = true;
+        const result = this.model.sendChat(text);
+        if (result.ok) return;
+        this.chatDrafts.set(selected.id, text); this.scrollChatToEnd = false;
+        let error = this.body.querySelector<HTMLElement>('.phone-chat-error');
+        if (!error) { error = make('p', 'phone-chat-error'); error.setAttribute('role', 'status'); this.body.append(error); }
+        error.textContent = result.reason === 'network-unavailable' ? '通信残量がありません' : '送信できませんでした';
+      },
+    });
+    this.body.classList.add('chat-thread-open'); this.body.append(chat.view);
   }
 
   private renderApp(app: PhoneApp, screen: PhoneScreen): void {

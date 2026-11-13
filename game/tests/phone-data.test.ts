@@ -75,4 +75,69 @@ describe('phone data integration', () => {
     expect(restored.remainingDataMb).toBe(0); expect(restored.isOwned).toBe(true);
     expect(restored.networkAllowed).toBe(true); // The default exhaustion policy has no restriction.
   });
+
+  it('delivers replies only in active play and marks messages read only in the open thread', () => {
+    let now = 0, epoch = 1_000_000;
+    const phone = new PhoneModel(PHONE_CONTENT, { initialOwned: true, environment: outdoors,
+      clock: () => now, epochClock: () => epoch, budgetConfig: config });
+    // The real app's change listener serializes synchronously and can re-enter the clock boundary.
+    phone.onChange(() => { phone.save(); });
+    phone.open(); phone.launch('messages');
+    expect(phone.chatUnreadCount).toBe(2);
+    expect(phone.openChatThread('friend')).toBe(true);
+    expect(phone.chatUnreadCount).toBe(1);
+    expect(phone.sendChat('<img src=x onerror=alert(1)>')).toMatchObject({ ok: true });
+    expect(phone.chatMessages('friend').at(-1)?.text).toBe('<img src=x onerror=alert(1)>');
+    now += 300; epoch += 300; phone.tick();
+    expect(phone.save().chat?.threads.find(thread => thread.id === 'friend')?.pending[0].remainingMs).toBe(200);
+    phone.setVisible(false); now += 10_000; epoch += 10_000; phone.tick();
+    expect(phone.chatMessages('friend')).toHaveLength(2);
+    phone.setVisible(true); phone.setPaused(true);
+    now += 20_000; epoch += 20_000; phone.tick();
+    expect(phone.chatMessages('friend')).toHaveLength(2);
+    phone.setPaused(false); now += 199; epoch += 199; phone.tick();
+    expect(phone.chatMessages('friend')).toHaveLength(2);
+    now += 1; epoch += 1; phone.tick();
+    expect(phone.chatMessages('friend').at(-1)).toMatchObject({ from: 'review-friend', read: true, atMs: epoch });
+    expect(phone.chatUnreadCount).toBe(1);
+    expect(phone.sendChat('またね')).toMatchObject({ ok: true });
+    phone.back(); now += 500; epoch += 500; phone.tick();
+    expect(phone.chatThreads.find(thread => thread.id === 'friend')?.unreadCount).toBe(1);
+    expect(phone.openChatThread('friend')).toBe(true);
+    expect(phone.chatThreads.find(thread => thread.id === 'friend')?.unreadCount).toBe(0);
+    const restored = new PhoneModel(PHONE_CONTENT, { initialOwned: false, saved: phone.save(),
+      clock: () => now, epochClock: () => epoch, budgetConfig: config });
+    expect(restored.isOpen).toBe(false);
+    expect(restored.currentChatThread).toBeNull();
+    expect(restored.chatMessages('friend')).toEqual(phone.chatMessages('friend'));
+  });
+
+  it('uses the real Game save path for chat while preserving the older fields', () => {
+    let now = 0;
+    const world = buildWorld(), game = new Game(world, { phoneClock: () => now, phoneEpochClock: () => 1000 });
+    const before = game.serialize();
+    game.phone.open(); game.phone.launch('messages'); game.phone.openChatThread('friend');
+    expect(game.phone.sendChat('保存の確認')).toMatchObject({ ok: true });
+    now = 500; game.updatePhoneLocation();
+    const saved = JSON.parse(JSON.stringify(game.serialize()));
+    expect(saved.assets).toEqual(before.assets);
+    expect(saved.appearance).toEqual(before.appearance);
+    expect(saved.phone.chat.threads.find((thread: { id: string }) => thread.id === 'friend').messages)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ text: '保存の確認' })]));
+    const restored = new Game(world, { save: saved, phoneClock: () => now, phoneEpochClock: () => 1500 });
+    expect(restored.phone.chatMessages('friend')).toEqual(game.phone.chatMessages('friend'));
+    expect(restored.player).toEqual(game.player);
+  });
+
+  it('does not send when the configured exhausted-network policy blocks communication', () => {
+    let now = 0;
+    const phone = new PhoneModel(PHONE_CONTENT, { initialOwned: true, environment: outdoors, clock: () => now,
+      budgetConfig: { ...config, exhaustion: 'block-network' } });
+    phone.open(); phone.launch('messages'); phone.openChatThread('friend');
+    const before = phone.chatMessages('friend');
+    now = 11_000; phone.tick();
+    expect(phone.networkAllowed).toBe(false);
+    expect(phone.sendChat('送れない')).toEqual({ ok: false, reason: 'network-unavailable' });
+    expect(phone.chatMessages('friend')).toEqual(before);
+  });
 });

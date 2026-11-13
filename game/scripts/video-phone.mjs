@@ -66,7 +66,14 @@ try {
         await select('#btn-phone');
         await page.locator('#phone-device').waitFor({ state: 'visible', timeout: 3000 });
         await select('[data-app="messages"]');
-        await select('[data-screen="example"]');
+        if (mobile) await page.locator('[data-chat-thread]').first().tap({ timeout: 3000 });
+        else await page.locator('[data-chat-thread]').first().click({ timeout: 3000 });
+        await pause();
+        const replies = await page.locator('[data-direction="incoming"]').count();
+        await page.locator('.phone-chat-input').fill('こんにちは'); await pause();
+        await select('.phone-chat-send');
+        await page.waitForFunction(count => document.querySelectorAll('[data-direction="incoming"]').length > count, replies, { timeout: 5000 });
+        await pause();
         await select('#phone-back');
         await select('#phone-home');
         await select('[data-app="web"]');

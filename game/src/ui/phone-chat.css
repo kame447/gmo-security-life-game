@@ -25,6 +25,7 @@
 .phone-chat-input:focus-visible { outline: 2px solid #558dd3; }
 .phone-chat-send { flex: none; min-width: 44px; min-height: 44px; padding: 0 9px; border: 0; border-radius: 22px; background: #42a879; color: #fff; font-size: 12px; font-weight: 700; }
 .phone-chat-send:disabled { background: #b5c3bb; }.phone-chat-send:focus-visible { outline: 3px solid #558dd3; }
+.phone-chat-error { flex: none; margin: 0; padding: 4px 12px; background: #fff1f0; color: #8b3d39; font-size: 11px; }
 @media (max-height: 600px) {
   .phone-chat-list { padding-top: 5px; }.phone-chat-title { margin-bottom: 5px; font-size: 19px; }
   .phone-chat-row { min-height: 60px; }.phone-chat-header { padding-block: 4px; }.phone-chat-messages { padding-block: 8px; }.phone-chat-composer { padding-block: 4px; }

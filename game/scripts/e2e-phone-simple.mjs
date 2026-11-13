@@ -30,7 +30,7 @@ try {
   const stopped = await position(page); await page.waitForTimeout(150);
   assert.deepEqual(await position(page), stopped, 'exploration stops while the phone is open');
   assert.equal(await page.locator('.smartphone-app').count(), 5);
-  assert.equal(await page.locator('[data-app="messages"] .smartphone-badge').innerText(), '1');
+  assert.equal(await page.locator('[data-app="messages"] .smartphone-badge').innerText(), '2');
   assert.equal(await page.locator('[data-app="messages"]').evaluate(node => node === document.activeElement), true);
   await page.keyboard.press('ArrowRight');
   assert.equal(await page.locator('[data-app="web"]').evaluate(node => node === document.activeElement), true);
@@ -67,8 +67,9 @@ try {
   assert.equal(await touch.locator('.smartphone-usage-title').innerText(), '通信残量');
   await touch.locator('#phone-home').tap();
   await touch.locator('[data-app="messages"]').tap();
-  await touch.locator('[data-screen="example"]').tap();
-  assert.equal(await touch.locator('.smartphone-view-title').innerText(), 'サンプルのおたより');
+  assert.ok(await touch.locator('[data-chat-thread]').count() >= 3);
+  await touch.locator('[data-chat-thread]').first().tap();
+  assert.equal(await touch.locator('.phone-chat-conversation-name').innerText(), '友だち');
   await touch.locator('#phone-close').tap();
   assert.deepEqual(await position(touch), before);
   await touch.setViewportSize({ width: 844, height: 390 });
