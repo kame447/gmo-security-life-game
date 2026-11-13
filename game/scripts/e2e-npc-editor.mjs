@@ -124,6 +124,8 @@ try {
   const edited = applied.interactions.find(item => item.id === 'demo-npc');
   assert.deepEqual({ name: edited.name, x: edited.x, y: edited.y, eventKey: edited.eventKey },
     { name: '編集後のサンプル', x: 5, y: 4, eventKey: 'demo.greeting' });
+  // Disconnect the Vite client before restarting; otherwise its HMR reconnect logs an expected error.
+  await page.goto('about:blank');
   await stopServer(); await startServer();
   await page.goto(`${base}editor.html`);
   await page.locator('[data-id="demo-npc"]').click();
