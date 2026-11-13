@@ -15,7 +15,7 @@ function fail(path: string, code: string, message: string): never {
 }
 
 /** The backend validates all common shape, ID, collision, bounds and reference rules. */
-function validateNpc(npc: EditorInteraction): void {
+export function validateNpc(npc: EditorInteraction): void {
   if (!npc || typeof npc !== 'object' || Array.isArray(npc) || npc.kind !== 'npc') {
     fail('interaction.kind', 'npc-kind', 'Expected an NPC interaction');
   }

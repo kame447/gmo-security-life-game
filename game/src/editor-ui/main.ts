@@ -4,6 +4,7 @@ import { isSolidGround } from '../world/tiles.ts';
 import type { EditOperation, EditorArea, EditorEntity, EditorTable } from '../editor/index.ts';
 import { createEditorBackend } from './backend.ts';
 import { EditorModel, type Selection } from './model.ts';
+import { NpcPanel } from './npc/panel.ts';
 
 const model = new EditorModel(createEditorBackend(JSON.parse(source)));
 const $ = <T extends Element>(selector: string): T => {
@@ -23,6 +24,7 @@ const undo = $<HTMLButtonElement>('#undo');
 const redo = $<HTMLButtonElement>('#redo');
 const download = $<HTMLButtonElement>('#download');
 const labels: Record<EditorTable, string> = { areas: 'エリア', facilities: '施設', objects: '配置物', interactions: '調査対象', portals: '出入口' };
+const npcPanel = new NpcPanel(model, () => render(), () => renderControls(), () => renderGrid());
 
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string): HTMLElementTagNameMap[K] {
   const element = document.createElement(tag);
@@ -90,14 +92,20 @@ function renderGrid(): void {
   d.objects.filter(item => item.areaId === area.id).forEach(o => draw('objects', o.id, o.x, o.y, o.w, o.h, '#5f9271', '物'));
   d.interactions.filter(item => item.areaId === area.id).forEach(i => draw('interactions', i.id, i.x, i.y, i.w ?? 1, i.h ?? 1, '#c58d48', '話'));
   d.portals.filter(item => item.areaId === area.id).forEach(p => draw('portals', p.id, p.from.x, p.from.y, p.from.w ?? 1, 1, '#6e91bd', '↗'));
+  const preview = npcPanel.placementPreview;
+  if (preview?.areaId === area.id) {
+    c.save(); c.setLineDash([6, 4]); c.lineWidth = 3; c.strokeStyle = '#7042a0';
+    c.strokeRect(preview.x * cell + 2, preview.y * cell + 2, preview.w * cell - 4, preview.h * cell - 4); c.restore();
+  }
 }
 
 function renderInspector(): void {
   const draft = model.draft;
-  form.hidden = !draft; $('#empty-inspector').toggleAttribute('hidden', !!draft);
+  const npcActive = npcPanel.render();
+  form.hidden = !draft || npcActive; $('#empty-inspector').toggleAttribute('hidden', !!draft);
   $('#draft-kind').textContent = draft ? labels[draft.table] : '';
   $('#selected-caption').textContent = draft ? `${draft.id === null ? '新規' : '選択中'}：${labels[draft.table]} / ${draft.id ?? '未保存'}` : '一覧またはグリッドから対象を選択してください。';
-  if (!draft) return;
+  if (!draft || npcActive) return;
   $('#draft-description').textContent = draft.id === null ? '新規データを入力して反映してください。' : `ID: ${draft.id}`;
   json.value = draft.text; xInput.value = draft.x; yInput.value = draft.y;
   $('#coordinates').toggleAttribute('hidden', !draft.positioned);
@@ -137,6 +145,7 @@ function renderControls(): void {
   $<HTMLButtonElement>('#apply').disabled = !model.pending;
   $<HTMLButtonElement>('#cancel-draft').disabled = !model.pending && model.issues.length === 0;
   $<HTMLButtonElement>('#delete').disabled = model.pending;
+  npcPanel.updateControls();
   $('#export-hint').textContent = model.pending ? '未反映の入力を反映または取り消してください。' : model.issues.length ? '検証エラーを解消してください。' : model.changes.operations.length ? '検証済みの差分を書き出せます。' : '変更を反映すると書き出せます。';
 }
 function render(): void { renderList(); renderGrid(); renderInspector(); renderValidation(); renderChanges(); renderControls(); }
@@ -158,7 +167,7 @@ for (const [element, key] of [[json, 'text'], [xInput, 'x'], [yInput, 'y']] as c
   if (model.draft) model.draft[key] = element.value;
   renderControls();
 });
-form.addEventListener('submit', event => { event.preventDefault(); model.applyDraft(); render(); });
+form.addEventListener('submit', event => { event.preventDefault(); npcPanel.applyCurrentDraft(); render(); });
 $('#cancel-draft').addEventListener('click', () => { model.cancelDraft(); render(); });
 $('#delete').addEventListener('click', () => { model.deleteSelection(); render(); });
 undo.addEventListener('click', () => { model.history('undo'); render(); });
@@ -169,6 +178,7 @@ canvas.addEventListener('click', event => {
   const rect = canvas.getBoundingClientRect();
   const x = Math.floor((event.clientX - rect.left) * canvas.width / rect.width / cell);
   const y = Math.floor((event.clientY - rect.top) * canvas.height / rect.height / cell);
+  if (npcPanel.placeAt(x, y)) return;
   const selection = hit(area, x, y);
   if (selection) select(selection);
 });
