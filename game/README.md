@@ -33,6 +33,8 @@ npm test
 
 `build` は TypeScript の型検査後に `dist/` へ出力し、`test` は Vitest を Node 環境で実行します。CI は `game/` 内で `npm ci` → `npm run build` → `npm test` を実行します。
 
+編集基盤の追加に伴い、`build` は編集用サンプルJSONも検証し、`test` はVitestの後に実CLIのNode標準テストも実行します。独立した編集データ・API・適用コマンドの利用方法は [編集データと差分適用](../docs/features/editor.md) を参照してください。
+
 ## 操作
 
 | 操作 | キー・画面上の操作 |
@@ -71,6 +73,10 @@ npm test
 | `src/core/coords.ts` | タイル・チャンク・ピクセルの変換と向き |
 | `src/core/appearance.ts` | 外見の選択肢・既定値・項目ごとの検証・キャッシュキー |
 | `src/world/` | マップの構造化データ（`town.ts`・`interiors.ts`）、目印と開始地点（`landmarks.ts`）、実行時索引（`runtime.ts`）、経路探索（`path.ts`）、検証（`validate.ts`）、組み立て（`index.ts`） |
+| `src/editor/` | 独立した編集用データ契約・検証・差分・Undo/Redo・Worldへの変換（GUI非依存） |
+| `src/editor-ui/map/` | マップの参照表示、ズーム／パン、ドラッグ、配置プロパティと関連出入口の一括移動（#24） |
+| `data/editor-prototype.json` | 編集基盤の確認用サンプル。通常ゲームの町・NPC定義とは独立 |
+| `scripts/editor.mjs` | 編集用JSONの検証、差分出力、適用前確認、安全な永続適用（Node.js 24） |
 | `src/map/` | 移動・衝突・出入口の遷移・調査対象の判定と通知（DOM 非依存） |
 | `src/events/` | 会話の進行状態（DOM 非依存） |
 | `src/state/` | 保存データの形式と検証（DOM 非依存） |
@@ -113,7 +119,9 @@ npm test
 npm run test:e2e
 ```
 
-事前にPlaywrightのChromiumが利用でき、ヘッドレスブラウザを起動できる環境が必要です。今回の Codex サンドボックス内では `MachPort Permission denied` により起動できず、ブラウザ実行は別の実行環境で行います。これは `npm test` や今回追加したCIジョブには含みません。
+事前にPlaywrightのChromiumが利用でき、ヘッドレスブラウザを起動できる環境が必要です。今回の Codex サンドボックス内では `MachPort Permission denied` により起動できず、ブラウザ実行は別の実行環境で行います。`npm test` には含まれません。
+
+CI では別 workflow `Browser E2E` が、`game/**` またはその workflow の変更を含む PR と main への push で Ubuntu 上の headless Chromium を使います。Vite を `127.0.0.1:5173` で起動し、`scripts/e2e.mjs` と存在する `scripts/e2e-*.mjs` を順に実行します。エディタの自己起動サーバーは 5186 番です。失敗時を含めログと `SLG_SHOTS` の画像を artifact に保存し、一つでも失敗するとジョブは失敗します。性能計測 `perf.mjs` は含みません。実行時間やランナー上での安定性は [判断記録 0010](../docs/decisions/0010-ci-headless-e2e.md) の提案／要検証です。
 
 `SLG_URL` で検証先URL、`SLG_SHOTS` でスクリーンショット保存先を指定できます。ブラウザを別の場所へインストールした場合は `PLAYWRIGHT_BROWSERS_PATH` をそのディレクトリに合わせます。
 
@@ -134,7 +142,7 @@ PLAYWRIGHT_BROWSERS_PATH=/private/tmp/slg-browsers SLG_OUT=/private/tmp/slg-perf
 
 `SLG_OUT` を指定すると `perf-result.json`・動画・連続画像を保存し、各シナリオ終了時にも `scenario-result.json` を保存します。指定しなければファイルは保存しません。`SLG_URL`、`SLG_VIEWPORT`（例 `1280x720`）、`SLG_DPR`、`SLG_MACHINE` で検証先と環境を指定できます。`SLG_CHANNEL=chrome` はインストール済みChrome、`SLG_EXECUTABLE` は別のブラウザ実行ファイルを指定します。`npm run test:perf -- --matrix` はChromium／Chromeと1280×720／640×360の組み合わせを実行するため、両ブラウザが必要です。
 
-両スクリプトは最後に `SUMMARY` 行を出力します。性能検査は連続性違反や候補の速度許容差超過で失敗し、フレーム時間だけの超過や1フレーム16px超の移動は警告として扱います。`test:perf` も今回のCIジョブには含めません。
+両スクリプトは最後に `SUMMARY` 行を出力します。性能検査は連続性違反や候補の速度許容差超過で失敗し、フレーム時間だけの超過や1フレーム16px超の移動は警告として扱います。`test:perf` は CI に含めません。
 
 ## 実装範囲
 
@@ -226,3 +234,34 @@ GPU指定は `--enable-gpu --use-angle=metal`、フレーム制限解除は `--d
 地面・建物・小物・NPC・主人公のスプライトはすべてコード生成で、第三者素材は使用していません。主人公の配色は既存の [男の子の基本画像](../assets/images/characters/player/base/boy-base-child.png) を参考にしていますが、この画像ファイルも読み込みません。ゲームエンジンを含むランタイム依存パッケージはありません。
 
 全体の合意事項と未決定事項は [マップと探索](../docs/features/map.md) を参照してください。
+
+## サンプルエディタ（提案／要検証）
+
+Issue #23 の小さな編集画面です。対象は `data/editor-prototype.json` の暫定サンプルだけで、既存の町・NPC は読み込まず、変更しません。エリア・対象一覧、独自のグリッド、対象の JSON と座標欄を使って追加・移動・更新・削除を試せます。専用のマップ編集や NPC フォームは後続の Issue #24・#25 の対象です。
+
+`game/` で以下を実行し、`http://127.0.0.1:5186/editor.html` を開きます。通常のゲームの入口は `/` のままです。
+
+```sh
+npm run dev -- --port 5186 --strictPort
+```
+
+1. エリアと対象を一覧またはグリッドから選び、座標や JSON を編集して「編集を反映」を押します。新規対象は種類を選び「追加」を押してから入力します。既存の ID は変更できません。
+2. 問題があれば検証欄に表示されます。入力中・エラー中は書き出せないため、反映するか「入力を取り消す」で戻してください。未反映の入力がある間は別の対象へ移れません。
+3. 「変更のプレビュー」で読み込み時からの追加・移動・更新・削除の前後を確認し、「差分 JSON をダウンロード」で保存します。ボタンまたは Ctrl / ⌘ + Z、Ctrl / ⌘ + Shift + Z（Ctrl + Y も可）で Undo / Redo できます。テキスト入力中のショートカットはブラウザ側の入力操作です。
+4. `game/` の別ターミナルで以下を実行します。パスはダウンロードしたファイルに置き換えてください。`preview` は変更せずに内容を確認し、`apply` は検証後に `data/editor-prototype.json` だけを書き換えます。データが読み込み時から変わっている場合は適用できないので、再読込して編集し直します。
+
+   ```sh
+   node scripts/editor.mjs preview /path/to/editor-changes.json
+   node scripts/editor.mjs apply /path/to/editor-changes.json
+   git diff -- data/editor-prototype.json
+   ```
+
+5. 開発サーバーを再起動し、エディタを再読込して変更を確認します。「適用済みサンプルでゲームを開く」または `/editor-preview.html` で、適用したサンプルを使うゲームを起動できます。ビルド済み配信を使う場合は、適用後に `npm run build` を再実行します。
+
+編集内容は画面内だけの一時状態です。リポジトリへの反映は手動の適用コマンドで行い、再読込・画面移動前に必要な差分を書き出してください。試作の操作方法・グリッド表示・サンプルデータは提案／要検証です。
+
+ブラウザ E2E は Node.js 24、インストール済みの Playwright Chromium、およびポート 5186 の空きが必要です。次のコマンドは一時コピーにサーバーを立て、GUI からの差分書き出し・CLI 適用・再読込・サンプルゲーム起動と通常ゲームを検証します。元のサンプルファイルは変更しません。`SLG_EDITOR_PORT` で別の空きポートを指定できます。
+
+```sh
+node scripts/e2e-editor.mjs
+```

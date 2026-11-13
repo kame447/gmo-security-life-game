@@ -6,12 +6,13 @@
   "description": "幼少期マップ探索プロトタイプ（Issue #7）。TypeScript + Canvas 2D。",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "node scripts/editor.mjs validate && tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run && node --test tests/editor-cli.test.mjs",
     "typecheck": "tsc --noEmit",
     "test:e2e": "node scripts/e2e.mjs",
-    "test:perf": "node scripts/perf.mjs"
+    "test:perf": "node scripts/perf.mjs",
+    "editor": "node scripts/editor.mjs"
   },
   "devDependencies": {
     "playwright": "^1.65.0",

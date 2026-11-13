@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "id": "audit-corridor",
+  "tileSize": 16,
+  "start": {
+    "areaId": "corridor",
+    "x": 1,
+    "y": 1,
+    "facing": "right"
+  },
+  "catalogs": {
+    "sprites": [
+      "friend"
+    ],
+    "eventKeys": [
+      "demo.greeting"
+    ]
+  },
+  "areas": [
+    {
+      "id": "corridor",
+      "name": "Corridor",
+      "kind": "indoor",
+      "width": 7,
+      "height": 3,
+      "ground": [
+        22,
+        22,
+        22,
+        22,
+        22,
+        22,
+        22,
+        22,
+        19,
+        19,
+        19,
+        19,
+        19,
+        22,
+        22,
+        22,
+        22,
+        22,
+        22,
+        22,
+        22
+      ]
+    },
+    {
+      "id": "room",
+      "name": "Room",
+      "kind": "indoor",
+      "width": 4,
+      "height": 3,
+      "ground": [
+        22,
+        22,
+        22,
+        22,
+        22,
+        19,
+        19,
+        22,
+        22,
+        22,
+        22,
+        22
+      ]
+    }
+  ],
+  "facilities": [],
+  "objects": [],
+  "interactions": [
+    {
+      "id": "far-npc",
+      "areaId": "corridor",
+      "kind": "npc",
+      "name": "NPC",
+      "x": 5,
+      "y": 1,
+      "solid": true,
+      "sprite": "friend",
+      "facing": "left",
+      "eventKey": "demo.greeting",
+      "lines": [
+        "hello"
+      ]
+    }
+  ],
+  "portals": [
+    {
+      "id": "enter-room",
+      "areaId": "corridor",
+      "from": {
+        "x": 2,
+        "y": 1
+      },
+      "to": {
+        "areaId": "room",
+        "x": 1,
+        "y": 1,
+        "facing": "right"
+      },
+      "returnPortalId": "exit-room"
+    },
+    {
+      "id": "exit-room",
+      "areaId": "room",
+      "from": {
+        "x": 2,
+        "y": 1
+      },
+      "to": {
+        "areaId": "corridor",
+        "x": 1,
+        "y": 1,
+        "facing": "right"
+      },
+      "returnPortalId": "enter-room"
+    }
+  ]
+}
