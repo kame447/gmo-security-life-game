@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "node scripts/editor.mjs validate && tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run && node --test tests/editor-cli.test.mjs",
+    "test": "vitest run && node --test tests/editor-cli.test.mjs tests/editor-npc-cli.test.mjs",
     "typecheck": "tsc --noEmit",
     "test:e2e": "node scripts/e2e.mjs",
     "test:perf": "node scripts/perf.mjs",
