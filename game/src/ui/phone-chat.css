@@ -1,0 +1,31 @@
+.phone-chat-list { padding: 18px 14px 24px; }
+.phone-chat-title { margin: 0 0 14px 4px; color: #18222c; font-size: 23px; }
+.phone-chat-row { width: 100%; min-height: 70px; display: flex; align-items: center; gap: 10px; padding: 9px 4px; border: 0; border-bottom: 1px solid #e4e8eb; background: transparent; color: #202832; text-align: left; }
+.phone-chat-row.is-selected, .phone-chat-row:focus-visible { outline: 3px solid #558dd3; outline-offset: -2px; border-radius: 10px; }
+.phone-chat-avatar { flex: none; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; color: #fff; font-size: 19px; font-weight: 700; }
+.phone-chat-avatar-mint { background: #60a892; }.phone-chat-avatar-blue { background: #719cc5; }.phone-chat-avatar-peach { background: #d29b7b; }.phone-chat-avatar-lilac { background: #9a88bd; }
+.phone-chat-summary { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.phone-chat-name { overflow: hidden; color: #202832; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.phone-chat-preview { overflow: hidden; color: #75808b; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.phone-chat-meta { align-self: stretch; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 5px; }
+.phone-chat-time, .phone-chat-message-time { color: #84909c; font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.phone-chat-unread { min-width: 19px; height: 19px; display: grid; place-items: center; box-sizing: border-box; padding: 0 4px; border-radius: 12px; background: #e55b62; color: #fff; font: 700 10px/1 system-ui, sans-serif; }
+.smartphone-body.chat-thread-open { display: flex; flex-direction: column; overflow: hidden; }
+.phone-chat-conversation { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.phone-chat-header { flex: none; display: flex; align-items: center; gap: 9px; padding: 8px 15px 10px; background: #f4f5f7; }
+.phone-chat-header .phone-chat-avatar { width: 32px; height: 32px; font-size: 14px; }
+.phone-chat-conversation-name { overflow: hidden; margin: 0; color: #18222c; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.phone-chat-messages { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; padding: 16px 14px; background: #e4ecf1; }
+.phone-chat-message { display: flex; align-items: flex-end; gap: 5px; margin-bottom: 12px; }
+.phone-chat-message.is-outgoing { flex-direction: row-reverse; }
+.phone-chat-bubble { max-width: 75%; padding: 9px 12px; border-radius: 14px 14px 14px 4px; background: #fff; color: #202832; font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; white-space: pre-wrap; }
+.phone-chat-message.is-outgoing .phone-chat-bubble { border-radius: 14px 14px 4px 14px; background: #9edc9a; }
+.phone-chat-composer { flex: none; display: flex; align-items: center; gap: 8px; padding: 9px 10px; background: #f4f5f7; }
+.phone-chat-input { flex: 1; min-width: 0; min-height: 42px; box-sizing: border-box; padding: 8px 12px; border: 1px solid #d4dce2; border-radius: 22px; background: #fff; color: #202832; font: inherit; font-size: 13px; user-select: text; -webkit-user-select: text; touch-action: manipulation; }
+.phone-chat-input:focus-visible { outline: 2px solid #558dd3; }
+.phone-chat-send { flex: none; min-width: 44px; min-height: 44px; padding: 0 9px; border: 0; border-radius: 22px; background: #42a879; color: #fff; font-size: 12px; font-weight: 700; }
+.phone-chat-send:disabled { background: #b5c3bb; }.phone-chat-send:focus-visible { outline: 3px solid #558dd3; }
+@media (max-height: 600px) {
+  .phone-chat-list { padding-top: 5px; }.phone-chat-title { margin-bottom: 5px; font-size: 19px; }
+  .phone-chat-row { min-height: 60px; }.phone-chat-header { padding-block: 4px; }.phone-chat-messages { padding-block: 8px; }.phone-chat-composer { padding-block: 4px; }
+}
