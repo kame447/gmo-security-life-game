@@ -1,0 +1,268 @@
+{
+  "checked_date": "2026-11-14 JST",
+  "pillow_version": "13.0.0",
+  "assets": [
+    {
+      "file": "opening-a-street.png",
+      "size": [
+        480,
+        270
+      ],
+      "rgba_color_count": 48,
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 115259,
+      "sha256": "d3b3b454bdc9ead3774f27843d0ff584c3aa564ea303e675ad4de1f722adbf4c",
+      "original_file": "opening-a-street-original.png",
+      "original_size": [
+        1672,
+        941
+      ],
+      "original_bytes": 1717580,
+      "original_sha256": "7b6bff2f6278a0ca71ca3adf75949c929157194e67df6e28f4718cd4c6d70294"
+    },
+    {
+      "file": "opening-a-pit.png",
+      "size": [
+        160,
+        112
+      ],
+      "rgba_color_count": 47,
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 16331,
+      "sha256": "6cec988a12ce55e224f248fb06859de9c121e9ff21a49f075c42fb4c060c6752",
+      "original_file": "opening-a-pit-original.png",
+      "original_size": [
+        1451,
+        1084
+      ],
+      "original_bytes": 1162867,
+      "original_sha256": "2a04805a06bd15c6a1ca0d747154173ef264aa239b35de477b1c06faafe050d7"
+    },
+    {
+      "file": "opening-a-wings.png",
+      "size": [
+        128,
+        32
+      ],
+      "rgba_color_count": 47,
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 3566,
+      "sha256": "e51e9249dc39f37d6ee9bdba007bccb6917ea0c98951b9c9d8fe4ecd0649a6dc",
+      "original_file": "opening-a-wings-original.png",
+      "original_size": [
+        2172,
+        724
+      ],
+      "original_bytes": 473839,
+      "original_sha256": "f7f6988561ef8ee47af40f8e35981a8f8bf1c4671ec71067c83aec9819d64b66"
+    },
+    {
+      "file": "opening-b-sky.png",
+      "size": [
+        480,
+        270
+      ],
+      "rgba_color_count": 48,
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 86209,
+      "sha256": "e34b17cb65a227500216f55d42f321a8d281da55690b385645e65d0121fe55e4",
+      "original_file": "opening-b-sky-original.png",
+      "original_size": [
+        1672,
+        941
+      ],
+      "original_bytes": 1134808,
+      "original_sha256": "e20795b78d1df814fbbeb64eb9df73c61f11676b96dee8a1025fb47a900dd193",
+      "left_right_edge_equal": true
+    },
+    {
+      "file": "opening-b-far.png",
+      "size": [
+        960,
+        150
+      ],
+      "rgba_color_count": 44,
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 40577,
+      "sha256": "25d067a3240a273e5faf71fe62389453ef6e6c461edef352429a8348c4fc0b3e",
+      "original_file": "opening-b-far-original.png",
+      "original_size": [
+        2172,
+        724
+      ],
+      "original_bytes": 389712,
+      "original_sha256": "7459ae4eb809bf2261a09e9eeeac255e3fdd44a8d0797fe1d6d45a002dabe75e",
+      "left_right_edge_equal": true
+    },
+    {
+      "file": "opening-b-near.png",
+      "size": [
+        960,
+        170
+      ],
+      "rgba_color_count": 47,
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 91108,
+      "sha256": "d9fc149f2dcc68b2c859319dd7c7a3731066983c92ee072887ed1532d96d251a",
+      "original_file": "opening-b-near-original.png",
+      "original_size": [
+        2172,
+        724
+      ],
+      "original_bytes": 1289638,
+      "original_sha256": "c3272e6d4121a3605a44dbd9a953994a40f6d48286c60a6d9a9e4c808634e486",
+      "left_right_edge_equal": true
+    },
+    {
+      "file": "opening-b-ground.png",
+      "size": [
+        96,
+        64
+      ],
+      "rgba_color_count": 48,
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 6549,
+      "sha256": "b879e307df45329be2a595dcc6f6e7ae13492114379ae560ed103d8172e43fcd",
+      "original_file": "opening-b-ground-original.png",
+      "original_size": [
+        1536,
+        1024
+      ],
+      "original_bytes": 1055689,
+      "original_sha256": "a442ff1476bcf9406934abbfe9cac7998a7a9e34e68f30430c7a9730a60ab3d9",
+      "left_right_edge_equal": true
+    },
+    {
+      "file": "opening-b-pit.png",
+      "size": [
+        64,
+        48
+      ],
+      "rgba_color_count": 45,
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 2208,
+      "sha256": "d0e312cfd8c576af9367550b7b641c175909594dce66ac43af496bd6110a548e",
+      "original_file": "opening-b-pit-original.png",
+      "original_size": [
+        1448,
+        1086
+      ],
+      "original_bytes": 437839,
+      "original_sha256": "300d27549c0e3cf40f209e95931b9e52c31d37729d5e727fd32bfe5633bfc167"
+    },
+    {
+      "file": "opening-c-pitwall.png",
+      "size": [
+        480,
+        480
+      ],
+      "rgba_color_count": 48,
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 174722,
+      "sha256": "facd391c7c2fc2203a3c054b10e223b6224d588c3b4e1a44213ebb629a95af50",
+      "original_file": "opening-c-pitwall-original.png",
+      "original_size": [
+        1254,
+        1254
+      ],
+      "original_bytes": 1975267,
+      "original_sha256": "b35991652c386748f459c6a804a5004cba3fba7590e860c727be51345a8eb4ea",
+      "mouth_transparent_bbox": [
+        157,
+        160,
+        313,
+        320
+      ]
+    },
+    {
+      "file": "opening-c-sky.png",
+      "size": [
+        480,
+        270
+      ],
+      "rgba_color_count": 48,
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 108259,
+      "sha256": "27be65aada7663ba8b070f31bcc7e40d9e9f8d368976a6efd9b74df090e4ccf7",
+      "original_file": "opening-c-sky-original.png",
+      "original_size": [
+        1672,
+        941
+      ],
+      "original_bytes": 1200429,
+      "original_sha256": "4a15a2be1cfb6917adbeaf9e1d6cc5d5a0efc5bd41a0b44e5ab6efbcb079076e"
+    },
+    {
+      "file": "opening-c-town.png",
+      "size": [
+        480,
+        270
+      ],
+      "rgba_color_count": 48,
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 101009,
+      "sha256": "bef8568fcb2a4dfc77052a713e29d3a4efbb0434ddc121b5c7a2a7769a663422",
+      "original_file": "opening-c-town-original.png",
+      "original_size": [
+        1672,
+        941
+      ],
+      "original_bytes": 1976020,
+      "original_sha256": "a0f5335b319e15416caf6e8c1f5e27823f10eec08e3171e1c4c5ce98ee81ce2c"
+    },
+    {
+      "file": "opening-dust.png",
+      "size": [
+        96,
+        24
+      ],
+      "rgba_color_count": 38,
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 1268,
+      "sha256": "167a5bc829b743830f145823d6f03e24aa1d6e95152d95d5d10c4a016d4a8395",
+      "original_file": "opening-dust-original.png",
+      "original_size": [
+        2172,
+        724
+      ],
+      "original_bytes": 339957,
+      "original_sha256": "be16080d4eb89148c3251ebaa41fdfd1425815f40e773ac327ad5a466c84f8ee"
+    }
+  ]
+}
