@@ -3,8 +3,10 @@ export type Json = null | boolean | number | string | Json[] | { [key: string]: 
 export type GameData = { [key: string]: Json } & { v: number };
 export const ENVELOPE_VERSION = 1;
 export const GAME_VERSION = 1;
-/** Proposal, not an agreed gameplay limit. Leaves room in a DynamoDB item. */
+/** UTF-8 game data limit; proposal, not an agreed gameplay limit. */
 export const MAX_SAVE_BYTES = 128 * 1024;
+/** Shared request/envelope bound, with room for all validated metadata. */
+export const MAX_SAVE_WIRE_BYTES = MAX_SAVE_BYTES + 1024;
 export const LEGACY_SAVE_KEY = 'slg-map-save-v1';
 
 export interface SaveEnvelope {
@@ -106,7 +108,7 @@ export function parseGameData(value: unknown, currentVersion = GAME_VERSION): Ga
   return copy(value) as GameData;
 }
 export function parseEnvelope(value: unknown, expectedSlot?: string): SaveEnvelope {
-  jsonText(value);
+  jsonText(value, MAX_SAVE_WIRE_BYTES);
   if (!object(value)) throw new SaveError('INVALID_REQUEST');
   if (!revision(value.schemaVersion) || value.schemaVersion === 0) throw new SaveError('INVALID_REQUEST');
   if (value.schemaVersion !== ENVELOPE_VERSION) throw new SaveError('UNSUPPORTED_VERSION');
@@ -116,8 +118,7 @@ export function parseEnvelope(value: unknown, expectedSlot?: string): SaveEnvelo
   return copy(value) as unknown as SaveEnvelope;
 }
 export function parseWriteRequest(value: unknown): WriteSaveRequest {
-  // Envelope metadata adds a little overhead to the payload bound.
-  jsonText(value, MAX_SAVE_BYTES + 1024);
+  jsonText(value, MAX_SAVE_WIRE_BYTES);
   if (!object(value)) throw new SaveError('INVALID_REQUEST');
   if (!revision(value.schemaVersion) || value.schemaVersion === 0) throw new SaveError('INVALID_REQUEST');
   if (value.schemaVersion !== ENVELOPE_VERSION) throw new SaveError('UNSUPPORTED_VERSION');

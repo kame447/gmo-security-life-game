@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { copy, errorResponse, LocalSaveJournal, MAX_PENDING, MemorySaveStorage, SaveRepository, SaveService,
+import { copy, errorResponse, LocalSaveJournal, MAX_PENDING, MAX_SAVE_BYTES, MemorySaveStorage, SaveRepository, SaveService,
   type GameData, type HttpResponse, type KeyValueStorage, type SaveEnvelope, type SaveRemote, type WriteSaveRequest } from '../src/save-api';
 
 const now = '2026-11-13T20:30:00.000Z';
@@ -48,6 +48,27 @@ describe('save-api local-first repository', () => {
     for (let i = 0; i < 61; i++) nested = [nested];
     const raw = { v: 1, nested };
     expect(await s.repository.save(raw)).toMatchObject({ data: raw, pendingCount: 0, durable: true, confirmed: { revision: 1 } });
+  });
+  it('does not strand a near-limit save at the head of the pending queue', async () => {
+    const s = setup();
+    const first = await s.repository.save({ v: 1, text: 'x'.repeat(131000) });
+    expect(first.problem).toBeUndefined(); expect(first.pendingCount).toBe(0);
+    const next = await s.repository.save(data());
+    expect(next.problem).toBeUndefined(); expect(next.pendingCount).toBe(0);
+    expect((await s.repository.sync()).confirmed?.revision).toBe(2);
+    expect((await s.service.read(owner, 'auto')).body).toMatchObject({ save: { revision: 2, data: data() } });
+  });
+  it('sends exactly the data limit, rejects one byte more before enqueue, and keeps saving', async () => {
+    const s = setup();
+    const overhead = new TextEncoder().encode(JSON.stringify({ v: 1, text: '' })).length;
+    const text = 'x'.repeat(MAX_SAVE_BYTES - overhead);
+    const exact = await s.repository.save({ v: 1, text });
+    expect(exact.problem).toBeUndefined(); expect(exact.pendingCount).toBe(0);
+    const oversized = await s.repository.save({ v: 1, text: text + 'x' });
+    expect(oversized.problem).toBe('TOO_LARGE'); expect(oversized.pendingCount).toBe(0);
+    expect(oversized.confirmed?.revision).toBe(1);
+    expect((await s.repository.save(data())).confirmed?.revision).toBe(2);
+    expect((await s.repository.sync()).pendingCount).toBe(0);
   });
   it.each([
     ['network', () => Promise.reject(Error('offline')), 'NETWORK'],

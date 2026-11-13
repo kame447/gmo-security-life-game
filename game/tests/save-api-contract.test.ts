@@ -58,6 +58,25 @@ describe('save-api envelope and legacy migration', () => {
       .toThrow(expect.objectContaining({ code: 'TOO_LARGE' }));
     expect(jsonText('x'.repeat(MAX_SAVE_BYTES - 2))).toHaveLength(MAX_SAVE_BYTES);
   });
+  it.each(['x', '界'])('uses the same exact UTF-8 data bound inside requests and envelopes (%s)', unit => {
+    const overhead = new TextEncoder().encode(JSON.stringify({ v: 1, text: '' })).length;
+    const width = new TextEncoder().encode(unit).length;
+    const available = MAX_SAVE_BYTES - overhead;
+    const text = unit.repeat(Math.floor(available / width)) + 'x'.repeat(available % width);
+    const data = { v: 1, text };
+    expect(new TextEncoder().encode(JSON.stringify(data)).length).toBe(MAX_SAVE_BYTES);
+    const request = { schemaVersion: 1, expectedRevision: Number.MAX_SAFE_INTEGER - 1,
+      idempotencyKey: 'k'.repeat(128), data };
+    const envelope = { schemaVersion: 1, slotId: 's'.repeat(32), revision: Number.MAX_SAFE_INTEGER,
+      updatedAt: now, data };
+    expect(parseWriteRequest(request).data).toEqual(data);
+    expect(parseEnvelope(envelope).data).toEqual(data);
+    const oversized = { v: 1, text: text + 'x' };
+    for (const parse of [() => parseGameData(oversized), () => parseWriteRequest({ ...request, data: oversized }),
+      () => parseEnvelope({ ...envelope, data: oversized })]) {
+      expect(parse).toThrow(expect.objectContaining({ code: 'TOO_LARGE' }));
+    }
+  });
   it.each([undefined, { v: 1, bad: undefined }, { v: 1, bad: NaN }, { v: 1, bad: Infinity },
     { v: 1, bad: BigInt(1) }, { v: 1, bad: new Date() }, { v: 1, bad: () => 1 }])('rejects lossy non-JSON input %s', raw => {
     expect(() => parseGameData(raw)).toThrow(SaveError);
