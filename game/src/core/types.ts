@@ -11,6 +11,7 @@ export type AgeStage = 'childhood' | 'student' | 'adult' | 'middle' | 'senior';
 
 export type FacilityInterior = 'full' | 'interaction' | 'background';
 export type FacilityState = 'open' | 'closed';
+export type FacilityKind = 'home' | 'school' | 'gym' | 'station' | 'park' | 'greengrocer' | 'bookstore' | 'candy' | 'konbini' | 'bakery' | 'cafe' | 'pharmacy';
 
 export interface FacilityDef {
   id: string;
@@ -18,6 +19,8 @@ export interface FacilityDef {
   areaId: string;
   interior: FacilityInterior;
   state: FacilityState;
+  /** Semantic map symbol. Optional for existing editor documents without map metadata. */
+  kind?: FacilityKind;
 }
 
 /** 街区（エリア内の区画）。HUD の現在地表示と将来のチャンク分割単位に使う。 */
