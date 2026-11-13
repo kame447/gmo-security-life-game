@@ -53,6 +53,8 @@ export class AvatarPanel {
   handleKey(event: KeyboardEvent): void {
     const code = event.code;
     if (!PANEL_KEYS.has(code)) return;
+    // Let the focused cancel button perform its normal click on Enter/Space.
+    if ((code === 'Enter' || code === 'Space') && event.target === $('#avatar-cancel')) return;
     event.preventDefault();
     const count = APPEARANCE_FIELDS.length;
     if (code === 'ArrowUp' || code === 'KeyW') this.selected = (this.selected + count - 1) % count;
