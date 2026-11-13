@@ -130,13 +130,27 @@
 | --- | --- | --- |
 | `home-family` | `full` | 自宅内部へ遷移（リビング・寝室・台所） |
 | `school` | `full` | 教室へ遷移。校庭は屋外エリア内 |
-| `station` | `interaction` | 駅員と改札を調べる。駅内部はなし |
+| `station` | `full` | 駅舎から構内へ入り、改札を通ってホームへ進む（Issue #35 の試作） |
 | `park` | `interaction` | 友だちと遊具を調べる。屋外エリア内 |
 | `shop-konbini` | `full` | コンビニ内部へ遷移。店員・おかし棚・のみものを調べる（売買なし） |
 | `shop-greengrocer`、`shop-bookstore`、`shop-candy`、`shop-bakery`、`shop-cafe`、`shop-pharmacy` | `interaction` | 商店街のほかの6店舗。今回の会話対象はだがし屋の店主 |
 | 施設IDなしの一般住宅・集合住宅など | 施設登録なし（背景相当） | 配置物として描画・衝突判定のみ。`background` の施設定義は今回未登録 |
 
 施設の必須／任意はゲーム全体での最終割り当てとは区別し、上表はプロトタイプの実装範囲として扱います。
+
+### 駅・線路・踏切・鉄道橋（Issue #35、試作）
+
+既存の駅入口 `station-enter`（町の28,63）から `station-main-interior`（36×18）へ入る。入口の到着位置から改札の通路を通り、ホームの歩行可能領域へ進む。ホームの端と線路は衝突で分け、駅外・構内・ホームから線路へ降りられない。出口 `station-exit` は元の駅前28,64へ下向きで戻る。既存の駅員と台詞は維持し、既存の改札対象だけを構内へ移した。
+
+町の線路は70〜73行を東西につなぐ。3つの道路交差では歩道を含めて `CROSSING` を置き、信号柱は通行を妨げない線路側へ置く。川の116〜120列は歩行できる道路橋と別の `RAIL_BRIDGE` で線路を連続させる。描画と通行判定は同じ地面タイルから生成する。踏切は通行可能な静止状態の試作である。
+
+別の街への移動（#36）とは `world/landmarks.ts` の `STATION_ACCESS` を共有する。乗車アクション位置は構内17,9・上向き、調査対象は17,8の `station-boarding` / `travel.station.board`、到着位置は17,10・下向き。いずれも線路上ではない。駅間の到達性は `validateWorld(world, { railLinks })` に明示的な有向辺を渡して検証し、自動遷移する出入口を乗車の代用にはしない。名称・座標・配色は試作値で、実画面での利用者確認前に完成扱いしない。
+
+`game/tests/rail-structure.test.ts` は駅の往復、改札の経路、全線路セルと露出した境界での歩行・走行、3踏切、鉄道橋、保存復元を検証する。実ゲームのキー操作と3サイズの撮影は、通常URLに対して次を実行する。検証用の座標代入やセーブの投入は行わない。
+
+```sh
+SLG_URL=http://127.0.0.1:5202 SLG_SHOTS=/private/tmp/slg-audit/ui-review/rail-structure/current node scripts/e2e-rail-structure.mjs
+```
 
 ### 出入口とマップ間遷移
 
