@@ -19,6 +19,8 @@ export function shopUrl(review = false) {
 export async function ready(page) {
   await page.waitForFunction(() => !!window.__slg?.game && !window.__slg.renderer.stats.fading);
 }
+/** Observe after the whole pointer gesture and its next paint; never suppress or alter events. */
+export const afterPointer = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 export async function closeShop(page) {
   for (let step = 0; step < 2 && await page.locator('#shop-panel').isVisible(); step++) await page.keyboard.press('Escape');
   await page.locator('#shop-panel').waitFor({ state: 'hidden' });
@@ -37,8 +39,10 @@ export async function seed(page, moneyYen = 2480, atLimit = false) {
 }
 export async function openClerk(page, touch = false) {
   const before = await position(page), initial = await assets(page);
-  if (touch) await page.locator('#touch button[data-act]').tap(); else await page.keyboard.press('KeyZ');
+  if (touch) { await page.locator('#touch button[data-act]').tap(); await afterPointer(page); }
+  else await page.keyboard.press('KeyZ');
   await page.locator('#shop-panel[data-phase="catalog"]').waitFor({ state: 'visible' });
+  assert.equal(await phase(page), 'catalog', 'Opening touch cannot also select/review a product');
   assert.deepEqual(await position(page), before, 'One talk action opens without movement');
   assert.deepEqual(await assets(page), initial, 'Opening never buys anything');
   assert.equal(await page.evaluate(() => window.__slg.game.dialog), null);

@@ -1,5 +1,6 @@
 import { getItemDefinition } from '../data/items';
 import { ClerkFlow } from '../shop/clerk-flow';
+import { PointerOrigin } from '../shop/pointer-origin';
 import type { ClerkContext } from '../shop/clerk-visit';
 import type { ShopAssetsPort } from '../shop/purchase';
 import './shop-panel.css';
@@ -11,6 +12,7 @@ const ACTION = new Set(['KeyZ', 'Enter', 'Space']);
 export class ShopPanel {
   private readonly root = document.createElement('section');
   private readonly rows: HTMLButtonElement[] = [];
+  private readonly pointerOrigin = new PointerOrigin<HTMLButtonElement>();
   private flow?: ClerkFlow;
 
   constructor(private readonly assets: ShopAssetsPort, private readonly onClose: () => void,
@@ -51,9 +53,16 @@ export class ShopPanel {
       <footer id="shop-conversation" class="shop-conversation" aria-label="店員の会話">
         <p class="shop-speaker"></p><p id="shop-line"></p><p id="shop-result" role="status" hidden></p>
       </footer>`;
+    document.addEventListener('pointerdown', event => {
+      const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-action]') : null;
+      this.pointerOrigin.begin(this.isOpen && button && !button.disabled && this.root.contains(button) ? button : undefined);
+    }, { capture: true });
+    document.addEventListener('pointercancel', () => this.pointerOrigin.reset(), { capture: true });
     this.root.addEventListener('click', event => {
       const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-action]') : null;
-      if (button && !button.disabled) this.command(button.dataset.action!, Number(button.dataset.index));
+      if (button && !button.disabled && this.pointerOrigin.accept(button, event.detail)) {
+        this.command(button.dataset.action!, Number(button.dataset.index));
+      }
     });
     this.root.addEventListener('focusin', event => {
       const button = event.target as HTMLButtonElement;
@@ -68,6 +77,7 @@ export class ShopPanel {
 
   open(context: ClerkContext): void {
     if (this.isOpen) return;
+    this.pointerOrigin.reset();
     this.flow = ClerkFlow.openShop(context.catalog, context.greeting, this.assets);
     this.text('#shop-title', context.catalog.name);
     this.text('.shop-speaker', context.greeting.speaker);
@@ -86,15 +96,17 @@ export class ShopPanel {
 
   close(): void {
     if (!this.isOpen) return;
+    this.pointerOrigin.reset();
     this.flow?.close(); this.root.hidden = true; this.onClose();
   }
 
   handleKey(event: KeyboardEvent): void {
     if (!this.isOpen || !this.flow) return;
-    if (event.code === 'Tab') { this.tab(event); return; }
+    if (event.code === 'Tab') { this.pointerOrigin.reset(); this.tab(event); return; }
     const directions: Record<string, number> = { ArrowUp: -1, KeyW: -1, ArrowDown: 1, KeyS: 1,
       ArrowLeft: -1, KeyA: -1, ArrowRight: 1, KeyD: 1 };
     if (!ACTION.has(event.code) && event.code !== 'Escape' && !directions[event.code]) return;
+    this.pointerOrigin.reset();
     event.preventDefault();
     if (event.repeat) return;
     if (event.code === 'Escape') {

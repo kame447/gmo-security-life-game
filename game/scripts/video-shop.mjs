@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, realpath, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
-import { assets, assertFits, observe, phase, position, ready, seed, shopUrl, VIEWPORTS } from './shop-review-helpers.mjs';
+import { assets, assertFits, observe, openClerk, phase, position, ready, seed, shopUrl, VIEWPORTS } from './shop-review-helpers.mjs';
 
 const requestedOutput = process.env.SLG_VIDEOS;
 assert.ok(requestedOutput && path.isAbsolute(requestedOutput), 'Set SLG_VIDEOS to an absolute output directory');
@@ -75,9 +75,7 @@ async function record(name, width, height) {
       await page.waitForTimeout(pauseMs);
     };
     await step('talk to the clerk', async () => {
-      if (mobile) await page.locator('#touch button[data-act]').tap();
-      else await page.keyboard.press('KeyZ');
-      await page.locator('#shop-panel[data-phase="catalog"]').waitFor({ state: 'visible' });
+      await openClerk(page, mobile);
       assert.equal(await page.evaluate(() => window.__slg.game.dialog), null);
     });
     await step('select notebook', async () => {

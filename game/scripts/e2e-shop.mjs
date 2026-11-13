@@ -73,9 +73,14 @@ try {
         if (!document.querySelector('#touch').classList.contains('on')) document.querySelector('#btn-touch').click();
       });
       const touchPosition = await position(page), touchBefore = await assets(page);
-      await openClerk(page, true); await page.locator('.shop-product').nth(1).tap(); await assertFits(page);
+      await openClerk(page, true);
+      assert.equal(await phase(page), 'catalog', 'A opens only the list, including its trailing click');
+      await page.locator('.shop-product').nth(1).tap(); await assertFits(page);
+      assert.equal(await phase(page), 'catalog', 'A separate product tap only selects it');
       assert.deepEqual(await assets(page), touchBefore);
-      await page.locator('#shop-review').tap(); await page.locator('#shop-more').tap(); await assertFits(page);
+      await page.locator('#shop-review').tap();
+      assert.equal(await phase(page), 'confirm', 'Only a separate review tap opens confirmation');
+      await page.locator('#shop-more').tap(); await assertFits(page);
       await page.locator('#shop-back').tap(); assert.deepEqual(await assets(page), touchBefore);
       await page.locator('#shop-review').tap(); await page.locator('#shop-confirm').tap();
       assert.equal(await phase(page), 'receipt'); await assertFits(page);
