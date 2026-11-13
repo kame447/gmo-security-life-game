@@ -10,6 +10,7 @@ const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) 
 const params = new URLSearchParams(location.search);
 let variant = parseVariant(params.get('v'));
 let handle: OpeningHandle | undefined;
+const explicit = { save: params.has('save'), motion: params.has('motion') };
 
 function storedSave(): boolean {
   try { return localStorage.getItem(SAVE_KEY) !== null; } catch { return false; }
@@ -29,13 +30,20 @@ for (const id of VARIANT_IDS) {
   tabs.append(b);
 }
 
+let generation = 0;
 async function start(): Promise<void> {
+  // 画像の読み込み待ち中に切り替えられても、古い再生を残さない。
+  const mine = ++generation;
   handle?.destroy();
+  handle = undefined;
   for (const b of tabs.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === variant));
-  const next = new URLSearchParams({ v: variant, save: saveToggle.checked ? '1' : '0', motion: motionToggle.checked ? 'reduce' : 'full' });
+  // 明示された設定だけを URL に残す。自動で書くと、次に開いたとき端末の設定より優先されてしまう。
+  const next = new URLSearchParams({ v: variant });
+  if (explicit.save) next.set('save', saveToggle.checked ? '1' : '0');
+  if (explicit.motion) next.set('motion', motionToggle.checked ? 'reduce' : 'full');
   history.replaceState(null, '', `?${next}`);
   status.textContent = '';
-  handle = await startOpening({
+  const started = await startOpening({
     stage: $('opening'), canvas: $<HTMLCanvasElement>('opening-view'),
     skipButton: $<HTMLButtonElement>('opening-skip'), menu: $('opening-menu'),
     variant, hasSave: saveToggle.checked, reducedMotion: motionToggle.checked,
@@ -43,6 +51,8 @@ async function start(): Promise<void> {
       status.textContent = `「${id === 'new' ? 'はじめから' : 'つづきから'}」を選択（プレビューでは本編を開始しません）`;
     },
   });
+  if (mine !== generation) { started.destroy(); return; }
+  handle = started;
   // 画像が届いていない素材は仮の絵で動く。どちらで描いているかを確認できるようにする。
   const ids = ['a-street', 'a-pit', 'a-wings', 'b-sky', 'b-far', 'b-near', 'b-ground', 'b-pit', 'c-pitwall', 'c-sky', 'c-town', 'dust'] as const;
   const code = ids.filter((id) => id.startsWith(variant) || id === 'dust').filter((id) => handle!.art.source(id) === 'code');
@@ -50,6 +60,6 @@ async function start(): Promise<void> {
 }
 
 $('pv-replay').addEventListener('click', () => handle?.replay());
-saveToggle.addEventListener('change', () => void start());
-motionToggle.addEventListener('change', () => void start());
+saveToggle.addEventListener('change', () => { explicit.save = true; void start(); });
+motionToggle.addEventListener('change', () => { explicit.motion = true; void start(); });
 void start();

@@ -44,7 +44,8 @@ export async function startOpening(o: OpeningOptions): Promise<OpeningHandle> {
     const b = document.createElement('button');
     b.type = 'button'; b.textContent = item.label; b.disabled = !item.enabled; b.dataset.id = item.id;
     b.addEventListener('click', () => { menu = { ...menu, index }; mark(); o.onSelect(item.id); });
-    b.addEventListener('pointerenter', () => { if (item.enabled) { menu = { ...menu, index }; mark(); } });
+    // 強調される項目とキーで決定される項目を一致させるため、フォーカスも移す。
+    b.addEventListener('pointerenter', () => { if (item.enabled) b.focus({ preventScroll: true }); });
     b.addEventListener('focus', () => { menu = { ...menu, index }; mark(); });
     return b;
   });
