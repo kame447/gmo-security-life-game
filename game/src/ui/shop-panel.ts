@@ -1,6 +1,7 @@
 /** 買い物の表示とクリック・キー操作。状態遷移と資産の更新は ShopFlow に任せる。 */
 import { getItemDefinition } from '../data/items';
 import type { ShopDefinition } from '../data/shops';
+import { ACTION_KEYS, DIRECTION_KEYS } from '../input/controls';
 import { ShopFlow } from '../shop/flow';
 import { handleShopKey } from '../shop/input';
 import type { ShopAssetsPort } from '../shop/purchase';
@@ -37,6 +38,11 @@ export class ShopPanel {
       button.type = 'button';
       button.dataset.itemId = offer.itemId;
       button.textContent = `${getItemDefinition(offer.itemId)?.name ?? offer.itemId}　${offer.priceYen}円`;
+      button.addEventListener('focus', () => {
+        if (this.flow?.phase !== 'browse') return;
+        this.flow.move(index - this.flow.selectedIndex);
+        this.render();
+      });
       button.addEventListener('click', () => { this.flow?.select(index); this.render(); });
       return button;
     });
@@ -75,9 +81,17 @@ export class ShopPanel {
       buttons[next]?.focus();
       return;
     }
+    // Action keys activate the focused button, including cancel and close.
+    const focused = document.activeElement;
+    if (ACTION_KEYS.has(event.code) && focused instanceof HTMLButtonElement && this.panel.contains(focused)) {
+      event.preventDefault();
+      if (!event.repeat) focused.click();
+      return;
+    }
     const before = this.flow.phase;
     if (!handleShopKey(this.flow, event.code, event.repeat)) return;
     event.preventDefault();
+    if (before === 'browse' && DIRECTION_KEYS[event.code]) this.panel.focus({ preventScroll: true });
     if (before === 'confirm' && this.flow.result?.ok) this.onPurchase();
     if (this.flow.phase === 'closed') this.close();
     else this.render();

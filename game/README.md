@@ -93,7 +93,7 @@ npm test
 
 ## 検証
 
-買い物（[Issue #21](https://github.com/kame447/gmo-security-life-game/issues/21)）は `tests/shop.test.ts`・`shop-input.test.ts`・`shop-controller.test.ts` で、成功・残高不足・取消・個数上限・決定連打とキーリピート・モード間の入力競合・#20の資産保存と再読込を確認します。商品と価格、既定の台詞を挟まず購入画面を開く方法は暫定の提案／要検証です。仕様は [買い物](../docs/features/shopping.md) を参照してください。
+買い物（[Issue #21](https://github.com/kame447/gmo-security-life-game/issues/21)）は `tests/shop.test.ts`・`shop-input.test.ts`・`shop-controller.test.ts`・`shop-panel.test.ts` で、成功・残高不足・取消・個数上限・決定連打とキーリピート・モード間の入力競合・フォーカスした取消／閉じるボタンの決定・#20の資産保存と再読込を確認します。商品と価格、既定の台詞を挟まず購入画面を開く方法は暫定の提案／要検証です。仕様は [買い物](../docs/features/shopping.md) を参照してください。
 
 買い物のブラウザE2Eは、開発サーバーを5182で起動して `SLG_URL=http://127.0.0.1:5182 node scripts/e2e-shop.mjs` を実行します。既存5件のeventKey、購入・取消・連打・所持品表示・再読込・キーボード／クリック／タッチ・小画面を検査します。Chromiumが起動できるsandbox外で親へ実行を依頼します。`SLG_SHOTS` でスクリーンショット保存先を指定できます。
 

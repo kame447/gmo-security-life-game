@@ -117,6 +117,32 @@ try {
   assert.deepEqual(await assets(), initial, 'Cancel does not change assets');
   pass('outdoor shop, before/after balance, cancel and exclusive input');
 
+  for (const code of ['Enter', 'Space']) for (const button of ['shop-back', 'shop-close']) {
+    await openShop('shopping.candy');
+    await page.keyboard.press('KeyZ');
+    for (let i = 0; i < (button === 'shop-back' ? 2 : 3); i++) await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(() => document.activeElement?.id), button);
+    await page.keyboard.press(code);
+    assert.deepEqual(await assets(), initial, `${button} + ${code} cancels without purchase`);
+    if (button === 'shop-back') {
+      assert.equal(await page.locator('#shop-panel').getAttribute('data-phase'), 'browse');
+      await closeShop();
+    } else await page.locator('#shop-panel').waitFor({ state: 'hidden' });
+  }
+  for (const code of ['Enter', 'Space']) {
+    await openShop('shopping.candy');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(() => document.activeElement?.dataset.itemId), 'bottled-water');
+    await page.keyboard.press(code);
+    assert.equal(await page.locator('#shop-panel').getAttribute('data-phase'), 'confirm');
+    assert.match(await page.locator('#shop-details').innerText(), /みず/);
+    assert.match(await page.locator('#shop-details').innerText(), /100円/);
+    assert.deepEqual(await assets(), initial, 'Focused product only selects, without spending');
+    await closeShop();
+  }
+  pass('Tab plus Enter/Space honors cancel, close and the focused product');
+
   await page.keyboard.down('KeyZ');
   await page.locator('#shop-panel').waitFor({ state: 'visible' });
   await page.keyboard.down('KeyZ'); // a real repeat of the opening key
