@@ -13,7 +13,13 @@
 - `.github/workflows/e2e.yml` を既存 CI と独立させ、`game/**` またはこの workflow の変更を含むプルリクエストと main への push で実行します。
 - Ubuntu ランナーに Node.js 24 と npm の依存、Playwright Chromium およびシステム依存を用意します。ソースモジュールを参照するシナリオのため、Vite の開発サーバーを localhost の固定ポートで起動します。
 - `scripts/e2e.mjs` と存在する `scripts/e2e-*.mjs` を順に実行し、一つでも失敗したらジョブを失敗とします。自己起動型エディタのサーバーには別のポートを使います。`perf.mjs` は性能計測であり対象に含めません。
-- スクリプトごとにログと `SLG_SHOTS` の画像を分け、失敗時も artifact として保存します。待機とジョブには上限を設けます。
+- スクリプトごとにログと `SLG_SHOTS` の画像を分け、シナリオ失敗時も `actions/upload-artifact` で保存します。Vite の起動ログも含めます。準備段階で失敗して保存対象がない場合は Actions のジョブログで確認します。待機とジョブには上限を設けます。
+
+## 実行時間の初回計測
+
+2026-11-13 の [PR #32 の成功実行](https://github.com/kame447/gmo-security-life-game/actions/runs/43408362129)（head `944ea6b`、GitHub Actions `ubuntu-latest`）では、`browser-e2e` ジョブ全体が **1分43秒**、Chromium とシステム依存の導入が21秒、ブラウザシナリオ実行のステップが1分12秒でした。対象は main 時点の `scripts/e2e.mjs` だけで、13項目が成功し、ログ・画像の artifact は約444 KBでした。これは1回の観測値であり、ランナーの混雑や追加されるシナリオにより増減します。
+
+初回実行は色付き Vite ログの起動判定が一致せず56秒で失敗し、起動ログの artifact を保存しました。その判定を修正して上記の成功を確認しています。
 
 ## 要検証・見直し条件
 
