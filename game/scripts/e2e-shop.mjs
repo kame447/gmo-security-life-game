@@ -87,9 +87,9 @@ try {
       await page.locator('#shop-receipt button').tap();
       assert.deepEqual(await position(page), touchPosition);
       assert.equal(await page.locator('#view').evaluate(element => document.activeElement === element), true);
-      await page.keyboard.down('ArrowDown');
-      try { await page.waitForFunction(y => window.__slg.game.player.y > y + 2, touchPosition.y); }
-      finally { await page.keyboard.up('ArrowDown'); }
+      await page.keyboard.down('ArrowLeft');
+      try { await page.waitForFunction(x => window.__slg.game.player.x < x - 2, touchPosition.x); }
+      finally { await page.keyboard.up('ArrowLeft'); }
       clean(errors, network);
       pass(`${viewport.name}: exposed touch controls, immediate selection, purchase and movement resumes`);
     } finally { await context.close(); }
