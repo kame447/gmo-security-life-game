@@ -13,8 +13,16 @@
       #view { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; outline: none; }
       .panel { background: rgba(27, 25, 34, 0.82); border: 2px solid #f4ecdc; border-radius: 8px; }
       #hud { position: absolute; left: 10px; top: 10px; padding: 4px 10px; font-size: 14px; pointer-events: none; }
-      #menu { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
-      #menu button { font: inherit; font-size: 12px; color: #fff; padding: 4px 10px; cursor: pointer; }
+      #menu { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; z-index: 3; }
+      #menu button, #menu summary { font: inherit; font-size: 12px; color: #fff; padding: 4px 10px; cursor: pointer; }
+      #control-help { position: relative; }
+      #control-help summary { list-style: none; text-align: center; font-weight: bold; }
+      #control-help summary::-webkit-details-marker { display: none; }
+      #control-help summary:focus-visible { outline: 2px solid #ffe08a; outline-offset: 2px; }
+      #control-help .help-body { position: absolute; top: calc(100% + 6px); right: 0; width: min(260px, calc(100vw - 24px));
+        box-sizing: border-box; padding: 10px 12px; font-size: 12px; line-height: 1.7; }
+      #control-help .help-row { display: flex; justify-content: space-between; gap: 12px; }
+      #control-help kbd { font: inherit; color: #ffe08a; white-space: nowrap; }
       #avatar-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(410px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow: auto; box-sizing: border-box; padding: 18px; z-index: 2; background: #242a31; }
       #avatar-panel h1 { font-size: 20px; margin: 0 0 4px; }
       #avatar-panel p { font-size: 12px; margin: 4px 0 10px; color: #e8e0cc; }
@@ -26,9 +34,12 @@
       .avatar-actions { display: flex; justify-content: center; gap: 14px; margin-top: 12px; }
       .avatar-actions button { min-width: 100px; }
       #stage.avatar-open #menu, #stage.avatar-open #touch, #stage.avatar-open #hint { visibility: hidden; }
-      @media (max-width: 620px) { #hud { max-width: 45%; font-size: 11px; } #menu { gap: 3px; } #menu button { padding: 5px; font-size: 11px; } }
+      @media (max-width: 640px) { #hud { max-width: calc(100% - 44px); font-size: 11px; }
+        #menu { top: 42px; gap: 3px; max-width: calc(100% - 20px); flex-wrap: wrap; justify-content: flex-end; }
+        #menu button, #menu summary { padding: 5px; font-size: 11px; } }
       #hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 4px 12px; font-size: 13px;
-              pointer-events: none; white-space: nowrap; }
+              max-width: calc(100% - 52px); text-align: center; overflow-wrap: anywhere; pointer-events: none; }
+      #stage.touch-on #hint { bottom: 206px; }
       #toast { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); padding: 6px 14px; font-size: 14px;
                pointer-events: none; transition: opacity 0.25s; }
       #dialog { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(640px, calc(100% - 28px));
@@ -43,7 +54,7 @@
       #touch [data-dir="down"] { left: 70px; bottom: 24px; }
       #touch [data-dir="left"] { left: 14px; bottom: 80px; }
       #touch [data-dir="right"] { left: 126px; bottom: 80px; }
-      #touch [data-act] { right: 22px; bottom: 70px; width: 68px; height: 68px; }
+      #touch [data-act] { right: 22px; bottom: 70px; width: 68px; height: 68px; font-size: 13px; }
       [hidden] { display: none !important; }
     </style>
   </head>
@@ -53,22 +64,31 @@
       <div id="hud" class="panel"></div>
       <div id="menu">
         <button id="btn-avatar" class="panel" type="button">みため</button>
-        <button id="btn-touch" class="panel" type="button">タッチそうさ</button>
-        <button id="btn-reset" class="panel" type="button">さいしょから</button>
+        <button id="btn-touch" class="panel" type="button" aria-label="タッチ操作を切り替え">タッチ</button>
+        <button id="btn-reset" class="panel" type="button" aria-label="はじめの場所へ戻る">出発点へ</button>
+        <details id="control-help">
+          <summary class="panel" aria-label="操作の案内">?</summary>
+          <div class="help-body panel" role="group" aria-label="操作の案内">
+            <div class="help-row"><span>あるく</span><kbd>↑↓←→ / WASD</kbd></div>
+            <div class="help-row"><span>はしる</span><kbd>Shift</kbd></div>
+            <div class="help-row"><span>しらべる・はなす</span><kbd>Z / Space / Enter</kbd></div>
+            <div class="help-row"><span>タッチ</span><kbd>方向 / けってい</kbd></div>
+          </div>
+        </details>
       </div>
       <div id="toast" class="panel" hidden></div>
-      <div id="hint" class="panel">やじるし / WASD：あるく　Shift：はしる　Z / Space：しらべる・はなす</div>
+      <div id="hint" class="panel" hidden></div>
       <div id="dialog" class="panel" hidden>
         <div class="who"></div>
         <div class="text"></div>
-        <div class="next">▼ Z / Space</div>
+        <div class="next" aria-hidden="true">▼</div>
       </div>
       <div id="touch" aria-hidden="true">
         <button type="button" data-dir="up">▲</button>
         <button type="button" data-dir="down">▼</button>
         <button type="button" data-dir="left">◀</button>
         <button type="button" data-dir="right">▶</button>
-        <button type="button" data-act="1">A</button>
+        <button type="button" data-act="1">けってい</button>
       </div>
       <section id="avatar-panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="avatar-title" tabindex="-1" hidden>
         <h1 id="avatar-title">みためを えらぼう</h1>

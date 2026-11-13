@@ -18,6 +18,8 @@ const NO_INPUT: InputState = { dir: null, run: false };
 export class UiController {
   private readonly touch = $<HTMLElement>('#touch');
   private readonly touchToggle = $<HTMLButtonElement>('#btn-touch');
+  private readonly stage = $<HTMLElement>('#stage');
+  private readonly help = $<HTMLDetailsElement>('#control-help');
 
   constructor(
     private readonly game: Game,
@@ -49,15 +51,17 @@ export class UiController {
     window.addEventListener('keyup', event => this.controls.release(event.code));
     window.addEventListener('blur', () => this.controls.clear());
     document.addEventListener('focusin', event => { if (event.target !== this.canvas) this.controls.clear(); });
-    this.canvas.addEventListener('pointerdown', () => this.focusMap());
+    this.canvas.addEventListener('pointerdown', () => { this.help.open = false; this.focusMap(); });
 
     $<HTMLButtonElement>('#btn-avatar').addEventListener('click', () => {
       if (this.mode !== 'explore') return;
       this.controls.clear();
+      this.help.open = false;
       this.avatar.open();
     });
     $<HTMLButtonElement>('#btn-reset').addEventListener('click', () => {
       this.controls.clear();
+      this.help.open = false;
       handlers.onReset();
       this.focusMap();
     });
@@ -66,8 +70,14 @@ export class UiController {
 
   private onKeyDown(event: KeyboardEvent): void {
     if (this.mode === 'avatar') { this.avatar.handleKey(event); return; }
+    if (this.help.open && event.code === 'Escape') {
+      event.preventDefault();
+      this.help.open = false;
+      this.focusMap();
+      return;
+    }
     // Let buttons retain their ordinary Enter/Space behavior.
-    if (event.target instanceof HTMLElement && event.target.closest('button, input, textarea, select')) return;
+    if (event.target instanceof HTMLElement && event.target.closest('button, input, textarea, select, summary, details')) return;
     const dir = DIRECTION_KEYS[event.code];
     if (dir) {
       event.preventDefault();
@@ -83,6 +93,7 @@ export class UiController {
   private setTouch(enabled: boolean): void {
     this.controls.clear();
     this.touch.classList.toggle('on', enabled);
+    this.stage.classList.toggle('touch-on', enabled);
     this.touch.setAttribute('aria-hidden', String(!enabled));
     this.touchToggle.setAttribute('aria-pressed', String(enabled));
   }
@@ -90,12 +101,13 @@ export class UiController {
   private bindTouch(): void {
     this.setTouch(matchMedia('(pointer: coarse)').matches);
     this.touchToggle.addEventListener('click', () => {
+      this.help.open = false;
       this.setTouch(!this.touch.classList.contains('on'));
       this.focusMap();
     });
     for (const button of this.touch.querySelectorAll<HTMLButtonElement>('button')) {
       const direction = button.dataset.dir as Facing | undefined;
-      button.setAttribute('aria-label', direction ? TOUCH_LABELS[direction] : 'しらべる・はなす');
+      button.setAttribute('aria-label', direction ? TOUCH_LABELS[direction] : 'しらべる・はなす・はなしをすすめる');
       button.addEventListener('pointerdown', event => {
         event.preventDefault();
         this.focusMap();
