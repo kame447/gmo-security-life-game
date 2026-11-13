@@ -66,6 +66,7 @@ body.bag-open { touch-action: auto; }
 .bag-hud-label { padding: 2px 9px; color: #fff6da; background: #283a32d9; border-radius: 5px; font-size: 11px; }
 .bag-hud-slots { padding: 5px; background: #33483edb; border: 2px solid #e9dfc3; border-radius: 7px; box-shadow: 0 3px #2f3029a6; }
 .bag-hud-slots .bag-quick-slot { width: 43px; border-width: 2px; }
+#stage.modal-open .bag-quick-hud { visibility: hidden; pointer-events: none; }
 @media (max-width: 640px) {
   .bag-overlay { padding: 8px; }
   .bag-header { min-height: 66px; padding: 9px 11px; gap: 9px; }

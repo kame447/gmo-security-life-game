@@ -32,6 +32,7 @@ try {
     assert.notEqual(first, next);
     await page.keyboard.press('4');
     assert.equal(await page.locator('.bag-quick-slots [data-slot="3"]').getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('.bag-quick-slots [data-slot="3"]').getAttribute('data-item-id'), next);
     const after = await page.evaluate(() => ({ ...window.__slg.game.player }));
     assert.deepEqual(after, before);
     await page.keyboard.press('Escape');
@@ -41,6 +42,7 @@ try {
   await check('modal exclusivity', async () => {
     await page.locator('#btn-avatar').click();
     assert.equal(await page.locator('#avatar-panel').isVisible(), true);
+    assert.equal(await page.locator('.bag-quick-hud').isVisible(), false);
     await page.keyboard.press('i');
     assert.equal(await page.locator('.bag-window').isVisible(), false);
     await page.keyboard.press('Escape');
