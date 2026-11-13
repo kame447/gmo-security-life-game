@@ -73,6 +73,8 @@ try {
           game.player = position;
           return { strip, player: { ...game.player }, stage: game.world.variant.stage, solid: Array.from(area.solid) };
         }, areaId);
+        // Allow the renderer to observe an area change before checking its fade state.
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         await page.waitForFunction(id => window.__slg.game.player.areaId === id && !window.__slg.renderer.stats.fading, areaId);
         await page.evaluate(() => { window.__townTrainPaint.length = 0; });
         const panel = page.locator('#train-travel-panel');
