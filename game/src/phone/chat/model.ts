@@ -22,7 +22,9 @@ export class ChatModel implements ChatApi {
     }));
   }
   messages(threadId: string): ChatMessage[] { return structuredClone(this.thread(threadId)?.messages ?? []); }
-  save(): ChatSave { return structuredClone(this.state); }
+  // Fractional countdowns can grow the JSON number representation between visible
+  // changes, so enforce the byte budget at export as well as message mutations.
+  save(): ChatSave { return parseChatSave(this.state, this.content); }
   onChange(listener: () => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   private changed(): void { for (const listener of this.listeners) listener(); }
   private thread(id: string): ChatThreadSave | undefined { return this.state.threads.find(thread => thread.id === id); }
