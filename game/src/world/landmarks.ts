@@ -13,3 +13,15 @@ export const LANDMARKS = {
 
 /** 新規開始・「さいしょから」の位置。 */
 export const START: SpawnPoint = { areaId: 'town-main', ...LANDMARKS.homeFront, facing: 'down' };
+
+/** #35/#36 shared station access. Tile coordinates and names are prototype values. */
+export const STATION_ACCESS = {
+  stationId: 'station',
+  areaId: 'station-main-interior',
+  entrancePortalId: 'station-enter',
+  exitPortalId: 'station-exit',
+  entry: { areaId: 'station-main-interior', x: 17, y: 16, facing: 'up' },
+  boarding: { areaId: 'station-main-interior', x: 17, y: 9, facing: 'up' },
+  arrival: { areaId: 'station-main-interior', x: 17, y: 10, facing: 'down' },
+  interaction: { id: 'station-boarding', x: 17, y: 8, eventKey: 'travel.station.board' },
+} as const;
