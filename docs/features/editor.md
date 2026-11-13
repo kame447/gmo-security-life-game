@@ -173,4 +173,4 @@ npm run editor -- apply /private/tmp/editor-changes.json
 
 既存の生成マップへの永続反映方式は [判断記録 0009](../decisions/0009-map-editor-persistence-options.md) に提案を記載しています。現時点の適用先は引き続きサンプルJSON一つです。実マップへの移行や全店舗の内装完成を、このツールの完成と混同しません。
 
-`scripts/e2e-map-editor.mjs` は一時コピー上で参照表示、倍率・パン、ドラッグと取消、施設・往復出入口、検証・履歴、差分出力→CLI→再読込→Gameを確認します。`SLG_MAP_EDITOR_PORT`（既定5185）、通常ゲーム確認先の `SLG_URL`、スクリーンショット出力先の `SLG_SHOTS` を指定できます。
+`scripts/e2e-map-editor.mjs` は一時コピー上で参照表示、倍率・パン、ドラッグと取消、施設・往復出入口、検証・履歴、差分出力→CLI→再読込→Gameを確認します。`SLG_EDITOR_PORT`（既定5185）、通常ゲーム確認先の `SLG_URL`、スクリーンショット出力先の `SLG_SHOTS` を指定できます。
