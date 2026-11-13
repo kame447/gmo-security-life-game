@@ -23,11 +23,36 @@ describe('inventory cursor and move interaction', () => {
     expect(model.finishMove({ section: 'hotbar', index: 0 })).toEqual({ ok: false, reason: 'empty-slot' });
     expect(model.view.hotbar[0]).toBeNull(); expect(assets.quantity('notebook')).toBe(0);
   });
-  it('navigates from the backpack to the same selected hotbar slot shown by assets', () => {
-    const { assets, model } = make(); model.focus({ section: 'bag', index: 12 }); model.moveSelection(0, 1);
+  it('keeps modal navigation separate from saved exploration selection', () => {
+    const { assets, model } = make(); const before = assets.snapshot();
+    model.focus({ section: 'bag', index: 12 }); model.moveSelection(0, 1);
     expect(model.selection).toEqual({ section: 'hotbar', index: 2 });
-    expect(assets.inventoryLayout.selectedHotbar).toBe(2);
-    model.moveSelection(-1, 0); expect(assets.inventoryLayout.selectedHotbar).toBe(1);
+    model.moveSelection(-1, 0); expect(model.selection).toEqual({ section: 'hotbar', index: 1 });
+    expect(assets.snapshot()).toEqual(before);
+    model.selectHotbar(1); expect(assets.inventoryLayout.selectedHotbar).toBe(1);
     expect(model.selectHotbar(9)).toBe(false);
+  });
+
+  it('first activation of a lower-row item changes neither placement nor saved selection', () => {
+    const { assets, model } = make(); assets.moveStack({ section: 'bag', index: 0 }, { section: 'hotbar', index: 4 });
+    assets.selectHotbar(0); const before = assets.snapshot();
+    model.activate({ section: 'hotbar', index: 4 });
+    expect(model.selectedStack).toEqual({ itemId: 'notebook', quantity: 2 });
+    expect(assets.snapshot()).toEqual(before);
+    model.focus({ section: 'hotbar', index: 2 });
+    expect(assets.snapshot()).toEqual(before);
+    model.cancelMove(); expect(assets.snapshot()).toEqual(before);
+  });
+
+  it('same-source activation and invalid drops cancel without changing saved assets', () => {
+    const { assets, model } = make(); const before = assets.snapshot();
+    model.activate({ section: 'bag', index: 0 }); model.activate({ section: 'bag', index: 0 });
+    expect(model.carrying).toBeNull(); expect(assets.snapshot()).toEqual(before);
+    model.startMove({ section: 'bag', index: 0 });
+    expect(model.finishMove({ section: 'hotbar', index: 99 })).toEqual({ ok: false, reason: 'invalid-slot' });
+    expect(model.carrying).toBeNull(); expect(assets.snapshot()).toEqual(before);
+    model.startMove({ section: 'bag', index: 0 });
+    expect(model.finishMove({ section: 'bag', index: 0 })).toEqual({ ok: false, reason: 'invalid-slot' });
+    expect(model.carrying).toBeNull(); expect(assets.snapshot()).toEqual(before);
   });
 });

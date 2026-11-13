@@ -70,6 +70,33 @@ export async function geometry(page, size) {
   }
 }
 export async function movePair(page, from, to, mobile = false) { await click(page, slot(page, ...from), mobile); await click(page, slot(page, ...to), mobile); }
+export async function selectionOnly(page, element, mobile = false) {
+  const original = await state(page);
+  await page.evaluate(() => {
+    window.__inventorySelectionCheck = {};
+    const snapshot = () => ({ assets: window.__slg.game.assets.snapshot(), writes: window.__inventoryStorage.writes, stored: window.__inventoryStorage.peek() });
+    window.addEventListener('click', () => { window.__inventorySelectionCheck.before = snapshot(); }, { once: true, capture: true });
+    window.addEventListener('click', () => { window.__inventorySelectionCheck.after = snapshot(); }, { once: true });
+  });
+  await click(page, element, mobile);
+  const observed = await page.evaluate(() => window.__inventorySelectionCheck);
+  assert.ok(observed.before && observed.after, 'a genuine selection click completes');
+  assert.deepEqual(observed.after, observed.before, 'selection cannot change placement, saved selection or write storage');
+  assert.deepEqual(await state(page), original);
+}
+export async function swipe(page, element) {
+  const box = await element.boundingBox(); assert.ok(box);
+  const x = box.x + box.width / 2, y = box.y + box.height / 2;
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    for (let step = 1; step <= 4; step++) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - step * 14 }] });
+      await page.waitForTimeout(30);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } finally { await cdp.detach(); }
+}
 export async function emptyInventory(page) {
   await page.evaluate(() => { const assets = window.__slg.game.assets; assets.apply({ itemDeltas: assets.snapshot().items.map(item => ({ itemId: item.itemId, quantityDelta: -item.quantity })) }); });
   await page.waitForFunction(() => document.querySelectorAll('.bag-window [data-item-id]:not([data-item-id=""])').length === 0);

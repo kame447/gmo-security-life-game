@@ -1,12 +1,22 @@
 /** Real moves, swaps, HUD and storage in isolated browser contexts. No user profile. */
 import assert from 'node:assert/strict';
-import { launchBrowser, session, sizes, slot, hudSlot, state, view, click, openBag, conserved, geometry, movePair, emptyInventory } from './bag-inventory-test-helpers.mjs';
+import { launchBrowser, session, sizes, slot, hudSlot, state, view, click, openBag, conserved, geometry, movePair, emptyInventory, selectionOnly, swipe } from './bag-inventory-test-helpers.mjs';
 const browser = await launchBrowser(); let passed = 0;
 const check = async (label, action) => { await action(); passed++; console.log(`PASS ${label}`); };
 try {
   const desktop = await session(browser, sizes[0]); const page = desktop.page;
   const before = await state(page); const seed = await page.evaluate(() => window.__slg.game.serialize());
   await openBag(page); const position = await page.evaluate(() => ({ ...window.__slg.game.player }));
+  await check('no explanatory captions, row heading or slot numbers; quantities remain', async () => {
+    const text = await page.locator('.bag-window').innerText();
+    assert.ok(!/選んで|移動先を選ぶ|ホットバー/.test(text));
+    assert.equal(await page.locator('.bag-slot-number, .bag-hotbar-title, .bag-status').count(), 0);
+    assert.ok((await page.locator('.bag-window .bag-cell-count').allTextContents()).includes('12'));
+    assert.ok((await page.locator('.bag-window .bag-cell-count').allTextContents()).includes('2'));
+    await selectionOnly(page, slot(page, 'bag', 0));
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.bag-window').isVisible(), true);
+  });
   await check('click moves the stack out of the bag and into the same HUD slot', async () => {
     await movePair(page, ['bag', 0], ['hotbar', 0]);
     assert.equal(await slot(page, 'bag', 0).getAttribute('data-item-id'), '');
@@ -20,8 +30,32 @@ try {
     assert.equal(await slot(page, 'hotbar', 0).getAttribute('data-item-id'), 'pencil');
     await conserved(page, before);
   });
+  await check('invalid/foreign drops, post-drag clicks and scrolling cannot move an item', async () => {
+    const original = await state(page);
+    await slot(page, 'bag', 3).dragTo(page.locator('.bag-detail'));
+    assert.deepEqual(await state(page), original);
+    await page.waitForFunction(() => document.querySelectorAll('.is-held').length === 0);
+    await slot(page, 'bag', 3).dispatchEvent('click', { detail: 1, bubbles: true });
+    assert.equal(await page.locator('.is-held').count(), 0, 'release click after a drag does not prime another move');
+    await selectionOnly(page, slot(page, 'bag', 3));
+    await page.evaluate(() => {
+      const dataTransfer = new DataTransfer(); dataTransfer.setData('text/plain', 'foreign');
+      document.querySelector('.bag-window [data-section="hotbar"][data-index="4"]').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+    });
+    assert.deepEqual(await state(page), original);
+    await selectionOnly(page, slot(page, 'bag', 3));
+    await page.locator('.bag-content').hover(); await page.mouse.wheel(0, 160);
+    await page.waitForFunction(() => document.querySelectorAll('.is-held').length === 0);
+    await click(page, slot(page, 'bag', 0));
+    assert.deepEqual(await state(page), original);
+  });
   await check('keyboard moves a stack, cancels a pending move and blocks map input', async () => {
+    const original = await state(page);
     await slot(page, 'bag', 2).focus(); await page.keyboard.press('Enter'); await page.keyboard.press('3');
+    await page.keyboard.press('z');
+    assert.deepEqual(await state(page), original, 'digits and Z never commit a move');
+    assert.equal(await slot(page, 'hotbar', 2).getAttribute('data-item-id'), '');
+    await page.keyboard.press('Enter');
     assert.equal(await slot(page, 'hotbar', 2).getAttribute('data-item-id'), 'bottled-water');
     await slot(page, 'bag', 3).focus(); await page.keyboard.press('Space'); await page.keyboard.press('Escape');
     assert.equal(await page.locator('.bag-window').isVisible(), true);
@@ -87,7 +121,14 @@ try {
       assert.equal(await p.locator('.bag-detail-category').textContent(), '重要アイテム');
       await conserved(p, initial); await click(p, '.bag-close', true);
       await click(p, hudSlot(p, 4), true); assert.equal((await view(p)).selectedHotbar, 4);
-      await openBag(p, true); await emptyInventory(p);
+      await openBag(p, true);
+      const beforeSwipe = await state(p);
+      await selectionOnly(p, slot(p, 'bag', 1), true);
+      await swipe(p, slot(p, 'bag', 1));
+      await p.waitForFunction(() => document.querySelectorAll('.is-held').length === 0);
+      await click(p, slot(p, 'bag', 0), true);
+      assert.deepEqual(await state(p), beforeSwipe, 'touch scroll cannot confirm a pending move');
+      await emptyInventory(p);
       assert.equal(await p.locator('.bag-detail h2').textContent(), 'もちものなし');
     });
     await mobile.close();
@@ -97,8 +138,14 @@ try {
     seed.phone = { v: 1, owned: false, dataBudget: { v: 1, remainingMb: 123, capacityMb: 5000 }, chat: {
       v: 1, contacts: [{ id: 'saved-friend', name: '保存した相手', icon: 'person' }], threads: [{ id: 'saved-thread', contactId: 'saved-friend',
         messages: [{ id: 'message-1', from: 'saved-friend', text: '保存を保つ', atMs: 1000, read: false }], pending: [], nextSequence: 1, replyCursor: 0 }] } };
+    const layout = structuredClone(before.layout);
+    layout.bag[layout.bag.indexOf('pencil')] = null; layout.hotbar[4] = 'pencil'; layout.selectedHotbar = 0;
+    seed.assets.layout = layout;
     const normal = await session(browser, sizes[0], { temporary: false, seed }); const p = normal.page;
-    await openBag(p); await movePair(p, ['bag', 0], ['hotbar', 3]);
+    await openBag(p);
+    await selectionOnly(p, slot(p, 'hotbar', 4)); await p.keyboard.press('Escape');
+    await selectionOnly(p, slot(p, 'bag', 0)); await p.keyboard.press('Escape');
+    await movePair(p, ['bag', 0], ['hotbar', 3]);
     let saved = await p.evaluate(() => JSON.parse(window.__inventoryStorage.peek()));
     assert.deepEqual(saved.phone, seed.phone); assert.deepEqual(saved.appearance, seed.appearance);
     assert.equal(saved.assets.layout.hotbar[3], 'notebook'); assert.equal(saved.assets.layout.selectedHotbar, 3);

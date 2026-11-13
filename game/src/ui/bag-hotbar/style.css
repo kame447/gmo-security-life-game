@@ -31,9 +31,7 @@ body.bag-open { touch-action: auto; }
 .bag-cell svg, .bag-quick-slot svg { width: 73%; height: 73%; image-rendering: pixelated; pointer-events: none; }
 .bag-cell-count { position: absolute; right: 3px; bottom: 2px; color: #fffaf0; font-size: 14px; font-weight: 800; line-height: 1;
   text-shadow: -1px -1px #514735, 1px -1px #514735, -1px 1px #514735, 1px 1px #514735; pointer-events: none; }
-.bag-hotbar-title { margin: 11px 0 7px; color: #3b5143; font-size: 13px; font-weight: 700; }
-.bag-quick-slots { display: grid; grid-template-columns: repeat(var(--hotbar-slots, 5), minmax(0, 1fr)); gap: 5px; padding: 8px; background: #415b4d; border: 2px solid #2d4537; }
-.bag-slot-number { position: absolute; left: 3px; top: 2px; color: #635337; font-size: 10px; font-weight: 800; line-height: 1; pointer-events: none; }
+.bag-quick-slots { display: grid; grid-template-columns: repeat(var(--hotbar-slots, 5), minmax(0, 1fr)); gap: 5px; padding: 8px; margin-top: 10px; background: #415b4d; border: 2px solid #2d4537; }
 .bag-detail { display: flex; flex-direction: column; align-items: center; gap: 13px; padding: 15px; background: #f6eedb; border: 2px solid #c5b38e; box-sizing: border-box; }
 .bag-detail-icon { width: 100px; height: 100px; display: grid; place-items: center; background: #e3d1ac; border: 2px solid #c7b18b; }
 .bag-detail-icon svg { width: 82px; height: 82px; image-rendering: pixelated; }
@@ -42,7 +40,7 @@ body.bag-open { touch-action: auto; }
 .bag-detail h2 { margin: 5px 0; font-size: 20px; color: #344d3d; }
 .bag-detail-quantity { font-size: 13px; color: #7e5d36; font-weight: 700; }
 .bag-detail p { margin: 10px 0 0; font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
-.bag-footer { flex: 0 0 auto; min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 15px 9px; font-size: 11px; color: #665e45; }
+.bag-footer { flex: 0 0 auto; height: 54px; min-height: 54px; box-sizing: border-box; display: flex; align-items: center; justify-content: flex-end; padding: 5px 15px; }
 .bag-cancel-move { min-height: 44px; padding: 4px 9px; color: #425342; border: 1px solid #9e8e6b; background: #f5e8c8; }
 .bag-quick-hud { position: absolute; z-index: 3; bottom: 52px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .bag-hud-label { padding: 2px 9px; color: #fff6da; background: #283a32e6; border: 1px solid #acb79a; font-size: 11px; }
@@ -63,7 +61,7 @@ body.bag-open { touch-action: auto; }
   .bag-detail-icon svg { width: 52px; height: 52px; }
   .bag-detail h2 { font-size: 17px; margin: 3px 0; }
   .bag-detail p { margin-top: 4px; font-size: 11px; line-height: 1.4; }
-  .bag-footer { padding: 3px 10px 8px; }
+  .bag-footer { padding: 5px 10px; }
   .bag-quick-hud { bottom: 206px; }
 }
 @media (max-height: 500px) {
@@ -73,11 +71,10 @@ body.bag-open { touch-action: auto; }
   .bag-content { grid-template-columns: minmax(272px, 1fr) minmax(150px, .7fr); padding: 8px; gap: 10px; }
   .bag-grid, .bag-quick-slots { grid-template-columns: repeat(var(--bag-columns, 5), 44px); justify-content: center; gap: 4px; padding: 5px; }
   .bag-cell, .bag-quick-slots .bag-quick-slot { width: 44px; height: 44px; }
-  .bag-hotbar-title { margin: 6px 0 5px; font-size: 11px; }
   .bag-detail { flex-direction: column; padding: 9px; gap: 8px; }
   .bag-detail-icon { width: 68px; height: 68px; flex: 0 0 68px; }
   .bag-detail-icon svg { width: 56px; height: 56px; }
   .bag-detail h2 { font-size: 17px; }
-  .bag-footer { min-height: 24px; padding: 3px 10px 5px; }
+  .bag-footer { padding: 5px 10px; }
   .bag-quick-hud { bottom: 140px; }
 }

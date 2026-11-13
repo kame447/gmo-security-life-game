@@ -16,10 +16,13 @@ export class HotbarModel {
   focus(address: SlotAddress): boolean {
     if (!validSlot(this.assets.inventoryLayout, address)) return false;
     this.cursor = { ...address };
-    if (address.section === 'hotbar') this.assets.selectHotbar(address.index);
     return true;
   }
-  selectHotbar(index: number): boolean { return this.focus({ section: 'hotbar', index }); }
+  /** Exploration selection only; modal navigation must use the non-persistent focus(). */
+  selectHotbar(index: number): boolean {
+    if (!this.focus({ section: 'hotbar', index })) return false;
+    return this.assets.selectHotbar(index);
+  }
   startMove(address: SlotAddress): boolean {
     if (!validSlot(this.assets.inventoryLayout, address) || !this.view[address.section][address.index]) return false;
     this.focus(address); this.held = { ...address }; this.heldItemId = this.view[address.section][address.index]!.itemId; return true;
@@ -28,8 +31,12 @@ export class HotbarModel {
   finishMove(to: SlotAddress): InventoryResult {
     const from = this.held; const expected = this.heldItemId; this.cancelMove();
     if (!from || this.view[from.section][from.index]?.itemId !== expected) return { ok: false, reason: 'empty-slot' };
+    if (same(from, to)) return { ok: false, reason: 'invalid-slot' };
     const result = this.assets.moveStack(from, to);
-    if (result.ok) this.focus(to);
+    if (result.ok) {
+      this.focus(to);
+      if (to.section === 'hotbar') this.assets.selectHotbar(to.index);
+    }
     return result;
   }
   activate(address: SlotAddress): void {

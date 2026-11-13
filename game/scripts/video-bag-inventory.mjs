@@ -14,7 +14,8 @@ try {
     await click(p, slot(p, 'hotbar', 0), size.mobile); await pause();
     if (size.mobile) await movePair(p, ['bag', 1], ['hotbar', 0], true);
     else await slot(p, 'bag', 1).dragTo(slot(p, 'hotbar', 0));
-    await pause(); await slot(p, 'bag', 2).focus(); await p.keyboard.press('Enter'); await pause(); await p.keyboard.press('3'); await pause();
+    await pause(); await slot(p, 'bag', 2).focus(); await p.keyboard.press('Enter'); await pause();
+    await p.keyboard.press('3'); await pause(); await p.keyboard.press('Enter'); await pause();
     await click(p, '.bag-close', size.mobile); await pause(); await click(p, hudSlot(p, 2), size.mobile); await pause();
     await openBag(p, size.mobile); await pause(); await click(p, '.bag-close', size.mobile); await pause();
     await h.close(); const raw = await video.path(); const final = join(output, `inventory-${size.name}-${basename(raw)}`);

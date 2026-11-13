@@ -11,7 +11,7 @@ try {
     const h = await session(browser, size); const p = h.page;
     const shot = file => p.screenshot({ path: join(dir, file) });
     await shot('01-map.png'); await openBag(p, size.mobile); await shot('02-inventory.png');
-    await click(p, slot(p, 'bag', 0), size.mobile); await shot('03-moving.png');
+    await click(p, slot(p, 'bag', 0), size.mobile); await shot('03-selected.png');
     await click(p, slot(p, 'hotbar', 0), size.mobile); await shot('04-moved.png');
     await movePair(p, ['bag', 1], ['hotbar', 0], size.mobile); await shot('05-swapped.png');
     await click(p, slot(p, 'bag', 8), size.mobile); await shot('06-important.png');
