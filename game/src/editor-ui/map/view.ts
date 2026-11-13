@@ -1,4 +1,6 @@
 import { isSolidGround } from '../../world/tiles.ts';
+import { TILE } from '../../core/coords.ts';
+import { objectSprite, characterSprite } from '../../render/sprites.ts';
 import type { ValidationIssue } from '../../editor/index.ts';
 import type { EditorModel, Selection } from '../model.ts';
 import { footprint, hitSelection, selectedEntity, type Footprint, type MapScene } from './scene.ts';
@@ -110,7 +112,8 @@ export class MapView {
       tileX: tile.x, tileY: tile.y, origin, target: null, issuesBefore: [...this.model.issues] };
     this.canvas.setPointerCapture(event.pointerId);
     if (pan) event.preventDefault();
-    this.notify();
+    // Pan does not change the selection. Redrawing here would reset the canvas while dragging.
+    if (!pan) this.notify();
   }
   private move(event: PointerEvent): void {
     const tile = this.tile(event), coordinate = document.getElementById('map-coordinate')!;
@@ -192,8 +195,22 @@ export class MapView {
       c.fillText(symbol, (x + w / 2) * cell, (y + h / 2) * cell);
       if (this.selection?.table === table && this.selection.id === id) this.outline(c, { x, y, w, h }, '#f7c45a');
     };
-    for (const o of scene.objects) if (o.areaId === area.id) draw('objects', o.id, o.x, o.y, o.w, o.h, '#5f9271', o.layer === 'decal' ? '飾' : '物', o.solid);
-    for (const i of scene.interactions) if (i.areaId === area.id) draw('interactions', i.id, i.x, i.y, i.w ?? 1, i.h ?? 1, '#c58d48', i.kind === 'npc' ? '人' : '話', i.solid);
+    for (const o of scene.objects) if (o.areaId === area.id) {
+      const sprite = objectSprite(o);
+      const scale = cell / TILE;
+      c.imageSmoothingEnabled = false;
+      c.drawImage(sprite.canvas, (o.x * cell) + sprite.ox * scale, (o.y * cell) + sprite.oy * scale, sprite.canvas.width * scale, sprite.canvas.height * scale);
+      if (this.selection?.table === 'objects' && this.selection.id === o.id) this.outline(c, { x: o.x, y: o.y, w: o.w, h: o.h }, '#f7c45a');
+    }
+    for (const i of scene.interactions) if (i.areaId === area.id) {
+      if (i.kind === 'npc' && i.sprite) {
+        const sprite = characterSprite(i.sprite, i.facing ?? 'down', 0);
+        const scale = Math.min(((i.w ?? 1) * cell - 5) / sprite.canvas.width, ((i.h ?? 1) * cell - 4) / sprite.canvas.height);
+        c.imageSmoothingEnabled = false;
+        c.drawImage(sprite.canvas, (i.x + (i.w ?? 1) / 2) * cell - sprite.canvas.width * scale / 2, (i.y + (i.h ?? 1)) * cell - sprite.canvas.height * scale - 2, sprite.canvas.width * scale, sprite.canvas.height * scale);
+        if (this.selection?.table === 'interactions' && this.selection.id === i.id) this.outline(c, { x: i.x, y: i.y, w: i.w ?? 1, h: i.h ?? 1 }, '#f7c45a');
+      } else draw('interactions', i.id, i.x, i.y, i.w ?? 1, i.h ?? 1, '#c58d48', '話', i.solid);
+    }
     for (const p of scene.portals) if (p.areaId === area.id) draw('portals', p.id, p.from.x, p.from.y, p.from.w ?? 1, 1, '#6e91bd', '↗', false);
     if (this.selection?.table === 'facilities') {
       const rect = footprint(scene, this.selection); if (rect) this.outline(c, rect, '#f7c45a');

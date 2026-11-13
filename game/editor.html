@@ -4,55 +4,83 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>サンプルエディタ | セキュリティ人生シミュレーション</title>
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="/src/editor-ui/editor.css" />
     <link rel="stylesheet" href="/src/editor-ui/map/map.css" />
+    <link rel="stylesheet" href="/src/editor-ui/workspace.css" />
   </head>
   <body>
     <header class="topbar">
-      <div>
-        <p class="eyebrow">SECURITY LIFE GAME / PROTOTYPE</p>
-        <h1>サンプルエディタ <span>試作</span></h1>
-        <p class="subtitle">編集データを確認し、差分として書き出します。</p>
+      <div class="brand">
+        <h1>マップ編集 <span>試作</span></h1>
+        <p>対象を選んで配置・編集</p>
       </div>
       <div class="top-actions">
-        <a class="link-button" href="./editor-preview.html">適用済みサンプルでゲームを開く ↗</a>
-        <button id="undo" type="button" title="Ctrl / ⌘ + Z">↶ 元に戻す</button>
-        <button id="redo" type="button" title="Ctrl / ⌘ + Shift + Z または Ctrl + Y">↷ やり直す</button>
+        <button id="undo" type="button" title="Ctrl / ⌘ + Z">元に戻す</button>
+        <button id="redo" type="button" title="Ctrl / ⌘ + Shift + Z または Ctrl + Y">やり直す</button>
+        <a class="link-button" href="./editor-preview.html">サンプルで実行</a>
+        <button id="download" class="primary" type="button">差分を書き出す</button>
       </div>
     </header>
-    <div class="notice-bar">編集中の変更はこの画面だけにあります。書き出し後に適用コマンドを実行してください。</div>
     <main class="workspace">
-      <aside class="panel sidebar" aria-labelledby="areas-heading">
-        <div class="panel-head"><div><p class="eyebrow">01 / NAVIGATE</p><h2 id="areas-heading">エリアと対象</h2></div></div>
-        <label for="area-select">エリア</label>
-        <select id="area-select"></select>
-        <div class="list-heading"><h3>対象一覧</h3><span id="entity-count"></span></div>
-        <div id="entity-list" class="entity-list" aria-label="選択中エリアの対象"></div>
-        <div class="add-box">
-          <label for="add-type">新しい対象</label>
-          <div class="add-row"><select id="add-type"><option value="objects">配置物</option><option value="facilities">施設</option><option value="interactions">調査対象</option><option value="portals">出入口</option></select><button id="add" type="button">＋ 追加</button></div>
-          <button id="npc-add" type="button">＋ NPC を追加</button>
-        </div>
-      </aside>
       <section class="panel map-panel" aria-labelledby="map-heading">
-        <div class="panel-head"><div><p class="eyebrow">02 / EXPLORE</p><h2 id="map-heading">グリッド</h2></div><span id="area-size" class="tag"></span></div>
+        <div class="panel-head map-title">
+          <h2 id="map-heading">マップ</h2>
+          <span id="area-size" class="tag"></span>
+        </div>
         <div class="map-toolbar">
           <label>表示するデータ<select id="map-source"><option value="sample">編集用サンプル</option><option value="reference">実マップを参照</option></select></label>
+          <label>エリア<select id="area-select"></select></label>
           <label>操作<select id="map-tool"><option value="move">選択・移動</option><option value="pan">表示をつかむ</option></select></label>
           <label>ズーム<select id="map-zoom"><option value="0.25">25%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.5">150%</option><option value="2">200%</option><option value="3">300%</option></select></label>
-          <button id="map-fit" type="button">全体を表示</button>
+          <button id="map-fit" type="button">全体表示</button>
         </div>
-        <div class="map-options"><label><input id="map-grid" type="checkbox" checked />座標グリッド</label><label><input id="map-collision" type="checkbox" checked />衝突範囲</label><output id="map-scale">100%</output><output id="map-coordinate" aria-live="polite">X — / Y —</output></div>
-        <p id="map-source-note" class="helper"></p>
-        <p class="helper small">クリックで選択、ドラッグで移動、Escで取消。Shift＋ドラッグで表示を移動できます。</p>
-        <div id="map-viewport" class="canvas-wrap" tabindex="0" aria-label="マップ表示。スクロール、Shiftドラッグ、Ctrlホイールで操作"><canvas id="grid" aria-label="マップのグリッド。対象は一覧からも選択できます。"></canvas></div>
-        <div class="legend" aria-label="グリッドの凡例"><span><i class="wall"></i>壁・通行不可</span><span><i class="object"></i>配置物</span><span><i class="interaction"></i>調査対象</span><span><i class="portal"></i>出入口</span></div>
-        <p id="selected-caption" class="selected-caption">一覧またはグリッドから対象を選択してください。</p>
-        <section id="reference-properties" hidden><h3>参照プロパティ（変更できません）</h3><pre></pre></section>
+        <div id="map-viewport" class="canvas-wrap" tabindex="0" aria-label="マップ表示。スクロール、Shiftドラッグ、Ctrlホイールで操作">
+          <canvas id="grid" aria-label="マップのグリッド。配置した対象を直接選択できます。"></canvas>
+        </div>
+        <div class="map-status">
+          <p id="selected-caption" class="selected-caption">マップか下の一覧から対象を選択してください。</p>
+          <output id="map-coordinate" aria-live="polite">X — / Y —</output>
+        </div>
+        <details class="map-display">
+          <summary>表示設定</summary>
+          <div class="map-options">
+            <label><input id="map-grid" type="checkbox" checked />座標グリッド</label>
+            <label><input id="map-collision" type="checkbox" checked />衝突範囲</label>
+            <output id="map-scale">100%</output>
+          </div>
+          <div class="legend" aria-label="グリッドの凡例"><span><i class="wall"></i>壁・通行不可</span><span><i class="object"></i>配置物</span><span><i class="interaction"></i>調査対象</span><span><i class="portal"></i>出入口</span></div>
+        </details>
+        <p id="map-source-note" class="map-source-note"></p>
+        <div class="catalog">
+          <div class="catalog-heading">
+            <h3 id="areas-heading">配置する・選ぶ</h3>
+            <div class="catalog-actions">
+              <button id="npc-add" type="button">＋ NPC</button>
+              <select id="add-type" aria-label="追加する対象"><option value="objects">配置物</option><option value="facilities">施設</option><option value="interactions">調査対象</option><option value="portals">出入口</option></select>
+              <button id="add" type="button">＋ 追加</button>
+            </div>
+          </div>
+          <div class="catalog-heading catalog-filter">
+            <label for="entity-filter">一覧の種類</label>
+            <select id="entity-filter">
+              <option value="all">すべて</option><option value="npc">NPC</option>
+              <option value="objects">配置物</option><option value="facilities">施設</option>
+              <option value="interactions">調査対象</option><option value="portals">出入口</option>
+            </select>
+            <label for="entity-search">検索</label>
+            <input id="entity-search" type="search" placeholder="名前・ID" />
+            <span id="entity-count" class="tag"></span>
+          </div>
+          <div id="entity-list" class="entity-list" aria-label="選択中エリアの対象"></div>
+        </div>
       </section>
       <section class="panel inspector" aria-labelledby="inspector-heading">
-        <div class="panel-head"><div><p class="eyebrow">03 / EDIT</p><h2 id="inspector-heading">プロパティ</h2></div><span id="draft-kind" class="tag"></span></div>
-        <p id="empty-inspector" class="helper">対象を選択するか、「追加」を押してください。</p>
+        <div class="panel-head">
+          <h2 id="inspector-heading">選択した対象</h2>
+          <span id="draft-kind" class="tag"></span>
+        </div>
+        <p id="empty-inspector" class="helper">マップ上の配置物やNPCを選択してください。</p>
         <form id="entity-form" hidden novalidate>
           <p id="draft-description" class="helper"></p>
           <div id="map-fields" class="map-fields" hidden></div>
@@ -88,15 +116,16 @@
           <label for="npc-lines">既定の会話（1行に1つ）</label><textarea id="npc-lines" rows="4"></textarea>
           <div class="form-actions"><button id="npc-apply" class="primary" type="submit">編集を反映</button><button id="npc-cancel" type="button">入力を取り消す</button><button id="npc-delete" class="danger" type="button">削除</button></div>
         </form>
+        <section id="reference-properties" class="reference-properties" hidden><h3>参照プロパティ（変更できません）</h3><pre></pre></section>
         <div id="validation" class="validation" aria-live="polite"><h3>検証</h3><p>検証エラーはありません。</p></div>
         <p id="status" class="status" role="status" aria-live="polite"></p>
       </section>
-      <section class="panel changes" aria-labelledby="changes-heading">
-        <div class="panel-head"><div><p class="eyebrow">04 / REVIEW &amp; EXPORT</p><h2 id="changes-heading">変更のプレビュー</h2></div><span id="change-count" class="tag"></span></div>
-        <p class="helper">初めに読み込んだデータとの差分です。書き出し後の適用方法は <code>game/README.md</code> を確認してください。</p>
+      <details class="panel changes" open>
+        <summary><span>変更内容 <span id="change-count" class="tag"></span></span><span class="changes-hint">確認・書き出し</span></summary>
+        <p class="helper">初めに読み込んだデータとの差分です。実データへの適用方法は game/README.md を参照してください。</p>
         <div id="change-list" class="change-list"></div>
-        <div class="export-row"><button id="download" class="primary" type="button">差分 JSON をダウンロード</button><span id="export-hint" class="helper"></span></div>
-      </section>
+        <p id="export-hint" class="helper"></p>
+      </details>
     </main>
     <script type="module" src="/src/editor-ui/main.ts"></script>
   </body>

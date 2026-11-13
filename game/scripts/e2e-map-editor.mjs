@@ -80,9 +80,14 @@ try {
   await page.selectOption('#map-zoom', '0.5');
   const beforePan = await page.locator('#map-viewport').evaluate(view => { view.scrollLeft = 100; view.scrollTop = 100; return view.scrollLeft; });
   const viewBox = await page.locator('#map-viewport').boundingBox();
-  await page.keyboard.down('Shift'); await page.mouse.move(viewBox.x + 210, viewBox.y + 120); await page.mouse.down();
-  await page.mouse.move(viewBox.x + 100, viewBox.y + 120, { steps: 6 }); await page.mouse.up(); await page.keyboard.up('Shift');
-  assert.notEqual(await page.locator('#map-viewport').evaluate(view => view.scrollLeft), beforePan);
+  const canvasBox = await page.locator('#grid').boundingBox();
+  assert.ok(viewBox && canvasBox, 'the map and its canvas must have visible bounds');
+  const startX = Math.max(viewBox.x + 40, Math.min(viewBox.x + viewBox.width - 40, canvasBox.x + canvasBox.width / 2));
+  const startY = Math.max(viewBox.y + 40, Math.min(viewBox.y + viewBox.height - 40, canvasBox.y + canvasBox.height / 2));
+  await page.keyboard.down('Shift'); await page.mouse.move(startX, startY); await page.mouse.down();
+  await page.mouse.move(startX - 110, startY, { steps: 6 }); await page.mouse.up(); await page.keyboard.up('Shift');
+  const afterPan = await page.locator('#map-viewport').evaluate(view => view.scrollLeft);
+  assert.notEqual(afterPan, beforePan, 'shift-drag must pan the visible canvas');
   await page.click('#map-fit'); await shot(page, '01-map-reference-desktop');
   await page.selectOption('#map-source', 'sample');
   assert.equal(await page.locator('#area-select').inputValue(), 'demo-outdoor');

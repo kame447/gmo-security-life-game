@@ -74,7 +74,11 @@ try {
   await page.click('#delete');
   assert.equal(await page.locator('[data-id="new-object"]').count(), 0, 'delete');
 
-  await page.locator('#grid').click({ position: { x: 2 * 38 + 19, y: 2 * 38 + 19 } });
+  const point = await page.locator('#grid').evaluate(canvas => {
+    const rect = canvas.getBoundingClientRect();
+    return { x: (2 + .5) * 38 * rect.width / canvas.width, y: (2 + .5) * 38 * rect.height / canvas.height };
+  });
+  await page.locator('#grid').click({ position: point });
   assert.equal(await page.locator('#position-x').inputValue(), '2', 'grid selection');
   await page.fill('#position-x', '0');
   await page.click('#apply');
