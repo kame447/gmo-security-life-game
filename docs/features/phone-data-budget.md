@@ -70,6 +70,8 @@ phone: {
 
 dataBudget は `v: 1`・`remainingMb`・`capacityMb`、任意の `savedAtEpochMs`・`activeAtSave` を持つ。parsePhoneDataSave はこの容量欄だけを修復する。欠落した旧保存や壊れた残量は設定上限へ戻し、有効な0は保持する。現在の設定が容量上限を決め、保存残量が新上限を超えれば上限までにする。保存された古い上限で新しい設定を上書きしない。所有フラグ、位置、外見、所持品は呼び出し側で別々に保持する。
 
+独自の設定を使う場合は `loadSave(world, { initialPhoneOwned, phoneDataConfig })`、Game、PhoneModel、保存時の正規化に同じ設定を渡す。読込時に別の上限で残量を先に丸めないためである。共有codecは有効な任意epoch欄を保持するが、実行中のスマホは offlineUsage が ignore のとき、次回保存で古い時刻の組を省く。
+
 通常の保存は `budget.save()` でもよく、単調時計の時刻や開いている画面を復元しない。既定の offlineUsage=ignore は、ゲームを閉じていた時間を計算へ入れない。
 
 consume-if-active を明示的に選んだ場合だけ、有効な savedAtEpochMs と activeAtSave=true、および読込時のepoch時刻が揃えば、その差を消費する。これは保存時の消費条件が続くという比較用の扱い。保存がpause中や自宅内なら activeAtSave=false となる。欠落・逆行した壁時計の組は無視する。日付変更での回復やバックグラウンド進行は、この設定以外に追加しない。

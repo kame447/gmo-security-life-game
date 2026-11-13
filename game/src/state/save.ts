@@ -1,13 +1,13 @@
 /**
  * 保存データの形式と検証。保存先（localStorage など）は app/ 側が持つ。
- * v1 の位置・外見・資産とスマホを欄ごとに復旧する。
+ * v1 の位置・外見・資産・スマホを欄ごとに復旧する。
  */
 import { normalizeAppearance, type PlayerAppearance } from '../core/appearance';
 import type { Facing } from '../core/coords';
 import { canStand, positionAt, type PlayerPosition } from '../map/explorer';
 import { PHONE_INITIAL_OWNED } from '../phone/config';
 import { PHONE_BUDGET_PROTOTYPE, type PhoneBudgetConfig } from '../phone/budget-config';
-import { parsePhoneSave, type PhoneSave } from '../phone/model';
+import { parsePhoneSave, type PhoneSave } from '../phone/save';
 import type { World } from '../world';
 import { normalizeAssets, type AssetSnapshot } from './assets';
 
@@ -22,7 +22,7 @@ export interface SaveData {
   appearance?: PlayerAppearance;
   /** Optional for v1 saves made before money/inventory was added. */
   assets?: AssetSnapshot;
-  /** Optional for v1 saves from before the phone prototype. */
+  /** Optional for saves from before the phone prototype. */
   phone?: PhoneSave;
 }
 
@@ -45,6 +45,7 @@ export function parseSave(raw: unknown, world: World, initialPhoneOwned = PHONE_
     Number.isFinite(s.x) && Number.isFinite(s.y) && FACINGS.includes(s.facing) && canStand(area, s.x, s.y)
     ? { areaId: area.def.id, x: s.x, y: s.y, facing: s.facing as Facing }
     : positionAt(world.start);
-  return { v: 1, variantId: world.variant.id, ...player, appearance: normalizeAppearance(s.appearance),
-    assets: normalizeAssets(s.assets), phone: parsePhoneSave(s.phone, initialPhoneOwned, config) };
+  return { v: 1, variantId: world.variant.id, ...player,
+    appearance: normalizeAppearance(s.appearance), assets: normalizeAssets(s.assets),
+    phone: parsePhoneSave(s.phone, initialPhoneOwned, config) };
 }

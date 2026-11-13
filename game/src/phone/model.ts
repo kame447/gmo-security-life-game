@@ -1,19 +1,10 @@
 import type { PhoneApp, PhoneContent, PhoneNotification, PhoneScreen } from './content';
 import { PHONE_BUDGET_PROTOTYPE, type PhoneBudgetConfig } from './budget-config';
-import { PhoneDataBudget, parsePhoneDataSave, type PhoneDataSave, type PhoneUsageContext } from './budget';
+import { PhoneDataBudget, type PhoneUsageContext } from './budget';
+import { parsePhoneSave, type PhoneSave } from './save';
 
-/** Open panels, routes and sample notifications remain transient. */
-export interface PhoneSave { v: 1; owned: boolean; dataBudget: PhoneDataSave }
-export function parsePhoneSave(raw: unknown, initialOwned: boolean,
-  config: Readonly<PhoneBudgetConfig> = PHONE_BUDGET_PROTOTYPE): PhoneSave {
-  if (raw && typeof raw === 'object') {
-    const value = raw as Partial<PhoneSave>;
-    if (value.v === 1 && typeof value.owned === 'boolean') {
-      return { v: 1, owned: value.owned, dataBudget: parsePhoneDataSave(value.dataBudget, config) };
-    }
-  }
-  return { v: 1, owned: initialOwned, dataBudget: parsePhoneDataSave(undefined, config) };
-}
+export { parsePhoneSave } from './save';
+export type { PhoneSave } from './save';
 
 type PhoneEnvironment = Omit<PhoneUsageContext, 'owned' | 'open'>;
 export class PhoneModel {

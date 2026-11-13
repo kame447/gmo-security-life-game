@@ -16,8 +16,8 @@ import { buildWorld } from './world';
 
 const world = buildWorld();
 const reviewOnly = new URLSearchParams(window.location.search).get('review') === '1';
-const game = new Game(world, { save: reviewOnly ? undefined : loadSave(world, PHONE_INITIAL_OWNED, PHONE_BUDGET_PROTOTYPE),
-  initialPhoneOwned: PHONE_INITIAL_OWNED, phoneDataConfig: PHONE_BUDGET_PROTOTYPE });
+const phoneOptions = { initialPhoneOwned: PHONE_INITIAL_OWNED, phoneDataConfig: PHONE_BUDGET_PROTOTYPE };
+const game = new Game(world, { ...phoneOptions, save: reviewOnly ? undefined : loadSave(world, phoneOptions) });
 game.phone.setVisible(!document.hidden);
 const canvas = $<HTMLCanvasElement>('#view');
 const renderer = new Renderer(canvas);

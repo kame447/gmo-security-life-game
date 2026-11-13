@@ -60,7 +60,7 @@ describe('phone and assets in an existing v1 save', () => {
       dataBudget: { v: 1 as const, remainingMb: 7500, capacityMb: 9000 } } };
     let stored = JSON.stringify(seed);
     vi.stubGlobal('localStorage', { getItem: () => stored, setItem: (_key: string, value: string) => { stored = value; } });
-    const saved = loadSave(world, false, config);
+    const saved = loadSave(world, { initialPhoneOwned: false, phoneDataConfig: config });
     const restored = new Game(world, { save: saved, initialPhoneOwned: false, phoneDataConfig: config, phoneClock: () => 0 });
     writeSave(restored.serialize());
     expect(JSON.parse(stored).phone).toEqual(seed.phone);
