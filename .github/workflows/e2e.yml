@@ -1,0 +1,90 @@
+name: Browser E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'game/**'
+      - '.github/workflows/e2e.yml'
+  pull_request:
+    paths:
+      - 'game/**'
+      - '.github/workflows/e2e.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  browser-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: game
+        shell: bash
+    env:
+      SLG_URL: http://127.0.0.1:5173
+      # e2e-editor.mjs starts its own isolated server; do not reuse 5173.
+      SLG_EDITOR_PORT: 5186
+      # Its server readiness check expects uncolored Vite output, including on CI.
+      NO_COLOR: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: game/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Run browser scenarios
+        run: |
+          set -euo pipefail
+          output_dir="$RUNNER_TEMP/slg-e2e"
+          mkdir -p "$output_dir"
+          node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort > "$output_dir/vite.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
+
+          ready=0
+          for attempt in {1..30}; do
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              cat "$output_dir/vite.log"
+              exit 1
+            fi
+            if grep -q 'Local' "$output_dir/vite.log" && curl --fail --silent "$SLG_URL/" > /dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$ready" != 1 ]]; then
+            echo 'Vite did not become ready within 30 seconds.'
+            cat "$output_dir/vite.log"
+            exit 1
+          fi
+
+          shopt -s nullglob
+          scripts=(scripts/e2e.mjs scripts/e2e-*.mjs)
+          failed=0
+          for script in "${scripts[@]}"; do
+            name="${script##*/}"
+            name="${name%.mjs}"
+            mkdir -p "$output_dir/$name"
+            echo "Running $script"
+            if SLG_SHOTS="$output_dir/$name" node "$script" 2>&1 | tee "$output_dir/$name.log"; then
+              echo "PASS $script"
+            else
+              echo "FAIL $script"
+              failed=1
+            fi
+          done
+          exit "$failed"
+      - name: Upload logs and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/slg-e2e
+          if-no-files-found: warn
+          retention-days: 7
