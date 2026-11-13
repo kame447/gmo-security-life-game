@@ -12,7 +12,7 @@
 
 [ゲームのコードを責務ごとのモジュールに分ける](0004-game-module-structure.md)
 
-[バッグの候補比較と一時セッション（候補・未採用）](0005-bag-candidate-comparison.md)
+[バッグの候補比較と一時セッション（候補・未採用）](0013-bag-candidate-comparison.md)
 
 [GUIの編集結果を限定したJSON差分として扱う（独立サンプルでのプロトタイプ）](0007-editor-data-boundary.md)
 
