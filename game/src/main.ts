@@ -31,7 +31,8 @@ const avatar = new AvatarPanel(game, commit => {
   if (commit) save();
   ui.focusMap();
 });
-const ui = new UiController(game, controls, avatar, canvas);
+const ui = new UiController(game, controls, canvas);
+ui.registerPanel({ id: 'avatar', panel: avatar, open: () => avatar.open(), button: $<HTMLButtonElement>('#btn-avatar') });
 const hud = new Hud(game, () => ui.primaryAction());
 ui.bind({ onReset: () => { game.reset(); save(); } });
 exposeDebug(game, renderer, frames);
@@ -61,6 +62,7 @@ const loop = startLoop({
     frames.record(now, frame, input, game, renderer);
     avatar.drawPreview(now);
     hud.update(now);
+    ui.update();
   },
 });
 document.addEventListener('visibilitychange', () => { controls.clear(); loop.resetClock(); });
