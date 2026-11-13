@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AreaDef, MapEvent } from '../src/core/types';
+import type { MapEvent } from '../src/core/types';
 import { positionAt } from '../src/map/explorer';
 import { Game } from '../src/session/game';
 import { TRAIN_NETWORK } from '../src/travel/network';
@@ -7,28 +7,11 @@ import { TrainTravelSession } from '../src/travel/session';
 import { buildWorld, validateWorld } from '../src/world';
 import { STATION_ACCESS } from '../src/world/landmarks';
 import { toRuntime } from '../src/world/runtime';
-import { T } from '../src/world/tiles';
-import { createTown } from '../src/world/town';
 import { createNeighborStation, createNeighborTown, NEIGHBOR_STATION_ACCESS } from '../src/world/towns/neighbor';
 
-/** A simple temporary station checks the contract; it is not #35's finished geometry. */
+/** #35 supplies the original station; the not-yet-wired neighboring areas are added for this test. */
 function fixtureWorld() {
-  const world = buildWorld(), town = createTown();
-  town.portals.push({ id: STATION_ACCESS.entrancePortalId, from: { x: 28, y: 63 }, to: { ...STATION_ACCESS.entry }, facilityId: 'station' });
-  world.areas.set(town.id, toRuntime(town));
-  const width = 36, height = 18, ground = new Uint8Array(width * height).fill(T.FLOOR_CLASS);
-  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-    if (!x || !y || x === width - 1 || y === height - 1) ground[y * width + x] = T.WALL;
-  }
-  const mainStation: AreaDef = {
-    id: STATION_ACCESS.areaId, name: 'テスト駅', kind: 'indoor', width, height, ground, objects: [],
-    portals: [{ id: STATION_ACCESS.exitPortalId, from: { x: 17, y: 17 },
-      to: { areaId: 'town-main', x: 28, y: 64, facing: 'down' }, facilityId: 'station' }],
-    interactions: [{ id: STATION_ACCESS.interaction.id, kind: 'sign', name: 'テスト案内',
-      x: STATION_ACCESS.interaction.x, y: STATION_ACCESS.interaction.y, solid: true,
-      eventKey: STATION_ACCESS.interaction.eventKey, lines: ['test'] }],
-  };
-  world.areas.set(mainStation.id, toRuntime(mainStation));
+  const world = buildWorld();
   for (const area of [createNeighborTown(), createNeighborStation()]) world.areas.set(area.id, toRuntime(area));
   return world;
 }
@@ -39,7 +22,7 @@ function facingEvent(game: Game): MapEvent {
   return { type: 'interact', areaId: game.player.areaId, interactionId: target.id, eventKey: target.eventKey };
 }
 
-describe('train network with a temporary station fixture', () => {
+describe('train network with the #35 station and neighboring-area fixture', () => {
   it('validates the real neighboring areas only when the explicit rail edges are supplied', () => {
     const world = fixtureWorld();
     expect(validateWorld(world)).toContain('Unreachable interaction: neighbor-town-board');
