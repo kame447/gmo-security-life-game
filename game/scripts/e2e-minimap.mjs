@@ -85,7 +85,7 @@ try {
         await page.waitForFunction(() => document.querySelector('#full-map-canvas')?.dataset.labelCount === '12');
         assert.equal(await page.locator('#full-map-canvas').getAttribute('data-marker-count'), '12');
         const labels = await page.evaluate(() => ({
-          names: [...window.__slg.game.world.facilities.values()].map(facility => facility.name),
+          names: [...window.__slg.game.world.facilities.values()].filter(facility => facility.areaId === 'town-main').map(facility => facility.name),
           painted: window.__mapTexts,
           canvasWidth: document.querySelector('#full-map-canvas').width,
           displayWidth: document.querySelector('#full-map-canvas').clientWidth,
