@@ -20,8 +20,18 @@ try {
     await page.locator('#btn-inventory').click();
     await page.locator('.bag-window').waitFor({ state: 'visible' });
     await page.screenshot({ path: `${shots}/${name}-02-bag.png` });
+    await page.locator('.bag-cell[data-item-id="shirt"]').click();
+    await page.locator('.bag-quick-slots [data-slot="4"]').click();
+    await page.screenshot({ path: `${shots}/${name}-03-assigned.png` });
     await page.locator('[data-group="important"]').click();
-    await page.screenshot({ path: `${shots}/${name}-03-important.png` });
+    await page.screenshot({ path: `${shots}/${name}-04-important.png` });
+    const emptied = await page.evaluate(() => {
+      const assets = window.__slg.game.assets;
+      return assets.apply({ itemDeltas: assets.snapshot().items.map(item => ({ itemId: item.itemId, quantityDelta: -item.quantity })) }).ok;
+    });
+    if (!emptied) throw new Error('Could not prepare the empty review state');
+    await page.getByText('もちものなし').waitFor({ state: 'visible' });
+    await page.screenshot({ path: `${shots}/${name}-05-empty.png` });
     await context.close();
   }
   console.log(`PASS: screenshots written to ${shots}`);

@@ -229,6 +229,7 @@ export class HotbarPanel {
       button.type = 'button';
       button.className = 'bag-quick-slot';
       button.dataset.slot = String(index);
+      button.dataset.itemId = item?.id ?? '';
       button.classList.toggle('is-active', index === this.model.selectedSlot);
       button.setAttribute('aria-label', `${index + 1}：${item ? `${item.name} ${item.quantity}こ` : '空き'}${assign ? ' に登録' : ' を選択'}`);
       button.setAttribute('aria-pressed', String(index === this.model.selectedSlot));
