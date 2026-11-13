@@ -3,7 +3,7 @@ import { loadSave, writeSave } from '../src/app/save-store';
 import { DEFAULT_APPEARANCE } from '../src/core/appearance';
 import { PHONE_BUDGET_PROTOTYPE } from '../src/phone/budget-config';
 import { Game } from '../src/session/game';
-import { parseSave } from '../src/state/save';
+import { createSave, parseSave } from '../src/state/save';
 import { buildWorld } from '../src/world';
 
 const world = buildWorld();
@@ -14,7 +14,7 @@ const seed = () => ({ ...new Game(world).serialize(),
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe('shared v1 save preservation with a connected phone', () => {
+describe('shared v1 save preservation without a phone UI', () => {
   it.each([false, true])('keeps phone owned=%s, budget, assets, appearance and position through the real storage path', owned => {
     const saved = seed(); saved.phone.owned = owned;
     let stored = JSON.stringify(saved);
@@ -61,22 +61,19 @@ describe('shared v1 save preservation with a connected phone', () => {
     expect(parseSave({ ...legacy, variantId: 'unsupported' }, world)).toBeNull();
   });
 
-  it('preserves fractional budgets and codec metadata while applying the phone offline policy', () => {
+  it('preserves fractional budgets and optional epoch metadata at the clock-free codec boundary', () => {
     const config = { ...PHONE_BUDGET_PROTOTYPE, capacityMb: 1234 };
     const saved = { ...seed(), phone: { v: 1, owned: false,
       dataBudget: { v: 1, remainingMb: 123.75, capacityMb: 1234, savedAtEpochMs: 1000, activeAtSave: true } } };
-    // The common codec itself preserves the validated optional metadata.
-    expect(parseSave(saved, world, false, config)).toEqual(saved);
+    const parsed = parseSave(saved, world, true, config)!;
+    expect(parsed).toEqual(saved);
+    expect(createSave(world, new Game(world).player, parsed.appearance!, parsed.assets, parsed.phone, config)).toEqual(saved);
     const game = new Game(world, { save: saved, phoneDataConfig: config });
-    // With offline usage disabled the live phone clears stale offline tracking on save.
-    const expected = { ...saved, phone: { ...saved.phone,
-      dataBudget: { v: 1, remainingMb: 123.75, capacityMb: 1234 } } };
-    expect(game.serialize()).toEqual(expected);
-    expect(new Game(world, { save: game.serialize(), phoneDataConfig: config }).serialize()).toEqual(expected);
-    // When enabled, a new snapshot records the current (closed) phone state and clock.
-    const offlineConfig = { ...config, offlineUsage: 'consume-if-active' as const };
-    const tracked = new Game(world, { save: saved, phoneDataConfig: offlineConfig, phoneEpochClock: () => 1000 });
-    expect(tracked.serialize().phone?.dataBudget).toEqual({ ...saved.phone.dataBudget, activeAtSave: false });
+    expect(game.serialize().phone).toMatchObject({ v: 1, owned: false,
+      dataBudget: { v: 1, remainingMb: 123.75, capacityMb: 1234 } });
+    // A live phone model writes its current activity/epoch policy instead of retaining an old clock pair.
+    expect(new Game(world, { save: game.serialize(), phoneDataConfig: config }).serialize().phone)
+      .toMatchObject({ v: 1, owned: false, dataBudget: { v: 1, remainingMb: 123.75, capacityMb: 1234 } });
   });
 
   it('uses the same custom settings in loadSave before Game can normalize a large budget', () => {
