@@ -2,6 +2,7 @@ import { CHUNK_PX, CHUNK_TILES, TILE, chunkId, feetAtTile, hash2, type Facing } 
 import type { PlayerAppearance } from '../core/appearance';
 import type { AreaRuntime } from '../world';
 import { T } from '../world/tiles';
+import { drawTownTrains } from '../town-train/render';
 import { makeCanvas, R, type C2D } from './draw';
 import { drawGroundTile } from './ground';
 import { characterSprite, objectSprite, playerSprite, type Sprite } from './sprites';
@@ -207,6 +208,7 @@ export class Renderer {
         this.stats.chunksDrawn++;
       }
     }
+    drawTownTrains(c, area, timeSec);
     this.stats.chunksCached = this.chunks.size;
     if (profiling) { const now = performance.now(); timing.groundMs = Math.max(0, now - mark - timing.bakeMs); mark = now; }
     const index = this.index(area);
