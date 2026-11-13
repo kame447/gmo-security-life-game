@@ -12,6 +12,20 @@ function intersects(a, b) {
   return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 }
 
+function ensureLaunchButtons() {
+  const menu = document.querySelector('#menu'), touch = document.querySelector('#btn-touch');
+  for (const [id, label] of [['btn-inventory', 'もちもの'], ['btn-phone', 'スマホ']]) {
+    const existing = document.getElementById(id);
+    if (existing) {
+      if (existing.parentElement !== menu) throw new Error(`${id} must be a direct child of #menu`);
+      continue;
+    }
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'panel'; button.id = id; button.textContent = label;
+    menu.insertBefore(button, touch);
+  }
+}
+
 try {
   for (const viewport of [{ width: 390, height: 720 }, { width: 640, height: 360 }]) {
     const context = await browser.newContext({ viewport, hasTouch: true });
@@ -20,16 +34,9 @@ try {
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
     await page.goto(url);
     await page.waitForFunction(() => !!window.__slg?.game);
-    // Test-only launch buttons model the proposed menu; no feature panel is installed.
-    await page.evaluate(() => {
-      const menu = document.querySelector('#menu'), touch = document.querySelector('#btn-touch');
-      for (const [id, label] of [['btn-inventory', 'もちもの'], ['btn-phone', 'スマホ']]) {
-        if (menu.querySelector(`#${id}`)) continue;
-        const button = document.createElement('button');
-        button.type = 'button'; button.className = 'panel'; button.id = id; button.textContent = label;
-        menu.insertBefore(button, touch);
-      }
-    });
+    // Reuse real launch buttons when installed; add test-only buttons for missing features.
+    await page.evaluate(ensureLaunchButtons);
+    await page.evaluate(ensureLaunchButtons); // A second call must not duplicate real or test buttons.
     assert.equal(await page.locator('#menu button').count(), 5);
     if (await page.locator('#touch').getAttribute('aria-hidden') === 'true') await page.locator('#btn-touch').click();
     assert.equal(await page.locator('#touch').getAttribute('aria-hidden'), 'false');
