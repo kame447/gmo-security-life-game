@@ -1,0 +1,14 @@
+#train-travel-panel { position: absolute; inset: 0; z-index: 12; display: grid; place-items: center; padding: 12px;
+  box-sizing: border-box; background: rgba(15, 20, 22, .72); }
+#train-travel-panel[hidden] { display: none; }
+#train-travel-panel .train-travel-card { width: min(420px, 100%); max-height: 100%; overflow: auto; box-sizing: border-box;
+  padding: 18px; color: #fff9e9; background: #344943; border: 3px solid #f4ecdc; border-radius: 9px; }
+#train-travel-panel h2 { margin: 0 0 12px; font-size: 20px; }
+#train-travel-panel .train-travel-prompt { margin: 0 0 16px; }
+#train-travel-panel .train-travel-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+#train-travel-panel button { min-width: 108px; min-height: 44px; padding: 8px 14px; font: inherit; color: #fff9e9;
+  background: #283b34; border: 2px solid #e8e0cc; border-radius: 5px; cursor: pointer; touch-action: manipulation; }
+#train-travel-panel button:focus-visible { outline: 3px solid #ffe08a; outline-offset: 2px; }
+#train-travel-panel .train-travel-message { margin: 12px 0 0; color: #ffe08a; }
+#stage.travel-open #menu, #stage.travel-open #touch, #stage.travel-open #hint { visibility: hidden; }
+@media (max-height: 400px) { #train-travel-panel .train-travel-card { padding: 12px; } }
