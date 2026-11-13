@@ -133,6 +133,7 @@ try {
       await page.keyboard.press('z'); await page.locator('#train-travel-panel').waitFor({ state: 'visible' });
       const during = await state(page); await hold(page, 'ArrowDown', 160); assert.deepEqual(await state(page), during);
       await page.keyboard.press('Escape'); await page.locator('#train-travel-panel').waitFor({ state: 'hidden' });
+      assert.deepEqual(await state(page), during);
       await reloadExact(page); pass(`${name}: gates lead to a safe boarding choice, cancellation and exact indoor reload`);
       await walkTo(page, { x: 10, y: 8 });
       await hold(page, 'ArrowUp', 280); const stopped = await state(page);
