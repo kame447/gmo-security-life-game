@@ -51,6 +51,55 @@ try {
   await page.goto(`${base}editor.html`);
   await page.waitForSelector('[data-id="demo-npc"]');
 
+  // Exercise the actual combined source selector, rather than simulating a dataset flag.
+  assert.equal(await page.locator('#map-source').count(), 1, 'combined MapView is loaded');
+  await page.locator('[data-table="interactions"][data-id="demo-npc"]').click();
+  await page.click('#npc-place');
+  assert.equal(await page.locator('#grid').getAttribute('data-npc-placement'), 'true');
+  await page.selectOption('#map-source', 'reference');
+  assert.equal(await page.locator('#grid').getAttribute('data-map-read-only'), 'true');
+  assert.equal(await page.locator('#grid').getAttribute('data-npc-placement'), 'false', 'source switch cancels armed NPC placement');
+  assert.equal(await page.locator('#npc-add').isDisabled(), true, 'reference cannot start a new NPC');
+  assert.equal(await page.locator('#npc-place').isDisabled(), true, 'reference cannot arm placement');
+  assert.equal(await page.locator('#npc-form').isHidden(), true, 'sample form is not exposed as reference properties');
+  assert.equal(await page.locator('#download').isDisabled(), true);
+  // A real reference-grid click must never confirm the previously armed sample placement.
+  await page.locator('#grid').click({ position: { x: 5 * 38 + 19, y: 4 * 38 + 19 } });
+  assert.equal(await page.locator('#npc-x').inputValue(), '4');
+  assert.equal(await page.locator('#change-count').innerText(), '0 件');
+  await page.selectOption('#map-source', 'sample');
+  assert.equal(await page.locator('#npc-id').inputValue(), 'demo-npc');
+  assert.equal(await page.locator('#npc-x').inputValue(), '4');
+  assert.equal(await page.locator('#npc-form').isVisible(), true);
+  assert.equal(await page.locator('#npc-place').isDisabled(), false);
+  // NPC placement consumes the shared click once, even when the canvas is zoomed.
+  await page.selectOption('#map-zoom', '2');
+  await page.locator('#map-viewport').evaluate(view => { view.scrollLeft = 0; view.scrollTop = 0; });
+  await page.click('#npc-place');
+  await page.locator('#grid').click({ position: { x: (5 * 38 + 19) * 2, y: (4 * 38 + 19) * 2 } });
+  assert.equal(await page.locator('#npc-x').inputValue(), '5');
+  assert.equal(await page.locator('[data-table="interactions"][data-id="demo-npc"]').getAttribute('aria-pressed'), 'true', 'MapView did not replace the NPC selection');
+  assert.equal(await page.locator('#change-count').innerText(), '0 件', 'placing is still an uncommitted draft');
+  await page.selectOption('#map-source', 'reference');
+  assert.equal(await page.locator('#map-source').inputValue(), 'sample', 'unfinished NPC placement blocks source switch');
+  assert.match(await page.locator('#status').innerText(), /未反映/);
+  await page.click('#npc-cancel');
+  await page.selectOption('#map-zoom', '1');
+  await page.locator('[data-id="demo-tree"]').click();
+  await page.fill('#position-x', '3'); await page.click('#apply');
+  await page.locator('[data-id="demo-npc"]').click();
+  await page.fill('#npc-name', '統合確認NPC'); await page.fill('#npc-x', '5'); await page.click('#npc-apply');
+  assert.equal(await page.locator('#change-count').innerText(), '2 件');
+  await page.click('#undo');
+  assert.equal(await page.locator('#npc-name').inputValue(), '編集確認NPC');
+  assert.equal(await page.locator('#change-count').innerText(), '1 件');
+  await page.click('#undo'); assert.equal(await page.locator('#change-count').innerText(), '0 件');
+  await page.click('#redo'); assert.equal(await page.locator('#change-count').innerText(), '1 件');
+  await page.click('#redo'); assert.equal(await page.locator('#npc-name').inputValue(), '統合確認NPC');
+  await page.click('#undo'); await page.click('#undo');
+  assert.equal(await page.locator('#change-count').innerText(), '0 件');
+  console.log('PASS combined real-source read-only guards, zoomed NPC click ownership, draft protection and shared map/NPC history');
+
   await page.selectOption('#add-type', 'interactions');
   await page.click('#add');
   const generic = JSON.parse(await page.locator('#entity-json').inputValue());

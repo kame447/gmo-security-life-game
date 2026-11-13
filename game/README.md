@@ -72,6 +72,7 @@ npm test
 | `src/core/appearance.ts` | 外見の選択肢・既定値・項目ごとの検証・キャッシュキー |
 | `src/world/` | マップの構造化データ（`town.ts`・`interiors.ts`）、目印と開始地点（`landmarks.ts`）、実行時索引（`runtime.ts`）、経路探索（`path.ts`）、検証（`validate.ts`）、組み立て（`index.ts`） |
 | `src/editor/` | 独立した編集用データ契約・検証・差分・Undo/Redo・Worldへの変換（GUI非依存） |
+| `src/editor-ui/map/` | マップの参照表示、ズーム／パン、ドラッグ、配置プロパティと関連出入口の一括移動（#24） |
 | `data/editor-prototype.json` | 編集基盤の確認用サンプル。通常ゲームの町・NPC定義とは独立 |
 | `scripts/editor.mjs` | 編集用JSONの検証、差分出力、適用前確認、安全な永続適用（Node.js 24） |
 | `src/map/` | 移動・衝突・出入口の遷移・調査対象の判定と通知（DOM 非依存） |
@@ -116,7 +117,9 @@ npm test
 npm run test:e2e
 ```
 
-事前にPlaywrightのChromiumが利用でき、ヘッドレスブラウザを起動できる環境が必要です。今回の Codex サンドボックス内では `MachPort Permission denied` により起動できず、ブラウザ実行は別の実行環境で行います。これは `npm test` や今回追加したCIジョブには含みません。
+事前にPlaywrightのChromiumが利用でき、ヘッドレスブラウザを起動できる環境が必要です。今回の Codex サンドボックス内では `MachPort Permission denied` により起動できず、ブラウザ実行は別の実行環境で行います。`npm test` には含まれません。
+
+CI では別 workflow `Browser E2E` が、`game/**` またはその workflow の変更を含む PR と main への push で Ubuntu 上の headless Chromium を使います。Vite を `127.0.0.1:5173` で起動し、`scripts/e2e.mjs` と存在する `scripts/e2e-*.mjs` を順に実行します。エディタの自己起動サーバーは 5186 番です。失敗時を含めログと `SLG_SHOTS` の画像を artifact に保存し、一つでも失敗するとジョブは失敗します。性能計測 `perf.mjs` は含みません。実行時間やランナー上での安定性は [判断記録 0010](../docs/decisions/0010-ci-headless-e2e.md) の提案／要検証です。
 
 `SLG_URL` で検証先URL、`SLG_SHOTS` でスクリーンショット保存先を指定できます。ブラウザを別の場所へインストールした場合は `PLAYWRIGHT_BROWSERS_PATH` をそのディレクトリに合わせます。
 
@@ -135,7 +138,7 @@ PLAYWRIGHT_BROWSERS_PATH=/private/tmp/slg-browsers SLG_OUT=/private/tmp/slg-perf
 
 `SLG_OUT` を指定すると `perf-result.json`・動画・連続画像を保存し、各シナリオ終了時にも `scenario-result.json` を保存します。指定しなければファイルは保存しません。`SLG_URL`、`SLG_VIEWPORT`（例 `1280x720`）、`SLG_DPR`、`SLG_MACHINE` で検証先と環境を指定できます。`SLG_CHANNEL=chrome` はインストール済みChrome、`SLG_EXECUTABLE` は別のブラウザ実行ファイルを指定します。`npm run test:perf -- --matrix` はChromium／Chromeと1280×720／640×360の組み合わせを実行するため、両ブラウザが必要です。
 
-両スクリプトは最後に `SUMMARY` 行を出力します。性能検査は連続性違反や候補の速度許容差超過で失敗し、フレーム時間だけの超過や1フレーム16px超の移動は警告として扱います。`test:perf` も今回のCIジョブには含めません。
+両スクリプトは最後に `SUMMARY` 行を出力します。性能検査は連続性違反や候補の速度許容差超過で失敗し、フレーム時間だけの超過や1フレーム16px超の移動は警告として扱います。`test:perf` は CI に含めません。
 
 ## 実装範囲
 
