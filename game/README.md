@@ -12,6 +12,8 @@ SLG_URL=http://127.0.0.1:5181 node scripts/e2e-bag-hotbar.mjs
 SLG_URL=http://127.0.0.1:5181 SLG_SHOTS=/private/tmp/slg-audit/ui-review/bag-candidates node scripts/shots-inventory.mjs
 ```
 
+`01ab701` に対し、親がsandbox外でBの7項目、Aの5項目、既存探索、小画面メニュー2項目を実行し、すべて成功しました。両候補の比較画像32枚を `/private/tmp/slg-audit/ui-review/bag-candidates/01ab701/` に保存しています。利用者のUI採用判断は未了です。
+
 [Issue #7](https://github.com/kame447/gmo-security-life-game/issues/7) の探索基盤を確認するブラウザ用プロトタイプです。TypeScript・Vite・Canvas 2D 標準APIを使います。数値や技術構成は [判断記録 0003](../docs/decisions/0003-map-prototype-canvas2d.md) の提案／要検証であり、本採用の決定ではありません。
 
 ## 現在の扱い（2026-11-12）
