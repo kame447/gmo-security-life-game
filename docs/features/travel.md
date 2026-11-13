@@ -22,7 +22,7 @@
 
 ```sh
 cd game
-SLG_URL=http://127.0.0.1:5201 SLG_SHOTS=/private/tmp/slg-audit/train-travel-e2e \
+SLG_URL=http://127.0.0.1:5207 SLG_SHOTS=/private/tmp/slg-audit/train-travel-e2e \
   node scripts/e2e-train-travel.mjs
 ```
 

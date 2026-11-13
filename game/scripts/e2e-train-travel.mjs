@@ -4,7 +4,7 @@ import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
 
-const base = new URL(process.env.SLG_URL || 'http://127.0.0.1:5201');
+const base = new URL(process.env.SLG_URL || 'http://127.0.0.1:5207');
 assert.ok(['http:', 'https:'].includes(base.protocol) && ['localhost', '127.0.0.1', '[::1]'].includes(base.hostname), 'Use a local preview');
 const shots = resolve(process.env.SLG_SHOTS || '/private/tmp/slg-audit/train-travel-e2e');
 await mkdir(shots, { recursive: true });
