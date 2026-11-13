@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { SHOPS, shopForEvent } from '../src/data/shops';
+import { getItemDefinition } from '../src/data/items';
+import { Game } from '../src/session/game';
 import { ShopFlow } from '../src/shop/flow';
 import { purchase, type ShopAssetsPort } from '../src/shop/purchase';
+import { PlayerAssets } from '../src/state/assets';
+import { buildWorld } from '../src/world';
 
 /** A tiny atomic port double: the shop must not perform independent money/item writes. */
 class Wallet implements ShopAssetsPort {
@@ -105,5 +109,37 @@ describe('shop flow', () => {
       expect(shopForEvent(key)?.offers.length).toBeGreaterThan(0);
     }
     expect(shopForEvent('test.friend')).toBeUndefined();
+  });
+});
+
+describe('shop and #20 asset/save integration', () => {
+  it('uses defined items and positive integer yen prices in every catalog', () => {
+    for (const shop of SHOPS) for (const offer of shop.offers) {
+      expect(getItemDefinition(offer.itemId), `${shop.id}/${offer.itemId}`).toBeDefined();
+      expect(Number.isSafeInteger(offer.priceYen) && offer.priceYen > 0).toBe(true);
+    }
+  });
+
+  it('keeps the wallet and inventory unchanged when the real item cap is reached', () => {
+    const item = getItemDefinition('small-snack')!;
+    const assets = new PlayerAssets({ moneyYen: 500, items: [{ itemId: item.id, quantity: item.maxQuantity }] });
+    const before = assets.snapshot();
+    expect(purchase(assets, shop.offers[0])).toEqual({ ok: false, reason: 'quantity-limit' });
+    expect(assets.snapshot()).toEqual(before);
+  });
+
+  it('restores successful purchases together with position and appearance from JSON', () => {
+    const world = buildWorld();
+    const game = new Game(world);
+    expect(purchase(game.assets, shop.offers[0]).ok).toBe(true);
+    expect(purchase(game.assets, shop.offers[1]).ok).toBe(true);
+    const saved = JSON.parse(JSON.stringify(game.serialize()));
+    const restored = new Game(world, { save: saved });
+    expect(restored.serialize()).toEqual(saved);
+    expect(restored.assets.moneyYen).toBe(game.assets.moneyYen);
+    expect(restored.assets.quantity('small-snack')).toBe(1);
+    expect(restored.assets.quantity('bottled-water')).toBe(1);
+    restored.reset();
+    expect(restored.assets.snapshot()).toEqual(game.assets.snapshot());
   });
 });
