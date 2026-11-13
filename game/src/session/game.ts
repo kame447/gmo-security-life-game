@@ -8,12 +8,14 @@ import { DialogController, type DialogState } from '../events/dialog';
 import { MapExplorer, positionAt, type InputState, type PlayerPosition } from '../map/explorer';
 import { createSave, parseSave, type SaveData } from '../state/save';
 import type { AreaRuntime, World } from '../world';
+import { PlayerAssets } from '../state/assets';
 
 type SinkResponse = { speaker?: string; lines: string[] } | void;
 
 export class Game {
   readonly world: World;
   appearance: PlayerAppearance;
+  readonly assets: PlayerAssets;
   private readonly explorer: MapExplorer;
   private readonly dialogs = new DialogController();
   private readonly sink?: MapEventSink;
@@ -24,6 +26,7 @@ export class Game {
     this.sink = opts?.sink;
     const saved = parseSave(opts?.save, world);
     this.appearance = normalizeAppearance(saved?.appearance);
+    this.assets = new PlayerAssets(saved?.assets);
     const start = saved
       ? { areaId: saved.areaId, x: saved.x, y: saved.y, facing: saved.facing }
       : positionAt(world.start);
@@ -71,7 +74,7 @@ export class Game {
     this.appearance = normalizeAppearance(a);
   }
 
-  /** Back to the start point. Appearance is kept. */
+  /** Back to the start point. Appearance, money and inventory are kept. */
   reset(): void {
     this.explorer.reset(positionAt(this.world.start));
     this.dialogs.close();
@@ -79,6 +82,6 @@ export class Game {
   }
 
   serialize(): SaveData {
-    return createSave(this.world, this.player, this.appearance);
+    return createSave(this.world, this.player, this.appearance, this.assets.snapshot());
   }
 }
