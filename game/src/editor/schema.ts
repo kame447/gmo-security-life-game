@@ -182,9 +182,10 @@ export function validateDocument(raw: unknown): ValidationIssue[] {
   visit(d.start.areaId, d.start.x, d.start.y);
   for (let head = 0; head < queue.length; head++) {
     const p = queue[head], a = world.areas.get(p.areaId)!;
-    visit(p.areaId, p.x - 1, p.y); visit(p.areaId, p.x + 1, p.y); visit(p.areaId, p.x, p.y - 1); visit(p.areaId, p.x, p.y + 1);
     const door = a.portalAt.get(p.y * a.width + p.x);
-    if (door) visit(door.to.areaId, door.to.x, door.to.y);
+    // Entering a trigger teleports immediately; its original-area neighbors are not exits.
+    if (door) { visit(door.to.areaId, door.to.x, door.to.y); continue; }
+    visit(p.areaId, p.x - 1, p.y); visit(p.areaId, p.x + 1, p.y); visit(p.areaId, p.x, p.y - 1); visit(p.areaId, p.x, p.y + 1);
   }
   for (const a of d.areas) if (!reached.get(a.id)!.size) error(`areas.${a.id}`, 'unreachable', 'Area is unreachable from start');
   for (const p of d.portals) if (!cells(p.from, areas.get(p.areaId)!.width).some(index => reached.get(p.areaId)!.has(index))) error(`portals.${p.id}`, 'unreachable', 'Portal is unreachable from start');
@@ -192,7 +193,8 @@ export function validateDocument(raw: unknown): ValidationIssue[] {
     const a = areas.get(i.areaId)!;
     const accessible = cells(i, a.width).some(index => {
       const x = index % a.width, y = Math.floor(index / a.width);
-      return [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]].some(([nx, ny]) => nx >= 0 && nx < a.width && ny >= 0 && ny < a.height && reached.get(a.id)!.has(ny * a.width + nx));
+      return [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]].some(([nx, ny]) => nx >= 0 && nx < a.width && ny >= 0 && ny < a.height &&
+        reached.get(a.id)!.has(ny * a.width + nx) && !world.areas.get(a.id)!.portalAt.has(ny * a.width + nx));
     });
     if (!accessible) error(`interactions.${i.id}`, 'unreachable', 'Interaction cannot be approached from start');
   }
