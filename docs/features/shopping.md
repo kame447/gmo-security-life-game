@@ -1,6 +1,6 @@
 # 商店街・コンビニの買い物
 
-[Issue #21](https://github.com/kame447/gmo-security-life-game/issues/21) の購入フロー。[所持金・所持品](player-state.md) と [イベント共通仕様](events.md) に接続する日常の行動として扱い、セキュリティの正解・不正解や能力変化は要求しない。
+[Issue #21](https://github.com/kame447/gmo-security-life-game/issues/21) の購入フロー。[所持金・所持品](inventory.md) と [イベント共通仕様](events.md) に接続する日常の行動として扱い、セキュリティの正解・不正解や能力変化は要求しない。
 
 ## 実装する体験
 
