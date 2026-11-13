@@ -10,4 +10,6 @@
 
 [幼少期マップの Canvas 2D プロトタイプ（提案／要検証）](0003-map-prototype-canvas2d.md)
 
-[主要タスクと人生の節目による進行](0004-task-based-life-progression.md)
+[ゲームのコードを責務ごとのモジュールに分ける](0004-game-module-structure.md)
+
+[主要タスクと人生の節目による進行](0005-task-based-life-progression.md)

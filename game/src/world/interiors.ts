@@ -1,5 +1,16 @@
-import type { AreaDef, ObjectDef } from '../core/types';
+import type { AreaDef, ObjectDef, PortalDef } from '../core/types';
+import { LANDMARKS } from './landmarks';
 import { T } from './tiles';
+
+/** 屋外から入ったときの屋内の到着位置。出口マットのすぐ北。 */
+export const INTERIOR_ENTRIES = {
+  home: { areaId: 'home-family-interior', x: 7, y: 10, facing: 'up' },
+  classroom: { areaId: 'school-classroom-interior', x: 8, y: 10, facing: 'up' },
+  konbini: { areaId: 'shop-konbini-interior', x: 6, y: 8, facing: 'up' },
+} as const satisfies Record<string, PortalDef['to']>;
+
+/** 屋内から出たときは、入った入口の前へ下向きで戻る。 */
+const toTown = (front: { x: number; y: number }): PortalDef['to'] => ({ areaId: 'town-main', ...front, facing: 'down' });
 
 function room(id: string, name: string, width: number, floor: number, height = 12): AreaDef {
   const ground = new Uint8Array(width * height).fill(floor);
@@ -30,7 +41,7 @@ export function createHome(): AreaDef {
   furnish(a, 'sofa', 1, 9, 3, 1); furnish(a, 'rug', 4, 7, 3, 2, false);
   furnish(a, 'lowtable', 5, 8, 2, 1); furnish(a, 'plant', 14, 9, 1, 1);
   furnish(a, 'window', 10, 0, 2, 1, false);
-  a.portals = [{ id: 'home-exit', from: { x: 7, y: 11, w: 2 }, to: { areaId: 'town-main', x: 35, y: 32, facing: 'down' }, facilityId: 'home-family' }];
+  a.portals = [{ id: 'home-exit', from: { x: 7, y: 11, w: 2 }, to: toTown(LANDMARKS.homeFront), facilityId: 'home-family' }];
   a.interactions = [
     { id: 'home-mother', kind: 'npc', name: 'おかあさん', x: 13, y: 4, sprite: 'mother', facing: 'left', solid: true, eventKey: 'home.mother', lines: ['おかえり！ てを あらったら、おやつにしよう。'] },
     { id: 'home-tablet', kind: 'object', name: 'かぞくのタブレット', x: 5, y: 8, w: 2, solid: true, eventKey: 'home.tablet', lines: ['みんなで つかう タブレットだ。つぎは なにを みようかな。'] },
@@ -45,7 +56,7 @@ export function createClassroom(): AreaDef {
   for (const x of [2, 5, 8, 11, 14]) for (const y of [4, 6, 8]) furnish(a, 'sdesk', x, y, 1, 1);
   furnish(a, 'shelf', 1, 10, 2, 1); furnish(a, 'shelf', 14, 10, 2, 1);
   furnish(a, 'window', 2, 0, 2, 1, false); furnish(a, 'window', 14, 0, 2, 1, false);
-  a.portals = [{ id: 'school-exit', from: { x: 8, y: 11, w: 2 }, to: { areaId: 'town-main', x: 103, y: 20, facing: 'down' }, facilityId: 'school' }];
+  a.portals = [{ id: 'school-exit', from: { x: 8, y: 11, w: 2 }, to: toTown(LANDMARKS.schoolDoorFront), facilityId: 'school' }];
   a.interactions = [
     { id: 'school-teacher', kind: 'npc', name: 'せんせい', x: 10, y: 2, sprite: 'teacher', facing: 'down', solid: true, eventKey: 'school.teacher', lines: ['おはよう。きょうも いろんなことを みつけようね。'] },
     { id: 'school-classmate', kind: 'npc', name: 'クラスのともだち', x: 12, y: 6, sprite: 'classmate', facing: 'left', solid: true, eventKey: 'school.classmate', lines: ['ほうかご、こうえんで あそぼうよ！'] },
@@ -59,7 +70,7 @@ export function createKonbini(): AreaDef {
   furnish(a, 'magazine', 9, 1, 2, 1);
   for (const x of [2, 6]) for (const y of [4, 6]) furnish(a, 'shopshelf', x, y, 2, 1);
   furnish(a, 'counter', 9, 4, 3, 1);
-  a.portals = [{ id: 'konbini-exit', from: { x: 6, y: 9, w: 2 }, to: { areaId: 'town-main', x: 54, y: 53, facing: 'down' }, facilityId: 'shop-konbini' }];
+  a.portals = [{ id: 'konbini-exit', from: { x: 6, y: 9, w: 2 }, to: toTown(LANDMARKS.konbiniDoorFront), facilityId: 'shop-konbini' }];
   a.interactions = [
     { id: 'konbini-clerk', kind: 'npc', name: 'てんいんさん', x: 10, y: 3, sprite: 'clerk', facing: 'left', solid: true, eventKey: 'shopping.konbini.clerk', lines: ['いらっしゃいませ。おやつも のみものも あるよ。ゆっくり みてね。'] },
     { id: 'konbini-snacks', kind: 'object', name: 'おかしのたな', x: 2, y: 4, w: 2, solid: true, eventKey: 'shopping.konbini.snacks', lines: ['あまい おかしと、しょっぱい おかし。どっちも おいしそう！'] },

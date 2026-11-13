@@ -3,7 +3,6 @@
  * ID は英小文字 kebab-case。表示名（name）とは別に持つ。
  */
 import type { Facing } from './coords';
-import type { PlayerAppearance } from './appearance';
 
 export type AreaKind = 'outdoor' | 'indoor';
 
@@ -96,6 +95,8 @@ export interface VariantDef {
   disabledPortals?: string[];
   disabledInteractions?: string[];
   extraInteractions?: Record<string, InteractionDef[]>;
+  /** 屋外の端に着いたときに表示する一言。年代ごとの文言をUIに直書きしない。 */
+  edgeMessage?: string;
 }
 
 export interface SpawnPoint {
@@ -115,15 +116,4 @@ export type MapEvent =
 /** イベント管理側が実装する受け口。会話を差し替えたいときは lines を返す。 */
 export interface MapEventSink {
   onMapEvent(e: MapEvent): { speaker?: string; lines: string[] } | void;
-}
-
-export interface SaveData {
-  v: 1;
-  variantId: string;
-  areaId: string;
-  x: number;
-  y: number;
-  facing: Facing;
-  /** Optional for v1 saves made before appearance customization was added. */
-  appearance?: PlayerAppearance;
 }
