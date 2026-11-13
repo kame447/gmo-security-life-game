@@ -8,9 +8,10 @@ import { ACTION_KEYS, Controls, DIRECTION_KEYS, RUN_KEYS } from '../input/contro
 import type { InputState } from '../map/explorer';
 import type { Game } from '../session/game';
 import type { AvatarPanel } from './avatar-panel';
+import type { PhonePanel } from './phone-panel';
 import { $ } from './dom';
 
-export type UiMode = 'explore' | 'dialog' | 'avatar';
+export type UiMode = 'explore' | 'dialog' | 'avatar' | 'phone';
 
 const TOUCH_LABELS: Record<Facing, string> = { up: 'うえ', down: 'した', left: 'ひだり', right: 'みぎ' };
 const NO_INPUT: InputState = { dir: null, run: false };
@@ -18,15 +19,18 @@ const NO_INPUT: InputState = { dir: null, run: false };
 export class UiController {
   private readonly touch = $<HTMLElement>('#touch');
   private readonly touchToggle = $<HTMLButtonElement>('#btn-touch');
+  private readonly phoneButton = $<HTMLButtonElement>('#btn-phone');
 
   constructor(
     private readonly game: Game,
     private readonly controls: Controls,
     private readonly avatar: AvatarPanel,
+    private readonly phone: PhonePanel,
     private readonly canvas: HTMLCanvasElement,
   ) {}
 
   get mode(): UiMode {
+    if (this.phone.isOpen) return 'phone';
     if (this.avatar.isOpen) return 'avatar';
     if (this.game.dialog) return 'dialog';
     return 'explore';
@@ -34,12 +38,20 @@ export class UiController {
 
   /** Movement input for this frame. Held keys survive a dialog; the session itself pauses movement then. */
   movementInput(): InputState {
-    return this.mode === 'avatar' ? NO_INPUT : this.controls.state();
+    return this.mode === 'avatar' || this.mode === 'phone' ? NO_INPUT : this.controls.state();
   }
 
   /** Decide / talk / advance: shared by keys, the dialog box and the touch A button. */
   primaryAction(): void {
-    if (this.mode !== 'avatar') this.game.action();
+    if (this.mode === 'explore' || this.mode === 'dialog') this.game.action();
+  }
+
+  update(): void { this.phoneButton.disabled = this.mode !== 'explore' || !this.phone.isAvailable; }
+
+  private openPhone(): void {
+    if (this.mode !== 'explore' || !this.phone.isAvailable) return;
+    this.controls.clear();
+    this.phone.open();
   }
 
   focusMap(): void { this.canvas.focus({ preventScroll: true }); }
@@ -56,7 +68,9 @@ export class UiController {
       this.controls.clear();
       this.avatar.open();
     });
+    this.phoneButton.addEventListener('click', () => this.openPhone());
     $<HTMLButtonElement>('#btn-reset').addEventListener('click', () => {
+      if (this.mode === 'phone' || this.mode === 'avatar') return;
       this.controls.clear();
       handlers.onReset();
       this.focusMap();
@@ -65,9 +79,15 @@ export class UiController {
   }
 
   private onKeyDown(event: KeyboardEvent): void {
+    if (this.mode === 'phone') { this.phone.handleKey(event); return; }
     if (this.mode === 'avatar') { this.avatar.handleKey(event); return; }
     // Let buttons retain their ordinary Enter/Space behavior.
     if (event.target instanceof HTMLElement && event.target.closest('button, input, textarea, select')) return;
+    if (event.code === 'KeyP' && this.mode === 'explore') {
+      event.preventDefault();
+      if (!event.repeat) this.openPhone();
+      return;
+    }
     const dir = DIRECTION_KEYS[event.code];
     if (dir) {
       event.preventDefault();
@@ -98,6 +118,7 @@ export class UiController {
       button.setAttribute('aria-label', direction ? TOUCH_LABELS[direction] : 'しらべる・はなす');
       button.addEventListener('pointerdown', event => {
         event.preventDefault();
+        if (this.mode === 'avatar' || this.mode === 'phone') return;
         this.focusMap();
         button.setPointerCapture(event.pointerId);
         if (direction) this.controls.press(`pointer-${event.pointerId}`, direction);

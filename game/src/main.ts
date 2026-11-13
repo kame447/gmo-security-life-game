@@ -4,15 +4,17 @@ import { startLoop } from './app/loop';
 import { loadSave, writeSave } from './app/save-store';
 import { Controls } from './input/controls';
 import { Renderer } from './render/renderer';
+import { PHONE_INITIAL_OWNED } from './phone/config';
 import { Game } from './session/game';
 import { AvatarPanel } from './ui/avatar-panel';
 import { UiController } from './ui/controller';
 import { $ } from './ui/dom';
 import { Hud } from './ui/hud';
+import { PhonePanel } from './ui/phone-panel';
 import { buildWorld } from './world';
 
 const world = buildWorld();
-const game = new Game(world, { save: loadSave(world) });
+const game = new Game(world, { save: loadSave(world, PHONE_INITIAL_OWNED), initialPhoneOwned: PHONE_INITIAL_OWNED });
 const canvas = $<HTMLCanvasElement>('#view');
 const renderer = new Renderer(canvas);
 const controls = new Controls();
@@ -31,9 +33,11 @@ const avatar = new AvatarPanel(game, commit => {
   if (commit) save();
   ui.focusMap();
 });
-const ui = new UiController(game, controls, avatar, canvas);
+const phone = new PhonePanel(game.phone, () => { controls.clear(); ui.focusMap(); });
+const ui = new UiController(game, controls, avatar, phone, canvas);
 const hud = new Hud(game, () => ui.primaryAction());
 ui.bind({ onReset: () => { game.reset(); save(); } });
+game.phone.onChange(save);
 exposeDebug(game, renderer, frames);
 
 game.on(event => {
@@ -61,6 +65,7 @@ const loop = startLoop({
     frames.record(now, frame, input, game, renderer);
     avatar.drawPreview(now);
     hud.update(now);
+    ui.update();
   },
 });
 document.addEventListener('visibilitychange', () => { controls.clear(); loop.resetClock(); });
