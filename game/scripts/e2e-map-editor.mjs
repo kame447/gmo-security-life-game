@@ -11,7 +11,7 @@ const gameDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const temp = await realpath(await mkdtemp(path.join(os.tmpdir(), 'slg-map-editor-e2e-')));
 const fixture = path.join(temp, 'game');
 // The tested copy owns this port; SLG_URL may point at a separate normal-game server in CI.
-const port = Number(process.env.SLG_MAP_EDITOR_PORT || '5185');
+const port = Number(process.env.SLG_EDITOR_PORT || '5185');
 const base = `http://127.0.0.1:${port}/`;
 const normalURL = process.env.SLG_URL || base;
 const shots = process.env.SLG_SHOTS;
