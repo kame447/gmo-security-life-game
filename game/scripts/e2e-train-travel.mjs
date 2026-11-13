@@ -8,7 +8,7 @@ const base = new URL(process.env.SLG_URL || 'http://127.0.0.1:5207');
 assert.ok(['http:', 'https:'].includes(base.protocol) && ['localhost', '127.0.0.1', '[::1]'].includes(base.hostname), 'Use a local preview');
 const shots = resolve(process.env.SLG_SHOTS || '/private/tmp/slg-audit/train-travel-e2e');
 await mkdir(shots, { recursive: true });
-const errors = [], passed = [];
+const errors = [], blocked = [], passed = [];
 const browser = await chromium.launch({ headless: true, args: ['--disable-gpu-vsync', '--disable-frame-rate-limit'] });
 let page;
 const player = page => page.evaluate(() => ({ ...window.__slg.game.player }));
@@ -27,9 +27,19 @@ function observe(page) {
 }
 async function contextFor(size, save) {
   const context = await browser.newContext({ viewport: { width: size.width, height: size.height },
-    hasTouch: size.touch, isMobile: size.touch, deviceScaleFactor: 1,
+    hasTouch: size.touch, isMobile: size.touch, deviceScaleFactor: 1, acceptDownloads: false, serviceWorkers: 'block',
     ...(save ? { storageState: { cookies: [], origins: [{ origin: base.origin,
       localStorage: [{ name: 'slg-map-save-v1', value: JSON.stringify(save) }] }] } } : {}) });
+  await context.route('**/*', route => {
+    const url = new URL(route.request().url());
+    if (url.origin === base.origin || url.protocol === 'data:') return route.continue();
+    blocked.push(url.origin); return route.abort();
+  });
+  await context.routeWebSocket('**', socket => {
+    const url = new URL(socket.url());
+    if (url.origin === base.origin.replace(/^http/, 'ws')) return socket.connectToServer();
+    blocked.push(url.origin); void socket.close();
+  });
   const page = await context.newPage(); observe(page);
   await page.goto(base.href, { waitUntil: 'networkidle' }); await ready(page);
   return { context, page };
@@ -213,6 +223,31 @@ try {
     assert.equal(await page.evaluate(() => window.__slg.game.world.variant.stage), stage);
   });
   await shot(page, 'desktop-08-return');
+  await check('leave the original station, follow the town map and reload the saved return', async () => {
+    const exit = await page.evaluate(id => window.__slg.game.area.def.portals.find(portal => portal.id === id), access.exitPortalId);
+    assert.ok(exit, 'Original station exit is registered');
+    assert.equal(exit.to.areaId, 'town-main');
+    assert.deepEqual({ x: exit.to.x, y: exit.to.y }, { x: 28, y: 64 });
+    await walkTo(page, exit.from); await waitArea(page, 'town-main'); await waitSavedArea(page, 'town-main');
+    const arrived = await player(page);
+    const nearExit = point => Math.abs(Math.floor(point.x / 16) - 28) <= 1 && Math.abs(Math.floor((point.y - 4) / 16) - 64) <= 1;
+    assert.ok(nearExit(arrived), 'Return position is near the original station exit');
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('slg-map-save-v1') || 'null'));
+    assert.equal(saved?.areaId, 'town-main');
+    assert.ok(nearExit(saved), 'Saved position is near the original station exit');
+    await shot(page, 'desktop-09-returned-town');
+    await page.locator('#minimap-button').click();
+    await page.locator('#full-map-overlay').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#full-map-canvas').getAttribute('data-area-id'), 'town-main');
+    await shot(page, 'desktop-10-returned-map');
+    await page.keyboard.press('Escape');
+    await page.locator('#full-map-overlay').waitFor({ state: 'hidden' });
+    const beforeReload = await player(page);
+    await page.reload(); await ready(page);
+    assert.deepEqual(await player(page), beforeReload);
+    assert.equal(await page.locator('#minimap-button').getAttribute('data-area-id'), 'town-main');
+    assert.deepEqual(await page.evaluate(() => window.__slg.game.appearance), appearance);
+  });
   await desktop.context.close();
 
   for (const size of [{ name: 'portrait', width: 390, height: 844, touch: true }, { name: 'landscape', width: 844, height: 390, touch: true }]) {
@@ -241,6 +276,7 @@ try {
     });
   }
   assert.deepEqual(errors, []);
+  assert.deepEqual(blocked, [], 'No external network requests or WebSockets');
   console.log(`SUMMARY ${passed.length}/${passed.length} PASS; screenshots: ${shots}`);
 } catch (error) {
   console.error('FAIL', error); console.error(`SUMMARY ${passed.length} PASS; FAILED`); process.exitCode = 1;
