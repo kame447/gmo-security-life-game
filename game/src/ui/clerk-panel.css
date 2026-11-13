@@ -1,0 +1,75 @@
+#clerk-panel {
+  --clerk-ink: #493c2f; --clerk-paper: #fff2d7; --clerk-line: #826b48; --clerk-green: #426b55;
+  position: absolute; z-index: 4; left: 50%; bottom: 24px; transform: translateX(-50%);
+  width: min(920px, calc(100% - 36px)); max-height: calc(100% - 48px); box-sizing: border-box;
+  display: flex; flex-direction: column; color: var(--clerk-ink); font-size: 16px;
+  background: var(--clerk-paper); border: 4px solid var(--clerk-line); border-radius: 4px;
+  box-shadow: 0 0 0 3px #ead7aa, 0 8px 0 #261e2966, 0 18px 38px #16142088; outline: none;
+  touch-action: pan-y; overflow: auto; overscroll-behavior: contain;
+}
+#clerk-panel * { box-sizing: border-box; }
+#clerk-panel button { font: inherit; touch-action: manipulation; cursor: pointer; }
+#clerk-panel button:focus-visible { outline: 3px solid #b57131; outline-offset: 3px; }
+#clerk-panel button:disabled { opacity: .48; cursor: default; }
+.clerk-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; background: #e8d7b1; border-bottom: 2px solid #b6a17b; }
+.clerk-place { display: flex; gap: 12px; align-items: center; }
+.clerk-place svg { width: 36px; height: 36px; }
+.clerk-place strong { display: block; font-size: 16px; }
+.clerk-place small { display: block; font-size: 11px; color: #776348; margin-top: 2px; }
+.clerk-wallet { white-space: nowrap; border: 2px solid #bca77b; background: #fff6de; padding: 7px 12px; border-radius: 4px; }
+.clerk-wallet span { color: #776348; font-size: 11px; margin-right: 12px; }
+.clerk-wallet strong { font-size: 19px; font-variant-numeric: tabular-nums; }
+.clerk-trade { display: grid; grid-template-columns: 1.1fr 1fr; min-height: 238px; }
+.clerk-stock { padding: 18px; background: #f0e3c4; border-right: 2px solid #c8b690; }
+.clerk-stock-label { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 10px; font-size: 13px; }
+.clerk-stock-label small { font-size: 10px; color: #7f6e51; }
+#clerk-products { display: grid; gap: 7px; }
+.clerk-product { display: grid; grid-template-columns: 12px 40px 1fr auto; gap: 9px; align-items: center; width: 100%; min-height: 58px; padding: 6px 11px; color: var(--clerk-ink); background: #fcf4df; border: 2px solid #d3c09b; border-radius: 4px; text-align: left; }
+.clerk-product svg { width: 36px; height: 36px; }
+.clerk-product strong { font-size: 15px; }
+.clerk-product .clerk-price { font-size: 14px; font-variant-numeric: tabular-nums; }
+.clerk-cursor { visibility: hidden; width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 7px solid var(--clerk-green); }
+.clerk-product.selected { background: #fff9df; border-color: var(--clerk-green); box-shadow: inset 0 0 0 1px #8ba485; }
+.clerk-product.selected .clerk-cursor { visibility: visible; }
+.clerk-detail { padding: 18px 22px; display: grid; grid-template-columns: 64px 1fr; gap: 0 14px; align-content: start; }
+#clerk-item-icon { grid-row: span 2; background: #efe2bc; border: 2px solid #d5c19a; padding: 9px; width: 64px; height: 64px; }
+#clerk-item-icon svg { width: 42px; height: 42px; }
+#clerk-item-kind { font-size: 10px; color: #7a6d51; align-self: end; }
+#clerk-item-name { margin: 4px 0 8px; font-size: 21px; }
+#clerk-item-description { grid-column: 1 / -1; font-size: 13px; line-height: 1.7; min-height: 40px; margin: 13px 0 8px; }
+.clerk-facts { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; padding-top: 10px; margin: 0; border-top: 1px dashed #bea982; font-size: 12px; }
+.clerk-facts dt { color: #746247; } .clerk-facts dd { margin: 0; font-weight: bold; }
+#clerk-confirmation { padding: 10px 22px; background: #e8edda; border-top: 2px solid #b5c3a5; border-bottom: 2px solid #b5c3a5; display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+#clerk-confirmation strong { color: #365a46; font-size: 16px; }
+.clerk-dialogue { padding: 18px 22px 12px; }
+.clerk-speaker { display: inline-block; margin: -2px 0 9px; padding: 3px 12px; color: #fff9e4; background: #6a7759; border-radius: 3px; font-size: 12px; }
+#clerk-line { margin: 0; font-size: 17px; line-height: 1.75; min-height: 52px; white-space: pre-line; }
+#clerk-receipt { font-size: 12px; color: #766248; line-height: 1.7; margin: 8px 0 0; }
+#clerk-actions { display: flex; justify-content: flex-end; gap: 9px; flex-wrap: wrap; padding: 0 22px 15px; }
+.clerk-action { min-height: 42px; padding: 8px 18px; border: 2px solid #b29c74; border-radius: 4px; background: #faf1da; color: var(--clerk-ink); box-shadow: 0 2px 0 #cdb78e; font-size: 13px !important; }
+.clerk-action.primary { color: #fff9e6; background: var(--clerk-green); border-color: #304c3e; box-shadow: 0 2px 0 #274134; }
+.clerk-action.selected { outline: 2px solid #bd863c; outline-offset: 2px; }
+.clerk-keyhint { margin: 0; padding: 7px 20px; background: #e8d7b1; color: #78654b; font-size: 10px; text-align: right; border-top: 1px solid #c6b18c; }
+.clerk-empty { padding: 30px 8px; color: #827154; font-size: 13px; text-align: center; }
+@media (max-width: 620px) {
+  #clerk-panel { width: calc(100% - 22px); max-height: calc(100% - 30px); bottom: 15px; border-width: 3px; }
+  .clerk-heading { padding: 9px 12px; gap: 5px; }
+  .clerk-place { gap: 6px; } .clerk-place svg { width: 28px; height: 28px; }
+  .clerk-place strong { font-size: 13px; } .clerk-place small { font-size: 9px; }
+  .clerk-wallet { padding: 5px 8px; } .clerk-wallet span { display: block; margin: 0; font-size: 9px; } .clerk-wallet strong { font-size: 16px; }
+  .clerk-trade { grid-template-columns: 1fr; min-height: 0; }
+  .clerk-stock { padding: 12px; border-right: 0; border-bottom: 2px solid #c8b690; }
+  .clerk-product { min-height: 45px; grid-template-columns: 10px 28px 1fr auto; padding: 5px 9px; gap: 7px; }
+  .clerk-product svg { width: 27px; height: 27px; } .clerk-product strong { font-size: 13px; }
+  .clerk-product .clerk-price { font-size: 12px; } .clerk-stock-label { margin-bottom: 7px; }
+  .clerk-detail { padding: 12px 15px; grid-template-columns: 45px 1fr; gap: 0 10px; }
+  #clerk-item-icon { width: 45px; height: 45px; padding: 5px; } #clerk-item-icon svg { width: 32px; height: 32px; }
+  #clerk-item-name { font-size: 17px; margin: 3px 0; } #clerk-item-description { min-height: 0; font-size: 12px; margin: 8px 0; }
+  .clerk-facts { font-size: 11px; gap: 4px; padding-top: 7px; }
+  .clerk-dialogue { padding: 12px 15px 10px; } #clerk-line { font-size: 14px; min-height: 43px; line-height: 1.65; }
+  .clerk-speaker { font-size: 10px; margin-bottom: 6px; }
+  #clerk-actions { padding: 0 15px 12px; gap: 7px; }
+  .clerk-action { padding: 7px 12px; min-height: 42px; font-size: 12px !important; flex-grow: 1; }
+  #clerk-confirmation { padding: 8px 14px; font-size: 11px; } #clerk-confirmation strong { font-size: 13px; }
+  .clerk-keyhint { font-size: 9px; padding: 6px 10px; } #clerk-receipt { font-size: 11px; }
+}
