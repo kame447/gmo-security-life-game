@@ -2,6 +2,7 @@ import { hash2 } from '../core/coords';
 import type { AreaDef, FacilityDef, ObjectDef } from '../core/types';
 import { INTERIOR_ENTRIES } from './interiors';
 import { LANDMARKS } from './landmarks';
+import { SHOP_ENTRANCES } from './shops';
 import { isRoad, isSolidGround, T } from './tiles';
 
 const shops = [
@@ -14,7 +15,7 @@ export const FACILITIES: FacilityDef[] = [
   { id: 'school', name: 'しょうがっこう', areaId: 'town-main', interior: 'full', state: 'open' },
   { id: 'station', name: 'まちのえき', areaId: 'town-main', interior: 'interaction', state: 'open' },
   { id: 'park', name: 'かわぞいこうえん', areaId: 'town-main', interior: 'interaction', state: 'open' },
-  ...shops.map(([id, name]) => ({ id: `shop-${id}`, name, areaId: 'town-main', interior: id === 'konbini' ? 'full' as const : 'interaction' as const, state: 'open' as const })),
+  ...shops.map(([id, name]) => ({ id: `shop-${id}`, name, areaId: 'town-main', interior: 'full' as const, state: 'open' as const })),
 ];
 
 /** Pure, deterministic map data. Reference PNG is a design reference, never a runtime asset. */
@@ -218,6 +219,7 @@ export function createTown(): AreaDef {
       { id: 'home-enter', from: { x: 35, y: 31 }, to: { ...INTERIOR_ENTRIES.home }, facilityId: 'home-family' },
       { id: 'school-enter', from: { x: 103, y: 19, w: 2 }, to: { ...INTERIOR_ENTRIES.classroom }, facilityId: 'school' },
       { id: 'konbini-enter', from: { x: 54, y: 52 }, to: { ...INTERIOR_ENTRIES.konbini }, facilityId: 'shop-konbini' },
+      ...SHOP_ENTRANCES,
     ],
     interactions: [
       { id: 'neighbor-grandma', kind: 'npc', name: 'きんじょのおばあさん', x: 40, y: 33, sprite: 'grandma', facing: 'left', solid: true, eventKey: 'neighborhood.grandma', lines: ['おかえり。きょうも がっこう、たのしかった？'] },
