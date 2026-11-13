@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadSave, writeSave } from '../src/app/save-store';
 import { positionAt } from '../src/map/explorer';
+import { PHONE_BUDGET_PROTOTYPE } from '../src/phone/budget-config';
 import { Game } from '../src/session/game';
 import { parseSave } from '../src/state/save';
 import { buildWorld } from '../src/world';
@@ -50,5 +51,18 @@ describe('phone and assets in an existing v1 save', () => {
     expect(restored.assets.snapshot()).toEqual(raw.assets);
     expect(restored.phone.isOwned).toBe(false);
     expect(restored.phone.remainingDataMb).toBe(restored.phone.dataCapacityMb);
+  });
+
+  it('uses the same custom capacity at storage load, Game restore and serialization', () => {
+    const world = buildWorld(), config = { ...PHONE_BUDGET_PROTOTYPE, capacityMb: 9000 };
+    const source = new Game(world, { phoneDataConfig: config, phoneClock: () => 0 });
+    const seed = { ...source.serialize(), phone: { v: 1 as const, owned: false,
+      dataBudget: { v: 1 as const, remainingMb: 7500, capacityMb: 9000 } } };
+    let stored = JSON.stringify(seed);
+    vi.stubGlobal('localStorage', { getItem: () => stored, setItem: (_key: string, value: string) => { stored = value; } });
+    const saved = loadSave(world, false, config);
+    const restored = new Game(world, { save: saved, initialPhoneOwned: false, phoneDataConfig: config, phoneClock: () => 0 });
+    writeSave(restored.serialize());
+    expect(JSON.parse(stored).phone).toEqual(seed.phone);
   });
 });

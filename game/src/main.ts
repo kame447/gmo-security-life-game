@@ -5,6 +5,7 @@ import { loadSave, writeSave } from './app/save-store';
 import { Controls } from './input/controls';
 import { Renderer } from './render/renderer';
 import { PHONE_INITIAL_OWNED } from './phone/config';
+import { PHONE_BUDGET_PROTOTYPE } from './phone/budget-config';
 import { Game } from './session/game';
 import { AvatarPanel } from './ui/avatar-panel';
 import { UiController } from './ui/controller';
@@ -15,7 +16,8 @@ import { buildWorld } from './world';
 
 const world = buildWorld();
 const reviewOnly = new URLSearchParams(window.location.search).get('review') === '1';
-const game = new Game(world, { save: reviewOnly ? undefined : loadSave(world, PHONE_INITIAL_OWNED), initialPhoneOwned: PHONE_INITIAL_OWNED });
+const game = new Game(world, { save: reviewOnly ? undefined : loadSave(world, PHONE_INITIAL_OWNED, PHONE_BUDGET_PROTOTYPE),
+  initialPhoneOwned: PHONE_INITIAL_OWNED, phoneDataConfig: PHONE_BUDGET_PROTOTYPE });
 game.phone.setVisible(!document.hidden);
 const canvas = $<HTMLCanvasElement>('#view');
 const renderer = new Renderer(canvas);

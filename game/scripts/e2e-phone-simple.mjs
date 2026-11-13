@@ -119,6 +119,7 @@ try {
   });
   const reviewContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await reviewContext.addInitScript(value => {
+    if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
     const nativeGet = Storage.prototype.getItem, nativeSet = Storage.prototype.setItem;
     nativeSet.call(localStorage, 'slg-map-save-v1', JSON.stringify(value));
     const counts = { reads: 0, writes: 0 };
