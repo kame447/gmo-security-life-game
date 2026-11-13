@@ -18,6 +18,7 @@ export class UiController implements ModalPanelHost {
   private readonly touch = $<HTMLElement>('#touch');
   private readonly touchToggle = $<HTMLButtonElement>('#btn-touch');
   private readonly stage = $<HTMLElement>('#stage');
+  private readonly menu = $<HTMLElement>('#menu');
   private readonly panels: ModalPanels;
   private previousPanel?: ModalPanelId;
 
@@ -32,6 +33,9 @@ export class UiController implements ModalPanelHost {
   get mode(): UiMode { return this.panels.mode; }
 
   registerPanel(registration: ModalPanelRegistration): void {
+    if (registration.button && registration.button.parentElement !== this.menu) {
+      throw new Error('A modal launch button must be a direct child of #menu');
+    }
     const shortcut = registration.shortcut;
     if (shortcut && (DIRECTION_KEYS[shortcut] || ACTION_KEYS.has(shortcut) || RUN_KEYS.has(shortcut))) {
       throw new Error(`Shortcut conflicts with game controls: ${shortcut}`);

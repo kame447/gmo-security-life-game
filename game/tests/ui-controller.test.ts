@@ -20,6 +20,7 @@ class FakeElement {
   readonly listeners = new Map<string, Listener[]>();
   readonly children: FakeElement[] = [];
   readonly focus = vi.fn();
+  parentElement: FakeElement | null = null;
   disabled = false;
   constructor(readonly control = false) {}
   addEventListener(name: string, listener: Listener): void {
@@ -29,15 +30,16 @@ class FakeElement {
   fire(name: string, event: object = {}): void { for (const listener of this.listeners.get(name) ?? []) listener(event); }
   setAttribute(): void {}
   setPointerCapture(): void {}
+  append(child: FakeElement): void { child.parentElement = this; this.children.push(child); }
   querySelectorAll(): FakeElement[] { return this.children; }
   closest(): FakeElement | null { return this.control ? this : null; }
 }
 
 function setup() {
-  const stage = new FakeElement(), canvas = new FakeElement(), touch = new FakeElement();
+  const stage = new FakeElement(), menu = new FakeElement(), canvas = new FakeElement(), touch = new FakeElement();
   const toggle = new FakeElement(true), reset = new FakeElement(true);
   const direction = new FakeElement(true); direction.dataset.dir = 'up'; touch.children.push(direction);
-  const elements: Record<string, FakeElement> = { '#stage': stage, '#touch': touch, '#btn-touch': toggle, '#btn-reset': reset };
+  const elements: Record<string, FakeElement> = { '#stage': stage, '#menu': menu, '#touch': touch, '#btn-touch': toggle, '#btn-reset': reset };
   const win = new FakeElement();
   const doc = new FakeElement() as FakeElement & { querySelector(selector: string): FakeElement | null };
   doc.querySelector = selector => elements[selector] ?? null;
@@ -50,7 +52,7 @@ function setup() {
   const ui = new UiController(game as unknown as Game, controls, canvas as unknown as HTMLCanvasElement);
   const resetHandler = vi.fn();
   ui.bind({ onReset: resetHandler });
-  return { stage, canvas, touch, toggle, reset, direction, win, game, controls, ui, resetHandler };
+  return { stage, menu, canvas, touch, toggle, reset, direction, win, game, controls, ui, resetHandler };
 }
 
 function fakePanel() {
@@ -65,9 +67,10 @@ afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('UiController modal integration', () => {
   it('routes buttons, shortcuts, movement and touch through the active modal', () => {
-    const { ui, controls, game, canvas, stage, direction, reset, resetHandler, win } = setup();
+    const { ui, controls, game, canvas, stage, menu, direction, reset, resetHandler, win } = setup();
     const inventory = fakePanel(), phone = fakePanel();
     const inventoryButton = new FakeElement(true), phoneButton = new FakeElement(true);
+    menu.append(inventoryButton); menu.append(phoneButton);
     ui.registerPanel({ id: 'inventory', panel: inventory.panel, open: inventory.open, button: inventoryButton as unknown as HTMLButtonElement, shortcut: 'KeyI' });
     ui.registerPanel({ id: 'phone', panel: phone.panel, open: phone.open, button: phoneButton as unknown as HTMLButtonElement, shortcut: 'KeyP' });
     controls.press('KeyW', 'up');
@@ -101,9 +104,10 @@ describe('UiController modal integration', () => {
   });
 
   it('blocks openings during dialog, honors availability, and passes a shop context', () => {
-    const { ui, game, canvas, win } = setup();
+    const { ui, game, menu, canvas, win } = setup();
     const phone = fakePanel(), shop = fakePanel();
     const phoneButton = new FakeElement(true);
+    menu.append(phoneButton);
     let owned = false;
     ui.registerPanel({ id: 'phone', panel: phone.panel, open: phone.open, button: phoneButton as unknown as HTMLButtonElement, shortcut: 'KeyP', canOpen: () => owned });
     ui.registerPanel({ id: 'shop', panel: shop.panel });
@@ -138,5 +142,14 @@ describe('UiController modal integration', () => {
     expect(panel.panel.isOpen).toBe(false);
     win.fire('keydown', key('KeyI', canvas));
     expect(panel.panel.isOpen).toBe(true);
+  });
+
+  it('rejects a launch button outside the shared menu before registering the panel', () => {
+    const { ui, menu } = setup();
+    const panel = fakePanel(), button = new FakeElement(true);
+    const registration = { id: 'inventory' as const, panel: panel.panel, open: panel.open, button: button as unknown as HTMLButtonElement };
+    expect(() => ui.registerPanel(registration)).toThrow('direct child of #menu');
+    menu.append(button);
+    expect(() => ui.registerPanel(registration)).not.toThrow();
   });
 });
