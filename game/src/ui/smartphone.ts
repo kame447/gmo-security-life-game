@@ -1,7 +1,7 @@
 import type { PhoneApp, PhoneScreen } from '../phone/content';
 import type { PhoneModel } from '../phone/model';
 import { CHAT_SELF } from '../phone/chat/types';
-import { renderChatConversation, renderChatList, type ChatThreadView } from './phone-chat';
+import { renderChatConversation, renderChatList, renderChatMessages, type ChatMessageView, type ChatThreadView } from './phone-chat';
 import './smartphone.css';
 import './phone-chat.css';
 
@@ -163,6 +163,13 @@ export class Smartphone {
     const oldScroll = this.body.querySelector<HTMLElement>('.phone-chat-messages');
     const scrollTop = oldScroll?.scrollTop ?? 0;
     const nearBottom = !oldScroll || oldScroll.scrollHeight - oldScroll.clientHeight - oldScroll.scrollTop < 24;
+    if (oldThread && oldThread === this.model.currentChatThread && this.model.currentApp?.id === 'messages' && oldInput && oldScroll) {
+      renderChatMessages(oldScroll, this.chatMessageViews(oldThread));
+      this.update();
+      oldScroll.scrollTop = this.scrollChatToEnd || nearBottom ? oldScroll.scrollHeight : scrollTop;
+      this.scrollChatToEnd = false;
+      return;
+    }
     this.render(); this.update();
     const nextThread = this.body.querySelector<HTMLElement>('[data-chat-conversation]')?.dataset.chatConversation;
     const nextScroll = this.body.querySelector<HTMLElement>('.phone-chat-messages');
@@ -213,14 +220,18 @@ export class Smartphone {
     return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   }
 
+  private chatMessageViews(threadId: string): ChatMessageView[] {
+    return this.model.chatMessages(threadId).map(message => ({ id: message.id, text: message.text,
+      time: this.chatTime(message.atMs), outgoing: message.from === CHAT_SELF }));
+  }
+
   private renderChat(): void {
     const threads: ChatThreadView[] = this.model.chatThreads.map(thread => ({ id: thread.id, name: thread.contact.name,
       preview: thread.lastMessage?.text ?? '', time: thread.lastMessage ? this.chatTime(thread.lastMessage.atMs) : '',
       unread: thread.unreadCount }));
     const selected = threads.find(thread => thread.id === this.model.currentChatThread);
     if (!selected) { this.body.append(renderChatList(threads, id => { this.model.openChatThread(id); })); return; }
-    const messages = this.model.chatMessages(selected.id).map(message => ({ id: message.id, text: message.text,
-      time: this.chatTime(message.atMs), outgoing: message.from === CHAT_SELF }));
+    const messages = this.chatMessageViews(selected.id);
     const chat = renderChatConversation(selected, messages, {
       draft: this.chatDrafts.get(selected.id) ?? '', maxLength: this.model.chatTextLimit,
       canSend: () => this.model.networkAllowed,
@@ -228,7 +239,16 @@ export class Smartphone {
       onSend: text => {
         this.chatDrafts.delete(selected.id); this.scrollChatToEnd = true;
         const result = this.model.sendChat(text);
-        if (result.ok) return;
+        if (result.ok) {
+          this.body.querySelector('.phone-chat-error')?.remove();
+          const input = this.body.querySelector<HTMLInputElement>('.phone-chat-input');
+          if (input && this.model.currentChatThread === selected.id) {
+            input.value = '';
+            input.focus({ preventScroll: true });
+            this.update();
+          }
+          return;
+        }
         this.chatDrafts.set(selected.id, text); this.scrollChatToEnd = false;
         let error = this.body.querySelector<HTMLElement>('.phone-chat-error');
         if (!error) { error = make('p', 'phone-chat-error'); error.setAttribute('role', 'status'); this.body.append(error); }

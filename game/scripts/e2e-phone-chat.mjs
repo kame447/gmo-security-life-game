@@ -164,6 +164,37 @@ try {
   await mobile.page.locator('#phone-close').tap();
   assert.equal(await mobile.page.locator('#phone-overlay').isHidden(), true);
   await mobile.context.close();
+
+  // A reply must not detach a focused input while a Japanese IME composition is active.
+  const ime = await newPage({ viewport: { width: 1280, height: 800 } }, review);
+  await openMessages(ime.page); await openThread(ime.page, 'friend');
+  await ime.page.evaluate(() => window.__slg.game.phone.setPaused(true));
+  const imeInput = ime.page.locator('.phone-chat-input');
+  const repliesBeforeIme = await ime.page.locator('[data-direction="incoming"]').count();
+  await imeInput.evaluate(input => { window.__phoneCompositionInput = input; });
+  await imeInput.fill('返信の起点'); await ime.page.locator('.phone-chat-send').click();
+  assert.equal(await imeInput.inputValue(), '', 'successful send clears the composer');
+  assert.equal(await imeInput.evaluate(input => input === window.__phoneCompositionInput), true, 'send retains the composer node');
+  await imeInput.focus();
+  const cdp = await ime.context.newCDPSession(ime.page);
+  await cdp.send('Input.imeSetComposition', { text: 'あ', selectionStart: 1, selectionEnd: 1 });
+  assert.equal(await imeInput.inputValue(), 'あ');
+  await ime.page.evaluate(() => window.__slg.game.phone.setPaused(false));
+  await ime.page.waitForFunction(count => document.querySelectorAll('[data-direction="incoming"]').length > count, repliesBeforeIme);
+  const duringReply = await imeInput.evaluate(input => ({
+    same: input === window.__phoneCompositionInput,
+    connected: input.isConnected,
+    focused: document.activeElement === input,
+    value: input.value,
+  }));
+  assert.deepEqual(duringReply, { same: true, connected: true, focused: true, value: 'あ' },
+    'reply retains the active input and composing text');
+  await cdp.send('Input.imeSetComposition', { text: 'あい', selectionStart: 2, selectionEnd: 2 });
+  assert.equal(await imeInput.inputValue(), 'あい', 'composition continues without duplicate or lost text');
+  await cdp.detach();
+  await ime.context.close();
+  console.log('PASS IME composition and input node survive a reply');
+
   assert.deepEqual(blocked, [], 'no requests to external origins');
   assert.deepEqual(errors, [], 'no page, console or dialog errors');
   console.log('PASS touch send, navigation and external-network isolation');

@@ -59,6 +59,19 @@ export interface ChatComposerOptions {
   onSend: (value: string) => void;
 }
 
+/** Update only the transcript, leaving the composer and any active IME intact. */
+export function renderChatMessages(scroll: HTMLElement, messages: readonly ChatMessageView[]): void {
+  const items = document.createDocumentFragment();
+  for (const message of messages) {
+    const item = make('div', `phone-chat-message ${message.outgoing ? 'is-outgoing' : 'is-incoming'}`);
+    item.dataset.chatMessage = message.id; item.dataset.direction = message.outgoing ? 'outgoing' : 'incoming';
+    const bubble = make('span', 'phone-chat-bubble', message.text);
+    const time = make('time', 'phone-chat-message-time', message.time);
+    item.append(bubble, time); items.append(item);
+  }
+  scroll.replaceChildren(items);
+}
+
 /** Rendering creates nodes only; no supplied chat text is interpreted as markup. */
 export function renderChatConversation(thread: ChatThreadView, messages: readonly ChatMessageView[], options: ChatComposerOptions):
   { view: HTMLElement; input: HTMLInputElement; scroll: HTMLElement; send: HTMLButtonElement } {
@@ -66,13 +79,7 @@ export function renderChatConversation(thread: ChatThreadView, messages: readonl
   const header = make('header', 'phone-chat-header');
   header.append(avatar(thread.name, thread.id), make('h1', 'phone-chat-conversation-name', thread.name));
   const scroll = make('div', 'phone-chat-messages'); scroll.setAttribute('aria-label', '会話'); scroll.setAttribute('aria-live', 'polite');
-  for (const message of messages) {
-    const item = make('div', `phone-chat-message ${message.outgoing ? 'is-outgoing' : 'is-incoming'}`);
-    item.dataset.chatMessage = message.id; item.dataset.direction = message.outgoing ? 'outgoing' : 'incoming';
-    const bubble = make('span', 'phone-chat-bubble', message.text);
-    const time = make('time', 'phone-chat-message-time', message.time);
-    item.append(bubble, time); scroll.append(item);
-  }
+  renderChatMessages(scroll, messages);
   const form = make('form', 'phone-chat-composer');
   const input = make('input', 'phone-chat-input'); input.type = 'text'; input.autocomplete = 'off';
   input.setAttribute('aria-label', 'メッセージ'); input.placeholder = 'メッセージ'; input.maxLength = options.maxLength * 2;
