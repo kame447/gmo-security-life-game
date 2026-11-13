@@ -26,7 +26,7 @@ export class PhoneDevice {
     if (!menu) throw new Error('Missing game menu');
     this.button.id = 'btn-phone'; this.button.type = 'button';
     this.button.append(el('span', 'phone-launcher-icon', '▣'), document.createTextNode('スマホ'));
-    menu.prepend(this.button);
+    menu.insertBefore(this.button, menu.querySelector('#btn-touch'));
     this.overlay.id = 'phone-overlay'; this.overlay.hidden = true;
     this.device.id = 'phone-device'; this.device.tabIndex = -1;
     this.device.setAttribute('role', 'dialog'); this.device.setAttribute('aria-modal', 'true');

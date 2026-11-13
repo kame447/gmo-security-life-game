@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { loadSave, writeSave } from '../src/app/save-store';
 import { PHONE_CONTENT, type PhoneContent } from '../src/phone/content';
 import { PhoneModel, parsePhoneSave } from '../src/phone/model';
+import { Game } from '../src/session/game';
+import { buildWorld } from '../src/world';
 
 describe('smartphone state', () => {
+  afterEach(() => vi.unstubAllGlobals());
   it('starts with configurable ownership and revocation closes an open phone', () => {
     const phone = new PhoneModel(PHONE_CONTENT, { initialOwned: false });
     expect(phone.open()).toBe(false);
@@ -82,5 +86,27 @@ describe('smartphone state', () => {
     expect(phone.navigate('missing')).toBe(false);
     expect(phone.currentApp?.id).toBe('messages');
     expect(phone.currentScreen?.id).toBe('inbox');
+  });
+
+  it('round-trips ownership alongside position and appearance and repairs a damaged phone field', () => {
+    const world = buildWorld(), game = new Game(world);
+    game.phone.setOwned(false);
+    const save = JSON.parse(JSON.stringify(game.serialize()));
+    const restored = new Game(world, { save });
+    expect(restored.phone.isOwned).toBe(false);
+    expect(restored.player).toEqual(game.player);
+    expect(restored.appearance).toEqual(game.appearance);
+    for (const phone of [undefined, null, { v: 2, owned: false }, { v: 1, owned: 'false' }]) {
+      const repaired = new Game(world, { save: { ...save, phone } });
+      expect(repaired.phone.isOwned).toBe(true);
+      expect(repaired.player).toEqual(game.player);
+      expect(repaired.appearance).toEqual(game.appearance);
+    }
+    vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ ...save, phone: undefined }) });
+    const oldSave = loadSave(world, false);
+    expect(new Game(world, { save: oldSave, initialPhoneOwned: false }).phone.isOwned).toBe(false);
+    vi.stubGlobal('localStorage', { getItem: () => { throw new Error('denied'); }, setItem: () => { throw new Error('denied'); } });
+    expect(loadSave(world)).toBeUndefined();
+    expect(() => writeSave(game.serialize())).not.toThrow();
   });
 });
