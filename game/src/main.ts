@@ -3,6 +3,7 @@ import { exposeDebug, FrameRecorder } from './app/debug';
 import { startLoop } from './app/loop';
 import { loadSave, writeSave } from './app/save-store';
 import { Controls } from './input/controls';
+import { Minimap } from './minimap/view';
 import { Renderer } from './render/renderer';
 import { Game } from './session/game';
 import { AvatarPanel } from './ui/avatar-panel';
@@ -31,7 +32,8 @@ const avatar = new AvatarPanel(game, commit => {
   if (commit) save();
   ui.focusMap();
 });
-const ui = new UiController(game, controls, avatar, canvas);
+const minimap: Minimap = new Minimap(game, (): boolean => ui.mode === 'explore', () => controls.clear(), () => { controls.clear(); ui.focusMap(); });
+const ui: UiController = new UiController(game, controls, avatar, canvas, minimap);
 const hud = new Hud(game, () => ui.primaryAction());
 ui.bind({ onReset: () => { game.reset(); save(); } });
 exposeDebug(game, renderer, frames);
@@ -54,13 +56,14 @@ resize();
 const loop = startLoop({
   beforeFrame: () => { if (dpr !== window.devicePixelRatio) resize(); },
   input: () => ui.movementInput(),
-  update: (dt, input) => game.update(dt, input),
+  update: (dt, input) => { if (!minimap.isOpen) game.update(dt, input); },
   draw: now => renderer.draw(game, now / 1000),
   measuring: () => frames.recording,
   afterFrame: (now, frame, input) => {
     frames.record(now, frame, input, game, renderer);
     avatar.drawPreview(now);
     hud.update(now);
+    minimap.update();
   },
 });
 document.addEventListener('visibilitychange', () => { controls.clear(); loop.resetClock(); });

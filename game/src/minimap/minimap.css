@@ -1,0 +1,23 @@
+#minimap-button { position: absolute; top: 48px; right: 10px; z-index: 2; width: 164px; padding: 3px;
+  border: 2px solid #f4ecdc; border-radius: 8px; background: #243034; cursor: pointer; overflow: hidden; }
+#minimap-button:focus-visible, #full-map-close:focus-visible { outline: 3px solid #ffe08a; outline-offset: 3px; }
+#minimap-button:disabled { cursor: default; }
+#minimap-button canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+#stage.avatar-open #minimap-button, #stage.map-open #minimap-button, #stage.map-open #menu,
+#stage.map-open #hud, #stage.map-open #hint, #stage.map-open #touch, #stage.map-open #toast { visibility: hidden; }
+#full-map-overlay { position: absolute; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center;
+  padding: 12px; box-sizing: border-box; background: rgba(15, 20, 22, .78); }
+.full-map-panel { display: flex; flex-direction: column; align-items: center; width: min(100%, 930px); max-height: 100%;
+  padding: 10px; color: #fff9e9; background: #344943; border: 3px solid #f4ecdc; border-radius: 9px;
+  box-sizing: border-box; box-shadow: 0 6px 24px #0008; }
+.full-map-panel header { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 8px; }
+.full-map-panel h2 { margin: 0 0 0 4px; font-size: 17px; }
+#full-map-close { width: 34px; height: 34px; padding: 0; color: #fff9e9; background: #283b34; border: 1px solid #e8e0cc;
+  border-radius: 5px; font: inherit; font-size: 24px; line-height: 1; cursor: pointer; }
+#full-map-canvas { display: block; width: min(100%, 900px, calc(160vh - 152px)); height: auto; image-rendering: pixelated;
+  background: #243034; border-radius: 3px; }
+@media (max-width: 640px) {
+  #stage #hud { max-width: calc(100% - 44px); }
+  #stage #menu { top: 42px; max-width: calc(100% - 20px); flex-wrap: wrap; justify-content: flex-end; }
+  #minimap-button { top: 80px; width: 128px; }
+}
