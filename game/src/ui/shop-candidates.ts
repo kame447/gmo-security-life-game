@@ -12,13 +12,13 @@ const ACTION = new Set(['KeyZ', 'Enter', 'Space']);
 function itemIcon(id: string): string {
   const marks: Record<string, string> = {
     'bottled-water': '<path d="M25 6h14v9l6 8v34H19V23l6-8Z" fill="#b8def2"/><path d="M24 5h16v9H24Z" fill="#4384a1"/><path d="M20 32h24v13H20Z" fill="#edf8fb"/>',
-    notebook: '<rect x="15" y="8" width="36" height="48" rx="2" fill="#d8946f"/><path d="M22 8v48M28 23h16M28 31h16M28 39h11" fill="none" stroke="#fff4df" stroke-width="3"/>',
+    notebook: '<rect x="15" y="8" width="36" height="48" fill="#d8946f"/><path d="M22 8v48M28 23h16M28 31h16M28 39h11" fill="none" stroke="#fff4df" stroke-width="3"/>',
     pencil: '<path d="m18 43 25-30 8 7-25 30-14 8Z" fill="#e6bb57"/><path d="m43 13 5-6 8 7-5 6Z" fill="#e5a6a0"/><path d="m12 58 4-10 8 7Z" fill="#4d5362"/>',
   };
-  return `<svg viewBox="0 0 64 64" aria-hidden="true">${marks[id] ?? '<rect x="15" y="14" width="34" height="38" rx="3" fill="#b9c8b3"/>'}</svg>`;
+  return `<svg viewBox="0 0 64 64" aria-hidden="true">${marks[id] ?? '<rect x="15" y="14" width="34" height="38" fill="#b9c8b3"/>'}</svg>`;
 }
 
-/** Self-mounted UI candidates. Both layouts share the exact same flow and asset port. */
+/** Self-mounted UI candidates. All layouts share the exact same flow and asset port. */
 export class ShopCandidates {
   private readonly root = document.createElement('section');
   private flow?: ClerkFlow;
@@ -85,7 +85,10 @@ export class ShopCandidates {
             <div class="shop-actions"><button type="button" class="shop-primary" data-action="close">店内に戻る</button></div>
           </section>
         </div>
-      </div>`;
+      </div>
+      <section id="shop-dialogue" class="shop-dialogue" aria-label="店員の会話" hidden>
+        <p class="shop-speaker"></p><p id="shop-prompt" aria-live="polite"></p>
+      </section>`;
     this.root.addEventListener('click', event => {
       const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-action]') : null;
       if (button && !button.disabled) this.command(button.dataset.action!, Number(button.dataset.index));
@@ -205,12 +208,18 @@ export class ShopCandidates {
     this.button('#shop-more').disabled = !item || flow.buyQuantity >= Math.min(99, item.maxQuantity - flow.quantity);
     this.button('#shop-confirm').classList.toggle('is-cursor', flow.choiceIndex === 0);
     this.button('#shop-back').classList.toggle('is-cursor', flow.choiceIndex === 1);
+    this.el('#shop-dialogue').hidden = this.root.dataset.layout !== 'dialog';
+    let prompt = flow.phase === 'greeting' || flow.phase === 'choice' ? flow.greetingLine
+      : flow.phase === 'catalog' ? item?.description ?? '' : flow.phase === 'confirm' ? 'いくつにする？' : '';
     if (flow.result) {
       const result = flow.result;
-      this.text('#shop-result', result.ok ? `${item?.name ?? ''}を${result.boughtQuantity}個、どうぞ。` :
-        result.reason === 'insufficient-funds' ? 'お金が たりないよ。' : result.reason === 'quantity-limit' ? 'これ以上 持てないよ。' : 'いまは 買えないみたい。');
+      const receipt = result.ok ? `${item?.name ?? ''}を${result.boughtQuantity}個、どうぞ。` :
+        result.reason === 'insufficient-funds' ? 'お金が たりないよ。' : result.reason === 'quantity-limit' ? 'これ以上 持てないよ。' : 'いまは 買えないみたい。';
+      this.text('#shop-result', receipt);
+      prompt = receipt;
       this.text('#shop-paid', result.ok ? `${yen(result.paidYen)}　／　所持金 ${yen(result.balanceYen)}` : '');
     }
+    this.text('#shop-prompt', prompt);
   }
 
   private tab(event: KeyboardEvent): void {

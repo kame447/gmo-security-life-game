@@ -83,7 +83,7 @@ async function talk() {
     const from = { x: Math.floor(game.player.x / 16), y: Math.floor((game.player.y - 4) / 16) };
     for (const item of game.area.interactions) for (const [dx, dy, key] of [[0, 1, 'ArrowUp'], [0, -1, 'ArrowDown'], [1, 0, 'ArrowLeft'], [-1, 0, 'ArrowRight']]) {
       const tile = { x: item.x + dx, y: item.y + dy };
-      if (findPath(game.area, from, tile)) return { ...tile, key, id: item.id };
+      if (findPath(game.area, from, tile)) return { ...tile, key, id: item.id, eventKey: item.eventKey };
     }
   });
   assert.ok(interaction);

@@ -9,7 +9,7 @@ await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 let count = 0;
 try {
-  for (const layout of ['split', 'compact']) for (const [size, width, height] of [['desktop', 1280, 800], ['mobile', 390, 844]]) {
+  for (const layout of ['split', 'compact', 'dialog']) for (const [size, width, height] of [['desktop', 1280, 800], ['mobile', 390, 844]]) {
     const context = await browser.newContext({ viewport: { width, height }, hasTouch: true, acceptDownloads: false });
     try {
       const page = await context.newPage(), errors = observe(page);

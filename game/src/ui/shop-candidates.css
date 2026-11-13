@@ -87,3 +87,56 @@
   #shop-panel { padding:8px; }
   #shop-panel .shop-window { max-height:calc(100dvh - 16px); }
 }
+/* Shared game-like treatment for the comparison. Colors and typography remain proposals. */
+#shop-panel { color:#293c32; font-family:ui-monospace,"Hiragino Sans","Yu Gothic",monospace; font-weight:600; letter-spacing:.025em; background:#17291d77; }
+#shop-panel .shop-window { background:#e9dfc5; border:4px solid #6b543b; border-radius:0; box-shadow:0 0 0 2px #f3ecd5, 6px 6px 0 #202e27; }
+#shop-panel .shop-heading { background:#435d54; border-bottom:4px solid #6b543b; color:#f8f3dc; }
+#shop-panel .shop-wallet span { color:#e9dfc5; }
+#shop-panel .shop-wallet strong, #shop-panel .shop-price, #shop-panel .shop-totals dd { font-family:ui-monospace,monospace; }
+#shop-panel button, #shop-panel[data-layout=compact] .shop-window { border-radius:0; }
+#shop-panel button { background:#f2eacf; border-color:#6b543b; box-shadow:2px 2px 0 #6b543b; font-weight:600; }
+#shop-panel button:focus-visible { outline-color:#ae6534; }
+#shop-panel button:hover:not(:disabled) { border-color:#ae6534; }
+#shop-panel button.shop-close { color:#f8f3dc; background:#435d54; border:2px solid #c6b38b; box-shadow:none; }
+#shop-panel .shop-primary { background:#435d54; color:#f8f3dc; border-color:#6b543b; }
+#shop-panel .is-cursor { box-shadow:inset 0 0 0 2px #f8dc79, 2px 2px 0 #6b543b; }
+#shop-panel .shop-product.is-selected { background:#435d54; color:#f8f3dc; border-color:#6b543b; box-shadow:inset 0 0 0 2px #f8dc79; }
+#shop-panel .shop-large-icon, #shop-panel .shop-small-icon { border-radius:0; background:#cfc6a7; border:2px solid #b2a181; }
+#shop-panel svg { shape-rendering:crispEdges; }
+#shop-panel .shop-detail, #shop-panel .shop-catalog-actions, #shop-panel .shop-totals,
+#shop-panel[data-layout=compact] .shop-detail, #shop-panel[data-layout=compact] .shop-products { border-color:#b2a181; }
+#shop-panel .shop-muted, #shop-panel .shop-speaker, #shop-panel .shop-after dt { color:#52604d; }
+#shop-panel #shop-notice { background:#e8c8ad; color:#743126; border-color:#924632; }
+/* Candidate C: dialogue stays in place; products, wallet and choices are separate game windows. */
+#shop-panel[data-layout=dialog] { --dialog-height:160px; --dialog-edge:24px; --dialog-gap:20px; display:block; padding:0; background:transparent; }
+#shop-panel[data-layout=dialog] .shop-window, #shop-panel[data-layout=dialog] .shop-heading, #shop-panel[data-layout=dialog] .shop-body { display:contents; }
+#shop-panel[data-layout=dialog] h2 { display:none; }
+#shop-panel[data-layout=dialog] .shop-wallet { position:absolute; left:var(--dialog-edge); top:64px; margin:0; display:grid; gap:2px; padding:12px 20px; background:#435d54; color:#f8f3dc; border:4px solid #6b543b; outline:2px solid #f3ecd5; box-shadow:4px 4px 0 #202e27; }
+#shop-panel[data-layout=dialog] .shop-close { position:absolute; right:var(--dialog-edge); top:var(--dialog-edge); }
+#shop-panel[data-layout=dialog] .shop-dialogue { position:absolute; bottom:var(--dialog-edge); left:var(--dialog-edge); right:var(--dialog-edge); height:var(--dialog-height); padding:18px 24px; background:#435d54; color:#f8f3dc; border:4px solid #6b543b; outline:2px solid #f3ecd5; box-shadow:4px 4px 0 #202e27; }
+#shop-panel[data-layout=dialog] .shop-dialogue .shop-speaker { color:#f8dc79; margin:0 0 8px; }
+#shop-panel[data-layout=dialog] #shop-prompt { margin:0; font-size:20px; line-height:1.6; }
+#shop-panel[data-layout=dialog] #shop-conversation,
+#shop-panel[data-layout=dialog] #shop-catalog,
+#shop-panel[data-layout=dialog] #shop-checkout,
+#shop-panel[data-layout=dialog] #shop-receipt { position:absolute; right:var(--dialog-edge); bottom:calc(var(--dialog-edge) + var(--dialog-height) + var(--dialog-gap)); width:440px; max-width:calc(100% - 2 * var(--dialog-edge)); max-height:calc(100dvh - var(--dialog-height) - 100px); overflow:auto; margin:0; padding:20px; background:#e9dfc5; border:4px solid #6b543b; outline:2px solid #f3ecd5; box-shadow:4px 4px 0 #202e27; }
+#shop-panel[data-layout=dialog] #shop-conversation { width:240px; }
+#shop-panel[data-layout=dialog] #shop-conversation .shop-speaker,
+#shop-panel[data-layout=dialog] #shop-line,
+#shop-panel[data-layout=dialog] #shop-checkout .shop-speaker,
+#shop-panel[data-layout=dialog] #shop-receipt .shop-speaker,
+#shop-panel[data-layout=dialog] #shop-result,
+#shop-panel[data-layout=dialog] #shop-paid,
+#shop-panel[data-layout=dialog] .shop-detail { display:none; }
+#shop-panel[data-layout=dialog] #shop-conversation .shop-actions { margin:0; flex-direction:column; }
+#shop-panel[data-layout=dialog] .shop-browse { display:block; }
+#shop-panel[data-layout=dialog] #shop-receipt { width:240px; padding:0; background:transparent; border:0; outline:0; box-shadow:none; }
+#shop-panel[data-layout=dialog] #shop-receipt .shop-actions { margin:0; }
+#shop-panel[data-layout=dialog] #shop-receipt button { width:100%; }
+@media (max-width:600px) {
+  #shop-panel[data-layout=dialog] { --dialog-height:180px; --dialog-edge:12px; --dialog-gap:12px; }
+  #shop-panel[data-layout=dialog] .shop-dialogue { padding:14px 16px; }
+  #shop-panel[data-layout=dialog] #shop-prompt { font-size:18px; }
+  #shop-panel[data-layout=dialog] #shop-catalog, #shop-panel[data-layout=dialog] #shop-checkout { padding:16px; }
+  #shop-panel[data-layout=dialog] .shop-wallet { padding:8px 14px; }
+}

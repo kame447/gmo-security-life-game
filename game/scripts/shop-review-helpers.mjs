@@ -50,12 +50,15 @@ export async function tabTo(page, id) {
 export async function assertFits(page) {
   const result = await page.evaluate(() => {
     const root = document.querySelector('#shop-panel');
-    const items = [...root.querySelectorAll('button, h2, h3, #shop-money, #shop-total, #shop-after, #shop-notice')]
+    const items = [...root.querySelectorAll('button, h2, h3, #shop-money, #shop-total, #shop-after, #shop-notice, #shop-dialogue, #shop-prompt')]
       .filter(element => element.getClientRects().length > 0)
       .map(element => { const r = element.getBoundingClientRect(); return { id: element.id || element.textContent, x: r.x, y: r.y, right: r.right, bottom: r.bottom }; });
-    return { width: innerWidth, height: innerHeight, items, overflow: document.documentElement.scrollWidth > innerWidth };
+    const dialogue = root.querySelector('#shop-dialogue');
+    return { width: innerWidth, height: innerHeight, items, overflow: document.documentElement.scrollWidth > innerWidth,
+      dialogueOverflow: dialogue.getClientRects().length > 0 && dialogue.scrollHeight > dialogue.clientHeight };
   });
   assert.equal(result.overflow, false, 'No horizontal document overflow');
+  assert.equal(result.dialogueOverflow, false, 'The conversation fits its persistent frame');
   for (const item of result.items) {
     assert.ok(item.x >= 0 && item.y >= 0 && item.right <= result.width && item.bottom <= result.height,
       `Visible control fits viewport: ${JSON.stringify(item)}`);

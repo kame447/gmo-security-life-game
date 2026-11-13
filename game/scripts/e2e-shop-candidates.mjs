@@ -6,14 +6,15 @@ const browser = await chromium.launch({ headless: true });
 let passed = 0;
 const pass = label => { passed++; console.log(`PASS ${label}`); };
 try {
-  for (const layout of ['split', 'compact']) {
+  for (const layout of ['split', 'compact', 'dialog']) {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: true, acceptDownloads: false });
     try {
       const page = await context.newPage(), errors = observe(page);
       await page.goto(shopUrl(layout)); await ready(page); await seed(page); await openClerk(page);
       assert.equal(await page.locator('#shop-panel').getAttribute('data-layout'), layout);
       const greeting = await page.evaluate(() => window.__slg.game.facingInteraction());
-      assert.equal(await page.locator('#shop-line').innerText(), greeting.lines[0]);
+      assert.equal(await page.locator(layout === 'dialog' ? '#shop-prompt' : '#shop-line').innerText(), greeting.lines[0]);
+      const conversationFrame = layout === 'dialog' ? await page.locator('#shop-dialogue').boundingBox() : null;
       const still = await position(page), initial = await assets(page);
       await page.keyboard.down('ArrowDown'); await page.waitForTimeout(150); await page.keyboard.up('ArrowDown');
       for (const key of ['KeyI', 'KeyP', 'KeyC']) await page.keyboard.press(key);
@@ -29,6 +30,8 @@ try {
       assert.equal(await page.locator('#shop-quantity').innerText(), '2');
       assert.equal(await page.locator('#shop-total').innerText(), '320円');
       assert.deepEqual(await assets(page), initial, 'Selection and quantity never charge');
+      if (layout === 'dialog') assert.deepEqual(await page.locator('#shop-dialogue').boundingBox(), conversationFrame,
+        'The conversation frame stays in place through product selection and confirmation');
       pass(`${layout}: greeting, keyboard selection, quantity and exclusive input`);
 
       await tabTo(page, 'shop-back'); await page.keyboard.press('Enter');
@@ -105,13 +108,15 @@ try {
     await page.locator('#btn-reset').click();
     await page.waitForTimeout(3100);
     assert.equal(await page.evaluate(() => localStorage.getItem('slg-map-save-v1')), sentinel);
-    await page.goto(shopUrl('compact', true)); await ready(page);
-    assert.equal((await assets(page)).moneyYen, 2480);
-    assert.equal(await page.evaluate(() => localStorage.getItem('slg-map-save-v1')), sentinel);
+    for (const layout of ['compact', 'dialog']) {
+      await page.goto(shopUrl(layout, true)); await ready(page);
+      assert.equal((await assets(page)).moneyYen, 2480);
+      assert.equal(await page.evaluate(() => localStorage.getItem('slg-map-save-v1')), sentinel);
+    }
     assert.deepEqual(errors, []);
     pass('review=1 ignores the real save and blocks payment/reset/timer/pagehide writes');
   } finally { await context.close(); }
-  console.log(`SUMMARY ${passed}/11 PASS`);
+  console.log(`SUMMARY ${passed}/16 PASS`);
 } catch (error) {
-  console.error('FAIL', error); console.error(`SUMMARY ${passed}/11 PASS; FAILED`); process.exitCode = 1;
+  console.error('FAIL', error); console.error(`SUMMARY ${passed}/16 PASS; FAILED`); process.exitCode = 1;
 } finally { await browser.close(); }

@@ -47,7 +47,7 @@ npm test
 
 会話中は移動を停止します。ウィンドウからフォーカスが外れると入力を解除します。キーボードが反応しない場合はマップ画面をクリックしてください。
 
-買い物の候補画面はコンビニ店内の店員から開きます。`?shop=split&review=1` と `?shop=compact&review=1` で2配置を比較できます（未採用）。レビュー用URLは一時セッションで、通常セーブを読み書きしません。操作・データ・比較条件は [買い物仕様](../docs/features/shopping.md) を参照してください。
+買い物の候補画面はコンビニ店内の店員から開きます。`?shop=split|compact|dialog&review=1` で3配置を比較できます（未採用）。レビュー用URLは一時セッションで、通常セーブを読み書きしません。操作・データ・比較条件は [買い物仕様](../docs/features/shopping.md) を参照してください。
 
 共通メニューへの将来の起動ボタン追加に備え、画面幅640px以下では現在地の下へメニューを置き、収まらない場合は折り返す案を試します。これは小画面向けの提案／要検証です。バッグとスマホの起動ボタンは `#menu` 内、パネル本体は `#stage` 内に自己マウントします。
 
@@ -77,7 +77,7 @@ npm test
 | `src/events/` | 会話の進行状態（DOM 非依存） |
 | `src/state/` | 保存データの形式と検証（DOM 非依存） |
 | `src/session/` | `Game`：探索・会話・外見・保存を組み合わせ、入力を振り分ける（DOM 非依存） |
-| `src/shop/`・`src/data/shop-catalogs.ts`・`src/ui/shop-candidates.*` | 店員の会話と原子取引、暫定カタログ、自己マウントの比較用2配置。`app/shop-review.ts` は通常セーブと分けた一時fixture |
+| `src/shop/`・`src/data/shop-catalogs.ts`・`src/ui/shop-candidates.*` | 店員の会話と原子取引、暫定カタログ、自己マウントの比較用3配置。`app/shop-review.ts` は通常セーブと分けた一時fixture |
 | `src/input/` | キー・タッチの押下状態 |
 | `src/ui/` | UI モード（探索／会話／外見パネル）の判定と入力の振り分け、外見パネル、HUD・会話欄・ヒント |
 | `src/render/` | Canvas 2D 描画、地面・スプライトのコード生成、カメラとキャッシュ。`RenderView` だけを読み、`Game` に依存しない |
@@ -96,7 +96,7 @@ npm test
 
 ## 検証
 
-買い物候補の単体は `tests/clerk-*.test.ts`・`tests/shop-review.test.ts`。ブラウザは `SLG_URL=http://127.0.0.1:5182 node scripts/e2e-shop-candidates.mjs`、比較撮影は同じURLと `SLG_SHOTS` を指定して `node scripts/shots-shop.mjs` を実行します。既存E2Eの店員会話の分岐だけは候補画面へ対応させ、SUMMARYの13項目を維持します。撮影は1280×800・390×844の28枚、実行と利用者レビューは別途確認します。
+買い物候補の単体は `tests/clerk-*.test.ts`・`tests/shop-review.test.ts`。ブラウザは `SLG_URL=http://127.0.0.1:5182 node scripts/e2e-shop-candidates.mjs`、比較撮影は同じURLと `SLG_SHOTS` を指定して `node scripts/shots-shop.mjs` を実行します。既存E2Eの店員会話の分岐だけは候補画面へ対応させ、SUMMARYの13項目を維持します。撮影は1280×800・390×844の42枚、実行と利用者レビューは別途確認します。
 
 2026-11-12の最終ビルドは成功、単体テストは3ファイル・54件すべて成功しました。ブラウザ実行担当の最終E2Eログでも `SUMMARY` 13項目すべてPASS、終了コード0を確認しました。外見UIと移動停止、主人公の画素変化とNPC表示の維持、外見の保存・開始地点復帰後の保持・取消、自宅・教室・コンビニの往復と会話、屋内の黒とフェード、壁の遮蔽・整数カメラ、各種衝突、スクリーンショット、位置復元・フォーカス離脱時の入力解除が対象で、ページ・コンソールエラーは0件でした。
 

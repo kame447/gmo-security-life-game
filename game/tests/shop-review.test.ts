@@ -8,6 +8,7 @@ import { buildWorld } from '../src/world';
 describe('review-only shop candidates', () => {
   it('uses an explicit query and a stable fallback for both layouts', () => {
     expect(shopLayout('?shop=compact&review=1')).toBe('compact');
+    expect(shopLayout('?shop=dialog&review=1')).toBe('dialog');
     for (const search of ['', '?shop=split', '?shop=unknown', '?shop=COMPACT']) expect(shopLayout(search)).toBe('split');
   });
   it('prepares the shared assets at a reachable real clerk without changing the world', () => {

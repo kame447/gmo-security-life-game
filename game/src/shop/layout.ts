@@ -1,5 +1,6 @@
 /** URL切替は候補比較専用。採用するレイアウトは未決定。 */
-export type ShopLayout = 'split' | 'compact';
+export type ShopLayout = 'split' | 'compact' | 'dialog';
 export function shopLayout(search: string): ShopLayout {
-  return new URLSearchParams(search).get('shop') === 'compact' ? 'compact' : 'split';
+  const candidate = new URLSearchParams(search).get('shop');
+  return candidate === 'compact' || candidate === 'dialog' ? candidate : 'split';
 }
