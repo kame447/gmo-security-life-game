@@ -1,5 +1,5 @@
 import type { AreaDef, ObjectDef, PortalDef } from '../core/types';
-import { LANDMARKS } from './landmarks';
+import { LANDMARKS, STATION_ACCESS } from './landmarks';
 import { T } from './tiles';
 
 /** 屋外から入ったときの屋内の到着位置。出口マットのすぐ北。 */
@@ -7,6 +7,7 @@ export const INTERIOR_ENTRIES = {
   home: { areaId: 'home-family-interior', x: 7, y: 10, facing: 'up' },
   classroom: { areaId: 'school-classroom-interior', x: 8, y: 10, facing: 'up' },
   konbini: { areaId: 'shop-konbini-interior', x: 6, y: 8, facing: 'up' },
+  station: { ...STATION_ACCESS.entry },
 } as const satisfies Record<string, PortalDef['to']>;
 
 /** 屋内から出たときは、入った入口の前へ下向きで戻る。 */
@@ -75,6 +76,33 @@ export function createKonbini(): AreaDef {
     { id: 'konbini-clerk', kind: 'npc', name: 'てんいんさん', x: 10, y: 3, sprite: 'clerk', facing: 'left', solid: true, eventKey: 'shopping.konbini.clerk', lines: ['いらっしゃいませ。おやつも のみものも あるよ。ゆっくり みてね。'] },
     { id: 'konbini-snacks', kind: 'object', name: 'おかしのたな', x: 2, y: 4, w: 2, solid: true, eventKey: 'shopping.konbini.snacks', lines: ['あまい おかしと、しょっぱい おかし。どっちも おいしそう！'] },
     { id: 'konbini-drinks', kind: 'object', name: 'のみもののケース', x: 1, y: 1, w: 2, solid: true, eventKey: 'shopping.konbini.drinks', lines: ['おちゃに ジュース、ぎゅうにゅう。つめたく ひえているよ。'] },
+  ];
+  return a;
+}
+
+/** Prototype station: entrance -> concourse -> ticket gates -> platform, separate from the tracks. */
+export function createStation(): AreaDef {
+  const a = room(STATION_ACCESS.areaId, 'まちのえき こうない', 36, T.PLAZA, 18);
+  for (let x = 1; x < a.width - 1; x++) {
+    for (let y = 1; y <= 3; y++) a.ground[y * a.width + x] = T.VOID;
+    a.ground[4 * a.width + x] = T.RAIL_FENCE;
+    for (const y of [5, 6]) a.ground[y * a.width + x] = T.RAIL;
+    a.ground[7 * a.width + x] = T.PLATFORM_EDGE;
+    for (let y = 8; y <= 11; y++) a.ground[y * a.width + x] = T.PLATFORM;
+    a.ground[12 * a.width + x] = T.RAIL_FENCE;
+  }
+  for (const x of [17, 18]) a.ground[12 * a.width + x] = T.TICKET_GATE;
+  const boarding = STATION_ACCESS.interaction;
+  a.ground[boarding.y * a.width + boarding.x] = T.BOARDING_SIGN;
+  furnish(a, 'train', 6, 5, 16, 2, false);
+  furnish(a, 'bench', 4, 10, 3, 1); furnish(a, 'bench', 28, 10, 3, 1);
+  a.portals = [{ id: STATION_ACCESS.exitPortalId, from: { x: 17, y: 17, w: 2 },
+    to: toTown(LANDMARKS.stationFront), facilityId: STATION_ACCESS.stationId }];
+  a.interactions = [
+    // The existing ticket object keeps its ID, event and fallback words; only its position moves indoors.
+    { id: 'station-ticket', kind: 'object', name: 'かいさつ', x: 16, y: 12, solid: true, eventKey: 'station.ticket',
+      lines: ['きっぷを とおすところだ。きょうは まちを たんけんしよう。'] },
+    { ...boarding, kind: 'sign', name: 'のりば', solid: true, lines: ['ここが でんしゃの のりばだ。'] },
   ];
   return a;
 }
