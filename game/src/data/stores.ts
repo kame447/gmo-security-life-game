@@ -10,10 +10,17 @@ export interface StoreContact {
   readonly catalogId: string;
 }
 
-/** 現存するコンビニ1件。catalogIdは参照文字列であり、カタログの実装・採用を意味しない。 */
+/**
+ * 既存コンビニと#33の名前付き6店。追加店の通常ワールドへの登録はworldの結線担当が行う。
+ * catalogIdは参照文字列であり、カタログや購入UIの実装・採用を意味しない。
+ */
 export const STORE_CONTACTS: readonly StoreContact[] = [
   { storeId: 'shop-konbini', interiorAreaId: 'shop-konbini-interior', entrancePortalId: 'konbini-enter',
     clerkEventKey: 'shopping.konbini.clerk', catalogId: 'konbini' },
+  ...['greengrocer', 'bookstore', 'candy', 'bakery', 'cafe', 'pharmacy'].map(id => ({
+    storeId: `shop-${id}`, interiorAreaId: `shop-${id}-interior`, entrancePortalId: `${id}-enter`,
+    clerkEventKey: `shopping.${id}.clerk`, catalogId: id,
+  })),
 ];
 
 export function storeForClerk(areaId: string, eventKey: string): StoreContact | undefined {
