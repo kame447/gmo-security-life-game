@@ -93,7 +93,16 @@ try {
     } finally { await context.close(); }
   }
 
-  const phone = { v: 1, owned: false, dataBudget: { v: 1, remainingMb: 123, capacityMb: 5000 } };
+  const phone = { v: 1, owned: false, dataBudget: { v: 1, remainingMb: 123, capacityMb: 5000 }, chat: {
+    v: 1, contacts: [{ id: 'save-contact', name: '保存回帰用の相手', icon: 'person' }], threads: [{
+      id: 'save-thread', contactId: 'save-contact', nextSequence: 3, replyCursor: 1,
+      messages: [
+        { id: 'incoming-1', from: 'save-contact', text: '<img src=x onerror=alert(1)>', atMs: 1000, read: false },
+        { id: 'local-1', from: 'self', text: '買い物のあとも残す', atMs: 1100, read: true },
+      ],
+      pending: [{ id: 'local-2', from: 'save-contact', text: '返信待ち', remainingMs: 250 }],
+    }],
+  } };
   const appearance = { ...crossSaveSeed.appearance, hairColor: 'black', outfitColor: 'red' };
   const crossContext = await browser.newContext({ storageState: { cookies: [], origins: [{
     origin: new URL(shopUrl('split')).origin,
