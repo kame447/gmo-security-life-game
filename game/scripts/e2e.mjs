@@ -159,7 +159,7 @@ async function appearanceUI() {
 }
 async function renderInvariants() {
   const result = await page.evaluate(async () => {
-    const { Game } = await import('/src/engine/game.ts');
+    const { Game } = await import('/src/session/game.ts');
     const { Renderer } = await import('/src/render/renderer.ts');
     const game = new Game(window.__slg.game.world);
     const canvas = document.createElement('canvas'), renderer = new Renderer(canvas);

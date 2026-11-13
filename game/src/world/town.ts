@@ -1,13 +1,8 @@
 import { hash2 } from '../core/coords';
 import type { AreaDef, FacilityDef, ObjectDef } from '../core/types';
+import { INTERIOR_ENTRIES } from './interiors';
+import { LANDMARKS } from './landmarks';
 import { isRoad, isSolidGround, T } from './tiles';
-
-export const LANDMARKS = {
-  homeFront: { x: 35, y: 32 }, schoolGate: { x: 101, y: 36 },
-  schoolDoorFront: { x: 103, y: 20 }, stationFront: { x: 28, y: 64 },
-  parkPlaza: { x: 98, y: 60 }, shoppingStreet: { x: 47, y: 53 },
-  konbiniDoorFront: { x: 54, y: 53 },
-};
 
 const shops = [
   ['greengrocer', 'やおや'], ['bookstore', 'ほんや'], ['candy', 'だがしや'],
@@ -220,9 +215,9 @@ export function createTown(): AreaDef {
       { id: 'town-riverside-park', name: 'かわぞいこうえん', x: 84, y: 42, w: 44, h: 38 },
     ],
     portals: [
-      { id: 'home-enter', from: { x: 35, y: 31 }, to: { areaId: 'home-family-interior', x: 7, y: 10, facing: 'up' }, facilityId: 'home-family' },
-      { id: 'school-enter', from: { x: 103, y: 19, w: 2 }, to: { areaId: 'school-classroom-interior', x: 8, y: 10, facing: 'up' }, facilityId: 'school' },
-      { id: 'konbini-enter', from: { x: 54, y: 52 }, to: { areaId: 'shop-konbini-interior', x: 6, y: 8, facing: 'up' }, facilityId: 'shop-konbini' },
+      { id: 'home-enter', from: { x: 35, y: 31 }, to: { ...INTERIOR_ENTRIES.home }, facilityId: 'home-family' },
+      { id: 'school-enter', from: { x: 103, y: 19, w: 2 }, to: { ...INTERIOR_ENTRIES.classroom }, facilityId: 'school' },
+      { id: 'konbini-enter', from: { x: 54, y: 52 }, to: { ...INTERIOR_ENTRIES.konbini }, facilityId: 'shop-konbini' },
     ],
     interactions: [
       { id: 'neighbor-grandma', kind: 'npc', name: 'きんじょのおばあさん', x: 40, y: 33, sprite: 'grandma', facing: 'left', solid: true, eventKey: 'neighborhood.grandma', lines: ['おかえり。きょうも がっこう、たのしかった？'] },

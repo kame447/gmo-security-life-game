@@ -1,5 +1,5 @@
-import { CHUNK_PX, CHUNK_TILES, TILE, chunkId, feetAtTile, hash2 } from '../core/coords';
-import type { Game } from '../engine/game';
+import { CHUNK_PX, CHUNK_TILES, TILE, chunkId, feetAtTile, hash2, type Facing } from '../core/coords';
+import type { PlayerAppearance } from '../core/appearance';
 import type { AreaRuntime } from '../world';
 import { T } from '../world/tiles';
 import { makeCanvas, R, type C2D } from './draw';
@@ -11,6 +11,16 @@ interface Chunk { canvas: HTMLCanvasElement; water: { x: number; y: number; phas
 interface Item { sprite: Sprite; x: number; y: number; depth: number; decal: boolean; character: boolean; seen: number }
 interface Marker { x: number; y: number; feetX: number; feetY: number }
 interface AreaIndex { buckets: Map<string, Item[]>; markers: Marker[]; characterClip?: Path2D }
+/** 描画に必要な読み取り専用の状態。ゲーム本体（session/）には依存しない。 */
+export interface RenderView {
+  readonly area: AreaRuntime;
+  readonly player: { readonly x: number; readonly y: number; readonly facing: Facing };
+  readonly appearance: PlayerAppearance;
+  readonly moving: boolean;
+  readonly walkTime: number;
+  /** While a dialog is open, interaction markers are hidden. */
+  readonly dialog: object | null;
+}
 export interface RenderTimings {
   totalMs: number; clearMs: number; groundMs: number; bakeMs: number;
   gatherMs: number; sortMs: number; spritesMs: number; waterMs: number; markersMs: number; fadeMs: number;
@@ -149,7 +159,7 @@ export class Renderer {
     return index;
   }
 
-  draw(game: Game, timeSec: number): void {
+  draw(game: RenderView, timeSec: number): void {
     const profiling = this.measureTimings;
     let mark = profiling ? performance.now() : 0;
     const started = mark, timing = this.timings;
