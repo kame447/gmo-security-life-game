@@ -8,6 +8,13 @@ const errors = [], passed = [];
 page.on('pageerror', error => errors.push(String(error)));
 page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
 const pass = name => { passed.push(name); console.log('PASS', name); };
+async function speakerUncovered(targetPage) {
+  assert.equal(await targetPage.locator('#clerk-speaker').evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    const painted = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+    return rect.height >= 18 && (painted === element || element.contains(painted));
+  }), true, 'The clerk name is painted above the product/detail region');
+}
 try {
   await page.goto(url); await ready(page);
   await page.locator('#btn-reset').click();
@@ -42,12 +49,14 @@ try {
   assert.deepEqual(await assets(page), initial); assert.deepEqual(await position(page), inRoom);
   pass('real entry, original clerk greeting, buy/quit choice and return to the same room');
   await talkToClerk(page); await browse(page);
+  await speakerUncovered(page);
   await page.locator('[data-item-id="bottled-water"]').click();
   assert.equal(await phase(page), 'catalog');
   assert.match(await page.locator('#clerk-item-name').innerText(), /みず/);
   assert.match(await page.locator('#clerk-item-description').innerText(), /ペットボトル/);
   assert.deepEqual(await assets(page), initial);
   await page.locator('#clerk-review').click();
+  await speakerUncovered(page);
   assert.match(await page.locator('#clerk-after').innerText(), new RegExp(String(initial.moneyYen - 120)));
   const pay = await page.$('#clerk-pay');
   await page.keyboard.down('Enter'); await page.keyboard.down('Enter'); await page.keyboard.up('Enter');
@@ -92,6 +101,7 @@ try {
   await mobile.locator('#touch [data-act]').tap();
   await mobile.locator('#clerk-next').tap(); await mobile.locator('#clerk-start').tap();
   await mobile.locator('[data-item-id="notebook"]').tap(); await mobile.locator('#clerk-review').tap();
+  await speakerUncovered(mobile);
   const box = await mobile.locator('#clerk-panel').boundingBox();
   assert.ok(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= 390 && box.y + box.height <= 720);
   const mobileBefore = await assets(mobile); await mobile.locator('#clerk-cancel').tap();
