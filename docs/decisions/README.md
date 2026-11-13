@@ -13,3 +13,5 @@
 [ゲームのコードを責務ごとのモジュールに分ける](0004-game-module-structure.md)
 
 [主要タスクと人生の節目による進行](0005-task-based-life-progression.md)
+
+[headless ブラウザ E2E を CI で実行する（提案／要検証）](0010-ci-headless-e2e.md)
