@@ -1,24 +1,31 @@
 /** 起動：各部品を組み立てて接続するだけ。個別の処理は app/・ui/・input/ 以下に置く。 */
 import { exposeDebug, FrameRecorder } from './app/debug';
 import { startLoop } from './app/loop';
+import { bagReviewOptions } from './app/bag-review';
 import { loadSave, writeSave } from './app/save-store';
+import { applyBagReviewFixture } from './data/bag-review-fixture';
 import { Controls } from './input/controls';
 import { Renderer } from './render/renderer';
 import { Game } from './session/game';
 import { AvatarPanel } from './ui/avatar-panel';
+import { GridBagPanel } from './ui/bag-grid/panel';
+import { HotbarPanel } from './ui/bag-hotbar/panel';
 import { UiController } from './ui/controller';
 import { $ } from './ui/dom';
 import { Hud } from './ui/hud';
 import { buildWorld } from './world';
 
 const world = buildWorld();
-const game = new Game(world, { save: loadSave(world) });
+const review = bagReviewOptions(window.location.search);
+const game = new Game(world, { save: review.temporary ? undefined : loadSave(world) });
+if (review.temporary) applyBagReviewFixture(game.assets);
 const canvas = $<HTMLCanvasElement>('#view');
 const renderer = new Renderer(canvas);
 const controls = new Controls();
 const frames = new FrameRecorder();
 
 function save() {
+  if (review.temporary) return;
   const data = game.serialize();
   // A draft is visible immediately, but autosave must preserve the last confirmed appearance.
   const confirmed = avatar.confirmedAppearance;
@@ -33,8 +40,16 @@ const avatar = new AvatarPanel(game, commit => {
 });
 const ui = new UiController(game, controls, canvas);
 ui.registerPanel({ id: 'avatar', panel: avatar, open: () => avatar.open(), button: $<HTMLButtonElement>('#btn-avatar') });
+const closeBag = () => { controls.clear(); ui.update(); ui.focusMap(); };
+const bag = review.candidate === 'hotbar'
+  ? new HotbarPanel(game, closeBag, () => { controls.clear(); ui.focusMap(); })
+  : new GridBagPanel(game, closeBag);
+ui.registerPanel({ id: 'inventory', panel: bag, open: () => bag.open(), button: bag.button, shortcut: 'KeyI' });
 const hud = new Hud(game, () => ui.primaryAction());
 ui.bind({ onReset: () => { game.reset(); save(); } });
+if (bag instanceof HotbarPanel) {
+  window.addEventListener('keydown', event => bag.handleHudKey(event, ui.mode === 'explore'));
+}
 exposeDebug(game, renderer, frames);
 
 game.on(event => {
@@ -42,7 +57,7 @@ game.on(event => {
   if (event.type === 'area-enter') save();
 });
 window.addEventListener('pagehide', () => { controls.clear(); save(); });
-setInterval(save, 3000);
+if (!review.temporary) setInterval(save, 3000);
 
 let dpr = 0;
 function resize() {
@@ -63,6 +78,7 @@ const loop = startLoop({
     avatar.drawPreview(now);
     hud.update(now);
     ui.update();
+    if (bag instanceof HotbarPanel) bag.update(ui.mode === 'explore');
   },
 });
 document.addEventListener('visibilitychange', () => { controls.clear(); loop.resetClock(); });

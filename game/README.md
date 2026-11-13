@@ -1,5 +1,17 @@
 # 幼少期マップ探索プロトタイプ
 
+## バッグの比較用試作（Issue #20・未採用）
+
+`npm run dev -- --port 5181 --strictPort` で起動し、[1層グリッド](http://127.0.0.1:5181/?bag=grid&review=1) と [クイック枠付きグリッド](http://127.0.0.1:5181/?bag=hotbar&review=1) を比較できます。「もちもの」または I で開きます。両案は同じ暫定サンプルを使い、`review=1` では通常のセーブを読み書きしません。URLから `review=1` を外すと通常の保存・復帰を使います。採用は利用者レビュー待ちで、PRは作成していません。
+
+操作と未決定事項は [所持金とバッグ](../docs/features/inventory.md) に記載しています。開発サーバーに対する確認・比較撮影は次のコマンドです。撮影はヘッドレスで、出力先は `SLG_SHOTS` のみです。
+
+```sh
+SLG_URL=http://127.0.0.1:5181 node scripts/e2e-inventory.mjs
+SLG_URL=http://127.0.0.1:5181 node scripts/e2e-bag-hotbar.mjs
+SLG_URL=http://127.0.0.1:5181 SLG_SHOTS=/private/tmp/slg-audit/ui-review/bag-candidates node scripts/shots-inventory.mjs
+```
+
 [Issue #7](https://github.com/kame447/gmo-security-life-game/issues/7) の探索基盤を確認するブラウザ用プロトタイプです。TypeScript・Vite・Canvas 2D 標準APIを使います。数値や技術構成は [判断記録 0003](../docs/decisions/0003-map-prototype-canvas2d.md) の提案／要検証であり、本採用の決定ではありません。
 
 ## 現在の扱い（2026-11-12）
