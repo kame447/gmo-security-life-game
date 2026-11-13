@@ -4,11 +4,11 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, realpath, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
-import { assets, assertFits, observe, phase, position, ready, seed, shopUrl } from './shop-review-helpers.mjs';
+import { assets, assertFits, observe, phase, position, ready, seed, shopUrl, VIEWPORTS } from './shop-review-helpers.mjs';
 
 const requestedOutput = process.env.SLG_VIDEOS;
 assert.ok(requestedOutput && path.isAbsolute(requestedOutput), 'Set SLG_VIDEOS to an absolute output directory');
-const target = new URL(shopUrl('split', true));
+const target = new URL(shopUrl(true));
 assert.ok(['http:', 'https:'].includes(target.protocol) && ['127.0.0.1', 'localhost', '[::1]'].includes(target.hostname),
   'SLG_URL must use a loopback HTTP(S) server');
 const origin = target.origin, wsOrigin = origin.replace(/^http/, 'ws');
@@ -18,8 +18,8 @@ const output = await mkdtemp(path.join(await realpath(requestedOutput), 'shop-fl
 const browser = await chromium.launch({ headless: true, downloadsPath: output, args: ['--disable-background-networking'] });
 let completed = 0;
 
-async function record(layout, name, width, height) {
-  const started = Date.now(), mobile = name === 'mobile';
+async function record(name, width, height) {
+  const started = Date.now(), mobile = name !== 'desktop';
   const context = await browser.newContext({ viewport: { width, height }, hasTouch: mobile,
     serviceWorkers: 'block', acceptDownloads: false, recordVideo: { dir: output, size: { width, height } } });
   const blocked = [], downloads = [];
@@ -54,8 +54,8 @@ async function record(layout, name, width, height) {
         observer.observe(document, { childList: true, subtree: true });
       }
     });
-    await page.goto(shopUrl(layout, true)); await ready(page);
-    // Same temporary funds in all six clips: 2 notebooks cost 320, 1 costs 160.
+    await page.goto(shopUrl(true)); await ready(page);
+    // Same temporary funds in all three clips: 2 notebooks cost 320, 1 costs 160.
     // This shows insufficient funds and a successful purchase without changing funds mid-flow.
     await seed(page, 300);
     if (mobile) await page.evaluate(() => {
@@ -71,18 +71,14 @@ async function record(layout, name, width, height) {
       await action();
       assert.deepEqual(await position(page), room, `${label}: the player stays at the clerk`);
       if (await page.locator('#shop-panel').isVisible()) await assertFits(page);
-      console.log(`STEP ${layout}/${name}: ${label}`);
+      console.log(`STEP ${name}: ${label}`);
       await page.waitForTimeout(pauseMs);
     };
     await step('talk to the clerk', async () => {
       if (mobile) await page.locator('#touch button[data-act]').tap();
       else await page.keyboard.press('KeyZ');
-      await page.locator('#shop-panel[data-phase="choice"]').waitFor({ state: 'visible' });
+      await page.locator('#shop-panel[data-phase="catalog"]').waitFor({ state: 'visible' });
       assert.equal(await page.evaluate(() => window.__slg.game.dialog), null);
-    });
-    await step('buy', async () => {
-      if (mobile) await page.locator('#shop-start').tap(); else await page.keyboard.press('KeyZ');
-      assert.equal(await phase(page), 'catalog');
     });
     await step('select notebook', async () => {
       if (mobile) await page.locator('.shop-product').nth(1).tap(); else await page.keyboard.press('ArrowDown');
@@ -114,7 +110,7 @@ async function record(layout, name, width, height) {
       assert.equal(bought.moneyYen, 140);
       assert.equal(bought.items.find(item => item.itemId === 'notebook').quantity,
         initial.items.find(item => item.itemId === 'notebook').quantity + 1);
-      const receipt = page.locator(layout === 'dialog' ? '#shop-prompt' : '#shop-result');
+      const receipt = page.locator('#shop-result');
       assert.equal(await receipt.isVisible(), true); assert.match(await receipt.innerText(), /ノート/);
     });
     await step('return to the same room', async () => {
@@ -131,21 +127,18 @@ async function record(layout, name, width, height) {
     // Playwright finalizes recordVideo on context.close(): https://playwright.dev/docs/videos
     await context.close();
   }
-  const raw = await video.path(), file = path.join(output, `${layout}-${name}.webm`);
+  const raw = await video.path(), file = path.join(output, `${name}.webm`);
   const relative = path.relative(output, raw);
   assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative), 'Video stays under SLG_VIDEOS');
   await rename(raw, file);
   completed++;
-  console.log('PASS', JSON.stringify({ layout, viewport: { width, height }, elapsedMs, file }));
+  console.log('PASS', JSON.stringify({ viewport: { width, height }, elapsedMs, file }));
 }
 
 try {
-  for (const layout of ['split', 'dialog', 'compact']) {
-    await record(layout, 'desktop', 1280, 800);
-    await record(layout, 'mobile', 390, 844);
-  }
-  console.log(`SUMMARY ${completed}/6 videos`, JSON.stringify({ output, pauseMs: PAUSE_MS, maxClipMs: MAX_CLIP_MS }));
+  for (const viewport of VIEWPORTS) await record(viewport.name, viewport.width, viewport.height);
+  console.log(`SUMMARY ${completed}/3 videos`, JSON.stringify({ output, pauseMs: PAUSE_MS, maxClipMs: MAX_CLIP_MS }));
 } catch (error) {
-  console.error('FAIL', error); console.error(`SUMMARY ${completed}/6 videos; FAILED`, JSON.stringify({ output }));
+  console.error('FAIL', error); console.error(`SUMMARY ${completed}/3 videos; FAILED`, JSON.stringify({ output }));
   process.exitCode = 1;
 } finally { await browser.close(); }

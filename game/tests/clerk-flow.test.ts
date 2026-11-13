@@ -8,6 +8,29 @@ import { Game } from '../src/session/game';
 import { buildWorld } from '../src/world';
 
 const catalog = SHOP_CATALOGS[0];
+describe('direct shop entry', () => {
+  it('offers products with the first greeting immediately, without changing assets or advancing speech', () => {
+    const assets = new PlayerAssets(), before = assets.snapshot();
+    const greeting = { speaker: '店員', lines: ['いらっしゃい。', '二行目'] };
+    const flow = ClerkFlow.openShop(catalog, greeting, assets);
+    expect(flow.phase).toBe('catalog'); expect(flow.greetingLine).toBe(greeting.lines[0]);
+    expect(flow.confirmPurchase()).toBeNull(); expect(assets.snapshot()).toEqual(before);
+    flow.selectOffer(1);
+    expect(flow.offer).toEqual(catalog.offers[1]); expect(assets.snapshot()).toEqual(before);
+    flow.reviewPurchase(); expect(flow.phase).toBe('confirm'); expect(assets.snapshot()).toEqual(before);
+    expect(flow.confirmPurchase()).toMatchObject({ ok: true, itemId: 'notebook', paidYen: 160 });
+    expect(flow.confirmPurchase()).toBeNull(); expect(assets.quantity('notebook')).toBe(1);
+    expect(greeting.lines).toEqual(['いらっしゃい。', '二行目']);
+  });
+  it('cancels the immediately available product or confirmation without charging', () => {
+    const assets = new PlayerAssets(), before = assets.snapshot();
+    for (const confirm of [false, true]) {
+      const flow = ClerkFlow.openShop(catalog, { speaker: '店員', lines: ['いらっしゃい。'] }, assets);
+      if (confirm) { flow.reviewPurchase(); flow.back(); expect(flow.phase).toBe('catalog'); }
+      flow.close(); expect(flow.phase).toBe('closed'); expect(assets.snapshot()).toEqual(before);
+    }
+  });
+});
 function setup(moneyYen = 1000) {
   const assets = new PlayerAssets({ moneyYen, items: [] });
   const greeting = { speaker: '仮の店員', lines: ['仮の挨拶です。', '元の台詞は変更しません。'] };

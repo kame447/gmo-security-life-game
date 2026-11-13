@@ -1,4 +1,4 @@
-/** 店員の既存挨拶 → 会話の選択 → 商品 → 確認 → 結果 → 店内。DOM非依存。 */
+/** 店員の挨拶と商品 → 確認 → 結果 → 店内。取引と表示の状態はDOM非依存。 */
 import type { ShopCatalog } from '../data/shop-catalogs';
 import { purchase, type PurchaseResult, type ShopAssetsPort } from './purchase';
 
@@ -15,6 +15,12 @@ export class ClerkFlow {
 
   constructor(readonly catalog: ShopCatalog, readonly greeting: ClerkGreeting, private readonly assets: ShopAssetsPort) {
     this.phaseValue = greeting.lines.length ? 'greeting' : 'choice';
+  }
+  /** The shop opens directly on products, retaining the original first greeting without advancing it. */
+  static openShop(catalog: ShopCatalog, greeting: ClerkGreeting, assets: ShopAssetsPort): ClerkFlow {
+    const flow = new ClerkFlow(catalog, greeting, assets);
+    flow.phaseValue = 'catalog';
+    return flow;
   }
   get phase(): ClerkPhase { return this.phaseValue; }
   get greetingLine(): string { return this.greeting.lines[this.lineIndex] ?? ''; }

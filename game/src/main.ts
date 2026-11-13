@@ -10,8 +10,7 @@ import { AvatarPanel } from './ui/avatar-panel';
 import { UiController } from './ui/controller';
 import { $ } from './ui/dom';
 import { Hud } from './ui/hud';
-import { ShopCandidates } from './ui/shop-candidates';
-import { shopLayout } from './shop/layout';
+import { ShopPanel } from './ui/shop-panel';
 import type { MapEventSink } from './core/types';
 import { prepareShopReview } from './app/shop-review';
 import { buildWorld } from './world';
@@ -42,7 +41,7 @@ const avatar = new AvatarPanel(game, commit => {
 });
 const ui = new UiController(game, controls, canvas);
 ui.registerPanel({ id: 'avatar', panel: avatar, open: () => avatar.open(), button: $<HTMLButtonElement>('#btn-avatar') });
-const shop = new ShopCandidates(game.assets, () => { controls.clear(); ui.focusMap(); }, save, shopLayout(location.search));
+const shop = new ShopPanel(game.assets, () => { controls.clear(); ui.focusMap(); }, save);
 ui.registerPanel({ id: 'shop', panel: shop });
 shopEvents = clerkEvents(game, ui, context => shop.open(context));
 const hud = new Hud(game, () => ui.primaryAction());

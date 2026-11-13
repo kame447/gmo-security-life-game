@@ -94,7 +94,7 @@ async function talk() {
   }, interaction.key);
   await page.keyboard.press('KeyZ');
   if (interaction.eventKey === 'shopping.konbini.clerk') {
-    await page.locator('#shop-panel[data-phase="choice"]').waitFor({ state: 'visible' });
+    await page.locator('#shop-panel[data-phase="catalog"]').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#shop-line').innerText(), await page.evaluate(() => window.__slg.game.facingInteraction().lines[0]));
     const duringShop = await state();
     await hold('ArrowDown', 180);
