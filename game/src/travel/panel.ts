@@ -1,7 +1,7 @@
 import type { MapEvent } from '../core/types';
 import type { Game } from '../session/game';
 import type { RailwayNetwork } from '../world/railway';
-import { TrainTravelSession, type TravelResult } from './session';
+import { TrainTravelSession, type TravelArrival, type TravelResult } from './session';
 import './panel.css';
 
 /** 共有入力側が開閉時の入力解除・フォーカス復帰と、到着時の保存を行う。 */
@@ -9,6 +9,7 @@ export interface TrainTravelPanelHooks {
   canOpen(): boolean;
   onOpen(): void;
   onClose(result?: TravelResult): void;
+  arrive?: TravelArrival;
 }
 
 const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] => {
@@ -24,7 +25,7 @@ export class TrainTravelPanel {
   private message = '';
 
   constructor(game: Game, railway: RailwayNetwork, private readonly stage: HTMLElement, private readonly hooks: TrainTravelPanelHooks) {
-    this.session = new TrainTravelSession(game, railway);
+    this.session = new TrainTravelSession(game, railway, hooks.arrive);
     this.root.id = 'train-travel-panel';
     this.root.hidden = true;
     this.stage.append(this.root);

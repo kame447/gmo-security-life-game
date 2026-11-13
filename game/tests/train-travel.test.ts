@@ -106,4 +106,24 @@ describe('train travel session', () => {
       expect(game.player).toEqual(before);
     }
   });
+
+  it('uses the shared arrival hook only after validation and honours a rejected transition', () => {
+    const { game, railway } = setup(), calls: string[] = [];
+    let allowed = false;
+    const travel = new TrainTravelSession(game, railway, point => {
+      calls.push(point.areaId);
+      if (!allowed) return false;
+      game.player = positionAt(point);
+      return true;
+    });
+    const before = { ...game.player };
+    expect(travel.begin(interaction(game))).toBe(true);
+    expect(travel.select(destination.id)).toBe(true);
+    expect(travel.confirm()).toEqual({ ok: false, reason: 'destination-unavailable' });
+    expect(game.player).toEqual(before);
+    allowed = true;
+    expect(travel.confirm()).toEqual({ ok: true, originId: origin.id, destinationId: destination.id });
+    expect(game.player).toEqual(positionAt(destination.arrival));
+    expect(calls).toEqual([destination.arrival.areaId, destination.arrival.areaId]);
+  });
 });

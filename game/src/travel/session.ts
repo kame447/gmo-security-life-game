@@ -1,5 +1,5 @@
 import { feetAtTile } from '../core/coords';
-import type { MapEvent } from '../core/types';
+import type { MapEvent, SpawnPoint } from '../core/types';
 import { canStand, positionAt } from '../map/explorer';
 import type { Game } from '../session/game';
 import { RailwayNetwork, type RailwayStation } from '../world/railway';
@@ -9,12 +9,15 @@ export type TravelResult =
   | { readonly ok: true; readonly originId: string; readonly destinationId: string }
   | { readonly ok: false; readonly reason: 'not-confirming' | 'origin-unavailable' | 'destination-unavailable' };
 
+/** false means no transition occurred; the shared Game may emit its normal area-enter event on success. */
+export type TravelArrival = (destination: Readonly<SpawnPoint>) => boolean;
+
 /** 共有UIはこの状態を表示し、成功結果を受けて入力解除・保存を行う。 */
 export class TrainTravelSession {
   private readonly menu = new TravelMenu();
 
   constructor(private readonly game: Pick<Game, 'player' | 'world' | 'dialog' | 'facingInteraction'>,
-    private readonly railway: RailwayNetwork) {}
+    private readonly railway: RailwayNetwork, private readonly arrive?: TravelArrival) {}
 
   get state(): TravelMenuState { return this.menu.state; }
   get isOpen(): boolean { return this.menu.state.step !== 'closed'; }
@@ -58,7 +61,9 @@ export class TrainTravelSession {
     if (!canStand(target, feet.x, feet.y) || target.portalAt.has(arrival.y * target.width + arrival.x)) {
       return { ok: false, reason: 'destination-unavailable' };
     }
-    this.game.player = positionAt(arrival);
+    if (this.arrive) {
+      if (!this.arrive({ ...arrival })) return { ok: false, reason: 'destination-unavailable' };
+    } else this.game.player = positionAt(arrival);
     this.menu.confirm();
     return { ok: true, originId: origin.id, destinationId: destination.id };
   }
