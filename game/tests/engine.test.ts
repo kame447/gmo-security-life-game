@@ -151,17 +151,18 @@ describe('DOM-independent game engine', () => {
     expect(new Game(world, { save: { v: 99 } }).player).toEqual(restored.player);
   });
 
-  it('rejects corrupt saves, unknown areas, solid tiles and partial hitbox overlap', () => {
+  it('rejects unsupported saves and repairs unknown areas, solid tiles and partial hitbox overlap', () => {
     const world = smallWorld();
     const valid = new Game(world).serialize();
-    const invalid: unknown[] = [null, undefined, [], 'save', {}, { ...valid, v: 2 },
-      { ...valid, variantId: 'unknown' }, { ...valid, areaId: 'missing' },
+    const invalid: unknown[] = [null, undefined, [], 'save', {}, { ...valid, v: 2 }, { ...valid, variantId: 'unknown' }];
+    for (const value of invalid) expect(parseSave(value, world), JSON.stringify(value)).toBeNull();
+    const damagedPosition: unknown[] = [{ ...valid, areaId: 'missing' },
       { ...valid, facing: 'north' }, { ...valid, x: '40' }, { ...valid, x: NaN },
       { ...valid, y: Infinity }, { ...valid, x: -1 }, { ...valid, y: -1 },
       { ...valid, y: 8 * TILE + 1 }, { ...valid, x: 8 * TILE },
       { ...valid, ...feetAtTile(5, 3) }, { ...valid, x: 5 * TILE - 4 },
       { ...valid, x: 0 }, { ...valid, y: 0 }];
-    for (const value of invalid) expect(parseSave(value, world), JSON.stringify(value)).toBeNull();
+    for (const value of damagedPosition) expect(parseSave(value, world), JSON.stringify(value)).toEqual(valid);
     expect(parseSave(valid, world)).toEqual(valid);
   });
 
