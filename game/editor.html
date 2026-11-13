@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>サンプルエディタ | セキュリティ人生シミュレーション</title>
+    <link rel="stylesheet" href="/src/editor-ui/editor.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">SECURITY LIFE GAME / PROTOTYPE</p>
+        <h1>サンプルエディタ <span>試作</span></h1>
+        <p class="subtitle">編集データを確認し、差分として書き出します。</p>
+      </div>
+      <div class="top-actions">
+        <a class="link-button" href="./editor-preview.html">適用済みサンプルでゲームを開く ↗</a>
+        <button id="undo" type="button" title="Ctrl / ⌘ + Z">↶ 元に戻す</button>
+        <button id="redo" type="button" title="Ctrl / ⌘ + Shift + Z または Ctrl + Y">↷ やり直す</button>
+      </div>
+    </header>
+    <div class="notice-bar">編集中の変更はこの画面だけにあります。書き出し後に適用コマンドを実行してください。</div>
+    <main class="workspace">
+      <aside class="panel sidebar" aria-labelledby="areas-heading">
+        <div class="panel-head"><div><p class="eyebrow">01 / NAVIGATE</p><h2 id="areas-heading">エリアと対象</h2></div></div>
+        <label for="area-select">エリア</label>
+        <select id="area-select"></select>
+        <div class="list-heading"><h3>対象一覧</h3><span id="entity-count"></span></div>
+        <div id="entity-list" class="entity-list" aria-label="選択中エリアの対象"></div>
+        <div class="add-box">
+          <label for="add-type">新しい対象</label>
+          <div class="add-row"><select id="add-type"><option value="objects">配置物</option><option value="facilities">施設</option><option value="interactions">調査対象</option><option value="portals">出入口</option></select><button id="add" type="button">＋ 追加</button></div>
+        </div>
+      </aside>
+      <section class="panel map-panel" aria-labelledby="map-heading">
+        <div class="panel-head"><div><p class="eyebrow">02 / EXPLORE</p><h2 id="map-heading">グリッド</h2></div><span id="area-size" class="tag"></span></div>
+        <p class="helper">対象をクリックして選択できます。座標は左上が (0, 0) です。</p>
+        <div class="canvas-wrap"><canvas id="grid" aria-label="サンプルデータのグリッド。対象は一覧からも選択できます。"></canvas></div>
+        <div class="legend" aria-label="グリッドの凡例"><span><i class="wall"></i>壁・通行不可</span><span><i class="object"></i>配置物</span><span><i class="interaction"></i>調査対象</span><span><i class="portal"></i>出入口</span></div>
+        <p id="selected-caption" class="selected-caption">一覧またはグリッドから対象を選択してください。</p>
+      </section>
+      <section class="panel inspector" aria-labelledby="inspector-heading">
+        <div class="panel-head"><div><p class="eyebrow">03 / EDIT</p><h2 id="inspector-heading">プロパティ</h2></div><span id="draft-kind" class="tag"></span></div>
+        <p id="empty-inspector" class="helper">対象を選択するか、「追加」を押してください。</p>
+        <form id="entity-form" hidden novalidate>
+          <p id="draft-description" class="helper"></p>
+          <div id="coordinates" class="coordinates" hidden>
+            <label>X <input id="position-x" type="number" min="0" step="1" inputmode="numeric" /></label>
+            <label>Y <input id="position-y" type="number" min="0" step="1" inputmode="numeric" /></label>
+          </div>
+          <p id="position-help" class="helper small" hidden>座標欄を変更した場合、その値が下の JSON より優先されます。</p>
+          <label for="entity-json">対象のデータ（JSON）</label>
+          <textarea id="entity-json" spellcheck="false" rows="17" aria-describedby="json-help"></textarea>
+          <p id="json-help" class="helper small">既存の ID は変更できません。入力は「編集を反映」で検証されます。</p>
+          <div class="form-actions"><button class="primary" id="apply" type="submit">編集を反映</button><button id="cancel-draft" type="button">入力を取り消す</button><button id="delete" class="danger" type="button">削除</button></div>
+        </form>
+        <div id="validation" class="validation" aria-live="polite"><h3>検証</h3><p>検証エラーはありません。</p></div>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+      </section>
+      <section class="panel changes" aria-labelledby="changes-heading">
+        <div class="panel-head"><div><p class="eyebrow">04 / REVIEW &amp; EXPORT</p><h2 id="changes-heading">変更のプレビュー</h2></div><span id="change-count" class="tag"></span></div>
+        <p class="helper">初めに読み込んだデータとの差分です。書き出し後の適用方法は <code>game/README.md</code> を確認してください。</p>
+        <div id="change-list" class="change-list"></div>
+        <div class="export-row"><button id="download" class="primary" type="button">差分 JSON をダウンロード</button><span id="export-hint" class="helper"></span></div>
+      </section>
+    </main>
+    <script type="module" src="/src/editor-ui/main.ts"></script>
+  </body>
+</html>
