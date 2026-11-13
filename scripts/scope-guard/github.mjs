@@ -1,5 +1,6 @@
 // GitHub（gh CLI）と git から、進行中の作業とその占有範囲を集める。
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseScope } from './lib.mjs';
@@ -68,17 +69,16 @@ export function openPullRequests() {
   }));
 }
 
-/** PR のないリモートブランチ。base より先に進んでいるものだけを返す。 */
-export function branchesWithoutPr(prBranches, baseBranch) {
-  const base = `origin/${baseBranch}`;
-  const refs = run('git', ['for-each-ref', '--format=%(refname:short)%09%(authorname)', 'refs/remotes/origin'])
+function branchesInNamespace(prBranches, baseBranch, namespace) {
+  const base = `${namespace}/${baseBranch}`;
+  const refs = run('git', ['for-each-ref', '--format=%(refname)%09%(authorname)', namespace])
     .split('\n')
     .filter(Boolean)
     .map((line) => line.split('\t'));
   const works = [];
   for (const [ref, author] of refs) {
-    const branch = ref.replace(/^origin\//, '');
-    if (branch === 'HEAD' || branch === baseBranch || ref === 'origin' || prBranches.has(branch)) continue;
+    const branch = ref.slice(namespace.length + 1);
+    if (branch === 'HEAD' || branch === baseBranch || prBranches.has(branch)) continue;
     const ahead = Number(run('git', ['rev-list', '--count', `${base}..${ref}`]));
     if (ahead === 0) continue;
     const files = run('git', ['diff', '--name-only', `${base}...${ref}`]).split('\n').filter(Boolean);
@@ -87,9 +87,34 @@ export function branchesWithoutPr(prBranches, baseBranch) {
   return works;
 }
 
+/** PR のない remote branch を取得する。利用者の追跡 ref は更新しない。 */
+export function branchesWithoutPr(prBranches, baseBranch) {
+  const namespace = `refs/scope-guard/${randomUUID()}`;
+  let fetched = false;
+  try {
+    try {
+      // An explicit destination and empty refmap ignore single-branch clone settings.
+      // FETCH_HEAD and the caller's refs/remotes/origin/* remain untouched.
+      run('git', ['fetch', '--quiet', '--no-tags', '--no-write-fetch-head', '--no-recurse-submodules',
+        '--refmap=', 'origin', `+refs/heads/*:${namespace}/*`]);
+      fetched = true;
+    } catch {
+      console.error('scope-guard: git fetch に失敗しました。手元のリモート追跡ブランチで判定します。');
+    }
+    return branchesInNamespace(prBranches, baseBranch, fetched ? namespace : 'refs/remotes/origin');
+  } finally {
+    try {
+      const refs = run('git', ['for-each-ref', '--format=%(refname)', namespace]).split('\n').filter(Boolean);
+      for (const ref of refs) run('git', ['update-ref', '-d', ref]);
+    } catch (error) {
+      console.error(`scope-guard: 一時 ref を解除できませんでした（${error.message.split('\n')[0]}）。`);
+    }
+  }
+}
+
 /**
  * 進行中の作業一覧。短時間に何度も呼ばれるフック向けに .git 内へキャッシュする。
- * includeBranches は git fetch 済みのリモート追跡ブランチを使う。
+ * includeBranches は一時 ref に取得した remote branch を使う。
  */
 export function collectWorks({ root, baseBranch, includeBranches = true, cacheSeconds = 0 }) {
   const cacheFile = path.join(run('git', ['rev-parse', '--git-common-dir'], { cwd: root }), 'scope-guard-cache.json');

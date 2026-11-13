@@ -24,7 +24,6 @@ import {
   currentBranch,
   loadConfig,
   repoRoot,
-  run,
   selfNames,
   splitOwn,
   stagedFiles,
@@ -33,14 +32,6 @@ import {
 
 const HOOK_CACHE_SECONDS = 120;
 const LABELS = { conflict: '[重複]', shared: '[共有]', self: '[自分]' };
-
-function fetchRemote() {
-  try {
-    run('git', ['fetch', '--quiet', '--prune', 'origin']);
-  } catch {
-    console.error('scope-guard: git fetch に失敗しました。手元のリモート追跡ブランチで判定します。');
-  }
-}
 
 function printConflicts(conflicts) {
   const byWork = new Map();
@@ -95,7 +86,6 @@ function reportLocal(files, { label, patterns = [] }) {
 }
 
 function cmdStatus() {
-  fetchRemote();
   const root = repoRoot();
   const config = loadConfig(root);
   const works = collectWorks({ root, baseBranch: config.baseBranch });
@@ -121,7 +111,6 @@ function cmdCheck(paths) {
     console.error('使い方: node scripts/scope-guard/cli.mjs check <path...>');
     process.exit(2);
   }
-  fetchRemote();
   const root = repoRoot();
   const tracked = trackedFiles();
   const files = [];
