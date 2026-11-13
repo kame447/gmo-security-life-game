@@ -26,6 +26,8 @@ jobs:
       SLG_URL: http://127.0.0.1:5173
       # e2e-editor.mjs starts its own isolated server; do not reuse 5173.
       SLG_EDITOR_PORT: 5186
+      # Its server readiness check expects uncolored Vite output, including on CI.
+      NO_COLOR: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
