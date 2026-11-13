@@ -4,8 +4,9 @@ import corridorFixture from './fixtures/editor-portal-corridor.json';
 import { buildWorld, type World } from '../src/world/index.ts';
 import { T } from '../src/world/tiles.ts';
 import { referenceScene } from '../src/editor-ui/map/reference.ts';
+import { mapMoveOperations } from '../src/editor-ui/map/operations.ts';
 import {
-  applyChangeSet, buildEditorWorld, diffDocuments, loadChangeSet, loadDocument, parseChangeSet, parseDocument,
+  applyChangeSet, buildEditorWorld, createChangeSet, diffDocuments, loadChangeSet, loadDocument, parseChangeSet, parseDocument,
   previewChangeSet, serializeChangeSet, serializeDocument, validateDocument,
   type EditorDocument, type EditorValidationContext,
 } from '../src/editor/index.ts';
@@ -157,7 +158,28 @@ describe('trusted real-world editor contract', () => {
     const { document, context } = setup(), next = clone(document);
     enter(next).from.x++; exit(next).to.x++;
     expect(validateDocument(next, context)).toEqual([]);
-    expect(diffDocuments(document, next, context).operations.map(o => o.id).sort()).toEqual(['home-enter', 'home-exit']);
+    const changes = diffDocuments(document, next, context);
+    expect(changes.operations.map(o => o.id).sort()).toEqual(['home-enter', 'home-exit']);
+    expect(applyChangeSet(document, changes, context)).toEqual(parseDocument(next, context));
+  });
+
+  it.fails('permits a facility move after independently moving its entrance and return', () => {
+    const { document, context } = setup();
+    const doors = clone(document);
+    enter(doors).from.x++; exit(doors).to.x++;
+    const afterEntrance = applyChangeSet(document, diffDocuments(document, doors, context), context);
+    expect(home(afterEntrance).x).toBe(home(document).x);
+    expect(enter(afterEntrance).from.x).toBe(enter(document).from.x + 1);
+    expect(exit(afterEntrance).to.x).toBe(exit(document).to.x + 1);
+
+    const moveFacility = mapMoveOperations(afterEntrance, { table: 'objects', id: home(afterEntrance).id }, home(afterEntrance).x + 1, home(afterEntrance).y);
+    const afterFacility = applyChangeSet(afterEntrance, createChangeSet(afterEntrance, moveFacility, context), context);
+    expect(home(afterFacility).x).toBe(home(afterEntrance).x + 1);
+    expect(enter(afterFacility).from.x).toBe(enter(afterEntrance).from.x + 1);
+    expect(exit(afterFacility).to.x).toBe(exit(afterEntrance).to.x + 1);
+    expect(enter(afterFacility).to).toEqual(enter(afterEntrance).to);
+    expect(exit(afterFacility).from).toEqual(exit(afterEntrance).from);
+    expect(loadDocument(serializeDocument(afterFacility, context), context)).toEqual(afterFacility);
   });
 
   it('does not let a trusted rail edge start on a forced portal', () => {
