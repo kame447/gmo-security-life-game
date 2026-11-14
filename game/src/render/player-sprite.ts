@@ -4,6 +4,7 @@
  *
  * 図案は 1 文字 = 1 ドット。'.' は透明で、それ以外は palette() の記号に対応する。
  * 頭（13 行）・胴（9 行）・脚（4 行）を重ねて組み立て、髪型・服・色は外見の設定で差し替える。
+ * 立ち絵の肩の緑の帯は服の一部として扱い、リュックは描かない（横向き・背面は背中を平らにする）。
  */
 import type { Facing } from '../core/coords';
 import type { PlayerAppearance } from '../core/appearance';
@@ -204,12 +205,12 @@ export const BODIES: Record<View, Record<string, Grid>> = {
   back: {
     jacket: [
       '....oocwwwwcoo....',
-      '...occoggggocco...',
-      '..occogGGGGgocco..',
-      '..occogGGGGgocco..',
-      '..oCcogGggGgocCo..',
-      '..oCcoggggggocCo..',
-      '..osoCoooooocoso..',
+      '...occcwwwwccco...',
+      '..occoccccccocco..',
+      '..occoccccccocco..',
+      '..oCcoccccccocCo..',
+      '..oCcoccccccocCo..',
+      '..osooCCCCCCooso..',
       '..ossopppppposso..',
       '....oppPPppppo....',
     ],
@@ -239,13 +240,13 @@ export const BODIES: Record<View, Record<string, Grid>> = {
   side: {
     jacket: [
       '......oowwtto.....',
-      '....oogcwwttco....',
-      '....oGgccCcyco....',
-      '....oGgcoCcoto....',
-      '....oGgcoCcoyo....',
-      '....oGgcoCcoto....',
-      '.....ogcosoctto...',
-      '......oposoppo....',
+      '.....occwwttco....',
+      '.....occcCcyco....',
+      '.....occoCcoto....',
+      '.....occoCcoyo....',
+      '.....oCcoCcoto....',
+      '.....oCcosoctto...',
+      '.....opposoppo....',
       '......oppppPPo....',
     ],
     shirt: [
