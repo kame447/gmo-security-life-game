@@ -115,11 +115,11 @@ export function layoutFacilityLabels(markers: readonly FacilityMarker[], project
   const playerBox = { x: player.x - radius, y: player.y - radius, width: 2 * radius, height: 2 * radius };
   const icons = options?.icons ?? layoutFacilityIcons(markers, projection, width, height, player, options?.iconPixel ?? 2, options?.playerRadius ?? 15);
   const map = options && { x: projection.left, y: projection.top, width: options.mapWidth * projection.scale, height: options.mapHeight * projection.scale };
-  const arrange = (coverWeight: number, crossWeight: number, step: number) => {
+  const arrange = (ordered: typeof points, coverWeight: number, crossWeight: number, step: number) => {
     const occupied: LabelBox[] = [...points.map(({ anchor }) => iconBox(anchor, options?.iconPixel ?? 2)), playerBox];
     const labels: FacilityLabel[] = [];
     let crossings = 0, totalScore = 0;
-    for (const { marker, anchor } of points) {
+    for (const { marker, anchor } of ordered) {
       const w = Math.ceil(measure(marker.name)) + 12, h = 23;
       const maxX = width - w - 5, maxY = height - h - 5;
       if (maxX < 5 || maxY < 5) continue;
@@ -161,13 +161,32 @@ export function layoutFacilityLabels(markers: readonly FacilityMarker[], project
   const presets = options ? [[width < 600 ? 180 : 60, 500, 12], [90, 100, 12], [0, 100, 12],
     [180, 0, 12], [60, 0, 12], [0, 0, 12], [180, 100, 6], [60, 0, 6],
     [300, 500, 6], [300, 0, 6], [0, 0, 6], [90, 300, 6], [0, 500, 6]] : [[0, 0, 12]];
-  let best: ReturnType<typeof arrange> | undefined;
-  for (const [coverWeight, crossWeight, step] of presets) {
-    const candidate = arrange(coverWeight, crossWeight, step);
-    if (!best || candidate.labels.length > best.labels.length ||
-        candidate.labels.length === best.labels.length && candidate.crossings < best.crossings ||
-        candidate.labels.length === best.labels.length && candidate.crossings === best.crossings && candidate.totalScore < best.totalScore) best = candidate;
-    if (best.labels.length === points.length && best.crossings === 0) break;
+  const attempt = (ordered: typeof points) => {
+    let best: ReturnType<typeof arrange> | undefined;
+    for (const [coverWeight, crossWeight, step] of presets) {
+      const candidate = arrange(ordered, coverWeight, crossWeight, step);
+      if (!best || candidate.labels.length > best.labels.length ||
+          candidate.labels.length === best.labels.length && candidate.crossings < best.crossings ||
+          candidate.labels.length === best.labels.length && candidate.crossings === best.crossings && candidate.totalScore < best.totalScore) best = candidate;
+      if (best.labels.length === points.length && best.crossings === 0) break;
+    }
+    return best!;
+  };
+
+  let best = attempt(points);
+  if (!options || best.labels.length === points.length) return best.labels;
+  const distance = (point: typeof points[number]) => (point.anchor.x - player.x) ** 2 + (point.anchor.y - player.y) ** 2;
+  const byId = (a: typeof points[number], b: typeof points[number]) => a.marker.id < b.marker.id ? -1 : a.marker.id > b.marker.id ? 1 : 0;
+  // Only if the nearest-first layout omits names, retry farthest-first, then
+  // left-to-right; distance and ID make ties stable. Keep the more complete layout.
+  const alternatives = [
+    [...points].sort((a, b) => distance(b) - distance(a) || byId(a, b)),
+    [...points].sort((a, b) => a.anchor.x - b.anchor.x || distance(a) - distance(b) || byId(a, b)),
+  ];
+  for (const ordered of alternatives) {
+    const candidate = attempt(ordered);
+    if (candidate.labels.length > best.labels.length) best = candidate;
+    if (best.labels.length === points.length) break;
   }
-  return best?.labels ?? [];
+  return best.labels;
 }
