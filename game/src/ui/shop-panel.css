@@ -1,69 +1,70 @@
 /* Flat light boxes with a dark edge and one inner line; no rounding, blur or gradients.
-   Three separate boxes laid over the room: wallet (top left), product list (right), one bar (bottom). */
+   Three separate boxes sit inside the drawn room: wallet (top corner), product list (other side), one bar (bottom).
+   --shop-unit is the size of one game pixel on screen; type, spacing and lines are multiples of it. */
 .shop-panel {
   --shop-ink: #2b2838; --shop-paper: #fbf8ee; --shop-rule: #b9b4a4; --shop-muted: #5c596a; --shop-cursor: #1f7a68;
+  --shop-unit: 2px; --shop-line: 2px; --shop-bar: 80px; --u: var(--shop-unit);
   position: absolute; inset: 0; z-index: 20; color: var(--shop-ink);
-  font-family: inherit; font-size: 16px; line-height: 1.4;
+  font-family: inherit; font-size: calc(var(--u) * 8); line-height: 1.3;
 }
 .shop-panel:focus { outline: none; }
 .shop-panel[hidden], .shop-panel [hidden] { display: none !important; }
 .shop-panel * { box-sizing: border-box; }
 .shop-panel p, .shop-panel dl, .shop-panel dd { margin: 0; }
-/* The boxes are placed inside a centred column so that they stay near the room on wide screens. */
-.shop-stage { position: absolute; inset: 8px; max-width: 1100px; margin: 0 auto; }
-.shop-box { position: absolute; background: var(--shop-paper); border: 2px solid var(--shop-ink); box-shadow: inset 0 0 0 2px var(--shop-paper), inset 0 0 0 4px var(--shop-rule); padding: 8px; }
-.shop-panel button {
-  min-width: 44px; min-height: 44px; padding: 4px 10px; color: inherit; background: transparent;
-  border: 2px solid var(--shop-rule); border-radius: 0; font: inherit; cursor: pointer; touch-action: manipulation;
+/* The script sizes this to the visible room. The list takes the side away from the player. */
+.shop-stage {
+  position: absolute; display: grid; row-gap: calc(var(--u) * 3);
+  grid-template: "wallet . list" minmax(0, 1fr) "bar bar bar" auto / 34% minmax(0, 1fr) 56%;
 }
-.shop-panel button:focus-visible { outline: 2px dashed var(--shop-cursor); outline-offset: 2px; }
+.shop-panel.is-mirrored .shop-stage { grid-template-areas: "list . wallet" "bar bar bar"; grid-template-columns: 56% minmax(0, 1fr) 34%; }
+.shop-box {
+  position: relative; min-width: 0; background: var(--shop-paper); border: var(--shop-line) solid var(--shop-ink);
+  box-shadow: inset 0 0 0 var(--shop-line) var(--shop-paper), inset 0 0 0 calc(var(--shop-line) * 2) var(--shop-rule);
+  padding: calc(var(--u) * 3);
+}
+.shop-panel button {
+  min-width: 44px; min-height: max(44px, calc(var(--u) * 16)); padding: 0 calc(var(--u) * 3); color: inherit; background: transparent;
+  border: var(--shop-line) solid var(--shop-rule); border-radius: 0; font: inherit; cursor: pointer; touch-action: manipulation;
+}
+.shop-panel button:focus-visible { outline: var(--shop-line) dashed var(--shop-cursor); outline-offset: var(--shop-line); }
 .shop-panel button:disabled { cursor: default; }
 
-.shop-wallet { left: 0; top: 44px; min-width: 150px; padding: 10px 14px; display: grid; gap: 2px; }
-.shop-wallet span { font-size: 13px; }
-.shop-wallet strong { text-align: right; font-size: 18px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.shop-wallet { grid-area: wallet; align-self: start; display: grid; padding: calc(var(--u) * 3) calc(var(--u) * 5); }
+.shop-wallet strong { text-align: right; font-weight: 400; font-variant-numeric: tabular-nums; }
 
-.shop-products { right: 0; top: 44px; width: clamp(220px, 33%, 320px); max-height: calc(70% - 44px); overflow-y: auto; display: flex; flex-direction: column; }
-.shop-product { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; flex: none; text-align: left; border-color: transparent !important; }
-/* The cursor is one frame around the row. */
+.shop-list { grid-area: list; min-height: 0; display: flex; padding-bottom: calc(var(--u) * 6); }
+.shop-products { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.shop-product { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: calc(var(--u) * 3); flex: none; text-align: left; border-color: transparent !important; }
+/* The cursor is one frame around the whole row. */
 .shop-product.is-selected { border-color: var(--shop-cursor) !important; }
 .shop-product-name { overflow-wrap: anywhere; }
 .shop-price { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* Shown only while rows continue below the box. */
+.shop-below {
+  position: absolute; left: 50%; bottom: calc(var(--u) * 1.5); margin-left: calc(var(--u) * -4); width: 0; height: 0; pointer-events: none;
+  border: solid transparent; border-width: calc(var(--u) * 4) calc(var(--u) * 4) 0; border-top-color: var(--shop-cursor);
+}
 
-.shop-bar { left: 0; right: 0; bottom: 0; min-height: 96px; padding: 14px; display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: start; }
-.shop-icon { width: 64px; height: 64px; padding: 6px; background: #fff; border: 2px solid var(--shop-rule); }
+.shop-bar { grid-area: bar; min-height: var(--shop-bar); padding: calc(var(--u) * 4); display: grid; grid-template-columns: calc(var(--u) * 24) minmax(0, 1fr); gap: calc(var(--u) * 4); align-items: start; }
+.shop-icon { width: calc(var(--u) * 24); height: calc(var(--u) * 24); padding: calc(var(--u) * 3); background: #fff; border: var(--shop-line) solid var(--shop-rule); }
 .shop-icon svg { display: block; width: 100%; height: 100%; }
-.shop-info { align-self: center; }
-.shop-speaker { font-size: 13px; color: var(--shop-muted); }
-#shop-line, #shop-result, #shop-description { line-height: 1.5; }
+/* The clerk's name runs in before the words so that greeting and description fit the bar together. */
+.shop-speaker, #shop-line, #shop-result { display: inline; }
+.shop-panel .shop-speaker { margin-right: calc(var(--u) * 4); color: var(--shop-muted); }
+#shop-description { display: block; }
 
-.shop-checkout { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
-.shop-checkout-item { display: flex; align-items: baseline; gap: 12px; }
+.shop-checkout { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--u) * 2) calc(var(--u) * 5); }
+.shop-checkout-item { flex: 1 1 100%; display: flex; align-items: baseline; gap: calc(var(--u) * 5); }
 .shop-checkout-item strong { font-weight: 400; }
-#shop-owned { font-size: 13px; color: var(--shop-muted); font-variant-numeric: tabular-nums; }
-.shop-quantity { display: flex; align-items: center; gap: 6px; font-size: 14px; }
-.shop-quantity output { min-width: 30px; text-align: center; font-size: 18px; font-variant-numeric: tabular-nums; }
-.shop-totals { flex: 1 1 130px; max-width: 200px; font-size: 14px; }
-.shop-totals > div { display: flex; justify-content: space-between; gap: 8px; }
-.shop-totals dd { white-space: nowrap; font-size: 16px; font-variant-numeric: tabular-nums; }
-.shop-actions { display: flex; gap: 8px; margin-left: auto; }
-.shop-actions button { min-width: 84px; }
+#shop-owned { font-size: max(11px, calc(var(--u) * 6)); color: var(--shop-muted); font-variant-numeric: tabular-nums; }
+.shop-quantity { display: flex; align-items: center; gap: calc(var(--u) * 2); }
+.shop-quantity output { min-width: calc(var(--u) * 12); text-align: center; font-variant-numeric: tabular-nums; }
+.shop-totals { flex: 1 1 calc(var(--u) * 44); max-width: calc(var(--u) * 70); line-height: 1.3; }
+.shop-totals > div { display: flex; justify-content: space-between; align-items: baseline; gap: calc(var(--u) * 3); }
+.shop-totals dt { font-size: max(11px, calc(var(--u) * 6)); }
+.shop-totals dd { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.shop-actions { display: flex; gap: calc(var(--u) * 3); margin-left: auto; }
+.shop-actions button { min-width: max(56px, calc(var(--u) * 28)); }
 .shop-actions .is-cursor { border-color: var(--shop-cursor); }
 .shop-actions button:disabled { border-style: dashed; color: var(--shop-muted); }
-#shop-notice { flex: 1 1 100%; font-size: 14px; color: #8c3427; }
-
-@media (orientation: portrait) {
-  /* The room sits in the vertical middle; the list stays above it. */
-  .shop-products { max-height: calc(38% - 44px); }
-}
-@media (max-width: 480px) {
-  .shop-panel { font-size: 15px; }
-  .shop-wallet { min-width: 132px; padding: 8px 12px; }
-  .shop-bar { padding: 12px; gap: 10px; grid-template-columns: 56px minmax(0, 1fr); }
-  .shop-icon { width: 56px; height: 56px; }
-  .shop-checkout { gap: 6px 12px; }
-  .shop-checkout-item { flex: 1 1 100%; }
-}
-@media (max-height: 460px) {
-  .shop-bar { min-height: 84px; padding: 10px 14px; }
-}
+#shop-notice { flex: 1 1 100%; font-size: max(11px, calc(var(--u) * 6)); color: #8c3427; }

@@ -165,7 +165,34 @@ try {
     clean(errors, network);
     pass('review=1 directly opens the single shop and isolates real saves across payment/reset/timer/pagehide');
   } finally { await context.close(); }
-  console.log(`SUMMARY ${passed}/17 PASS`);
+  // Test-only longer list: the catalogue data file is untouched; extra offers exist only in this page.
+  const longContext = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, acceptDownloads: false, serviceWorkers: 'block' });
+  try {
+    const network = await restrictNetwork(longContext), page = await longContext.newPage(), errors = observe(page);
+    await page.goto(shopUrl()); await ready(page); await seed(page);
+    await page.evaluate(async () => {
+      const { SHOP_CATALOGS } = await import('/src/data/shop-catalogs.ts');
+      SHOP_CATALOGS[0].offers.push({ itemId: 'small-snack', priceYen: 100 }, { itemId: 'hand-towel', priceYen: 300 },
+        { itemId: 'bread', priceYen: 130 }, { itemId: 'umbrella', priceYen: 500 }, { itemId: 'shirt', priceYen: 980 });
+    });
+    const before = await assets(page);
+    await openClerk(page);
+    const mark = page.locator('#shop-below'), rowInside = () => page.evaluate(() => {
+      const row = document.querySelector('.shop-product.is-selected').getBoundingClientRect(), list = document.querySelector('#shop-products').getBoundingClientRect();
+      return row.top >= list.top - 1 && row.bottom <= list.bottom + 1;
+    });
+    assert.equal(await page.locator('.shop-product').count(), 9);
+    assert.equal(await mark.isVisible(), true, 'The mark shows that rows continue below');
+    for (let step = 0; step < 8; step++) { await page.keyboard.press('ArrowDown'); assert.equal(await rowInside(), true, 'The cursor row stays inside the list'); }
+    assert.equal(await page.locator('.shop-product.is-selected').getAttribute('id'), 'shop-exit');
+    await page.waitForFunction(() => document.querySelector('#shop-below').hidden); // scroll event after the last row
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await page.locator('.shop-product.is-selected .shop-product-name').innerText(), '水');
+    await mark.waitFor({ state: 'visible' }); assert.equal(await rowInside(), true);
+    assert.deepEqual(await assets(page), before); clean(errors, network);
+    pass('a list longer than its box scrolls with the cursor and shows the mark only while rows continue below');
+  } finally { await longContext.close(); }
+  console.log(`SUMMARY ${passed}/18 PASS`);
 } catch (error) {
-  console.error('FAIL', error); console.error(`SUMMARY ${passed}/17 PASS; FAILED`); process.exitCode = 1;
+  console.error('FAIL', error); console.error(`SUMMARY ${passed}/18 PASS; FAILED`); process.exitCode = 1;
 } finally { await browser.close(); }

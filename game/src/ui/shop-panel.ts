@@ -1,3 +1,4 @@
+import { TILE } from '../core/coords';
 import { getItemDefinition } from '../data/items';
 import { ClerkFlow } from '../shop/clerk-flow';
 import { PointerOrigin } from '../shop/pointer-origin';
@@ -10,8 +11,9 @@ const yen = (amount: number) => `${amount.toLocaleString('ja-JP')}円`;
 const ACTION = new Set(['KeyZ', 'Enter', 'Space']);
 
 /**
- * Three separate boxes over the room: the wallet (top left), the product list (right) and one bar (bottom)
- * that carries the clerk's words, the description of the product under the cursor, and the purchase check.
+ * Three separate boxes inside the drawn room: the wallet (top corner), the product list (the other side) and one bar
+ * (bottom) that carries the clerk's words, the description of the product under the cursor, and the purchase check.
+ * The boxes follow the room's rectangle on screen and its pixel scale, and the list takes the side away from the player.
  */
 export class ShopPanel {
   private readonly root = document.createElement('section');
@@ -24,6 +26,7 @@ export class ShopPanel {
   private greeted = false;
   /** Whether the pressed row already had the cursor when the pointer went down. */
   private pressedCursorRow = false;
+  private layoutKey = '';
 
   constructor(private readonly assets: ShopAssetsPort, private readonly onClose: () => void,
     private readonly onPurchase: () => void) {
@@ -37,7 +40,10 @@ export class ShopPanel {
     this.root.innerHTML = `
       <div class="shop-stage">
         <div class="shop-box shop-wallet"><span>所持金</span><strong id="shop-money"></strong></div>
-        <div id="shop-products" class="shop-box shop-products" role="group" aria-label="商品"></div>
+        <div class="shop-box shop-list">
+          <div id="shop-products" class="shop-products" role="group" aria-label="商品"></div>
+          <span id="shop-below" class="shop-below" aria-hidden="true" hidden></span>
+        </div>
         <div id="shop-conversation" class="shop-box shop-bar">
           <div id="shop-icon" class="shop-icon"></div>
           <div id="shop-info" class="shop-info">
@@ -46,7 +52,7 @@ export class ShopPanel {
           </div>
           <section id="shop-checkout" class="shop-checkout" aria-label="購入の確認" hidden>
             <p class="shop-checkout-item"><strong id="shop-item-name"></strong><span id="shop-owned"></span></p>
-            <div class="shop-quantity"><span>個数</span>
+            <div class="shop-quantity" role="group" aria-label="個数">
               <button type="button" id="shop-less" data-action="less" aria-label="個数を減らす">−</button>
               <output id="shop-quantity" aria-live="polite"></output>
               <button type="button" id="shop-more" data-action="more" aria-label="個数を増やす">＋</button>
@@ -78,6 +84,7 @@ export class ShopPanel {
       const button = event.target as HTMLButtonElement;
       if (button.dataset.action === 'product' && this.flow?.phase === 'catalog') this.command('product', Number(button.dataset.index));
     });
+    this.el('#shop-products').addEventListener('scroll', () => this.markBelow());
     document.querySelector('#stage')!.append(this.root);
   }
 
@@ -102,7 +109,58 @@ export class ShopPanel {
     context.catalog.offers.forEach((offer, index) =>
       addRow('product', getItemDefinition(offer.itemId)?.name ?? offer.itemId, yen(offer.priceYen), index));
     addRow('close', '店を出る', '');
-    this.root.hidden = false; this.render(); this.root.focus();
+    this.root.hidden = false; this.layoutKey = ''; this.follow(); this.render(); this.root.focus();
+  }
+
+  /** While open, keep the boxes on the room as the camera settles or the window changes. */
+  private follow(): void {
+    if (!this.isOpen) return;
+    this.layout();
+    requestAnimationFrame(() => this.follow());
+  }
+
+  /**
+   * Places the boxes on the visible part of the room. The camera, scale and player come from the read-only
+   * `window.__slg` hook because this panel is not handed the renderer; without it the whole canvas is used.
+   */
+  private layout(): void {
+    const canvas = document.querySelector<HTMLCanvasElement>('#view')!, view = canvas.getBoundingClientRect();
+    const origin = this.root.getBoundingClientRect(), hook = (window as Partial<Window>).__slg, edge = 8;
+    let unit = 2, room = { x: view.x, y: view.y, w: view.width, h: view.height }, playerX = view.x;
+    if (hook) {
+      const stats = hook.renderer.stats, area = hook.game.area;
+      unit = stats.zoom * view.width / canvas.width;
+      room = { x: view.x - stats.camX * unit, y: view.y - stats.camY * unit, w: area.width * TILE * unit, h: area.height * TILE * unit };
+      playerX = view.x + (hook.game.player.x - stats.camX) * unit;
+    }
+    // The visible part of the room, grown around its centre to a usable minimum on small screens.
+    const fit = (start: number, size: number, low: number, high: number, least: number) => {
+      const from = Math.max(start, low), to = Math.min(start + size, high);
+      const length = Math.min(high - low, Math.max(to - from, least));
+      return { start: Math.min(high - length, Math.max(low, (from + to - length) / 2)), length };
+    };
+    const across = fit(room.x, room.w, view.x + edge, view.right - edge, 392);
+    // A narrow column needs more height: the purchase check wraps onto more lines there.
+    const down = fit(room.y, room.h, view.y + edge, view.bottom - edge, across.length < 420 ? 380 : 320);
+    const scale = Math.max(unit, Math.min(1.75, across.length / 224));
+    const mirrored = playerX > across.start + across.length / 2;
+    const key = [across.start, across.length, down.start, down.length, scale, mirrored].map(value => Math.round(Number(value) * 100)).join();
+    if (key === this.layoutKey) return;
+    this.layoutKey = key;
+    const stage = this.el('.shop-stage').style;
+    stage.left = `${Math.round(across.start - origin.x)}px`; stage.top = `${Math.round(down.start - origin.y)}px`;
+    stage.width = `${Math.round(across.length)}px`; stage.height = `${Math.round(down.length)}px`;
+    this.root.style.setProperty('--shop-unit', `${scale}px`);
+    this.root.style.setProperty('--shop-line', `${Math.max(2, Math.round(scale))}px`);
+    this.root.style.setProperty('--shop-bar', `${Math.round(down.length * .28)}px`);
+    this.root.classList.toggle('is-mirrored', mirrored);
+    this.markBelow();
+  }
+
+  /** A small mark at the bottom of the list while more rows continue below. */
+  private markBelow(): void {
+    const list = this.el('#shop-products');
+    this.el('#shop-below').hidden = list.scrollHeight - list.scrollTop - list.clientHeight <= 1;
   }
 
   close(): void {
@@ -220,6 +278,7 @@ export class ShopPanel {
         result.reason === 'insufficient-funds' ? 'お金が たりないよ。' : result.reason === 'quantity-limit' ? 'これ以上 持てないよ。' : 'いまは 買えないみたい。');
     }
     if (!confirming) this.rows[this.cursor].scrollIntoView?.({ block: 'nearest' });
+    this.markBelow();
   }
 
   private tab(event: KeyboardEvent): void {

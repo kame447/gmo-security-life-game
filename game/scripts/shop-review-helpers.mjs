@@ -73,8 +73,12 @@ export async function assertFits(page) {
     const visible = element => element.getClientRects().length > 0;
     const items = [...root.querySelectorAll('button, h2, h3, #shop-money, #shop-description, #shop-line, #shop-result, #shop-notice, #shop-total, #shop-after')]
       .filter(visible).map(element => ({ id: element.id || element.textContent, ...box(element) }));
-    const regions = ['.shop-wallet', '#shop-products', '#shop-conversation']
-      .map(selector => root.querySelector(selector)).filter(visible).map(element => ({ id: element.id || 'shop-wallet', ...box(element) }));
+    const regions = ['.shop-wallet', '.shop-list', '#shop-conversation']
+      .map(selector => root.querySelector(selector)).filter(visible).map(element => ({ id: element.id || element.classList[1], ...box(element) }));
+    // The drawn room on screen, from the renderer camera and scale.
+    const canvas = document.querySelector('#view'), view = canvas.getBoundingClientRect(), stats = window.__slg.renderer.stats, area = window.__slg.game.area;
+    const unit = stats.zoom * view.width / canvas.width;
+    const room = { x: view.x - stats.camX * unit, y: view.y - stats.camY * unit, width: area.width * 16 * unit, height: area.height * 16 * unit };
     const hits = [...root.querySelectorAll('button')].filter(element => visible(element) && !element.disabled).map(element => {
       const r = element.getBoundingClientRect();
       const points = [[r.x + r.width / 2, r.y + r.height / 2], [r.x + 4, r.y + 4], [r.right - 4, r.y + 4],
@@ -82,11 +86,22 @@ export async function assertFits(page) {
       return { id: element.id || element.textContent, width: r.width, height: r.height,
         onTop: points.every(([x, y]) => { const top = document.elementFromPoint(x, y); return top === element || element.contains(top); }) };
     });
-    return { width: innerWidth, height: innerHeight, phase: root.dataset.phase, panel: box(root), items, regions, hits,
+    return { width: innerWidth, height: innerHeight, phase: root.dataset.phase, panel: box(root), items, regions, hits, room, unit,
+      stage: box(root.querySelector('.shop-stage')), fontPx: parseFloat(getComputedStyle(root).fontSize),
       overflow: document.documentElement.scrollWidth > innerWidth };
   });
   assert.equal(result.overflow, false);
   assert.equal(result.regions.length, 3, 'Wallet, product list and bar are three separate boxes');
+  // The boxes belong to the drawn room: they stay inside its rectangle whenever the room is large enough on screen.
+  const { room, stage } = result, roomy = room.width >= 392 && room.height >= 320;
+  for (const region of result.regions) {
+    assert.ok(region.x >= stage.x - 1 && region.y >= stage.y - 1 && region.right <= stage.right + 1 && region.bottom <= stage.bottom + 1, `Box stays in the layout frame: ${JSON.stringify(region)}`);
+  }
+  if (roomy) {
+    assert.ok(Math.abs(stage.x - room.x) <= 1 && Math.abs(stage.y - room.y) <= 1 && Math.abs(stage.width - room.width) <= 1 && Math.abs(stage.height - room.height) <= 1,
+      `The layout frame is the drawn room: ${JSON.stringify({ room, stage })}`);
+    assert.ok(Math.abs(result.fontPx - result.unit * 8) < .01, `Type follows the game pixel scale: ${JSON.stringify({ font: result.fontPx, unit: result.unit })}`);
+  } else assert.ok(stage.width <= 392 + 1 && stage.height <= 380 + 1, `A small room only grows the frame to its minimum: ${JSON.stringify(stage)}`);
   for (const item of [...result.regions, ...result.items]) {
     assert.ok(item.x >= 0 && item.y >= 0 && item.right <= result.width + 1 && item.bottom <= result.height + 1,
       `Visible information/control fits: ${JSON.stringify(item)}`);
