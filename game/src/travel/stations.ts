@@ -1,39 +1,26 @@
-import { STATION_ACCESS } from '../world/landmarks';
-import { NEIGHBOR_STATION_ACCESS } from '../world/towns/neighbor';
-import type { Direction } from './direction';
+import { getStationFlow } from '../world';
+import type { Direction, Heading } from './direction';
 
 /**
- * 乗車の流れが駅について読むデータは、この1か所だけ。
- * #35 が駅ごとの改札・ホーム・方向を world/ で提供したら、readStationFlows() の中身だけを差し替える。
+ * 乗車の流れが駅について読むデータ。位置・方向の実体は world/station-flow.ts（getStationFlow）で、
+ * ここはその必要な部分だけの型と、読む1か所（readStationFlows）。
  */
 export interface StationInteraction { readonly areaId: string; readonly interactionId: string; readonly eventKey: string }
 export interface PlatformFlow {
   readonly id: string;
-  /** このホームから出る方向。現状は1つのホームが両方向を兼ねる（暫定）。 */
-  readonly directions: readonly Direction[];
-  readonly sign: StationInteraction;
+  readonly direction: Direction;
+  readonly sign: { readonly interactionId: string; readonly eventKey: string };
+  readonly boardTile: { readonly areaId: string; readonly x: number; readonly y: number; readonly facing: 'up' | 'down' };
+  readonly heading: Heading;
+  readonly arriveFrom: Heading;
 }
 export interface StationFlow {
   readonly stationId: string;
-  /** 行き先を選ぶ改札。null の駅は、のりばの看板が改札を兼ねる（暫定）。 */
-  readonly gate: StationInteraction | null;
+  /** 行き先を選ぶ改札と、通過後に立つ改札の先のタイル。null の駅は、のりばの看板が改札を兼ねる（試験用）。 */
+  readonly gate: (StationInteraction & { readonly exitTile: { readonly x: number; readonly y: number } }) | null;
   readonly platforms: readonly PlatformFlow[];
 }
 
 export function readStationFlows(): readonly StationFlow[] {
-  const main = STATION_ACCESS, neighbor = NEIGHBOR_STATION_ACCESS;
-  return [
-    {
-      stationId: main.stationId,
-      gate: { areaId: main.areaId, interactionId: 'station-ticket', eventKey: 'station.ticket' },
-      platforms: [{ id: 'main-platform', directions: ['up', 'down'],
-        sign: { areaId: main.areaId, interactionId: main.interaction.id, eventKey: main.interaction.eventKey } }],
-    },
-    {
-      stationId: neighbor.stationId,
-      gate: null,
-      platforms: [{ id: 'neighbor-platform', directions: ['up', 'down'],
-        sign: { areaId: neighbor.boarding.areaId, interactionId: neighbor.boarding.interactionId, eventKey: neighbor.boarding.eventKey } }],
-    },
-  ];
+  return ['station', 'station-neighbor'].map(id => getStationFlow(id));
 }

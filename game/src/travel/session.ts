@@ -2,17 +2,21 @@ import { feetAtTile } from '../core/coords';
 import type { MapEvent, SpawnPoint } from '../core/types';
 import { canStand, positionAt } from '../map/explorer';
 import type { Game } from '../session/game';
+import { pxToTile } from '../core/coords';
 import { RailwayNetwork, type RailwayStation } from '../world/railway';
-import { directionBetween, type Direction } from './direction';
+import { directionBetween, type Direction, type Heading } from './direction';
 import { TravelMenu, type TravelMenuState } from './menu';
 import { TRAVEL_LINES } from './network';
-import { readStationFlows, type StationFlow } from './stations';
+import { readStationFlows, type PlatformFlow, type StationFlow } from './stations';
 
 export interface Ticket { readonly originId: string; readonly destinationId: string; readonly direction: Direction }
 
 export type TravelResult =
   | { readonly ok: true; readonly originId: string; readonly destinationId: string }
   | { readonly ok: false; readonly reason: 'not-riding' | 'origin-unavailable' | 'destination-unavailable' };
+
+/** 乗車の開始時に演出へ渡す内容。 */
+export interface RideRequest extends Ticket { readonly heading: Heading }
 
 export type NoticeKind = 'ticket-issued' | 'no-ticket' | 'wrong-platform';
 export type TravelView =
@@ -35,6 +39,7 @@ export class TrainTravelSession {
   private mode: Mode = 'closed';
   private notice: NoticeKind = 'no-ticket';
   private ticket: Ticket | null = null;
+  private platform: PlatformFlow | null = null;
 
   constructor(private readonly game: Pick<Game, 'player' | 'world' | 'dialog' | 'facingInteraction'>,
     private readonly railway: RailwayNetwork, private readonly arrive?: TravelArrival,
@@ -63,11 +68,11 @@ export class TrainTravelSession {
     return player.areaId === area && !!world && canStand(world, player.x, player.y) && target?.id === id && target.eventKey === key;
   }
 
-  private atBoardingPoint(station: RailwayStation): boolean {
-    const board = station.boarding;
-    const event = { type: 'interact' as const, areaId: this.game.player.areaId, interactionId: board.interactionId, eventKey: board.eventKey };
-    return !this.game.dialog && this.facing(board.areaId, board.interactionId, board.eventKey) &&
-      this.railway.boardingStation(event, this.game.player)?.id === station.id;
+  /** 足元のタイルと向きが乗車位置に合い、のりばの案内を向いているときだけ true。 */
+  private atPlatform(platform: PlatformFlow): boolean {
+    const player = this.game.player, board = platform.boardTile;
+    return !this.game.dialog && this.facing(board.areaId, platform.sign.interactionId, platform.sign.eventKey) &&
+      player.facing === board.facing && pxToTile(player.x) === board.x && pxToTile(player.y - 4) === board.y;
   }
 
   private openMenu(origin: RailwayStation): boolean {
@@ -77,7 +82,7 @@ export class TrainTravelSession {
     return opened;
   }
 
-  /** 改札の操作で行き先メニュー、のりばの看板の操作できっぷの確認や案内を開く。 */
+  /** 改札の操作で行き先メニュー、のりばの案内の操作できっぷの確認や案内を開く。 */
   begin(event: MapEvent): boolean {
     if (event.type !== 'interact' || this.isOpen || this.game.dialog) return false;
     for (const flow of this.flows) {
@@ -85,16 +90,19 @@ export class TrainTravelSession {
       if (origin && gate && event.areaId === gate.areaId && event.interactionId === gate.interactionId &&
           event.eventKey === gate.eventKey && this.facing(gate.areaId, gate.interactionId, gate.eventKey)) return this.openMenu(origin);
     }
-    const origin = this.railway.boardingStation(event, this.game.player);
-    if (!origin || !this.atBoardingPoint(origin)) return false;
-    const flow = this.flows.find(item => item.stationId === origin.id);
-    if (flow && !flow.gate && !(this.ticket?.originId === origin.id)) return this.openMenu(origin);
-    const ticket = this.ticket;
-    if (!ticket || ticket.originId !== origin.id) { this.notice = 'no-ticket'; this.mode = 'notice'; return true; }
-    const platform = flow?.platforms.find(item => item.sign.interactionId === event.interactionId && item.sign.eventKey === event.eventKey);
-    this.mode = platform && !platform.directions.includes(ticket.direction) ? 'notice' : 'board';
-    if (this.mode === 'notice') this.notice = 'wrong-platform';
-    return true;
+    for (const flow of this.flows) {
+      const platform = flow.platforms.find(item => item.boardTile.areaId === event.areaId &&
+        item.sign.interactionId === event.interactionId && item.sign.eventKey === event.eventKey);
+      const origin = platform && this.railway.station(flow.stationId);
+      if (!platform || !origin || !this.atPlatform(platform)) continue;
+      const ticket = this.ticket;
+      if (!flow.gate && ticket?.originId !== origin.id) return this.openMenu(origin);
+      if (!ticket || ticket.originId !== origin.id) { this.notice = 'no-ticket'; this.mode = 'notice'; return true; }
+      if (platform.direction !== ticket.direction) { this.notice = 'wrong-platform'; this.mode = 'notice'; return true; }
+      this.platform = platform; this.mode = 'board';
+      return true;
+    }
+    return false;
   }
 
   select(id: string): boolean { return this.mode === 'menu' && this.menu.select(id); }
@@ -108,6 +116,22 @@ export class TrainTravelSession {
     this.ticket = { originId: journey.originId, destinationId: journey.destinationId, direction };
     this.notice = 'ticket-issued'; this.mode = 'notice';
     return { ...this.ticket };
+  }
+
+  /**
+   * きっぷを受け取ったあと、通れない改札の先（exitTile）へ立ち位置を移す。移すだけで、きっぷも所持品も変えない。
+   * 位置の移動は到着と同じ共有フック（エリア変更通知と保存を伴う）を使う。
+   */
+  passGate(): boolean {
+    if (this.mode !== 'notice' || this.notice !== 'ticket-issued' || !this.ticket) return false;
+    const flow = this.flows.find(item => item.stationId === this.ticket!.originId), gate = flow?.gate;
+    if (!gate || !this.facing(gate.areaId, gate.interactionId, gate.eventKey)) return false;
+    const spawn = { areaId: gate.areaId, x: gate.exitTile.x, y: gate.exitTile.y, facing: 'up' as const };
+    const area = this.game.world.areas.get(spawn.areaId), feet = feetAtTile(spawn.x, spawn.y);
+    if (!area || !canStand(area, feet.x, feet.y) || area.portalAt.has(spawn.y * area.width + spawn.x)) return false;
+    if (this.arrive) { if (!this.arrive(spawn)) return false; } else this.game.player = positionAt(spawn);
+    this.mode = 'closed';
+    return true;
   }
 
   /** きっぷを返して閉じる。 */
@@ -125,12 +149,12 @@ export class TrainTravelSession {
   cancel(): void { if (this.mode !== 'riding') { this.menu.cancel(); this.mode = 'closed'; } }
 
   /** 乗車を始める。1枚のきっぷで1回だけ成功し、以後は取り消せない。 */
-  startRide(): Ticket | null {
-    if (this.mode !== 'board' || !this.ticket) return null;
-    const origin = this.railway.station(this.ticket.originId);
-    if (!origin || !this.atBoardingPoint(origin)) { this.mode = 'closed'; return null; }
+  startRide(): RideRequest | null {
+    const platform = this.platform;
+    if (this.mode !== 'board' || !this.ticket || !platform) return null;
+    if (!this.atPlatform(platform)) { this.mode = 'closed'; return null; }
     this.mode = 'riding';
-    return { ...this.ticket };
+    return { ...this.ticket, heading: platform.heading };
   }
 
   /** 発車の暗転の切れ目で呼ぶ。位置を変える唯一の場所。 */

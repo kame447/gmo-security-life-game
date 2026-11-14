@@ -1,14 +1,13 @@
 import type { MapEvent } from '../core/types';
 import type { Game } from '../session/game';
 import type { RailwayNetwork } from '../world/railway';
-import { headingOf } from './direction';
 import { RIDE_TIMING, REDUCED_TIMING, RideDirector } from './ride';
 import { drawRideScene, SCENE_H, SCENE_W } from './scene';
 import { TrainTravelSession, type NoticeKind, type TravelArrival, type TravelResult } from './session';
 import './panel.css';
 
 const NOTICE_TEXT: Record<NoticeKind, string> = {
-  'ticket-issued': 'きっぷを うけとった。ホームの のりばへ すすんでね。',
+  'ticket-issued': 'きっぷを うけとった。かいさつを とおって、ホームの のりばへ すすんでね。',
   'no-ticket': 'のるには、かいさつで いきさきを えらんで、きっぷを うけとってね。',
   'wrong-platform': 'この きっぷの のりばは ここではないよ。',
 };
@@ -33,6 +32,7 @@ export class TrainTravelPanel {
   private readonly root = element('div', 'train-travel-overlay');
   private message = '';
   private frame = 0;
+  private passing = false;
   private result: TravelResult | undefined;
 
   constructor(private readonly game: Game, railway: RailwayNetwork, private readonly stage: HTMLElement, private readonly hooks: TrainTravelPanelHooks) {
@@ -58,7 +58,7 @@ export class TrainTravelPanel {
   handleKey(event: KeyboardEvent): void {
     if (!this.isOpen) return;
     // The ride cannot be skipped or cancelled; every key is swallowed until the player is back in control.
-    if (this.session.isRiding) { event.preventDefault(); return; }
+    if (this.session.isRiding || this.passing) { event.preventDefault(); return; }
     if (event.code === 'Escape') { event.preventDefault(); if (!event.repeat) this.back(); return; }
     const buttons = [...this.root.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
     if (event.code === 'Tab' || ['ArrowUp', 'ArrowDown', 'KeyW', 'KeyS'].includes(event.code)) {
@@ -112,6 +112,22 @@ export class TrainTravelPanel {
 
   private closeNotice(): void { this.back(); }
 
+  /** 改札を通る: 短い暗転のあいだに改札の先へ立ち位置を移し、ホームを歩けるようにする。 */
+  private passGate(): void {
+    if (this.passing) return;
+    this.passing = true;
+    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.root.classList.add('train-travel-passing');
+    const done = () => {
+      const moved = this.session.passGate();
+      this.root.classList.remove('train-travel-passing');
+      this.passing = false;
+      if (moved) this.finish();
+      else { this.message = 'いまは かいさつを とおれません。'; this.render(); }
+    };
+    if (reduced) done(); else window.setTimeout(done, 220);
+  }
+
   private issue(): void {
     if (this.session.issue()) { this.message = ''; this.render(); }
   }
@@ -136,7 +152,7 @@ export class TrainTravelPanel {
     fit();
     const onResize = () => fit();
     window.addEventListener('resize', onResize);
-    const director = new RideDirector(headingOf(ticket.direction), () => {
+    const director = new RideDirector(ticket.heading, () => {
       this.result = this.session.commitArrival();
       return this.result.ok;
     }, () => {
@@ -148,7 +164,7 @@ export class TrainTravelPanel {
       director.advance(now - last); last = now;
       const snapshot = director.snapshot;
       this.root.dataset.ridePhase = snapshot.phase;
-      if (c && snapshot.phase !== 'done') drawRideScene(c, this.game.appearance, snapshot, now);
+      if (c && snapshot.phase !== 'done') drawRideScene(c, this.game.appearance, snapshot, ticket.direction, now);
       if (snapshot.phase !== 'done') this.frame = requestAnimationFrame(tick);
     };
     this.frame = requestAnimationFrame(tick);
@@ -184,8 +200,9 @@ export class TrainTravelPanel {
       actions.append(this.makeButton('もどる', 'back', () => this.back()));
     } else {
       prompt.textContent = state.kind === 'ticket-issued' && state.destinationName
-        ? `${state.destinationName}ゆきの きっぷを うけとった。ホームの のりばへ すすんでね。` : NOTICE_TEXT[state.kind];
-      actions.append(this.makeButton('とじる', 'close', () => this.closeNotice()));
+        ? `${state.destinationName}ゆきの きっぷを うけとった。かいさつを とおって、ホームの のりばへ すすんでね。` : NOTICE_TEXT[state.kind];
+      if (state.kind === 'ticket-issued') actions.append(this.makeButton('かいさつを とおる', 'pass-gate', () => this.passGate()));
+      actions.append(this.makeButton(state.kind === 'ticket-issued' ? 'ここで とじる' : 'とじる', 'close', () => this.closeNotice()));
     }
     card.append(prompt, actions);
     if (this.message) { const message = element('p', 'train-travel-message'); message.setAttribute('role', 'status'); message.textContent = this.message; card.append(message); }
