@@ -10,7 +10,7 @@ export const TOWN_TRAIN_PROTOTYPE: Readonly<TownTrainConfig> = Object.freeze({
   intervalSeconds: 10,
   speedPixelsPerSecond: 96,
   lengthPixels: 128,
-  heightPixels: 28,
+  heightPixels: 16,
 });
 
 export function validateTrainConfig(config: Readonly<TownTrainConfig>): void {

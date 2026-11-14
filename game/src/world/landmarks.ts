@@ -1,4 +1,5 @@
 import type { SpawnPoint } from '../core/types';
+import { getStationFlow, STATION_FLOW_PLATFORMS } from './station-flow';
 
 /** Provisional geometry; keep entrance, front and track connected when the map changes. */
 export const MAIN_STATION_LAYOUT = {
@@ -24,7 +25,8 @@ export const LANDMARKS = {
 /** 新規開始・「さいしょから」の位置。 */
 export const START: SpawnPoint = { areaId: 'town-main', ...LANDMARKS.homeFront, facing: 'down' };
 
-/** #35/#36 shared station access. Tile coordinates and names are prototype values. */
+/** #35/#36 shared station access. boarding・arrival・interaction は下りのホーム（従来の単一ののりば相当）。詳細は station-flow.ts。 */
+const MAIN_DOWN = STATION_FLOW_PLATFORMS[0];
 export const STATION_ACCESS = {
   stationId: 'station',
   areaId: 'station-main-interior',
@@ -32,7 +34,7 @@ export const STATION_ACCESS = {
   exitPortalId: 'station-exit',
   outdoorEntrance: MAIN_STATION_LAYOUT.entrance,
   entry: { areaId: 'station-main-interior', x: 17, y: 16, facing: 'up' },
-  boarding: { areaId: 'station-main-interior', x: 17, y: 9, facing: 'up' },
-  arrival: { areaId: 'station-main-interior', x: 17, y: 10, facing: 'down' },
-  interaction: { id: 'station-boarding', x: 17, y: 8, eventKey: 'travel.station.board' },
+  boarding: MAIN_DOWN.boardTile,
+  arrival: getStationFlow('station').alight,
+  interaction: { id: MAIN_DOWN.sign.interactionId, x: MAIN_DOWN.sign.x, y: MAIN_DOWN.sign.y, eventKey: MAIN_DOWN.sign.eventKey },
 } as const;

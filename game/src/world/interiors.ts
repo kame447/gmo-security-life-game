@@ -1,5 +1,6 @@
 import type { AreaDef, ObjectDef, PortalDef } from '../core/types';
 import { LANDMARKS, STATION_ACCESS } from './landmarks';
+import { STATION_FLOW_LAYOUT, STATION_FLOW_PLATFORMS } from './station-flow';
 import { T } from './tiles';
 
 /** 屋外から入ったときの屋内の到着位置。出口マットのすぐ北。 */
@@ -106,7 +107,7 @@ export function createStation(): AreaDef {
     // 入場の改札。操作の対象が solid なので、行き先を決める操作を通らずにホームへは入れない。出場側は通れる。
     { id: 'station-ticket', kind: 'object', name: 'かいさつ', x: f.gateXs[0], y: f.gateY, solid: true, eventKey: 'station.ticket',
       lines: ['きっぷを とおすところだ。きょうは まちを たんけんしよう。'] },
-    ...STATION_FLOW_PLATFORMS.map(p => ({ ...p.sign, kind: 'sign' as const, name: 'のりば', solid: true, lines: ['ここが でんしゃの のりばだ。'] })),
+    ...STATION_FLOW_PLATFORMS.map(p => ({ id: p.sign.interactionId, eventKey: p.sign.eventKey, x: p.sign.x, y: p.sign.y, kind: 'sign' as const, name: 'のりば', solid: true, lines: ['ここが でんしゃの のりばだ。'] })),
   ];
   return a;
 }
