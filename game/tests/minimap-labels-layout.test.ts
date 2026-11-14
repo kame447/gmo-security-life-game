@@ -14,6 +14,13 @@ const WALK_ROUTE = [
   { x: 43, y: 48 }, { x: 43, y: 53 }, { x: 47, y: 53 },
 ];
 
+const MAP_POSITIONS = [
+  ...Object.entries(LANDMARKS).map(([name, point]) => ({ name, ...point })),
+  ...WALK_ROUTE.map((point, index) => ({ name: `walk-${index + 1}`, ...point })),
+];
+const MAP_CASES = [[310, 470], [325, 470], [340, 470], [900, 562], [794, 260]].flatMap(([width, height]) =>
+  MAP_POSITIONS.map(point => ({ width, height, ...point })));
+
 // Independent edge-intersection check, including the painted leader's stroke.
 const touchesLine = (a: MapPoint, b: MapPoint, raw: LabelBox, margin = 2) => {
   const box = { x: raw.x - margin, y: raw.y - margin, width: raw.width + 2 * margin, height: raw.height + 2 * margin };
@@ -68,46 +75,44 @@ describe('provisional facility display priority', () => {
     expect(result.map(icon => icon.marker.id)).toEqual(['a']);
   });
 
-  it.each([[310, 470], [325, 470], [340, 470], [900, 562], [794, 260]])('keeps all twelve names and their leaders clear at landmarks and route points on %i×%i', (width, height) => {
+  it.each(MAP_CASES)('keeps all twelve names and their leaders clear on $width×$height at $name ($x,$y)', ({ width, height, x, y }) => {
     const world = buildWorld(), area = world.areas.get('town-main')!;
     const map = buildAreaMap(area, world.facilities.values());
     const projection = fitProjection(map.width, map.height, width, height, 18);
-    for (const landmark of [...Object.values(LANDMARKS), ...WALK_ROUTE]) {
-      const player = projectPoint(projection, { x: landmark.x + .5, y: landmark.y + .625 });
-      const iconPixel = projection.scale >= 4 ? 2 : 1, playerRadius = width >= 600 ? 15 : 8;
-      const icons = layoutFacilityIcons(map.markers, projection, width, height, player, iconPixel, playerRadius);
-      const labels = layoutFacilityLabels(map.markers, projection, width, height, text => text.length * 13, player,
-        { mapWidth: map.width, mapHeight: map.height, iconPixel, playerRadius, icons });
-      const playerBox = { x: player.x - playerRadius - 2, y: player.y - playerRadius - 2, width: 2 * playerRadius + 4, height: 2 * playerRadius + 4 };
-      expect(labels.map(label => label.marker.id).sort()).toEqual(map.markers.map(marker => marker.id).sort());
-      expect(layoutFacilityLabels([...map.markers].reverse(), projection, width, height, text => text.length * 13, player,
-        { mapWidth: map.width, mapHeight: map.height, iconPixel, playerRadius, icons })).toEqual(labels);
-      for (const label of labels) {
-        expect(label.x).toBeGreaterThanOrEqual(0); expect(label.y).toBeGreaterThanOrEqual(0);
-        expect(label.x + label.width).toBeLessThanOrEqual(width); expect(label.y + label.height).toBeLessThanOrEqual(height);
-        expect(label.anchor).toEqual(projectPoint(projection, label.marker));
-        expect(label.end.x).toBeGreaterThanOrEqual(label.x); expect(label.end.x).toBeLessThanOrEqual(label.x + label.width);
-        expect(label.end.y).toBeGreaterThanOrEqual(label.y); expect(label.end.y).toBeLessThanOrEqual(label.y + label.height);
-        expect(Math.min(Math.abs(label.end.x - label.x), Math.abs(label.end.x - label.x - label.width),
-          Math.abs(label.end.y - label.y), Math.abs(label.end.y - label.y - label.height))).toBeLessThan(1e-6);
-        expect(overlaps(label, playerBox, 3)).toBe(false);
-        expect(touchesLine(label.start, label.end, playerBox)).toBe(false);
-        if (label.start.x !== label.anchor.x || label.start.y !== label.anchor.y) {
-          expect(label.anchor.x).toBeGreaterThanOrEqual(playerBox.x - 2);
-          expect(label.anchor.x).toBeLessThanOrEqual(playerBox.x + playerBox.width + 2);
-          expect(label.anchor.y).toBeGreaterThanOrEqual(playerBox.y - 2);
-          expect(label.anchor.y).toBeLessThanOrEqual(playerBox.y + playerBox.height + 2);
-          expect(Math.min(Math.abs(label.start.x - (playerBox.x - 2)), Math.abs(label.start.x - (playerBox.x + playerBox.width + 2)),
-            Math.abs(label.start.y - (playerBox.y - 2)), Math.abs(label.start.y - (playerBox.y + playerBox.height + 2)))).toBeLessThan(.11);
-        }
-        for (const icon of icons) {
-          expect(overlaps(label, icon, 3)).toBe(false);
-          if (icon.marker.id !== label.marker.id) expect(touchesLine(label.start, label.end, icon)).toBe(false);
-        }
-        for (const other of labels) if (label !== other) {
-          expect(overlaps(label, other, 3)).toBe(false);
-          expect(touchesLine(label.start, label.end, other)).toBe(false);
-        }
+    const player = projectPoint(projection, { x: x + .5, y: y + .625 });
+    const iconPixel = projection.scale >= 4 ? 2 : 1, playerRadius = width >= 600 ? 15 : 8;
+    const icons = layoutFacilityIcons(map.markers, projection, width, height, player, iconPixel, playerRadius);
+    const labels = layoutFacilityLabels(map.markers, projection, width, height, text => text.length * 13, player,
+      { mapWidth: map.width, mapHeight: map.height, iconPixel, playerRadius, icons });
+    const playerBox = { x: player.x - playerRadius - 2, y: player.y - playerRadius - 2, width: 2 * playerRadius + 4, height: 2 * playerRadius + 4 };
+    expect(labels.map(label => label.marker.id).sort()).toEqual(map.markers.map(marker => marker.id).sort());
+    expect(layoutFacilityLabels([...map.markers].reverse(), projection, width, height, text => text.length * 13, player,
+      { mapWidth: map.width, mapHeight: map.height, iconPixel, playerRadius, icons })).toEqual(labels);
+    for (const label of labels) {
+      expect(label.x).toBeGreaterThanOrEqual(0); expect(label.y).toBeGreaterThanOrEqual(0);
+      expect(label.x + label.width).toBeLessThanOrEqual(width); expect(label.y + label.height).toBeLessThanOrEqual(height);
+      expect(label.anchor).toEqual(projectPoint(projection, label.marker));
+      expect(label.end.x).toBeGreaterThanOrEqual(label.x); expect(label.end.x).toBeLessThanOrEqual(label.x + label.width);
+      expect(label.end.y).toBeGreaterThanOrEqual(label.y); expect(label.end.y).toBeLessThanOrEqual(label.y + label.height);
+      expect(Math.min(Math.abs(label.end.x - label.x), Math.abs(label.end.x - label.x - label.width),
+        Math.abs(label.end.y - label.y), Math.abs(label.end.y - label.y - label.height))).toBeLessThan(1e-6);
+      expect(overlaps(label, playerBox, 3)).toBe(false);
+      expect(touchesLine(label.start, label.end, playerBox)).toBe(false);
+      if (label.start.x !== label.anchor.x || label.start.y !== label.anchor.y) {
+        expect(label.anchor.x).toBeGreaterThanOrEqual(playerBox.x - 2);
+        expect(label.anchor.x).toBeLessThanOrEqual(playerBox.x + playerBox.width + 2);
+        expect(label.anchor.y).toBeGreaterThanOrEqual(playerBox.y - 2);
+        expect(label.anchor.y).toBeLessThanOrEqual(playerBox.y + playerBox.height + 2);
+        expect(Math.min(Math.abs(label.start.x - (playerBox.x - 2)), Math.abs(label.start.x - (playerBox.x + playerBox.width + 2)),
+          Math.abs(label.start.y - (playerBox.y - 2)), Math.abs(label.start.y - (playerBox.y + playerBox.height + 2)))).toBeLessThan(.11);
+      }
+      for (const icon of icons) {
+        expect(overlaps(label, icon, 3)).toBe(false);
+        if (icon.marker.id !== label.marker.id) expect(touchesLine(label.start, label.end, icon)).toBe(false);
+      }
+      for (const other of labels) if (label !== other) {
+        expect(overlaps(label, other, 3)).toBe(false);
+        expect(touchesLine(label.start, label.end, other)).toBe(false);
       }
     }
   });
