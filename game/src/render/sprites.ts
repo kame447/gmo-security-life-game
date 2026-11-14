@@ -5,6 +5,7 @@ import { DEFAULT_APPEARANCE, normalizeAppearance, appearanceKey, type PlayerAppe
 import { makeCanvas, R, type C2D } from './draw';
 import { buildingRepresentativeColor } from './building-colors';
 import { drawPlayer, PLAYER_H, PLAYER_W } from './player-sprite';
+import { furnitureSprite } from './furniture/sprites';
 
 export interface Sprite { canvas: HTMLCanvasElement; ox: number; oy: number }
 const objects = new Map<string, Sprite>();
@@ -338,6 +339,7 @@ function prop(c: C2D, o: ObjectDef, w: number, h: number): void {
 }
 
 export function objectSprite(o: ObjectDef): Sprite {
+  const furniture = furnitureSprite(o); if (furniture) return furniture;
   const key = JSON.stringify([o.kind, o.w, o.h, o.style ?? '']);
   const cached = objects.get(key); if (cached) return cached;
   const tree = o.kind === 'tree', lamp = o.kind === 'lamp';

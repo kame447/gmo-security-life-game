@@ -11,6 +11,12 @@ interface Chunk { canvas: HTMLCanvasElement; water: { x: number; y: number; phas
 interface Item { sprite: Sprite; x: number; y: number; depth: number; decal: boolean; character: boolean; seen: number }
 interface Marker { x: number; y: number; feetX: number; feetY: number }
 interface AreaIndex { buckets: Map<string, Item[]>; markers: Marker[]; characterClip?: Path2D }
+export interface RenderCamera {
+  /** Area pixels at the center of the canvas; zoom is an integer in physical pixels. */
+  centerX: number;
+  centerY: number;
+  zoom: number;
+}
 /** 描画に必要な読み取り専用の状態。ゲーム本体（session/）には依存しない。 */
 export interface RenderView {
   readonly area: AreaRuntime;
@@ -20,6 +26,9 @@ export interface RenderView {
   readonly walkTime: number;
   /** While a dialog is open, interaction markers are hidden. */
   readonly dialog: object | null;
+  readonly camera?: RenderCamera;
+  readonly hidePlayer?: boolean;
+  readonly instant?: boolean;
 }
 export interface RenderTimings {
   totalMs: number; clearMs: number; groundMs: number; bakeMs: number;
@@ -37,6 +46,9 @@ export class Renderer {
   private zoom = 1;
   private viewW = 1;
   private viewH = 1;
+  private cssW = 1;
+  private cssH = 1;
+  private lastProjection?: { camX: number; camY: number; xScale: number; yScale: number };
   private readonly decals: Item[] = [];
   private readonly sorted: Item[] = [];
   private readonly visibleChunks: Chunk[] = [];
@@ -56,6 +68,7 @@ export class Renderer {
     const w = Math.max(1, Math.round(cssW));
     const h = Math.max(1, Math.round(cssH));
     const density = Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
+    this.cssW = w; this.cssH = h;
     this.canvas.width = Math.max(1, Math.round(w * density));
     this.canvas.height = Math.max(1, Math.round(h * density));
     this.canvas.style.width = `${w}px`;
@@ -100,6 +113,27 @@ export class Renderer {
     }
     if (this.measureTimings) this.timings.bakeMs += performance.now() - bakeStart;
     return chunk;
+  }
+
+  /** CSS coordinates relative to the canvas, using the last completed frame's camera. */
+  screenToArea(cssX: number, cssY: number): { x: number; y: number } {
+    const projection = this.lastProjection;
+    if (!projection) throw new Error('Draw before converting screen coordinates');
+    return { x: projection.camX + cssX * projection.xScale, y: projection.camY + cssY * projection.yScale };
+  }
+
+  /** Read editor overrides once, keeping the gameplay projection available for the next frame. */
+  private beginView(view: RenderView) {
+    const { camera, hidePlayer, instant } = view;
+    if (camera && (!Number.isFinite(camera.centerX) || !Number.isFinite(camera.centerY) ||
+        !Number.isSafeInteger(camera.zoom) || camera.zoom < 1)) throw new RangeError('Invalid render camera');
+    const previous = { zoom: this.zoom, viewW: this.viewW, viewH: this.viewH };
+    if (camera) {
+      this.zoom = camera.zoom;
+      this.viewW = Math.ceil(this.canvas.width / camera.zoom);
+      this.viewH = Math.ceil(this.canvas.height / camera.zoom);
+    }
+    return { camera, hidePlayer, instant, previous };
   }
 
   private index(area: AreaRuntime): AreaIndex {
@@ -160,6 +194,8 @@ export class Renderer {
   }
 
   draw(game: RenderView, timeSec: number): void {
+    const overrides = this.beginView(game);
+    try {
     const profiling = this.measureTimings;
     let mark = profiling ? performance.now() : 0;
     const started = mark, timing = this.timings;
@@ -176,6 +212,7 @@ export class Renderer {
       this.activeArea = area;
     }
     const indoor = area.def.kind === 'indoor';
+    if (overrides.instant) this.fadeStartedAt = null;
     this.stats.indoor = indoor;
     this.stats.chunksBakedThisFrame = 0;
     const mapW = area.width * TILE, mapH = area.height * TILE;
@@ -183,6 +220,15 @@ export class Renderer {
     // Rounding (p - view/2) separately makes odd viewport sizes wobble by 1px.
     const camera = (p: number, size: number, view: number) => size < view ? Math.round((size - view) / 2) : Math.max(0, Math.min(size - view, Math.round(p) - Math.floor(view / 2)));
     const camX = camera(game.player.x, mapW, this.viewW), camY = camera(game.player.y - 8, mapH, this.viewH);
+    const frameCamera = overrides.camera ? {
+      camX: Math.round(overrides.camera.centerX) - Math.floor(this.viewW / 2),
+      camY: Math.round(overrides.camera.centerY) - Math.floor(this.viewH / 2),
+    } : { camX, camY };
+    {
+    const { camX, camY } = frameCamera;
+    this.lastProjection = { camX, camY,
+      xScale: this.canvas.width / this.cssW / this.zoom, yScale: this.canvas.height / this.cssH / this.zoom };
+    Object.assign(this.stats, { zoom: this.zoom, viewW: this.viewW, viewH: this.viewH });
     this.stats.camX = camX;
     this.stats.camY = camY;
     const right = camX + this.viewW, bottom = camY + this.viewH;
@@ -246,6 +292,7 @@ export class Renderer {
     const player = playerSprite(game.appearance, game.player.facing, frame);
     let playerDrawn = false;
     const drawPlayer = () => {
+      if (overrides.hidePlayer) { playerDrawn = true; return; }
       if (index.characterClip) { c.save(); c.clip(index.characterClip); }
       c.drawImage(player.canvas, Math.round(game.player.x) + player.ox, Math.round(game.player.y) + player.oy);
       if (index.characterClip) c.restore();
@@ -289,5 +336,11 @@ export class Renderer {
     if (fade > 0) R(c, `rgba(0,0,0,${fade})`, 0, 0, this.canvas.width, this.canvas.height);
     else this.fadeStartedAt = null;
     if (profiling) { const now = performance.now(); timing.fadeMs = now - mark; timing.totalMs = now - started; }
+    }
+    } finally {
+      this.zoom = overrides.previous.zoom;
+      this.viewW = overrides.previous.viewW;
+      this.viewH = overrides.previous.viewH;
+    }
   }
 }
