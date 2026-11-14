@@ -57,7 +57,12 @@ async function point(page,id){
   if(!best)throw new Error(`NPC artwork is not exposed for interaction: ${id}`);return{...best,npc};
  },id);
 }
-async function select(s,id){const p=await point(s.page,id);if(s.touch)await s.page.touchscreen.tap(p.x,p.y);else await s.page.mouse.click(p.x,p.y);await s.page.locator('#npc-properties').waitFor({state:'visible'});assert.match(await s.page.locator('#object-id').innerText(),new RegExp(id));}
+async function select(s,id){
+ const p=await point(s.page,id);if(s.touch)await s.page.touchscreen.tap(p.x,p.y);else await s.page.mouse.click(p.x,p.y);
+ await s.page.locator('#npc-properties').waitFor({state:'visible'});
+ assert.equal(await s.page.locator('#object-id').textContent(),`ID ${id}（変更できません）`);
+ assert.equal(await s.page.locator('#npc-name').inputValue(),p.npc.name);
+}
 async function move(s,id,x,y){
  const p=await point(s.page,id),delta=await s.page.evaluate(({dx,dy})=>{const a=window.__worldEditor.toScreen(0,0),b=window.__worldEditor.toScreen(dx*16,dy*16);return{x:b.x-a.x,y:b.y-a.y};},{dx:x-p.npc.x,dy:y-p.npc.y});
  if(s.touch){await s.fingers('touchStart',[p]);for(let n=1;n<=8;n++){await s.fingers('touchMove',[{x:p.x+delta.x*n/8,y:p.y+delta.y*n/8}]);await s.page.waitForTimeout(20);}await s.fingers('touchEnd',[]);}

@@ -147,9 +147,10 @@ function catalogue() {
 }
 for(const [category,name] of Object.entries(categories)){if(!FURNITURE.some(f=>f.category===category))continue;const o=document.createElement('option');o.value=category;o.textContent=name;$('#category').append(o);}
 $('#category').addEventListener('change',catalogue);
-$('#furniture-tab').onclick=()=>{if(saveBusy||npcDraft)return;catalogTab='furniture';surface=undefined;cancelGesture();catalogue();};
-$('#surface-tab').onclick=()=>{if(saveBusy||npcDraft)return;catalogTab='surface';cancelGesture();catalogue();};
-$('#people-tab').onclick=()=>{if(saveBusy||npcDraft)return;catalogTab='people';surface=undefined;cancelGesture();catalogue();};
+// Browsing stays available during save; every placement still requires editing().
+$('#furniture-tab').onclick=()=>{if(npcDraft)return;catalogTab='furniture';surface=undefined;cancelGesture();catalogue();};
+$('#surface-tab').onclick=()=>{if(npcDraft)return;catalogTab='surface';cancelGesture();catalogue();};
+$('#people-tab').onclick=()=>{if(npcDraft)return;catalogTab='people';surface=undefined;cancelGesture();catalogue();};
 $('#stop-placement').onclick=()=>{surface=undefined;cancelGesture();status('');};
 function brush(e: PointerEvent) {
   if(!paint||!surface)return;const p=areaPoint(e),x=Math.floor(p.x/16),y=Math.floor(p.y/16),area=paint.areas.find(a=>a.id===HOME_AREA)!;
