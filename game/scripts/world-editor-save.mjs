@@ -1,21 +1,36 @@
 import { fileURLToPath } from 'node:url';
 import { constants } from 'node:fs';
-import { lstat, open, readFile, realpath, rename, unlink } from 'node:fs/promises';
+import { lstat, open, readFile, readdir, realpath, rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'vite';
 const MAX_BYTES = 32 * 1024 * 1024;
-const FILE = 'data/world/areas/home-family-interior.json';
-async function source(root) {
-    const file = path.join(root, FILE), directory = path.dirname(file);
+const DIRECTORY = 'data/world/areas';
+const AREA_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+async function layoutDirectory(root) {
+    const directory = path.join(root, DIRECTORY);
     if (await realpath(directory) !== directory) throw new Error('配置フォルダーにシンボリックリンクは使えません');
-    const info = await lstat(file);
-    if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_BYTES) throw new Error('配置ファイルが不正です');
-    return {
-        file,
-        info,
-        text: await readFile(file, 'utf8')
-    };
+    return directory;
+}
+async function snapshot(root) {
+    const directory = await layoutDirectory(root), files = new Map();
+    for (const name of (await readdir(directory)).filter(name => name.endsWith('.json')).sort()) {
+        const areaId = name.slice(0, -5), file = path.join(directory, name);
+        if (!AREA_ID.test(areaId)) throw new Error('配置ファイル名が不正です');
+        const info = await lstat(file);
+        if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_BYTES) throw new Error('配置ファイルが不正です');
+        const bytes = await readFile(file), value = JSON.parse(bytes.toString('utf8'));
+        if (value.areaId !== areaId) throw new Error('配置ファイル名とエリアが一致しません');
+        files.set(areaId, { file, info, bytes });
+    }
+    return files;
+}
+async function unchanged(root, original) {
+    const current = await snapshot(root);
+    if (current.size !== original.size || [...original].some(([id, value]) => {
+        const next = current.get(id);
+        return !next || !next.bytes.equals(value.bytes) || next.info.ino !== value.info.ino || next.info.dev !== value.info.dev;
+    })) throw new Error('ほかの編集で配置が変わりました。再読み込みしてください');
 }
 async function project(root, payload) {
     const server = await createServer({
@@ -40,51 +55,78 @@ async function project(root, payload) {
 }
 export async function previewLayout(root, payload) {
     root = await realpath(root);
-    await source(root);
+    const original = await snapshot(root);
     const preview = await project(root, payload);
-    return {
-        target: preview.relativePath,
-        summary: preview.summary
-    };
+    await unchanged(root, original);
+    return publicPlan(preview);
 }
-export async function applyLayout(root, payload) {
+function publicPlan(prepared) {
+    const targets = prepared.files.map(file => ({ areaId: file.areaId, path: file.relativePath, created: file.created }));
+    return { target: targets.map(file => file.path).join('\n'), targets, summary: prepared.summary };
+}
+
+/** Trusted server-side callback only; HTTP/CLI never accept a file list or policy from JSON. */
+export async function commitLayouts(root, prepare) {
     root = await realpath(root);
-    const original = await source(root), lockPath = `${original.file}.lock`;
-    const lock = await open(lockPath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
-    const temporary = `${original.file}.${randomUUID()}.tmp`;
-    let created = false;
-    const unchanged = async ()=>{
-        const current = await source(root);
-        if (current.text !== original.text || current.info.ino !== original.info.ino || current.info.dev !== original.info.dev) throw new Error('ほかの編集で配置が変わりました。再読み込みしてください');
+    const original = await snapshot(root), prepared = await prepare();
+    const ids = new Set(), locks = [], temporary = new Set(), backups = new Set(), committed = [], cleanupErrors = [];
+    let recoveryFailed = false;
+    const files = prepared.files.map(file => {
+        if (!AREA_ID.test(file.areaId) || ids.has(file.areaId) || file.relativePath !== `${DIRECTORY}/${file.areaId}.json` ||
+            typeof file.text !== 'string' || Buffer.byteLength(file.text) > MAX_BYTES || JSON.parse(file.text).areaId !== file.areaId) throw new Error('保存先が不正です');
+        ids.add(file.areaId);
+        const previous = original.get(file.areaId), destination = path.join(root, file.relativePath);
+        return { ...file, destination, previous, mode: previous ? previous.info.mode & 0o777 : 0o644,
+            staged: `${destination}.${randomUUID()}.tmp`, backup: `${destination}.${randomUUID()}.backup` };
+    }).sort((a, b) => a.areaId < b.areaId ? -1 : a.areaId > b.areaId ? 1 : 0);
+    const stage = async (file, bytes, mode, owned) => {
+        const handle = await open(file, 'wx', mode);
+        owned.add(file);
+        try { await handle.writeFile(bytes); await handle.sync(); }
+        finally { await handle.close(); }
     };
     try {
-        await unchanged();
-        const preview = await project(root, payload);
-        if (preview.relativePath !== FILE) throw new Error('保存先が不正です');
-        await unchanged();
-        if (preview.text !== original.text) {
-            const file = await open(temporary, 'wx', original.info.mode & 0o777);
-            created = true;
-            try {
-                await file.writeFile(preview.text);
-                await file.sync();
-            } finally{
-                await file.close();
-            }
-            await unchanged();
-            await rename(temporary, original.file);
-            created = false;
+        // Acquire every lock before creating any data/staging file. An EEXIST
+        // lock is foreign and must never be removed by this transaction.
+        for (const file of files) {
+            const lockPath = `${file.destination}.lock`;
+            const handle = await open(lockPath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
+            locks.push({ path: lockPath, handle });
         }
-        return {
-            target: preview.relativePath,
-            summary: preview.summary,
-            saved: true
-        };
+        await unchanged(root, original);
+        for (const file of files) {
+            if (file.previous) await stage(file.backup, file.previous.bytes, file.mode, backups);
+            await stage(file.staged, file.text, file.mode, temporary);
+        }
+        await unchanged(root, original);
+        for (const file of files) {
+            await rename(file.staged, file.destination);
+            temporary.delete(file.staged);
+            committed.push(file);
+        }
+    } catch (error) {
+        const recoveryErrors = [];
+        for (const file of [...committed].reverse()) {
+            try {
+                if (file.previous) { await rename(file.backup, file.destination); backups.delete(file.backup); }
+                else await unlink(file.destination);
+            } catch (recovery) { recoveryErrors.push(recovery); }
+        }
+        if (recoveryErrors.length) {
+            recoveryFailed = true;
+            throw new AggregateError([error, ...recoveryErrors], '保存を戻せませんでした。残したbackupファイルから復旧してください');
+        }
+        throw error;
     } finally{
-        if (created) await unlink(temporary).catch(()=>{});
-        await lock.close();
-        await unlink(lockPath);
+        const clean = async action => { try { await action(); } catch (error) { if (error.code !== 'ENOENT') cleanupErrors.push(error.message); } };
+        for (const file of temporary) await clean(() => unlink(file));
+        if (!recoveryFailed) for (const file of backups) await clean(() => unlink(file));
+        for (const lock of locks.reverse()) { await clean(() => lock.handle.close()); await clean(() => unlink(lock.path)); }
     }
+    return { ...publicPlan(prepared), saved: true, ...(cleanupErrors.length ? { cleanupErrors } : {}) };
+}
+export async function applyLayout(root, payload) {
+    return commitLayouts(root, () => project(root, payload));
 }
 export function worldEditorSavePlugin() {
     return {
