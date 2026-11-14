@@ -22,13 +22,16 @@ describe('エリア引数と従来の自宅操作の互換',()=>{
     legacy.commit(legacy.npcCandidate(a,true));explicit.commit(explicit.npcCandidate(b,true));
     legacy.removeNpc(a.id);explicit.removeNpc(b.id,HOME_AREA);expect(explicit.document).toEqual(legacy.document);
   });
-  it('別エリアの参照とID発行を明示できるが、未登録の町編集は依然として拒否する',()=>{
+  it('別エリアの参照とID発行を明示でき、未登録の教室と不正な屋外の戻り先は拒否する',()=>{
     const model=new WorldEditorModel(buildWorld()),initial=model.document;
     const object=initial.objects.find(o=>o.areaId==='town-main')!,npc=initial.interactions.find(i=>i.areaId==='town-main'&&i.kind==='npc')!;
     expect(model.object(object.id)).toBeUndefined();expect(model.npc(npc.id)).toBeUndefined();
     expect(model.object(object.id,undefined,'town-main')).toEqual(object);expect(model.npc(npc.id,undefined,'town-main')).toEqual(npc);
     const created=model.createNpc('friend','town-main');expect(created).toMatchObject({id:'town-main-npc-1',areaId:'town-main',eventKey:'npc.town-main-npc-1'});
-    expect(()=>model.commit(model.npcCandidate({...created,x:35,y:33},true))).toThrow('このエリア');expect(model.document).toEqual(initial);
+    const classroom=model.document;classroom.interactions.find(i=>i.id==='school-teacher')!.name='候補の名前';
+    expect(()=>model.commit(classroom)).toThrow('このエリア');expect(model.document).toEqual(initial);
+    const wrongReturn=model.document;wrongReturn.portals.find(p=>p.id==='konbini-exit')!.to.x--;
+    expect(()=>model.commit(wrongReturn)).toThrow('戻り先');expect(model.document).toEqual(initial);
   });
   it('runtimeの既定は従来の自宅投影で、指定したエリアだけ候補へ切り替える',()=>{
     const model=new WorldEditorModel(buildWorld()),candidate=model.document,source=model.context.baselineWorld;

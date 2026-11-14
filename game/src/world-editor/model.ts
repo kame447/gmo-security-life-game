@@ -1,7 +1,7 @@
 import { EditorSession, diffDocuments, parseDocument, validateDocument, type EditorDocument, type EditorObject, type EditorInteraction } from '../editor';
 import { assembleEditorWorld } from '../editor/runtime';
 import type { EditorValidationContext } from '../editor/types';
-import type { World } from '../world/runtime';
+import { toRuntime, type World } from '../world/runtime';
 import { furnitureById, furnitureVariant, nextFacing } from '../render/furniture/catalog';
 import { assertWorldEdit } from './world-policy';
 import { worldDocument } from './document';
@@ -121,8 +121,16 @@ export class WorldEditorModel {
     const edited=assembleEditorWorld(document),source=this.context.baselineWorld;
     // Normalization orders authoring tables by ID. Preserve untouched game arrays,
     // including tied sprite depths, in their original order for the actual view.
-    return { ...edited,areas:new Map([...source.areas].map(([id,area])=>[id,
-      editedAreaIds.includes(id)?edited.areas.get(id)!:structuredClone(area)])),facilities:structuredClone(source.facilities) };
+    return { ...edited,areas:new Map([...source.areas].map(([id,area])=>{
+      if(!editedAreaIds.includes(id))return[id,structuredClone(area)];
+      const current=edited.areas.get(id)!;if(current.def.kind!=='outdoor')return[id,current];
+      const ordered=<T extends {id?:string}>(values:T[],original:T[])=>{
+        const order=new Map(original.map((item,index)=>[item.id,index]));
+        return [...values].sort((a,b)=>(order.get(a.id)??Number.MAX_SAFE_INTEGER)-(order.get(b.id)??Number.MAX_SAFE_INTEGER));
+      };
+      return[id,toRuntime({...current.def,objects:ordered(current.def.objects,area.def.objects),
+        interactions:ordered(current.def.interactions,area.def.interactions),portals:ordered(current.def.portals,area.def.portals)})];
+    })),facilities:structuredClone(source.facilities) };
   }
   markSaved() { this.session = new EditorSession(this.document, { context: this.context }); }
 }

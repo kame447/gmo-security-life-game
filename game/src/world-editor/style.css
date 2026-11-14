@@ -16,3 +16,4 @@ dialog{max-width:min(680px,94vw);max-height:85dvh;border:1px solid #839aa3;borde
 @media(max-height:470px){footer{height:132px}#catalog-items{height:86px}#catalog-items button{min-height:70px}#catalog-items canvas{width:40px!important;height:40px!important}header{padding:4px}#properties{max-height:80%;width:210px}}
 #properties{touch-action:pan-y}#npc-properties>div{display:flex;gap:6px;flex-wrap:wrap}
 #npc-sprites{max-height:132px;overflow-y:auto;touch-action:pan-y}#npc-sprites button{padding:0;min-width:48px;min-height:48px}#npc-sprites button[aria-pressed=true]{border:3px solid #a64d1e}#npc-sprites canvas{position:static;width:48px;height:48px}
+#building-links{white-space:pre-line;line-height:1.5;overflow-wrap:anywhere}#enter-interior{width:100%;min-height:44px}#save-target{white-space:pre-line;overflow-wrap:anywhere}#save-files{padding-left:20px;overflow-wrap:anywhere}#save-files li{margin:5px 0}
