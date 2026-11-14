@@ -116,8 +116,8 @@ try{
  await drag(s,houseId,32,28);moved=await doc(s.page);assert.deepEqual(moved.start,{areaId:town,x:35,y:33,facing:'down'});
  expected=moved;await save(s,[home,town]);s=await restart(s,expected);
  await s.page.goto(`${origin}/`);await s.page.waitForFunction(()=>!!window.__slg?.game);
- const start=await s.page.evaluate(async()=>{const{LANDMARKS}=await import('/src/world/index.ts');const game=window.__slg.game;return{start:game.world.start,front:LANDMARKS.homeFront,player:{x:Math.floor(game.player.x/16),y:Math.floor((game.player.y-4)/16)}};});
- assert.deepEqual(start.start,{areaId:town,x:35,y:33,facing:'down'});assert.deepEqual(start.front,{x:35,y:33});assert.deepEqual(start.player,{x:35,y:33});await s.page.screenshot({path:path.join(output,'desktop-game-new-start.png')});await ready(s);pass('S2-5: moving home south saves a matching landmark, world start and new-game position');
+ const newGameState=await s.page.evaluate(async()=>{const{LANDMARKS}=await import('/src/world/index.ts');const game=window.__slg.game;return{start:game.world.start,front:LANDMARKS.homeFront,player:{x:Math.floor(game.player.x/16),y:Math.floor((game.player.y-4)/16)}};});
+ assert.deepEqual(newGameState.start,{areaId:town,x:35,y:33,facing:'down'});assert.deepEqual(newGameState.front,{x:35,y:33});assert.deepEqual(newGameState.player,{x:35,y:33});await s.page.screenshot({path:path.join(output,'desktop-game-new-start.png')});await ready(s);pass('S2-5: moving home south saves a matching landmark, world start and new-game position');
  await drag(s,plantId,13,9);const homePending=await doc(s.page);await enterTown(s);assert.equal((await doc(s.page)).objects.find(o=>o.id===plantId).x,13);
  await drag(s,shopId,51,47);expected=await doc(s.page);assert.equal(expected.objects.find(o=>o.id===plantId).x,13);
  await save(s,[home,'shop-konbini-interior',town]);s=await restart(s,expected);assert.notDeepEqual(expected,homePending);await enterTown(s);pass('S2-17: unsaved home and town edits share one history and save all three files together');
