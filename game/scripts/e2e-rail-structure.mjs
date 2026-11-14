@@ -130,19 +130,23 @@ try {
       await walkTo(page, access.outdoorEntrance); await landing(page, access.entrancePortalId, access.entry);
       assert.equal((await state(page)).areaId, access.areaId);
       await shot(page, `${name}-02-concourse-gates`);
-      await walkTo(page, access.boarding);
+      // 改札は歩いて通れない。行き先を選ぶ操作（乗車側）を経ない限り、ホームへは入れない。
+      await walkTo(page, { x: 17, y: 11 });
+      await hold(page, 'ArrowUp', 500);
+      assert.equal(await page.evaluate(() => window.__slg.game.facingInteraction()?.id), 'station-ticket');
+      const atGate = await state(page); await hold(page, 'ArrowUp', 300); assert.deepEqual(await state(page), atGate);
+      await shot(page, `${name}-02b-gate-closed`);
+      // ホームへの移動は乗車側の担当。ここでは移動後の位置（データの乗車位置）から構造だけを確かめる。
+      await page.evaluate(spawn => { window.__slg.game.player = spawn; }, landed(access.boarding));
       await hold(page, 'ArrowUp', 100);
       assert.equal(await page.evaluate(() => window.__slg.game.facingInteraction()?.id), access.interaction.id);
       await shot(page, `${name}-03-platform-boarding`);
-      await page.keyboard.press('z'); await page.locator('#train-travel-panel').waitFor({ state: 'visible' });
-      const during = await state(page); await hold(page, 'ArrowDown', 160); assert.deepEqual(await state(page), during);
-      await page.keyboard.press('Escape'); await page.locator('#train-travel-panel').waitFor({ state: 'hidden' });
-      assert.deepEqual(await state(page), during);
-      await reloadExact(page); pass(`${name}: gates lead to a safe boarding choice, cancellation and exact indoor reload`);
-      await walkTo(page, { x: 10, y: 8 });
-      await hold(page, 'ArrowUp', 280); const stopped = await state(page);
-      assert.equal(tile(stopped).y, 8); await hold(page, 'ArrowUp', 200); assert.deepEqual(await state(page), stopped);
+      await reloadExact(page); pass(`${name}: closed gates, island platform between two tracks, exact indoor reload`);
+      await walkTo(page, { x: 10, y: 5 });
+      await hold(page, 'ArrowUp', 700); const stopped = await state(page);
+      assert.equal(tile(stopped).y, 5); await hold(page, 'ArrowUp', 200); assert.deepEqual(await state(page), stopped);
       await shot(page, `${name}-04-platform-boundary`);
+      await page.evaluate(spawn => { window.__slg.game.player = spawn; }, landed({ areaId: access.areaId, x: 17, y: 11, facing: 'down' }));
       await walkTo(page, { x: 17, y: 17 });
       await landing(page, access.exitPortalId, { areaId: 'town-main', ...landmarks.stationFront, facing: 'down' });
       pass(`${name}: platform edge rejects walking onto rails and the original exit returns outdoors`);

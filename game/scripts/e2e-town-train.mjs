@@ -77,27 +77,36 @@ try {
         // Allow the renderer to observe an area change before checking its fade state.
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         await page.waitForFunction(id => window.__slg.game.player.areaId === id && !window.__slg.renderer.stats.fading, areaId);
-        await page.evaluate(() => { window.__townTrainPaint.length = 0; });
         const panel = page.locator('#train-travel-panel');
         assert.equal(await panel.count(), 1, 'The travel panel exists');
         assert.equal(await panel.isVisible(), false, 'Train must run without the travel panel');
-        await page.waitForFunction(id => {
-          const paint = window.__townTrainPaint.at(-1), { camX, viewW } = window.__slg.renderer.stats;
-          return paint?.areaId === id && paint.x >= camX + 8 && paint.x + paint.w <= camX + viewW - 40;
-        }, areaId, { timeout: 16000 });
-        const first = await page.evaluate(() => window.__townTrainPaint.at(-1));
-        await page.screenshot({ path: resolve(shots, `${size.name}-${areaId}-01.png`) });
-        await page.waitForFunction(({ areaId: id, firstX }) => {
-          const paint = window.__townTrainPaint.at(-1), { camX, viewW } = window.__slg.renderer.stats;
-          return paint?.areaId === id && paint.x >= firstX + 20 && paint.x + paint.w <= camX + viewW;
-        },
-          { areaId, firstX: first.x }, { timeout: 4000 });
-        const second = await page.evaluate(() => window.__townTrainPaint.at(-1));
-        await page.screenshot({ path: resolve(shots, `${size.name}-${areaId}-02.png`) });
-        assert.ok(second.x > first.x + 19, 'A real canvas train moves across frames');
-        for (const draw of [first, second]) {
-          assert.ok(draw.x < setup.strip.right && draw.x + draw.w > setup.strip.left, 'Paint intersects its rail strip');
-          assert.ok(draw.y >= setup.strip.top && draw.y + draw.h <= setup.strip.bottom, 'Paint remains vertically on the rail');
+        // 2線: 北の線（下り）は右へ、南の線（上り）は左へ走る。それぞれの線の上の列車を別々に観測する。
+        const bands = await page.evaluate(async id => {
+          const { findRailStrips } = await import('/src/town-train/service.ts');
+          return findRailStrips(window.__slg.game.world.areas.get(id)).map(s => ({ top: s.top, bottom: s.bottom, left: s.left, right: s.right, direction: s.direction }));
+        }, areaId);
+        assert.deepEqual(bands.map(b => b.direction), ['down', 'up']);
+        for (const band of bands) {
+          const sign = band.direction === 'down' ? 1 : -1;
+          await page.evaluate(() => { window.__townTrainPaint.length = 0; });
+          await page.waitForFunction(({ id, top, bottom }) => {
+            const paint = window.__townTrainPaint.filter(p => p.y >= top && p.y + p.h <= bottom).at(-1), { camX, viewW } = window.__slg.renderer.stats;
+            return paint?.areaId === id && paint.x >= camX + 8 && paint.x + paint.w <= camX + viewW - 40;
+          }, { id: areaId, top: band.top, bottom: band.bottom }, { timeout: 16000 });
+          const pick = () => page.evaluate(({ top, bottom }) => window.__townTrainPaint.filter(p => p.y >= top && p.y + p.h <= bottom).at(-1), band);
+          const first = await pick();
+          await page.screenshot({ path: resolve(shots, `${size.name}-${areaId}-${band.direction}-01.png`) });
+          await page.waitForFunction(({ areaId: id, firstX, sign, top, bottom }) => {
+            const paint = window.__townTrainPaint.filter(p => p.y >= top && p.y + p.h <= bottom).at(-1), { camX, viewW } = window.__slg.renderer.stats;
+            return paint?.areaId === id && (paint.x - firstX) * sign >= 20 && paint.x >= camX - 128 && paint.x + paint.w <= camX + viewW + 128;
+          }, { areaId, firstX: first.x, sign, top: band.top, bottom: band.bottom }, { timeout: 4000 });
+          const second = await pick();
+          await page.screenshot({ path: resolve(shots, `${size.name}-${areaId}-${band.direction}-02.png`) });
+          assert.ok((second.x - first.x) * sign > 19, `A real canvas ${band.direction} train moves ${band.direction === 'down' ? 'right' : 'left'}`);
+          for (const draw of [first, second]) {
+            assert.ok(draw.x < band.right && draw.x + draw.w > band.left, 'Paint intersects its rail strip');
+            assert.ok(draw.y >= band.top && draw.y + draw.h <= band.bottom, 'Paint remains vertically on its rail');
+          }
         }
         const after = await page.evaluate(() => ({ player: { ...window.__slg.game.player }, stage: window.__slg.game.world.variant.stage,
           solid: Array.from(window.__slg.game.area.solid) }));
