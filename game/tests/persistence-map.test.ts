@@ -11,7 +11,7 @@ describe('read-only inventory and fidelity measurements', () => {
       ['home-family-interior', 13, 0, 1], ['school-classroom-interior', 21, 0, 1],
       ['shop-konbini-interior', 8, 0, 1], ['town-main', 270, 0, 3],
     ]);
-    expect(report.areas.reduce((n, a) => n + a.facilities.sourceId, 0)).toBe(11);
+    expect(report.areas.reduce((n, a) => n + a.facilities.sourceId, 0)).toBe(12);
     expect(report.areas.reduce((n, a) => n + a.decals.sourceId, 0)).toBe(9);
     expect(report.areas.reduce((n, a) => n + a.coordinatePatternObjectIds, 0)).toBe(312);
     expect(report.areas.reduce((n, a) => n + a.groundSolidCells.auxiliary, 0)).toBe(1681);
@@ -44,9 +44,9 @@ describe('read-only inventory and fidelity measurements', () => {
     expect(report.facilityIterationOrderChanged).toBe(true);
     expect(report.normalizedOrderChanges).toHaveLength(9);
     expect(report.backendAccepted).toBe(false);
-    // First-stage shape validation stops here; this is not a complete overlap/reachability audit.
-    expect(report.backendIssues).toHaveLength(61);
-    expect(report.backendIssues.every(issue => issue.code === 'format')).toBe(true);
+    // Shape validation now accepts numeric styles; raw, unlinked data is still rejected for overlaps.
+    expect(report.backendIssues).toHaveLength(20);
+    expect(report.backendIssues.every(issue => issue.code === 'overlap')).toBe(true);
     expect(world).toEqual(before);
   });
   it('does not infer paired-door or object links and preserves the existing store portal references', () => {

@@ -52,13 +52,13 @@ describe('map persistence evaluation CLI', () => {
     assert.equal(data.areas.reduce((n, a) => n + a.objects.total, 0), 312);
     const second = run('inventory'); assert.equal(second.stdout, json.stdout);
     const table = run('inventory', '--markdown'); assert.equal(table.status, 0, table.stderr);
-    assert.match(table.stdout, /town-main \| 11\/0 \| 270\/0/);
+    assert.match(table.stdout, /town-main \| 12\/0 \| 270\/0/);
   });
   it('reports raw reconstruction and strict-backend refusal as separate measurements', () => {
     const result = run('roundtrip'); assert.equal(result.status, 0, result.stderr);
     const report = JSON.parse(result.stdout);
     assert.equal(report.measurementOnly, true); assert.equal(report.backendAccepted, false);
-    assert.equal(report.backendIssues.length, 61); assert.equal(report.variantEqual, false);
+    assert.equal(report.backendIssues.length, 20); assert.equal(report.variantEqual, false);
     assert.equal(report.areas.find(a => a.areaId === 'town-main').lostDistricts, 4);
   });
   it('refuses actual source incompatibilities with exit 2 and no candidate', () => {

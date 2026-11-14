@@ -121,6 +121,6 @@ describe('evaluation-only persistence gates', () => {
       schemaVersion: 1, sourceFingerprint: await sourceFingerprint(world), operations: [],
     }, { areaIds: ['town-main'], targets: [] }, 'map');
     expect(result.status).toBe('rejected'); expect(result.checks.backend).toBe('failed');
-    expect(result.issues).toHaveLength(61); expect(result.candidate).toBeUndefined(); expect(world).toEqual(before);
+    expect(result.issues).toHaveLength(20); expect(result.candidate).toBeUndefined(); expect(world).toEqual(before);
   });
 });
