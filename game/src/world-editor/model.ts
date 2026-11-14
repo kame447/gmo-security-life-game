@@ -3,7 +3,7 @@ import { assembleEditorWorld } from '../editor/runtime';
 import type { EditorValidationContext } from '../editor/types';
 import type { World } from '../world/runtime';
 import { furnitureById, furnitureVariant, nextFacing } from '../render/furniture/catalog';
-import { assertInteriorEdit } from './policy';
+import { assertHomeWorldEdit as assertInteriorEdit } from './policy';
 import { worldDocument } from './document';
 import { withDerived } from '../editor/changes';
 import { trustedContext } from './trusted-context';

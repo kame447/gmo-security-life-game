@@ -2,7 +2,7 @@ import { describe,expect,it } from 'vitest';
 import { buildWorld, validateWorld } from '../src/world';
 import { WorldEditorModel, HOME_AREA } from '../src/world-editor/model';
 import { prepareSave } from '../src/world-editor/persistence';
-import { assertInteriorEdit } from '../src/world-editor/policy';
+import { assertHomeWorldEdit as assertInteriorEdit } from '../src/world-editor/policy';
 
 describe('WYSIWYGの操作と保存の契約',()=>{
   it('一般家具は削除・Undo/Redoでき、保護家具と結び付きは保存口でも拒否する',()=>{

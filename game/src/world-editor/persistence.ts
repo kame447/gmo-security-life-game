@@ -6,7 +6,7 @@ import { areaLayout, staleLayouts } from '../world/layouts';
 import { canonicalJSON } from '../editor/schema';
 import { documentLayout, worldDocument } from './document';
 import { HOME_AREA } from './model';
-import { assertInteriorEdit } from './policy';
+import { assertHomeWorldEdit as assertInteriorEdit } from './policy';
 import { trustedContext } from './trusted-context';
 
 /** Called with a World loaded by the writer, never with a browser-supplied context. */

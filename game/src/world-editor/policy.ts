@@ -2,10 +2,11 @@ import type { EditorDocument } from '../editor/types';
 import { equal } from '../world/layouts/codec';
 import { furnitureById } from '../render/furniture/catalog';
 
-/** Phase-one policy, applied to direct save requests as well as UI gestures. */
-export function assertInteriorEdit(before: EditorDocument, after: EditorDocument, areaId: string): void {
-  const reject = (message: string): never => { throw new Error(message); };
-  const fixed = (a: unknown, b: unknown, message: string) => { if (!equal(a,b)) reject(message); };
+const reject = (message: string): never => { throw new Error(message); };
+const fixed = (a: unknown, b: unknown, message: string) => { if (!equal(a,b)) reject(message); };
+
+/** Keep the existing whole-world guard until the shared world policy is integrated. */
+export function assertHomeWorldEdit(before: EditorDocument, after: EditorDocument, areaId: string): void {
   fixed(before.facilities,after.facilities,'施設は変更できません');
   fixed(before.portals,after.portals,'出入口は変更できません');
   fixed(before.start,after.start,'開始位置は変更できません');
@@ -19,11 +20,21 @@ export function assertInteriorEdit(before: EditorDocument, after: EditorDocument
     if (area.id !== areaId) fixed(area,candidate,'ほかのエリアは変更できません');
   }
   if (after.areas.length !== before.areas.length) reject('エリアは追加できません');
-  const ids = before.interactions.map(i => i.id).sort();
-  fixed(ids,after.interactions.map(i => i.id).sort(),'人物と調べる場所は追加・削除できません');
-  for (const i of before.interactions) {
-    const j = after.interactions.find(j => j.id === i.id)!;
-    if (i.areaId !== areaId || !i.objectId) fixed(i,j,'人物と会話は変更できません');
+  fixed(before.objects.filter(o=>o.areaId!==areaId),after.objects.filter(o=>o.areaId!==areaId),'ほかのエリアは変更できません');
+  fixed(before.interactions.filter(i=>i.areaId!==areaId),after.interactions.filter(i=>i.areaId!==areaId),'ほかのエリアは変更できません');
+  assertInteriorEdit(before,after,areaId);
+}
+
+/** Area-local entity rules. Global metadata and cross-area return links belong to the world policy. */
+export function assertInteriorEdit(before: EditorDocument, after: EditorDocument, areaId: string): void {
+  if(!before.areas.some(a=>a.id===areaId)||!after.areas.some(a=>a.id===areaId))reject('編集する部屋が見つかりません');
+  const localDoors=(document:EditorDocument)=>document.portals.filter(p=>p.areaId===areaId).map(({to:_,...p})=>p);
+  fixed(localDoors(before),localDoors(after),'部屋の出入口は変更できません');
+  const previous=before.interactions.filter(i=>i.areaId===areaId),current=after.interactions.filter(i=>i.areaId===areaId);
+  fixed(previous.map(i=>i.id).sort(),current.map(i=>i.id).sort(),'人物と調べる場所は追加・削除できません');
+  for (const i of previous) {
+    const j = current.find(j => j.id === i.id)!;
+    if (!i.objectId) fixed(i,j,'人物と会話は変更できません');
     else {
       const { x: _, y: __, w: ___, h: ____, ...meta } = i;
       const { x: a, y: b, w: c, h: d, ...changed } = j;
@@ -33,7 +44,6 @@ export function assertInteriorEdit(before: EditorDocument, after: EditorDocument
         reject(`「${i.name}」が結び付いた家具は消せません`);
     }
   }
-  fixed(before.objects.filter(o => o.areaId !== areaId), after.objects.filter(o => o.areaId !== areaId),'ほかのエリアは変更できません');
   for (const o of after.objects.filter(o => o.areaId === areaId)) {
     for (const p of after.portals) {
       if (p.areaId === areaId && o.x < p.from.x + (p.from.w ?? 1) && o.x + o.w > p.from.x &&
