@@ -9,11 +9,8 @@
 #train-travel-panel button { min-width: 108px; min-height: 44px; padding: 8px 14px; font: inherit; color: #fff9e9;
   background: #283b34; border: 2px solid #e8e0cc; border-radius: 5px; cursor: pointer; touch-action: manipulation; }
 #train-travel-panel button:focus-visible { outline: 3px solid #ffe08a; outline-offset: 2px; }
-#train-travel-panel .train-travel-message { margin: 12px 0 0; color: #ffe08a; }
+/* 乗車の演出は画面いっぱいの場面で、暗い幕は使わない。 */
+#train-travel-panel.train-travel-riding { background: none; padding: 0; overflow: hidden; display: block; }
+#train-travel-panel .train-travel-scene { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); image-rendering: pixelated; }
 #stage.travel-open #menu, #stage.travel-open #touch, #stage.travel-open #hint { visibility: hidden; }
 @media (max-height: 400px) { #train-travel-panel .train-travel-card { padding: 12px; } }
-#train-travel-panel .train-travel-scene { display: block; max-width: 100%; height: auto; image-rendering: pixelated; background: #000; }
-#train-travel-panel:has(.train-travel-scene) { background: #000; padding: 0; }
-#train-travel-panel { transition: background-color .2s; }
-#train-travel-panel.train-travel-passing { background: #000; }
-#train-travel-panel.train-travel-passing .train-travel-card { visibility: hidden; }

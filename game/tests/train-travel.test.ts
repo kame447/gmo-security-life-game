@@ -4,65 +4,60 @@ import type { MapEvent } from '../src/core/types';
 import { positionAt } from '../src/map/explorer';
 import { Game } from '../src/session/game';
 import { TrainTravelSession, type TravelResult } from '../src/travel/session';
-import { buildWorld } from '../src/world';
+import type { StationFlow } from '../src/travel/stations';
+import { buildWorld, getStationFlow } from '../src/world';
 import { RailwayNetwork, type RailwayStation } from '../src/world/railway';
 import { toRuntime } from '../src/world/runtime';
 import { createNeighborStation, createNeighborTown, NEIGHBOR_FACILITIES, NEIGHBOR_STATION_ACCESS as neighbor } from '../src/world/towns/neighbor';
 
+const neighborFlow = getStationFlow(neighbor.stationId), nGate = neighborFlow.gate;
 const origin: RailwayStation = {
   id: 'test-origin', name: 'もとのまち',
   boarding: { ...neighbor.boarding, areaId: 'test-origin-station', interactionId: 'test-origin-board' },
   arrival: { ...neighbor.arrival, areaId: 'test-origin-station' },
 };
 const destination: RailwayStation = { id: neighbor.stationId, name: neighbor.name, boarding: neighbor.boarding, arrival: neighbor.arrival };
+/** 試験用の出発駅は、となりまちの構内を複製し、改札も同じ位置に持つ。 */
+const FLOWS: readonly StationFlow[] = [
+  { stationId: origin.id, gate: { areaId: origin.boarding.areaId, interactionId: nGate.interactionId, eventKey: nGate.eventKey, tile: nGate.tile, w: nGate.w },
+    platforms: neighborFlow.platforms },
+  neighborFlow,
+];
+const south = { x: nGate.tile.x, y: nGate.tile.y + 1 };
 
 function setup() {
   const world = buildWorld(), original = createNeighborStation();
   for (const facility of NEIGHBOR_FACILITIES) world.facilities.set(facility.id, { ...facility });
-  const originArea = { ...original, id: origin.boarding.areaId,
-    objects: original.objects.map(object => ({ ...object, id: `origin-${object.id}` })), portals: [],
-    interactions: original.interactions.filter(interaction => interaction.id === neighbor.boarding.interactionId)
-      .map(interaction => ({ ...interaction, id: origin.boarding.interactionId })) };
-  world.areas.set(originArea.id, toRuntime(originArea));
+  world.areas.set(origin.boarding.areaId, toRuntime({ ...original, id: origin.boarding.areaId, portals: [] }));
   world.areas.set(neighbor.arrival.areaId, toRuntime(createNeighborStation()));
   world.areas.set('town-neighbor', toRuntime(createNeighborTown()));
   const railway = new RailwayNetwork([origin, destination], [{ id: 'local-line', stations: [origin.id, destination.id] }]);
   const game = new Game(world);
-  game.player = positionAt(origin.boarding);
-  return { world, railway, game, travel: new TrainTravelSession(game, railway, undefined, FLOWS) };
+  game.player = positionAt({ areaId: origin.boarding.areaId, ...south, facing: 'up' });
+  return { world, railway, game, travel: new TrainTravelSession(game, railway, undefined, FLOWS, [origin.id, destination.id]) };
 }
 
-/** 改札を使わない駅（看板が改札を兼ねる）。きっぷは看板で選び、同じ看板でもう一度操作して乗る。 */
-const platformOf = (point: RailwayStation['boarding']) => ({ id: `${point.areaId}-down`, direction: 'down' as const,
-  sign: { interactionId: point.interactionId, eventKey: point.eventKey }, boardTile: { areaId: point.areaId, x: point.x, y: point.y, facing: point.facing as 'up' | 'down' },
-  heading: 'right' as const, arriveFrom: 'left' as const });
-const FLOWS = [origin, destination].map(station => ({ stationId: station.id, gate: null, platforms: [platformOf(station.boarding)] }));
-
-/** 選ぶ → きっぷ → のりばで乗車 → 発車の暗転で到着。 */
-function ride(travel: TrainTravelSession, game: Game, destinationId: string): TravelResult {
-  expect(travel.begin(interaction(game))).toBe(true);
-  expect(travel.select(destinationId)).toBe(true);
-  expect(travel.issue()).not.toBeNull();
-  travel.back();
-  expect(travel.begin(interaction(game))).toBe(true);
-  expect(travel.startRide()).not.toBeNull();
-  return travel.commitArrival();
-}
-
-function interaction(game: Game): MapEvent {
+function gateEvent(game: Game): MapEvent {
   const target = game.facingInteraction();
-  if (!target) throw new Error('No station interaction in front of player');
+  if (!target) throw new Error('No gate in front of player');
   return { type: 'interact', areaId: game.player.areaId, interactionId: target.id, eventKey: target.eventKey };
 }
 
+/** 改札で決めたら、そのまま乗車→到着。確認や切符は挟まない。 */
+function ride(travel: TrainTravelSession, game: Game, destinationId: string): TravelResult {
+  expect(travel.begin(gateEvent(game))).toBe(true);
+  expect(travel.choose(destinationId)).not.toBeNull();
+  expect(travel.isRiding).toBe(true);
+  return travel.commitArrival();
+}
+
 describe('train travel session', () => {
-  it('makes an explicit round trip and restores the destination and appearance from a real save', () => {
-    const { world, railway, game, travel } = setup();
+  it('rides in one decision, restores the destination and appearance from a real save, and returns', () => {
+    const { world, game, railway, travel } = setup();
     game.setAppearance({ ...game.appearance, hairColor: 'black', outfitColor: 'red' });
     const appearance = { ...game.appearance }, stage = world.variant.stage;
-    expect(travel.begin(interaction(game))).toBe(true);
+    expect(travel.begin(gateEvent(game))).toBe(true);
     expect(travel.commitArrival()).toEqual({ ok: false, reason: 'not-riding' });
-    expect(game.player).toEqual(positionAt(origin.boarding));
     travel.cancel();
     expect(ride(travel, game, destination.id)).toEqual({ ok: true, originId: origin.id, destinationId: destination.id });
     expect(game.player).toEqual(positionAt(destination.arrival));
@@ -72,24 +67,18 @@ describe('train travel session', () => {
     const restored = new Game(world, { save: game.serialize() });
     expect(restored.player).toEqual(positionAt(destination.arrival));
     expect(restored.appearance).toEqual(appearance);
-    // Walk from the arrival tile to the boarding point; no automatic rail transition occurs.
-    for (let step = 0; step < 400 && pxToTile(restored.player.x) !== neighbor.boarding.x; step++) {
-      restored.update(1 / 120, { dir: 'left', run: false });
-      expect(restored.player.areaId).toBe(destination.boarding.areaId);
-    }
-    restored.update(1 / 120, { dir: 'up', run: false });
-    const returning = new TrainTravelSession(restored, railway, undefined, FLOWS);
+    restored.player = positionAt({ areaId: nGate.areaId, ...south, facing: 'up' });
+    const returning = new TrainTravelSession(restored, railway, undefined, FLOWS, [origin.id, destination.id]);
     expect(ride(returning, restored, origin.id)).toEqual({ ok: true, originId: destination.id, destinationId: origin.id });
     expect(restored.player).toEqual(positionAt(origin.arrival));
     expect(new Game(world, { save: restored.serialize() }).appearance).toEqual(appearance);
-    expect(world.variant.stage).toBe(stage);
   });
 
-  it('refuses boarding away from the correct tile, direction, interaction or during a dialog', () => {
-    const { game, travel } = setup(), event = interaction(game), initial = { ...game.player };
+  it('opens only for the gate itself, from the permitted tile and direction, and never during a dialog', () => {
+    const { game, travel } = setup(), event = gateEvent(game), initial = { ...game.player };
     expect(travel.begin({ ...event, type: 'area-enter', areaId: game.player.areaId })).toBe(false);
-    expect(travel.begin({ type: 'interact', areaId: game.player.areaId, interactionId: 'wrong', eventKey: 'travel.station.board' })).toBe(false);
-    game.player = { ...initial, ...feetAtTile(6, 5) };
+    expect(travel.begin({ type: 'interact', areaId: game.player.areaId, interactionId: 'wrong', eventKey: event.type === 'interact' ? event.eventKey : '' })).toBe(false);
+    game.player = { ...initial, ...feetAtTile(south.x + 2, south.y) };
     expect(travel.begin(event)).toBe(false);
     game.player = { ...initial, facing: 'left' };
     expect(travel.begin(event)).toBe(false);
@@ -99,17 +88,12 @@ describe('train travel session', () => {
     expect(game.player).toEqual(initial);
   });
 
-  it('rechecks the boarding point on confirmation and never transfers a stale choice', () => {
+  it('rechecks the gate position when the destination is chosen and never rides from a stale position', () => {
     const { game, travel } = setup();
-    const event = interaction(game);
-    expect(travel.begin(event)).toBe(true);
-    expect(travel.select(destination.id)).toBe(true);
-    expect(travel.issue()).not.toBeNull();
-    travel.back();
-    expect(travel.begin(event)).toBe(true);
-    game.player = { ...game.player, ...feetAtTile(6, 5) };
+    expect(travel.begin(gateEvent(game))).toBe(true);
+    game.player = { ...game.player, ...feetAtTile(south.x + 2, south.y) };
     const moved = { ...game.player };
-    expect(travel.startRide()).toBeNull();
+    expect(travel.choose(destination.id)).toBeNull();
     expect(travel.commitArrival()).toEqual({ ok: false, reason: 'not-riding' });
     expect(game.player).toEqual(moved);
     expect(travel.isOpen).toBe(false);
@@ -136,7 +120,7 @@ describe('train travel session', () => {
       if (!allowed) return false;
       game.player = positionAt(point);
       return true;
-    }, FLOWS);
+    }, FLOWS, [origin.id, destination.id]);
     const before = { ...game.player };
     expect(ride(travel, game, destination.id)).toEqual({ ok: false, reason: 'destination-unavailable' });
     expect(game.player).toEqual(before);
@@ -144,5 +128,6 @@ describe('train travel session', () => {
     expect(ride(travel, game, destination.id)).toEqual({ ok: true, originId: origin.id, destinationId: destination.id });
     expect(game.player).toEqual(positionAt(destination.arrival));
     expect(calls).toEqual([destination.arrival.areaId, destination.arrival.areaId]);
+    expect(pxToTile(game.player.x)).toBe(destination.arrival.x);
   });
 });

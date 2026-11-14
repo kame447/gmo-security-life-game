@@ -38,23 +38,14 @@ it('walks from home to the real station, takes both trains and walks back after 
   walk(game, LANDMARKS.stationFront);
   walk(game, STATION_ACCESS.outdoorEntrance);
   expect(game.player.areaId).toBe(STATION_ACCESS.areaId);
-  // 改札で行き先を選んできっぷを受け取り、ホームののりばで乗る。
+  // 改札で行き先を決めると、そのまま乗車して到着する（確認や切符は挟まない）。
   const flow = getStationFlow(STATION_ACCESS.stationId), neighborFlow = getStationFlow(NEIGHBOR_STATION_ACCESS.stationId);
   walk(game, { x: flow.gate.tile.x, y: flow.gate.tile.y + 1 });
   game.update(1 / 120, { dir: 'up', run: false });
   expect(game.facingInteraction()?.id).toBe('station-ticket');
   game.action();
   expect(travel.isOpen).toBe(true);
-  expect(travel.select(NEIGHBOR_STATION_ACCESS.stationId)).toBe(true);
-  expect(travel.issue()).toMatchObject({ direction: 'down' });
-  expect(travel.passGate()).toBe(true);
-  expect(feetTile(game)).toEqual({ x: flow.gate.tile.x, y: flow.gate.tile.y - 1 });
-  walk(game, STATION_ACCESS.boarding);
-  game.update(1 / 120, { dir: STATION_ACCESS.boarding.facing, run: false });
-  expect(game.facingInteraction()?.id).toBe(STATION_ACCESS.interaction.id);
-  game.action();
-  expect(travel.state.step).toBe('board');
-  expect(travel.startRide()).toMatchObject({ destinationId: NEIGHBOR_STATION_ACCESS.stationId });
+  expect(travel.choose(NEIGHBOR_STATION_ACCESS.stationId)).toMatchObject({ direction: 'down' });
   expect(game.player.areaId).toBe(STATION_ACCESS.areaId);
   expect(travel.commitArrival()).toMatchObject({ ok: true });
   expect(game.player.areaId).toBe(NEIGHBOR_STATION_ACCESS.arrival.areaId);
@@ -64,7 +55,7 @@ it('walks from home to the real station, takes both trains and walks back after 
   game.update(1 / 120, { dir: 'down', run: false });
   game.action();
   expect(travel.state.step).toBe('exit');
-  expect(travel.passGate()).toBe(true);
+  expect(travel.passExit()).toBe(true);
   expect(feetTile(game)).toEqual({ x: neighborFlow.gate.tile.x, y: neighborFlow.gate.tile.y + 1 });
   walk(game, world.areas.get(NEIGHBOR_STATION_ACCESS.boarding.areaId)!.def.portals[0].from);
   expect(game.player.areaId).toBe('town-neighbor');
@@ -78,20 +69,13 @@ it('walks from home to the real station, takes both trains and walks back after 
   walk(game, { x: neighborFlow.gate.tile.x, y: neighborFlow.gate.tile.y + 1 });
   game.update(1 / 120, { dir: 'up', run: false });
   game.action();
-  expect(travel.select(STATION_ACCESS.stationId)).toBe(true);
-  expect(travel.issue()).toMatchObject({ direction: 'up' });
-  expect(travel.passGate()).toBe(true);
-  const upBoard = neighborFlow.platforms.find(p => p.direction === 'up')!.boardTile;
-  walk(game, upBoard);
-  game.update(1 / 120, { dir: upBoard.facing, run: false });
-  game.action();
-  expect(travel.startRide()).toMatchObject({ destinationId: STATION_ACCESS.stationId });
+  expect(travel.choose(STATION_ACCESS.stationId)).toMatchObject({ direction: 'up' });
   expect(travel.commitArrival()).toMatchObject({ ok: true });
   expect(game.player.areaId).toBe(STATION_ACCESS.areaId);
   walk(game, { x: flow.gate.tile.x, y: flow.gate.tile.y - 1 });
   game.update(1 / 120, { dir: 'down', run: false });
   game.action();
-  expect(travel.passGate()).toBe(true);
+  expect(travel.passExit()).toBe(true);
   walk(game, { x: 17, y: 17 });
   expect(game.player.areaId).toBe('town-main');
   expect(game.appearance).toEqual(appearance);
