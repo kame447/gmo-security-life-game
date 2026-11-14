@@ -6,7 +6,7 @@ import { RailwayNetwork, type RailwayStation } from '../world/railway';
 import { directionBetween, type Direction, type Heading } from './direction';
 import { TravelMenu, type TravelMenuState } from './menu';
 import { TRAVEL_LINES } from './network';
-import { insideOf, outsideOf, readStationFlows, type StationFlow, type StationPlatform } from './stations';
+import { outsideOf, readStationFlows, type StationFlow, type StationGate, type StationPlatform } from './stations';
 
 /** 改札で決めた1回の乗車。きっぷは持たず、決定の直後に演出が始まる。 */
 export interface RideRequest {
@@ -18,9 +18,9 @@ export interface RideRequest {
   /** 出発駅の乗るホーム、到着駅の降りるホーム（同じ方向）、到着駅の下車位置。数値は getStationFlow が持つ。 */
   readonly boardPlatform: StationPlatform;
   readonly alightPlatform: StationPlatform;
-  /** 出発駅・到着駅の改札の内側（ホーム側の前）と、到着駅の改札の外（到着の確定の位置）。 */
-  readonly originInside: { readonly x: number; readonly y: number };
-  readonly destinationInside: { readonly x: number; readonly y: number };
+  /** 出発駅・到着駅の改札（前・内側・外の位置を持つ）と、到着駅の改札の外（到着の確定の位置）。 */
+  readonly originGate: StationGate;
+  readonly destinationGate: StationGate;
   readonly outside: ReturnType<typeof outsideOf>;
   readonly originAreaId: string;
   readonly destinationAreaId: string;
@@ -45,7 +45,7 @@ export class TrainTravelSession {
   private readonly menu = new TravelMenu();
   private mode: Mode = 'closed';
   private ride: RideRequest | null = null;
-  private exitGateY = 0;
+  private exitGateRef: StationGate | null = null;
 
   constructor(private readonly game: Pick<Game, 'player' | 'world' | 'dialog' | 'facingInteraction'>,
     private readonly railway: RailwayNetwork, private readonly arrive?: TravelArrival,
@@ -53,8 +53,8 @@ export class TrainTravelSession {
 
   get isOpen(): boolean { return this.mode !== 'closed'; }
   get isRiding(): boolean { return this.mode === 'riding'; }
-  /** 出場の動きが通る改札の行。 */
-  get exitRow(): number { return this.exitGateY; }
+  /** 出場の動きが通る改札。 */
+  get exitGate(): StationGate | null { return this.exitGateRef; }
 
   get state(): TravelView {
     if (this.mode === 'menu') return this.menu.state;
@@ -89,7 +89,7 @@ export class TrainTravelSession {
       if (!origin || !gate || !side || event.areaId !== gate.areaId || event.interactionId !== gate.interactionId ||
           event.eventKey !== gate.eventKey || !this.facing(gate.areaId, gate.interactionId, gate.eventKey)) continue;
       if (side === 'south') return this.openMenu(origin);
-      this.mode = 'exit'; this.exitGateY = gate.tile.y;
+      this.mode = 'exit'; this.exitGateRef = gate;
       return true;
     }
     return false;
@@ -106,7 +106,7 @@ export class TrainTravelSession {
     const alightPlatform = toFlow?.platforms.find(item => item.direction === direction) ?? toFlow?.platforms[0];
     if (!gate || !platform || !toFlow || !alightPlatform || this.gateSide(gate) !== 'south') { this.mode = 'closed'; return null; }
     this.ride = { originId: journey.originId, destinationId: journey.destinationId, direction, heading: platform.heading,
-      boardPlatform: platform, alightPlatform, originInside: insideOf(flow!), destinationInside: insideOf(toFlow), outside: outsideOf(toFlow), originAreaId: gate.areaId, destinationAreaId: toFlow.gate.areaId };
+      boardPlatform: platform, alightPlatform, originGate: gate, destinationGate: toFlow.gate, outside: outsideOf(toFlow), originAreaId: gate.areaId, destinationAreaId: toFlow.gate.areaId };
     this.mode = 'riding';
     return { ...this.ride };
   }
@@ -127,7 +127,7 @@ export class TrainTravelSession {
     if (this.mode !== 'exit') return false;
     const flow = this.flows.find(item => item.gate?.areaId === this.game.player.areaId), gate = flow?.gate;
     if (!gate || this.gateSide(gate) !== 'north' || !this.facing(gate.areaId, gate.interactionId, gate.eventKey)) { this.mode = 'closed'; return false; }
-    const spawn = { areaId: gate.areaId, x: pxToTile(this.game.player.x), y: gate.tile.y + 1, facing: 'down' as const };
+    const spawn = { areaId: gate.areaId, x: gate.outside.x, y: gate.outside.y, facing: gate.outside.facing };
     const area = this.game.world.areas.get(spawn.areaId), feet = feetAtTile(spawn.x, spawn.y);
     if (!area || !canStand(area, feet.x, feet.y) || area.portalAt.has(spawn.y * area.width + spawn.x)) { this.mode = 'closed'; return false; }
     const moved = this.arrive ? this.arrive(spawn) : ((this.game.player = positionAt(spawn)), true);

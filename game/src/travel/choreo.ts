@@ -1,5 +1,5 @@
 import { TILE, type Facing } from '../core/coords';
-import type { StationPlatform } from './stations';
+import type { StationGate, StationPlatform } from './stations';
 import { trainEntryX, trainExitX, trainStopX, TRAIN_LENGTH_PX } from '../town-train/station-scene';
 
 /** 乗車演出の振り付け（描画なし）。時刻 t（ミリ秒）から、列車・主人公の代役・位置の確定の瞬間を決める純粋な関数。画面を暗くする量は無い。 */
@@ -84,22 +84,22 @@ export function viewEdges(platform: StationPlatform, areaWidthPx: number, viewWi
 
 export interface Tile { readonly x: number; readonly y: number }
 
-/** 改札の南の足元 → 改札を通る → 改札の内側 → ホームの経路（改札の内側からドアの前まで）→ ドアの前。 */
-export function boardPlan(start: Pt, platform: StationPlatform, areaWidthPx: number, viewWidthPx = areaWidthPx, inside?: Tile, route?: readonly Tile[]): BoardPlan {
+/** 改札の南の足元 → 改札を（その列のまま）通る → 改札の内側 → ホームの経路（内側からドアの前まで）→ ドアの前。 */
+export function boardPlan(start: Pt, platform: StationPlatform, areaWidthPx: number, viewWidthPx = areaWidthPx, gate?: StationGate, route?: readonly Tile[]): BoardPlan {
   const edges = viewEdges(platform, areaWidthPx, viewWidthPx), column = Math.floor(start.x / TILE), b = platform.boardTile, f = platform.doorFront;
   const tiles = route ?? [{ x: column, y: b.y }, { x: b.x, y: b.y }, { x: f.x, y: f.y }];
-  const through = inside ? [feet(inside.x, inside.y + 1), feet(inside.x, inside.y)] : [];
+  const through = gate ? [feet(column, gate.tile.y), feet(column, gate.inside.y), feet(gate.inside.x, gate.inside.y)] : [];
   const path = compact([start, ...through, ...tiles.map(t => feet(t.x, t.y)), feet(f.x, f.y)]);
   return { path, doorFacing: facingOf(feet(f.x, f.y), feet(platform.door.x, platform.door.y)), door: feet(platform.door.x, platform.door.y),
     entryX: edges.entryX, stopX: trainStopX(platform), exitX: edges.exitX };
 }
 
 /** ドアの前 → 改札の内側（経路）→ 改札を通る → 改札の外（操作を戻す位置と向き）。 */
-export function alightPlan(platform: StationPlatform, outside: { x: number; y: number; facing: Facing }, areaWidthPx: number, viewWidthPx = areaWidthPx, route?: readonly Tile[]): AlightPlan {
-  const edges = viewEdges(platform, areaWidthPx, viewWidthPx), b = platform.boardTile, f = platform.doorFront;
-  const tiles = route ?? [{ x: f.x, y: f.y }, { x: b.x, y: b.y }, { x: outside.x, y: b.y }, { x: outside.x, y: outside.y - 2 }];
+export function alightPlan(platform: StationPlatform, gate: StationGate, areaWidthPx: number, viewWidthPx = areaWidthPx, route?: readonly Tile[]): AlightPlan {
+  const edges = viewEdges(platform, areaWidthPx, viewWidthPx), b = platform.boardTile, f = platform.doorFront, inside = gate.inside, outside = gate.outside;
+  const tiles = route ?? [{ x: f.x, y: f.y }, { x: b.x, y: b.y }, { x: inside.x, y: b.y }, { x: inside.x, y: inside.y }];
   return { door: feet(platform.door.x, platform.door.y), doorFacing: facingOf(feet(platform.door.x, platform.door.y), feet(f.x, f.y)),
-    path: compact([feet(f.x, f.y), ...tiles.map(t => feet(t.x, t.y)), feet(outside.x, outside.y - 1), feet(outside.x, outside.y)]),
+    path: compact([feet(f.x, f.y), ...tiles.map(t => feet(t.x, t.y)), feet(inside.x, gate.tile.y), feet(outside.x, outside.y)]),
     alightFacing: outside.facing, entryX: edges.entryX, stopX: trainStopX(platform), exitX: edges.exitX };
 }
 
@@ -192,12 +192,12 @@ export class RideScript {
   }
 }
 
-/** 改札を北から出る短い動き（確認なし）。主人公の足元から、改札を通って南の1マスへ。 */
-export function exitPath(start: Pt, gateY: number): readonly Pt[] {
+/** 改札をホーム側から出る短い動き（旧い保存の救済）。足元から、改札の列を南へ通り、改札の外へ。 */
+export function exitPath(start: Pt, gate: StationGate): readonly Pt[] {
   const column = Math.floor(start.x / TILE);
-  return [start, feet(column, gateY), feet(column, gateY + 1)];
+  return compact([start, feet(column, gate.tile.y), feet(column, gate.outside.y), feet(gate.outside.x, gate.outside.y)]);
 }
 export function exitFrame(path: readonly Pt[], t: number): { actor: ActorFrame; done: boolean } {
   const w = walkAlong(path, t / 1000 * WALK_SPEED, 'down');
-  return { actor: { x: w.pt.x, y: w.pt.y, facing: 'down', walking: w.walking, visible: true }, done: !w.walking };
+  return { actor: { x: w.pt.x, y: w.pt.y, facing: w.walking ? w.facing : 'down', walking: w.walking, visible: true }, done: !w.walking };
 }

@@ -11,16 +11,14 @@ export function readStationFlows(): readonly StationFlow[] {
 }
 
 type Spot = { readonly areaId: string; readonly x: number; readonly y: number; readonly facing: 'up' | 'down' };
+export type StationGate = StationFlow['gate'];
 
-/**
- * 改札の外（出場後に操作を戻す位置と向き）。到着の確定（保存される位置）はここ。
- * 契約が `gate.outside` を提供したら、ここだけを差し替える（現状は改札の南の1マス、下向き）。
- */
+/** 改札の外（出場後に操作を戻す位置と向き）。到着の確定（保存される位置）はここ。往路・帰路とも駅ごとに1つ。 */
 export function outsideOf(flow: StationFlow): Spot {
-  return { areaId: flow.gate.areaId, x: flow.gate.tile.x, y: flow.gate.tile.y + 1, facing: 'down' };
+  return { areaId: flow.gate.areaId, x: flow.gate.outside.x, y: flow.gate.outside.y, facing: flow.gate.outside.facing };
 }
 
-/** 改札の内側（ホーム側）の、改札の前の歩けるタイル。 */
+/** 改札の内側（ホーム側の前。ドアの前から真南へ歩いて着く）。 */
 export function insideOf(flow: StationFlow): { readonly x: number; readonly y: number } {
-  return { x: flow.gate.tile.x, y: flow.gate.tile.y - 1 };
+  return { x: flow.gate.inside.x, y: flow.gate.inside.y };
 }

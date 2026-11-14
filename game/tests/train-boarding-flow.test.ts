@@ -5,7 +5,6 @@ import { Game } from '../src/session/game';
 import { directionBetween, headingOf } from '../src/travel/direction';
 import { TRAIN_NETWORK } from '../src/travel/network';
 import { alightPlan, boardPlan, exitFrame, exitPath, pathLength, RideScript, TIMING } from '../src/travel/choreo';
-import { insideOf, outsideOf } from '../src/travel/stations';
 import { trainStopX, TRAIN_LENGTH_PX } from '../src/town-train/station-scene';
 import { TrainTravelSession } from '../src/travel/session';
 import { buildWorld, findPath, getStationFlow, STATION_ACCESS } from '../src/world';
@@ -64,7 +63,7 @@ describe('gate: one decision, no confirmations', () => {
     expect(travel.state).toEqual({ step: 'exit' });
     expect(travel.choose(NEIGHBOR)).toBeNull();
     expect(travel.passExit()).toBe(true);
-    expect(game.player).toEqual(positionAt(spot(1, 'down')));
+    expect(game.player).toEqual(positionAt({ areaId: STATION_ACCESS.areaId, ...flow.gate.outside }));
     expect(travel.isOpen).toBe(false);
     expect(travel.passExit()).toBe(false);
   });
@@ -128,7 +127,7 @@ describe('train switch between stations', () => {
   const build = (direction: 'up' | 'down') => {
     const p = mainFlow.platforms.find(item => item.direction === direction)!, q = neighborFlow.platforms.find(item => item.direction === direction)!;
     const start = { x: flow.gate.tile.x * 16 + 8, y: (flow.gate.tile.y + 1) * 16 + 14 };
-    return new RideScript(boardPlan(start, p, 36 * 16, VIEW), alightPlan(q, outsideOf(neighborFlow), 32 * 16, VIEW));
+    return new RideScript(boardPlan(start, p, 36 * 16, VIEW), alightPlan(q, neighborFlow.gate, 32 * 16, VIEW));
   };
 
   it('moves the switch to the view edge: the train leaves, and the next one enters, from just outside the view', () => {
@@ -136,7 +135,7 @@ describe('train switch between stations', () => {
       const p = mainFlow.platforms.find(item => item.direction === direction)!;
       const board = boardPlan({ x: 280, y: 200 }, p, 36 * 16, VIEW), room = boardPlan({ x: 280, y: 200 }, p, 36 * 16);
       expect(Math.abs(board.exitX - board.stopX)).toBeLessThanOrEqual(Math.abs(room.exitX - room.stopX));
-      const alight = alightPlan(neighborFlow.platforms.find(item => item.direction === direction)!, outsideOf(neighborFlow), 32 * 16, VIEW);
+      const alight = alightPlan(neighborFlow.platforms.find(item => item.direction === direction)!, neighborFlow.gate, 32 * 16, VIEW);
       expect(Math.abs(alight.entryX - alight.stopX)).toBeLessThanOrEqual(VIEW / 2 + TRAIN_LENGTH_PX + 40 + 100);
     }
   });
@@ -177,7 +176,7 @@ describe('ride choreography on the station map', () => {
   const feetStart = (dy = 1) => ({ x: flow.gate.tile.x * 16 + 8, y: (flow.gate.tile.y + dy) * 16 + 14 });
   const script = (direction: 'up' | 'down', reduced = false) => {
     const p = mainFlow.platforms.find(item => item.direction === direction)!, q = neighborFlow.platforms.find(item => item.direction === direction)!;
-    return { p, q, s: new RideScript(boardPlan(feetStart(), p, 36 * 16), alightPlan(q, outsideOf(neighborFlow), 32 * 16), reduced) };
+    return { p, q, s: new RideScript(boardPlan(feetStart(), p, 36 * 16), alightPlan(q, neighborFlow.gate, 32 * 16), reduced) };
   };
   const frames = (s: RideScript, step = 16) => { const out = []; for (let t = 0; t < s.commitTime + 20000; t += step) { const f = s.sample(t); out.push({ t, f }); if (f.stage === 'done') break; } return out; };
 
@@ -207,7 +206,7 @@ describe('ride choreography on the station map', () => {
   });
 
   it('walks the alighting actor out through the gate and ends exactly on the real outside position and facing', () => {
-    const { s } = script('down'), list = frames(s), spot = outsideOf(neighborFlow);
+    const { s } = script('down'), list = frames(s), spot = neighborFlow.gate.outside;
     const firstControl = list.find(({ f }) => f.control && f.actor)?.f ?? list.find(({ f }) => f.control)!.f;
     expect(firstControl.stage).toBe('destination');
     const before = list.filter(({ f }) => f.stage === 'destination' && f.actor && f.actor.visible).at(-1)!.f.actor!;
@@ -241,10 +240,10 @@ describe('ride choreography on the station map', () => {
       const area = world.areas.get(flowOf.gate.areaId);
       if (!area) continue;
       for (const direction of ['down', 'up'] as const) {
-        const p = flowOf.platforms.find(item => item.direction === direction)!, inside = insideOf(flowOf), outside = outsideOf(flowOf);
+        const p = flowOf.platforms.find(item => item.direction === direction)!, inside = flowOf.gate.inside, outside = flowOf.gate.outside;
         const route = findPath(area, p.doorFront, inside);
         expect(route, `${flowOf.stationId} ${direction}`).not.toBeNull();
-        const plan = alightPlan(p, outside, area.width * 16, area.width * 16, route!);
+        const plan = alightPlan(p, flowOf.gate, area.width * 16, area.width * 16, route!);
         const end = plan.path[plan.path.length - 1];
         expect(end).toEqual({ x: outside.x * 16 + 8, y: outside.y * 16 + 14 });
         for (const pt of plan.path) {
@@ -276,12 +275,12 @@ describe('ride choreography on the station map', () => {
     expect(list.at(-1)!.t).toBeLessThan(900);
   });
 
-  it('walks out through the gate in under a second without leaving the gate column', () => {
-    const path = exitPath({ x: flow.gate.tile.x * 16 + 8, y: (flow.gate.tile.y - 1) * 16 + 14 }, flow.gate.tile.y);
-    expect(pathLength(path)).toBe(32);
+  it('walks out through the gate in under a second to the outside spot', () => {
+    const path = exitPath({ x: flow.gate.tile.x * 16 + 8, y: (flow.gate.tile.y - 1) * 16 + 14 }, flow.gate);
+    expect(pathLength(path)).toBeGreaterThanOrEqual(32);
     expect(exitFrame(path, 0).done).toBe(false);
     const end = exitFrame(path, 600);
     expect(end.done).toBe(true);
-    expect(end.actor).toMatchObject({ x: flow.gate.tile.x * 16 + 8, y: (flow.gate.tile.y + 1) * 16 + 14, facing: 'down' });
+    expect(end.actor).toMatchObject({ x: flow.gate.outside.x * 16 + 8, y: flow.gate.outside.y * 16 + 14, facing: 'down' });
   });
 });

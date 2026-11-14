@@ -178,8 +178,9 @@ try {
   const neighbor = await page.evaluate(async () => (await import('/src/world/towns/neighbor.ts')).NEIGHBOR_STATION_ACCESS);
   const flows = await page.evaluate(async () => { const { getStationFlow } = await import('/src/world/index.ts'); return { main: getStationFlow('station'), neighbor: getStationFlow('station-neighbor') }; });
   const mainGate = flows.main.gate, nGate = flows.neighbor.gate;
-  const mainSouth = { x: mainGate.tile.x, y: mainGate.tile.y + 1 };
-  const nSouth = { x: nGate.tile.x, y: nGate.tile.y + 1 }, nNorth = { x: nGate.tile.x, y: nGate.tile.y - 1 };
+  const mainSouth = { x: mainGate.front.x, y: mainGate.front.y };
+  const nSouth = { x: nGate.front.x, y: nGate.front.y }, nNorth = { x: nGate.tile.x, y: nGate.tile.y - 1 };
+  const nOut = { x: nGate.outside.x, y: nGate.outside.y }, mainOut = { x: mainGate.outside.x, y: mainGate.outside.y };
   const appearanceBefore = await page.evaluate(() => ({ ...window.__slg.game.appearance }));
   await check('walk from the original town into its station', async () => {
     const entrance = await page.evaluate(id => window.__slg.game.area.def.portals.find(portal => portal.id === id)?.from, access.entrancePortalId);
@@ -221,7 +222,7 @@ try {
     } });
     assert.deepEqual(phases, ['origin', 'destination', 'done']);
     await waitArea(page, neighbor.arrival.areaId); await waitSavedArea(page, neighbor.arrival.areaId);
-    assert.deepEqual(tileOf(await player(page)), nSouth, 'control returns outside the gate, with no further operation');
+    assert.deepEqual(tileOf(await player(page)), nOut, 'control returns outside the gate, with no further operation');
     assert.equal((await player(page)).facing, 'down');
     assert.deepEqual(await page.evaluate(() => window.__slg.game.appearance), appearanceBefore);
     assert.notDeepEqual(before, await player(page));
@@ -240,7 +241,7 @@ try {
     await setPlayerTo(page, { areaId: neighbor.boarding.areaId, ...nNorth, facing: 'down' }); await frame(page);
     await face(page, 'down');
     await act(page, false);
-    await page.waitForFunction(s => Math.floor((window.__slg.game.player.y - 4) / 16) === s, nSouth.y, { timeout: 5000 });
+    await page.waitForFunction(([x, y]) => Math.floor(window.__slg.game.player.x / 16) === x && Math.floor((window.__slg.game.player.y - 4) / 16) === y, [nOut.x, nOut.y], { timeout: 6000 });
     assert.equal(await panel(page).isVisible(), false);
     await shot(page, 'desktop-05b-exited-gate-legacy');
   });
@@ -250,7 +251,7 @@ try {
     const { phases } = await ride(page, false, 'desktop-08');
     assert.equal(phases.at(-1), 'done');
     await waitArea(page, access.arrival.areaId); await waitSavedArea(page, access.arrival.areaId);
-    assert.deepEqual(tileOf(await player(page)), mainSouth, 'back outside the home station gate');
+    assert.deepEqual(tileOf(await player(page)), mainOut, 'back outside the home station gate');
   });
   await desktop.context.close();
 
@@ -269,7 +270,7 @@ try {
         await page.reload(); await ready(page);
         const after = await player(page);
         if (stopAt === 'depart') { assert.equal(after.areaId, access.areaId); assert.deepEqual(tileOf(after), mainSouth); }
-        else { assert.equal(after.areaId, neighbor.arrival.areaId); assert.deepEqual(tileOf(after), nSouth); }
+        else { assert.equal(after.areaId, neighbor.arrival.areaId); assert.deepEqual(tileOf(after), nOut); }
         assert.equal(await rest(), money, 'nothing but the position changed');
       } finally { await context.close(); }
     }

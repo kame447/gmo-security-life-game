@@ -51,7 +51,7 @@ it('walks from home to the real station, takes both trains and walks back after 
   expect(game.player.areaId).toBe(NEIGHBOR_STATION_ACCESS.arrival.areaId);
 
   // 到着の位置は、降車後に自動で出た改札の外。そのまま駅の出口へ向かえる。
-  expect(feetTile(game)).toEqual({ x: neighborFlow.gate.tile.x, y: neighborFlow.gate.tile.y + 1 });
+  expect(feetTile(game)).toEqual({ x: neighborFlow.gate.outside.x, y: neighborFlow.gate.outside.y });
   walk(game, world.areas.get(NEIGHBOR_STATION_ACCESS.boarding.areaId)!.def.portals[0].from);
   expect(game.player.areaId).toBe('town-neighbor');
   walk(game, { x: 43, y: 12 });
@@ -67,7 +67,7 @@ it('walks from home to the real station, takes both trains and walks back after 
   expect(travel.choose(STATION_ACCESS.stationId)).toMatchObject({ direction: 'up' });
   expect(travel.commitArrival()).toMatchObject({ ok: true });
   expect(game.player.areaId).toBe(STATION_ACCESS.areaId);
-  expect(feetTile(game)).toEqual({ x: flow.gate.tile.x, y: flow.gate.tile.y + 1 });
+  expect(feetTile(game)).toEqual({ x: flow.gate.outside.x, y: flow.gate.outside.y });
   walk(game, { x: 17, y: 17 });
   expect(game.player.areaId).toBe('town-main');
   expect(game.appearance).toEqual(appearance);

@@ -144,9 +144,9 @@ export class TrainTravelPanel {
       return area ? findPath(area, from, to) ?? undefined : undefined;
     };
     const board = boardPlan({ x: player.x, y: player.y }, ride.boardPlatform, this.areaWidth(ride.originAreaId), TrainTravelPanel.viewWidth(),
-      ride.originInside, route(ride.originAreaId, ride.originInside, ride.boardPlatform.doorFront));
-    const alight = alightPlan(ride.alightPlatform, ride.outside, this.areaWidth(ride.destinationAreaId), TrainTravelPanel.viewWidth(),
-      route(ride.destinationAreaId, ride.alightPlatform.doorFront, ride.destinationInside));
+      ride.originGate, route(ride.originAreaId, ride.originGate.inside, ride.boardPlatform.doorFront));
+    const alight = alightPlan(ride.alightPlatform, ride.destinationGate, this.areaWidth(ride.destinationAreaId), TrainTravelPanel.viewWidth(),
+      route(ride.destinationAreaId, ride.alightPlatform.doorFront, ride.destinationGate.inside));
     const script = new RideScript(board, alight, TrainTravelPanel.prefersReducedMotion());
     let t = 0, last = performance.now(), committed = false, released = false;
     const area = { origin: ride.originAreaId, destination: ride.destinationAreaId };
@@ -185,7 +185,7 @@ export class TrainTravelPanel {
   /** 改札を出る: 主人公の代役が改札を歩いて通り、着いたら実際の位置を確定して描画を戻す。 */
   private walkThroughGate(): void {
     const player = this.game.player, areaId = player.areaId;
-    const path = exitPath({ x: player.x, y: player.y }, this.session.exitRow);
+    const path = exitPath({ x: player.x, y: player.y }, this.session.exitGate!);
     stationScene.setFadeSuppressed(true);
     let t = 0, last = performance.now();
     const reduced = TrainTravelPanel.prefersReducedMotion();
