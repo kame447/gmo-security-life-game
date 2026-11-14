@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemorySaveStorage, type SaveStorage } from '../src/save-api/server';
 import { readSaveServerConfig, type SaveServerConfig } from '../src/save-server/config.mjs';
 import type { RunningSaveServer, SignalSource } from '../src/save-server/lifecycle.mjs';
+import { createSaveServer } from '../src/save-server/service';
+import { createCognitoIdTokenVerifier } from '../src/save-server/jwt.mjs';
+import { listenSaveServer } from '../src/save-server/lifecycle.mjs';
 import { startSaveServer } from '../src/save-server/startup';
 import { signer } from './save-server-fixtures.mjs';
 
@@ -13,6 +16,7 @@ interface RawSocket {
 }
 const { connect: rawConnect } = await vi.importActual<{ connect(port: number, host: string): RawSocket }>('node:net');
 const keys = signer();
+const SHORT_RECEIVE_MS = 500; // the 5000ms default is kept real-time in the 'without a stop' test below
 const env = { SAVE_API_HOST: '127.0.0.1', SAVE_API_PORT: '0', SAVE_API_TABLE_NAME: 'local-save-test',
   AWS_REGION: 'ap-northeast-1', COGNITO_ISSUER: 'https://cognito-idp.ap-northeast-1.amazonaws.com/ap-northeast-1_TestPool',
   COGNITO_CLIENT_ID: 'localTestClient', SAVE_API_JWKS_PARAMETER: '/local/test/cognito/jwks', SAVE_API_HEALTH_PATH: '/api/health' };
@@ -24,15 +28,20 @@ afterEach(async () => {
   await Promise.all(handles.splice(0).map(handle => handle.stop().catch(() => undefined)));
 });
 
-async function local(storage: SaveStorage = new MemorySaveStorage()) {
+// receiveTimeoutMs omitted: the real 5000ms default through startSaveServer. Given: same server and lifecycle, shorter deadline.
+async function local(storage: SaveStorage = new MemorySaveStorage(), receiveTimeoutMs?: number) {
   const callbacks = new Map<string, Set<() => void>>();
   const source: SignalSource = {
     on(signal, callback) { const list = callbacks.get(signal) ?? new Set(); list.add(callback); callbacks.set(signal, list); },
     off(signal, callback) { callbacks.get(signal)?.delete(callback); },
   };
   const close = vi.fn(async () => {});
-  const handle = await startSaveServer(readSaveServerConfig(env),
-    async (_config: SaveServerConfig) => ({ storage, getJwks: () => keys.jwks, close }), { signals: source });
+  const config = readSaveServerConfig(env);
+  const handle = receiveTimeoutMs === undefined ?
+    await startSaveServer(config, async (_config: SaveServerConfig) => ({ storage, getJwks: () => keys.jwks, close }), { signals: source }) :
+    await listenSaveServer(createSaveServer({ storage, healthPath: config.healthPath, receiveTimeoutMs,
+      verifyToken: createCognitoIdTokenVerifier({ issuer: config.issuer, clientId: config.clientId, getJwks: () => keys.jwks }) }),
+      config, { signals: source, dispose: () => close() });
   handles.push(handle);
   const stop = () => { for (const callback of callbacks.get('SIGTERM') ?? []) callback(); };
   return { handle, close, stop, port: handle.address.port };
@@ -101,14 +110,14 @@ describe('stopping with connections in unusual receive states', () => {
 
   it('answers a keep-alive connection that is mid-way through its next request with 400 at the receive deadline, without a write', async () => {
     const memory = new MemorySaveStorage(); const write = vi.spyOn(memory, 'compareAndSwap');
-    const s = await local(memory); const c = client(s.port);
+    const s = await local(memory, SHORT_RECEIVE_MS); const c = client(s.port);
     c.socket.write(getSave()); await c.until(() => c.responses().length === 1);
     expect(keptAlive(c)).toBe(true); // really keep-alive, not a connection that was already closing
     c.socket.write(`PUT /api/saves/auto HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer ${token()}\r\nContent-Type: application/json\r\n`);
     await wait(100); s.stop();
-    await c.waitClosed(7000); await s.handle.closed;
+    await c.waitClosed(SHORT_RECEIVE_MS * 8); await s.handle.closed;
     expect(c.responses()).toEqual(['HTTP/1.1 404', 'HTTP/1.1 400']); expect(c.text()).toMatch(/connection: close/i);
-    expect(c.closed()).toBeGreaterThanOrEqual(4500); expect(c.closed()).toBeLessThan(7000);
+    expect(c.closed()).toBeGreaterThanOrEqual(SHORT_RECEIVE_MS * 0.9); expect(c.closed()).toBeLessThan(SHORT_RECEIVE_MS * 6);
     expect(write).not.toHaveBeenCalled(); expect(s.close).toHaveBeenCalledTimes(1);
   }, 10000);
 
@@ -186,5 +195,16 @@ describe('keep-alive after replies that are produced synchronously', () => {
     await c.waitClosed(3000);
     expect(c.responses()).toEqual(['HTTP/1.1 401']); expect(c.text()).toMatch(/connection: close/i);
     expect(write).not.toHaveBeenCalled();
+  });
+});
+
+describe('receive deadline injection', () => {
+  const base = { storage: new MemorySaveStorage(), verifyToken: async () => ({ sub: 'x' }) };
+  it.each([0, -1, 1.5, Number.NaN, Infinity, '500' as unknown as number])('rejects %s at construction', value => {
+    expect(() => createSaveServer({ ...base, receiveTimeoutMs: value })).toThrow('INVALID_SERVER_CONFIGURATION');
+  });
+  it('accepts a positive integer and the default', () => {
+    expect(() => createSaveServer({ ...base, receiveTimeoutMs: 1 })).not.toThrow();
+    expect(() => createSaveServer(base)).not.toThrow();
   });
 });

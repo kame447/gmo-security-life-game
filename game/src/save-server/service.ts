@@ -33,5 +33,5 @@ export function createSaveServer(options: Omit<SaveHttpServerOptions, 'service' 
   now?: () => string;
 }): SaveHttpServer {
   return createSaveHttpServer({ service: createSaveHttpService(options.storage, options.now),
-    verifyToken: options.verifyToken, healthPath: options.healthPath, maxBodyBytes: MAX_SAVE_WIRE_BYTES });
+    verifyToken: options.verifyToken, healthPath: options.healthPath, receiveTimeoutMs: options.receiveTimeoutMs, maxBodyBytes: MAX_SAVE_WIRE_BYTES });
 }

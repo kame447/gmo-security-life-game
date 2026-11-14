@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { IdTokenError } from './jwt.mjs';
 
 const failure = (status, code) => ({ status, body: { error: { code } } });
-const RECEIVE_TIMEOUT_MS = 5000;
+const DEFAULT_RECEIVE_TIMEOUT_MS = 5000;
 class BodyError extends Error {
   constructor(status, code) { super(code); this.response = failure(status, code); }
 }
@@ -37,11 +37,14 @@ function readJson(request, limit) {
 }
 
 /** Node-only transport; service and signature verification are supplied by the caller. */
-export function createSaveHttpServer({ service, verifyToken, maxBodyBytes, healthPath = '/api/health' }) {
-  if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes < 1 || !/^\/api\/[a-z0-9/_-]+$/.test(healthPath)) {
+export function createSaveHttpServer({ service, verifyToken, maxBodyBytes, healthPath = '/api/health', receiveTimeoutMs = DEFAULT_RECEIVE_TIMEOUT_MS }) {
+  if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes < 1 || !/^\/api\/[a-z0-9/_-]+$/.test(healthPath) ||
+      !Number.isSafeInteger(receiveTimeoutMs) || receiveTimeoutMs < 1) {
     throw new Error('INVALID_SERVER_CONFIGURATION');
   }
-  const server = createServer({ requestTimeout: RECEIVE_TIMEOUT_MS, headersTimeout: RECEIVE_TIMEOUT_MS, connectionsCheckingInterval: 1000 }, (request, response) => {
+  const RECEIVE_TIMEOUT_MS = receiveTimeoutMs;
+  const scaled = fraction => Math.max(1, Math.round(RECEIVE_TIMEOUT_MS / fraction));
+  const server = createServer({ requestTimeout: RECEIVE_TIMEOUT_MS, headersTimeout: RECEIVE_TIMEOUT_MS, connectionsCheckingInterval: scaled(5) }, (request, response) => {
     const reply = (result, headers = {}) => {
       if (response.destroyed || response.writableEnded) return;
       // Do not keep an unread/oversized body alive on this connection. A request that cannot carry a
@@ -138,9 +141,9 @@ export function createSaveHttpServer({ service, verifyToken, maxBodyBytes, healt
         waiting.delete(socket);
         rejectSocket(socket, 400);
         // A peer that never reads the 400 must not hold shutdown either.
-        setTimeout(() => socket.destroy(), 1000).unref();
+        setTimeout(() => socket.destroy(), scaled(5)).unref();
       }
-    }, 250);
+    }, scaled(20));
     drain.unref();
     server.once('close', () => clearInterval(drain));
     return result;

@@ -17,5 +17,7 @@ export interface SaveHttpServerOptions {
   verifyToken: (token: string) => Promise<{ sub: string }>;
   maxBodyBytes: number;
   healthPath?: string;
+  /** Receive deadline in ms (positive integer). Default 5000; for tests to shorten. */
+  receiveTimeoutMs?: number;
 }
 export function createSaveHttpServer(options: SaveHttpServerOptions): SaveHttpServer;

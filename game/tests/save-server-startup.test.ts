@@ -5,6 +5,9 @@ import { readSaveServerConfig, SaveStartupError, type SaveServerConfig } from '.
 import type { RunningSaveServer, SignalSource } from '../src/save-server/lifecycle.mjs';
 import { runSaveServerEntry } from '../src/save-server/runtime.mjs';
 import { startSaveServer, type SaveBackendFactory } from '../src/save-server/startup';
+import { createSaveServer } from '../src/save-server/service';
+import { createCognitoIdTokenVerifier } from '../src/save-server/jwt.mjs';
+import { listenSaveServer } from '../src/save-server/lifecycle.mjs';
 import { signer } from './save-server-fixtures.mjs';
 
 // Narrow structural ports keep this browser project's existing dependency set intact.
@@ -41,6 +44,9 @@ interface RawSocket {
 }
 const { connect: rawConnect } = await vi.importActual<{ connect(port: number, host: string): RawSocket }>('node:net');
 const keys = signer();
+// Shortened receive deadline for the tests that only need stop to finish or not to cut a complete request.
+// The real 5000ms default is still exercised by the tests that go through startSaveServer unchanged.
+const SHORT_RECEIVE_MS = 500;
 const environment = () => ({ SAVE_API_HOST: '127.0.0.1', SAVE_API_PORT: '0', SAVE_API_TABLE_NAME: 'local-save-test',
   AWS_REGION: 'ap-northeast-1', COGNITO_ISSUER: 'https://cognito-idp.ap-northeast-1.amazonaws.com/ap-northeast-1_TestPool',
   COGNITO_CLIENT_ID: 'localTestClient', SAVE_API_JWKS_PARAMETER: '/local/test/cognito/jwks', SAVE_API_HEALTH_PATH: '/api/health' });
@@ -60,10 +66,16 @@ function signals() {
     count: () => [...callbacks.values()].reduce((sum, list) => sum + list.size, 0) };
 }
 async function local(storage: SaveStorage = new MemorySaveStorage(), getJwks: () => unknown = () => keys.jwks,
-  close = vi.fn(async () => {}), config = readSaveServerConfig(environment())) {
+  close = vi.fn(async () => {}), config = readSaveServerConfig(environment()), receiveTimeoutMs?: number) {
   const events = signals();
   const factory = vi.fn(async (_config: SaveServerConfig) => ({ storage, getJwks, close }));
-  const handle = await startSaveServer(config, factory, { signals: events.source }); handles.push(handle);
+  // A shortened receive deadline uses the same server and lifecycle pieces as startSaveServer; the
+  // default (5000ms) always goes through startSaveServer itself.
+  const handle = receiveTimeoutMs === undefined ? await startSaveServer(config, factory, { signals: events.source }) :
+    await listenSaveServer(createSaveServer({ storage, healthPath: config.healthPath, receiveTimeoutMs,
+      verifyToken: createCognitoIdTokenVerifier({ issuer: config.issuer, clientId: config.clientId, getJwks: () => getJwks() }) }),
+      config, { signals: events.source, dispose: () => close() });
+  handles.push(handle);
   return { handle, events, factory, close, base: `http://127.0.0.1:${handle.address.port}` };
 }
 afterEach(async () => {
@@ -220,7 +232,7 @@ describe('injected startup and graceful lifecycle', () => {
       'GET /api/saves/auto HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Pending: ']],
   ])('stopping with an unfinished receive: %s', (_name, steps) => {
     it.each(['SIGTERM', 'SIGINT'])('finishes %s within the existing receive deadline', async signal => {
-      const s = await local();
+      const s = await local(new MemorySaveStorage(), () => keys.jwks, undefined, undefined, SHORT_RECEIVE_MS);
       const socket = rawConnect(s.handle.address.port, '127.0.0.1');
       let text = ''; let healthy!: () => void;
       const responded = new Promise<void>(resolve => { healthy = resolve; });
@@ -238,7 +250,7 @@ describe('injected startup and graceful lifecycle', () => {
         await new Promise(resolve => setTimeout(resolve, 100));
         s.events.emit(signal); s.events.emit(signal === 'SIGTERM' ? 'SIGINT' : 'SIGTERM');
         const result = await Promise.race([s.handle.closed.then(() => 'closed'),
-          new Promise(resolve => { timer = setTimeout(() => resolve('HUNG'), 7300); })]);
+          new Promise(resolve => { timer = setTimeout(() => resolve('HUNG'), SHORT_RECEIVE_MS * 6); })]);
         expect(result).toBe('closed');
         expect(s.close).toHaveBeenCalledTimes(1); expect(s.events.count()).toBe(0);
       } finally { if (timer) clearTimeout(timer); socket.destroy(); }
@@ -249,7 +261,8 @@ describe('injected startup and graceful lifecycle', () => {
     const active = new Promise<void>(resolve => { entered = resolve; });
     const gate = new Promise<void>(resolve => { release = resolve; });
     const s = await local({ read: async key => { entered(); await gate; return memory.read(key); },
-      compareAndSwap: (key, expected, next) => memory.compareAndSwap(key, expected, next) });
+      compareAndSwap: (key, expected, next) => memory.compareAndSwap(key, expected, next) },
+      () => keys.jwks, undefined, undefined, SHORT_RECEIVE_MS);
     let settled = false;
     const response = fetch(`${s.base}/api/saves/auto`, { method: 'PUT', headers: {
       Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json',
@@ -257,7 +270,7 @@ describe('injected startup and graceful lifecycle', () => {
     void response.then(() => { settled = true; }, () => { settled = true; });
     await active; s.events.emit('SIGTERM');
     try {
-      await new Promise(resolve => setTimeout(resolve, 5200));
+      await new Promise(resolve => setTimeout(resolve, SHORT_RECEIVE_MS + 300));
       expect(settled).toBe(false); expect(s.close).not.toHaveBeenCalled();
     } finally { release(); }
     const result = await response; expect(result.status).toBe(200); await result.arrayBuffer();
