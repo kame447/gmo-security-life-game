@@ -6,6 +6,8 @@ import { drawTrainFrame, townTrainPaints } from '../town-train/render';
 import { stationScene } from '../town-train/station-scene';
 import { stationTrackRow, trainHeading } from '../town-train/station-scene';
 import { TRAIN_HEIGHT_PX, TRAIN_LENGTH_PX, trainSprite } from '../town-train/car';
+import { crossingState, getCrossings, type CrossingState } from '../town-train/crossings';
+import { drawCrossingGate } from '../town-train/crossing-render';
 import { makeCanvas, R, type C2D } from './draw';
 import { drawGroundTile } from './ground';
 import { characterSprite, objectSprite, playerSprite, type Sprite } from './sprites';
@@ -49,7 +51,8 @@ export class Renderer {
   private readonly timings: RenderTimings = { totalMs: 0, clearMs: 0, groundMs: 0, bakeMs: 0, gatherMs: 0, sortMs: 0, spritesMs: 0, waterMs: 0, markersMs: 0, fadeMs: 0 };
   readonly stats = { chunksCached: 0, chunksDrawn: 0, spritesDrawn: 0, zoom: 1, viewW: 1, viewH: 1, indoor: false, fading: false, camX: 0, camY: 0, chunksBakedThisFrame: 0, timings: null as RenderTimings | null,
     /** この1フレームに描いた列車（足元の y を含む箱）。E2E が線路の上にあることを確かめる。 */
-    trains: [] as { x: number; y: number; w: number; h: number; areaId: string; heading: string; doorOpen: number; direction?: string }[] };
+    trains: [] as { x: number; y: number; w: number; h: number; areaId: string; heading: string; doorOpen: number; direction?: string }[],
+    crossings: [] as { id: string; left: number; right: number; northWaitY: number; southWaitY: number; time: number; state: CrossingState }[] };
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const c = canvas.getContext('2d');
@@ -264,6 +267,22 @@ export class Renderer {
     for (const t of scene?.trains ?? []) {
       const row = stationTrackRow(area.def.id);
       if (row !== null) pushTrain(Math.round(t.x), (row + 1) * TILE, trainHeading(t), t.doorOpen);
+    }
+    this.stats.crossings.length = 0;
+    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    for (const crossing of getCrossings(area)) {
+      const state = crossingState(area, crossing, timeSec);
+      this.stats.crossings.push({ id: crossing.id, left: crossing.left, right: crossing.right,
+        northWaitY: crossing.northWaitY, southWaitY: crossing.southWaitY, time: timeSec, state });
+      if (crossing.right + 8 < camX || crossing.left - 8 > right) continue;
+      for (const south of [false, true]) {
+        const depth = south ? crossing.southWaitY : crossing.northWaitY;
+        if (depth < camY || depth - (crossing.right - crossing.left) / 2 - 20 > bottom) continue;
+        // Dynamic paint uses the existing sorted-item path; the sprite is only a placeholder for this paint item.
+        this.sorted.push({ sprite: { canvas: this.canvas, ox: 0, oy: 0 }, x: crossing.left, y: depth,
+          depth, decal: false, character: false, seen: this.tick,
+          paint: ctx => drawCrossingGate(ctx, crossing, state, timeSec, reduced, south) });
+      }
     }
     this.sorted.sort((a, b) => a.depth - b.depth || a.x - b.x);
     if (profiling) { const now = performance.now(); timing.sortMs = now - mark; mark = now; }

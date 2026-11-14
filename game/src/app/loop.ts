@@ -3,6 +3,7 @@
  * Prototype proposals: <=1.07px per running substep, at most 30 updates after a stall.
  */
 import type { InputState } from '../map/explorer';
+import { advanceCrossingClock } from '../town-train/crossing-clock';
 
 export const FIXED_STEP = 1 / 120;
 export const MAX_ACCUMULATED = 0.25;
@@ -31,6 +32,7 @@ export function startLoop(hooks: LoopHooks): { resetClock(): void } {
   let previous = 0;
   let accumulator = 0;
   function frame(now: number) {
+    advanceCrossingClock(now / 1000);
     hooks.beforeFrame();
     const interval = previous ? Math.max(0, now - previous) : 0;
     previous = now;

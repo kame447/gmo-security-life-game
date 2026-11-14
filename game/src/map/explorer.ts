@@ -5,6 +5,8 @@
 import { DIR, TILE, feetAtTile, pxToTile, type Facing } from '../core/coords';
 import type { InteractionDef, MapEvent, SpawnPoint } from '../core/types';
 import type { AreaRuntime, World } from '../world';
+import { crossingTime, watchCrossingClock } from '../town-train/crossing-clock';
+import { CROSSING_PROTOTYPE, crossingContains, crossingState, getCrossings, type Crossing } from '../town-train/crossings';
 
 export interface InputState { dir: Facing | null; run: boolean }
 export interface PlayerPosition { areaId: string; x: number; y: number; facing: Facing }
@@ -45,6 +47,8 @@ export class MapExplorer {
   moving = false;
   walkTime = 0;
   private edgeContact: string | null = null;
+  private escape: { crossingId: string; points: { x: number; y: number }[] } | null = null;
+  private retreatedThisFrame = false;
 
   constructor(
     private readonly world: World,
@@ -52,14 +56,70 @@ export class MapExplorer {
     private readonly emit: (e: MapEvent) => void,
   ) {
     this.player = start;
+    watchCrossingClock(this);
   }
 
   get area(): AreaRuntime { return this.world.areas.get(this.player.areaId)!; }
 
   /** Stop the walk animation without touching position or edge state (e.g. while a dialog is open). */
-  halt(): void { this.moving = false; }
+  halt(): void { this.moving = this.escape !== null; }
+
+  /** Safety runs before drawing even when a map/dialog has stopped ordinary Game.update. */
+  crossingTick(timeSeconds: number, dt: number): void {
+    this.retreatedThisFrame = false;
+    const crossing = getCrossings(this.area).find(c => crossingContains(c, this.player.x, this.player.y) &&
+      crossingState(this.area, c, timeSeconds).blocked);
+    if (!crossing) { if (this.escape) this.moving = false; this.escape = null; return; }
+    if (this.escape?.crossingId !== crossing.id) {
+      const points = this.escapePoints(crossing);
+      if (!points) return; // Authored crossings are tested to have clear escape routes at every standable position.
+      this.escape = { crossingId: crossing.id, points };
+    }
+    const points = this.escape.points, state = crossingState(this.area, crossing, timeSeconds);
+    let x = this.player.x, y = this.player.y, distance = 0;
+    for (const p of points) { distance += Math.abs(p.x - x) + Math.abs(p.y - y); x = p.x; y = p.y; }
+    // A restored save or a suspended tab can arrive too late for walking. Recover before its first train frame.
+    const recover = state.nextArrivalIn <= distance / WALK_SPEED + CROSSING_PROTOTYPE.escapeMarginSeconds;
+    let remaining = recover ? distance : dt * WALK_SPEED;
+    this.moving = remaining > 0;
+    this.retreatedThisFrame = this.moving;
+    while (remaining > 1e-9 && points.length) {
+      const p = points[0], dx = p.x - this.player.x, dy = p.y - this.player.y;
+      const length = Math.abs(dx) + Math.abs(dy), step = Math.min(length, remaining);
+      if (length < 1e-9) { points.shift(); continue; }
+      this.player.facing = dx ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+      this.player.x += Math.sign(dx) * step; this.player.y += Math.sign(dy) * step;
+      if (!recover) this.walkTime += step / WALK_SPEED;
+      remaining -= step;
+      if (step >= length) points.shift();
+    }
+    if (!points.length) { this.escape = null; this.moving = false; }
+  }
+
+  /** Straight walking routes to either wait line, validated against the unchanged static hitbox. */
+  private escapePoints(c: Crossing): { x: number; y: number }[] | null {
+    const { x, y } = this.player;
+    const candidates: { points: { x: number; y: number }[]; distance: number }[] = [];
+    const middleX = Math.max(c.left + HITBOX.halfW, Math.min(c.right - HITBOX.halfW, x));
+    for (const targetY of [c.northWaitY, c.southWaitY]) for (const targetX of [x, middleX]) {
+      const points = [{ x: targetX, y }, { x: targetX, y: targetY }].filter((p, i) =>
+        i === 0 ? p.x !== x : p.y !== y);
+      let from = { x, y }, distance = 0, valid = true;
+      for (const p of points) {
+        const length = Math.abs(p.x - from.x) + Math.abs(p.y - from.y), count = Math.ceil(length);
+        for (let i = 1; i <= count; i++) if (!canStand(this.area,
+          from.x + (p.x - from.x) * i / count, from.y + (p.y - from.y) * i / count)) { valid = false; break; }
+        distance += length; from = p;
+      }
+      const tile = feetTile({ ...this.player, ...from });
+      if (valid && !this.area.portalAt.has(tile.ty * this.area.width + tile.tx)) candidates.push({ points, distance });
+    }
+    candidates.sort((a, b) => a.distance - b.distance);
+    return candidates[0]?.points ?? null;
+  }
 
   update(dt: number, input: InputState): void {
+    if (this.escape || this.retreatedThisFrame) { this.moving = this.escape !== null; return; }
     this.moving = false;
     if (!Number.isFinite(dt) || dt <= 0) return;
     if (!input.dir) { this.edgeContact = null; return; }
@@ -85,7 +145,12 @@ export class MapExplorer {
     const { dx, dy } = DIR[dir];
     const nx = this.player.x + dx * step;
     const ny = this.player.y + dy * step;
-    if (canStand(this.area, nx, ny)) return { x: nx, y: ny };
+    const canMove = (x: number, y: number): boolean => {
+      if (!canStand(this.area, x, y)) return false;
+      const time = crossingTime();
+      return time === null || !getCrossings(this.area).some(c => crossingContains(c, x, y) && crossingState(this.area, c, time).blocked);
+    };
+    if (canMove(nx, ny)) return { x: nx, y: ny };
     if (outside(this.area, nx, ny)) {
       const key = `${this.player.areaId}:${dir}`;
       if (key !== this.edgeContact) {
@@ -99,8 +164,8 @@ export class MapExplorer {
       for (let offset = 1; offset <= 5; offset++) {
         const cx = this.player.x + (dy ? sign * offset : 0);
         const cy = this.player.y + (dx ? sign * offset : 0);
-        if (!canStand(this.area, cx, cy)) break;
-        if (canStand(this.area, cx + dx * step, cy + dy * step)) return { x: cx + dx * step, y: cy + dy * step };
+        if (!canMove(cx, cy)) break;
+        if (canMove(cx + dx * step, cy + dy * step)) return { x: cx + dx * step, y: cy + dy * step };
       }
     }
     return null;
@@ -130,5 +195,7 @@ export class MapExplorer {
     this.moving = false;
     this.walkTime = 0;
     this.edgeContact = null;
+    this.escape = null;
+    this.retreatedThisFrame = false;
   }
 }
