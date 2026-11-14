@@ -1,36 +1,64 @@
 import { describe, expect, it } from 'vitest';
+import { TILE } from '../src/core/coords';
 import { TRAIN_LENGTH_PX } from '../src/town-train/car';
-import { TownTrainService, findRailStrips } from '../src/town-train/service';
-import { buildWorld, getStationFlow, isSolidTile, validateWorld } from '../src/world';
+import { singleZone, TownTrainService } from '../src/town-train/service';
+import { TRAIN_ROUTE_SAMPLE_STEP } from './helpers/sample-step';
+import { buildWorld, findPath, getStationFlow, isSolidTile, validateWorld } from '../src/world';
 import { MAIN_STATION_LAYOUT } from '../src/world/landmarks';
 import { RAIL_DIRECTIONS, headingOf, trackRowOf } from '../src/world/rail-geometry';
+import { lineFootY } from '../src/world/rail-layout';
+import { TOWN_RAIL_LAYOUTS } from '../src/world/rail-layouts';
 import { isRailGround, T } from '../src/world/tiles';
 import { NEIGHBOR_STATION_LAYOUT } from '../src/world/towns/neighbor';
 import { TRAIN_NETWORK } from '../src/travel/network';
 
 const towns = [['town-main', MAIN_STATION_LAYOUT], ['town-neighbor', NEIGHBOR_STATION_LAYOUT]] as const;
 
-describe('two-track railway (up and down lines)', () => {
-  it.each(towns)('%s has exactly two rail rows, one up line and one down line, and rails nowhere else', (areaId, layout) => {
-    const town = buildWorld().areas.get(areaId)!;
-    expect(layout.trackRows).toBe(2);
+describe('town railway: one line at the station, two lines outside, joined by points', () => {
+  it.each(towns)('%s: rails only on the two rows, with the single section and four point tiles', (areaId, station) => {
+    const town = buildWorld().areas.get(areaId)!, layout = TOWN_RAIL_LAYOUTS[areaId];
+    expect(layout.northRow).toBe(station.trackY); expect(layout.southRow).toBe(station.trackY + 1);
+    const at = (x: number, y: number) => town.ground[y * town.width + x];
     for (let y = 0; y < town.height; y++) for (let x = 0; x < town.width; x++) {
-      const rail = isRailGround(town.ground[y * town.width + x]);
-      expect(rail, `${areaId} ${x},${y}`).toBe(y >= layout.trackY && y < layout.trackY + 2);
+      const rail = isRailGround(at(x, y));
+      const inSingle = x >= layout.singleX0 && x < layout.singleX1;
+      const expected = y === layout.northRow || (y === layout.southRow && !inSingle);
+      expect(rail, `${areaId} ${x},${y}`).toBe(expected);
     }
+    const c = layout.singleX0 - 1, d = layout.singleX1;
+    expect([at(c, layout.southRow), at(c, layout.northRow), at(d, layout.northRow), at(d, layout.southRow)])
+      .toEqual([T.SWITCH_W_S, T.SWITCH_W_N, T.SWITCH_E_N, T.SWITCH_E_S]);
+    // 駅の区間の南の行は、歩けない柵。駅舎の幅と一致する。
+    for (let x = layout.singleX0; x < layout.singleX1; x++) { expect(at(x, layout.southRow)).toBe(T.RAIL_FENCE); expect(isSolidTile(town, x, layout.southRow)).toBe(true); }
+    expect(layout.singleX0).toBe(station.building.x); expect(layout.singleX1).toBe(station.building.x + station.building.w);
   });
 
-  it.each(towns)('%s: both rows are blocked except at crossings, and keep the bridge over the river', (areaId, layout) => {
-    const town = buildWorld().areas.get(areaId)!;
-    for (const y of [layout.trackY, layout.trackY + 1]) {
+  it.each(towns)('%s: the up line is a connected tile path through the north row between the points', (areaId) => {
+    const town = buildWorld().areas.get(areaId)!, layout = TOWN_RAIL_LAYOUTS[areaId];
+    // 西の南の行 → 西のポイント（南・北）→ 北の行 → 東のポイント（北・南）→ 東の南の行、が1本につながる。
+    const path: [number, number][] = [];
+    for (let x = 0; x <= layout.singleX0 - 1; x++) path.push([x, layout.southRow]);
+    path.push([layout.singleX0 - 1, layout.northRow]);
+    for (let x = layout.singleX0; x < layout.singleX1; x++) path.push([x, layout.northRow]);
+    path.push([layout.singleX1, layout.northRow]);
+    for (let x = layout.singleX1; x < town.width; x++) path.push([x, layout.southRow]);
+    for (const [x, y] of path) expect(isRailGround(town.ground[y * town.width + x]), `${x},${y}`).toBe(true);
+    for (let i = 1; i < path.length; i++) expect(Math.abs(path[i][0] - path[i - 1][0]) + Math.abs(path[i][1] - path[i - 1][1]), `step ${i}`).toBe(1);
+  });
+
+  it.each(towns)('%s: both rows are blocked except at crossings; people cannot reach the single section from the street side', (areaId) => {
+    const town = buildWorld().areas.get(areaId)!, layout = TOWN_RAIL_LAYOUTS[areaId];
+    for (const y of [layout.northRow, layout.southRow]) {
       let crossings = 0;
       for (let x = 0; x < town.width; x++) {
         const tile = town.ground[y * town.width + x];
-        if (tile === T.CROSSING) crossings++; else expect(isSolidTile(town, x, y)).toBe(true);
+        if (tile === T.CROSSING) crossings++; else expect(isSolidTile(town, x, y), `${x},${y}`).toBe(true);
       }
       expect(crossings).toBeGreaterThan(0);
     }
-    if (areaId === 'town-neighbor') for (const y of [layout.trackY, layout.trackY + 1]) expect(town.ground[y * town.width + 38]).toBe(T.RAIL_BRIDGE);
+    // 柵・ポイントの付近へ歩いて入れない（4辺のどちらからも）。
+    for (let x = layout.singleX0 - 1; x <= layout.singleX1; x++) for (const y of [layout.northRow, layout.southRow]) expect(isSolidTile(town, x, y)).toBe(true);
+    if (areaId === 'town-neighbor') for (const y of [layout.northRow, layout.southRow]) expect(town.ground[y * town.width + 38]).toBe(T.RAIL_BRIDGE);
   });
 
   it('defines the down line on the north row heading right and the up line on the south row heading left (left-hand running)', () => {
@@ -39,39 +67,90 @@ describe('two-track railway (up and down lines)', () => {
     expect(trackRowOf(10, 'down')).toBe(10); expect(trackRowOf(10, 'up')).toBe(11);
   });
 
-  it.each(towns)('%s: periodic trains run right on the north row and left on the south row, entering and leaving at the edges', (areaId, layout) => {
-    const area = buildWorld().areas.get(areaId)!, service = new TownTrainService();
-    expect(findRailStrips(area).map(s => [s.top / 16, s.direction])).toEqual([[layout.trackY, 'down'], [layout.trackY + 1, 'up']]);
-    for (let t = 0; t < 20; t += 0.5) for (const f of service.frames(area, t)) {
+  it('moves the up line onto the north row at 45 degrees across the points', () => {
+    const layout = TOWN_RAIL_LAYOUTS['town-main'], south = (layout.southRow + 1) * TILE, north = (layout.northRow + 1) * TILE;
+    const zone = singleZone(layout);
+    expect(lineFootY(layout, 'up', zone.left - 1)).toBe(south);
+    expect(lineFootY(layout, 'up', zone.left)).toBe(south);
+    expect(lineFootY(layout, 'up', zone.left + TILE)).toBe(north);
+    expect(lineFootY(layout, 'up', zone.left + TILE / 2)).toBe(south - TILE / 2);
+    expect(lineFootY(layout, 'up', zone.right - TILE)).toBe(north);
+    expect(lineFootY(layout, 'up', zone.right)).toBe(south);
+    expect(lineFootY(layout, 'up', zone.right - TILE / 2)).toBe(north + TILE / 2);
+    for (let x = 0; x < 100 * TILE; x++) expect(lineFootY(layout, 'down', x)).toBe(north);
+  });
+});
+
+describe.each(towns)('%s timetable', (areaId) => {
+  const world = buildWorld(), area = world.areas.get(areaId)!, layout = TOWN_RAIL_LAYOUTS[areaId], zone = singleZone(layout);
+  it('runs down trains rightward on the north row and up trains leftward, entering and leaving at the edges', () => {
+    const service = new TownTrainService();
+    for (let t = 0; t < 40; t += 0.25) for (const f of service.frames(area, t)) {
       expect(f.heading).toBe(headingOf(f.direction));
-      // 足元が線路の行の下端に揃い、車体は上へはみ出す。
-      expect(f.y + f.height).toBe(f.strip.bottom);
+      expect(f.footY).toBe(lineFootY(layout, f.direction, f.x + f.length / 2));
+      expect(f.y + f.height).toBe(f.footY);
       expect(f.length).toBe(TRAIN_LENGTH_PX);
     }
-    const a = service.frames(area, 3), b = service.frames(area, 3.25);
     for (const direction of ['down', 'up'] as const) {
-      const ax = a.filter(f => f.direction === direction).map(f => f.x), bx = b.filter(f => f.direction === direction).map(f => f.x);
-      expect(ax.length).toBeGreaterThan(0);
-      bx.slice(0, 1).forEach((x, i) => expect(direction === 'down' ? x > ax[i] : x < ax[i]).toBe(true));
+      let moved = 0;
+      for (let t = 0; t < 24; t += 0.25) {
+        const a = service.frames(area, t).filter(f => f.direction === direction), b = service.frames(area, t + 0.25).filter(f => f.direction === direction);
+        if (!a.length || a.length !== b.length) continue;
+        moved++;
+        expect(direction === 'down' ? b[0].x > a[0].x : b[0].x < a[0].x).toBe(true);
+      }
+      expect(moved, direction).toBeGreaterThan(0);
     }
   });
 
-  it.each(['station', 'station-neighbor'])('%s: station platforms use the same direction definition as the town trains', stationId => {
-    const area = buildWorld().areas.get(getStationFlow(stationId).gate.areaId)!, flow = getStationFlow(stationId);
-    expect(flow.platforms.map(p => p.direction)).toEqual(['down', 'up']);
+  it('never has a down train and an up train in the single section (including the points) at the same time, at any time of the cycle', () => {
+    const service = new TownTrainService();
+    const inZone = (f: { x: number; length: number }) => f.x + f.length > zone.left && f.x < zone.right;
+    let worstGap = Infinity;
+    for (let t = 0; t < 240; t += TRAIN_ROUTE_SAMPLE_STEP) {
+      const frames = service.frames(area, t), down = frames.filter(f => f.direction === 'down' && inZone(f)), up = frames.filter(f => f.direction === 'up' && inZone(f));
+      expect(down.length === 0 || up.length === 0, `t=${t.toFixed(2)}`).toBe(true);
+      // 区間の外の2線では、どの時刻でも2本の列車が同じ線の上で重ならない。
+      for (const direction of ['down', 'up'] as const) {
+        const same = frames.filter(f => f.direction === direction).sort((p, q) => p.x - q.x);
+        for (let i = 1; i < same.length; i++) worstGap = Math.min(worstGap, same[i].x - (same[i - 1].x + same[i - 1].length));
+      }
+    }
+    expect(worstGap).toBeGreaterThan(0);
+  });
+});
+
+describe.each(['station', 'station-neighbor'])('%s: single platform and single track inside', stationId => {
+  const flow = getStationFlow(stationId), area = () => buildWorld().areas.get(flow.gate.areaId)!;
+  it('has one continuous track row from edge to edge and no other rail tile', () => {
+    const a = area();
+    for (let y = 0; y < a.height; y++) for (let x = 0; x < a.width; x++) {
+      const rail = a.ground[y * a.width + x] === T.RAIL;
+      expect(rail, `${x},${y}`).toBe(y === flow.platform.track.y);
+      if (rail) expect(isSolidTile(a, x, y)).toBe(true);
+    }
+  });
+  it('shares one door tile and one stop between both directions; only the heading differs', () => {
     const [down, up] = flow.platforms;
-    expect(down.heading).toBe('right'); expect(down.arriveFrom).toBe('left');
-    expect(up.heading).toBe('left'); expect(up.arriveFrom).toBe('right');
-    expect(down.track.y).toBeLessThan(up.track.y);
-    for (const p of flow.platforms) {
-      expect(p.heading).toBe(headingOf(p.direction));
-      expect(p.door.y).toBe(p.track.y);
-      expect(area.ground[p.track.y * area.width + p.door.x]).toBe(T.RAIL);
-      expect(area.def.objects.some(o => o.kind === 'train')).toBe(false);
-    }
+    expect(down.door).toEqual(up.door); expect(down.doorFront).toEqual(up.doorFront); expect(down.boardTile).toEqual(up.boardTile);
+    expect(flow.directions.down).toEqual({ heading: 'right', arriveFrom: 'left' });
+    expect(flow.directions.up).toEqual({ heading: 'left', arriveFrom: 'right' });
+    expect(flow.platform.track.rows).toBe(1);
   });
-
-  it('keeps every interaction and portal reachable from the start', () => {
+  it('lets people walk entry → gate front, and door front → inside → outside, without touching a rail tile', () => {
+    const a = area(), route = (from: { x: number; y: number }, to: { x: number; y: number }) => findPath(a, from, to);
+    const noRail = (r: { x: number; y: number }[] | null) => { expect(r).not.toBeNull(); for (const p of r!) expect(a.ground[p.y * a.width + p.x]).not.toBe(T.RAIL); };
+    noRail(route({ x: flow.platform.boardTile.x, y: flow.platform.boardTile.y }, flow.gate.inside));
+    noRail(route(flow.platform.doorFront, flow.gate.inside));
+    noRail(route(flow.alight, flow.gate.inside));
+    expect(flow.gate.inside.x).toBe(flow.gate.exitX);
+    // 改札は solid（歩いて通れない）。外へは操作（乗車側）で出る。
+    for (const x of [flow.gate.entryX, flow.gate.exitX]) expect(isSolidTile(a, x, flow.gate.tile.y)).toBe(true);
+    expect(route(flow.gate.inside, flow.gate.outside)).toBeNull();
+    expect(isSolidTile(a, flow.gate.outside.x, flow.gate.outside.y)).toBe(false);
+    expect(a.portalAt.has(flow.gate.outside.y * a.width + flow.gate.outside.x)).toBe(false);
+  });
+  it('is validated as reachable', () => {
     expect(validateWorld(buildWorld(), { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
   });
 });

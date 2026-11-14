@@ -9,8 +9,8 @@ export interface TownTrainConfig {
 }
 
 export const TOWN_TRAIN_PROTOTYPE: Readonly<TownTrainConfig> = Object.freeze({
-  intervalSeconds: 10,
-  speedPixelsPerSecond: 96,
+  intervalSeconds: 12,
+  speedPixelsPerSecond: 160,
   lengthPixels: TRAIN_LENGTH_PX,
   heightPixels: TRAIN_HEIGHT_PX,
 });

@@ -1,75 +1,94 @@
 import { TILE } from '../core/coords';
 import type { AreaRuntime } from '../world';
-import { isRailGround, T } from '../world/tiles';
+import { lineFootY, type TownRailLayout } from '../world/rail-layout';
+import { TOWN_RAIL_LAYOUTS } from '../world/rail-layouts';
 import { headingOf, type RailDirection, type RailHeading } from '../world/rail-geometry';
 import { TOWN_TRAIN_PROTOTYPE, validateTrainConfig, type TownTrainConfig } from './config';
 
-/** A continuous rectangle of actual rail ground, with right and bottom exclusive. */
+/** The rows a line occupies, with right and bottom exclusive (for the up line this spans both rows). */
 export interface RailStripBounds { readonly left: number; readonly top: number; readonly right: number; readonly bottom: number }
 export interface TrainFrame {
+  /** 車列の左端（エリアの座標 px）。 */
   readonly x: number;
+  /** 車体の上端。足元（footY）から車体の高さだけ上。 */
   readonly y: number;
   readonly length: number;
   readonly height: number;
+  /** 車列の中央での足元（線路の行の下端）。奥行きの並べ替えに使う。 */
+  readonly footY: number;
   readonly strip: RailStripBounds;
   readonly direction: RailDirection;
   readonly heading: RailHeading;
 }
 
-/** One track row. A row with rail directly north of it is the south (up) line; the northernmost row is the down line. */
-export interface RailStrip extends RailStripBounds { readonly direction: RailDirection }
+/** 駅の区間（ポイントを含む）の左右の端（px）。この間は1線なので、上りと下りが同時に走らない。 */
+export function singleZone(layout: TownRailLayout): { left: number; right: number } {
+  return { left: (layout.singleX0 - 1) * TILE, right: (layout.singleX1 + 1) * TILE };
+}
 
-/** Find one run per rail row (one tile high) in each connected outdoor rail component. */
-export function findRailStrips(area: AreaRuntime): RailStrip[] {
-  if (area.def.kind !== 'outdoor') return [];
-  const { width, height, ground } = area;
-  const at = (x: number, y: number) => x >= 0 && x < width && y >= 0 && y < height && isRailGround(ground[y * width + x]);
-  const strips: RailStrip[] = [];
-  for (let y = 0; y < height; y++) {
-    let start = 0, hasTrack = false;
-    for (let x = 0; x <= width; x++) {
-      if (x < width && at(x, y)) { if (ground[y * width + x] === T.RAIL || ground[y * width + x] === T.RAIL_BRIDGE) hasTrack = true; continue; }
-      if (x - start >= 2 && hasTrack) {
-        const direction: RailDirection = at(start + Math.floor((x - start) / 2), y - 1) ? 'up' : 'down';
-        strips.push({ left: start * TILE, right: x * TILE, top: y * TILE, bottom: (y + 1) * TILE, direction });
-      }
-      start = x + 1; hasTrack = false;
+/**
+ * 上りの時刻のずらし（秒）。下りと上りが駅の区間に入っている時間帯が、周期のなかで重ならず、
+ * 前後の余裕が最も大きくなる値を、決定的に探す。
+ */
+export function upLineOffset(layout: TownRailLayout, width: number, config: Readonly<TownTrainConfig>): number {
+  const { left, right } = singleZone(layout), v = config.speedPixelsPerSecond, T = config.intervalSeconds, L = config.lengthPixels;
+  const W = width * TILE, step = 0.05;
+  const spacing = T * v, copies = Math.ceil((W + L) / spacing) + 1;
+  const inZone = (direction: RailDirection, tt: number): boolean => {
+    const p = ((tt % T) + T) % T * v;
+    for (let k = 0; k < copies; k++) {
+      const x = direction === 'down' ? -L + p + k * spacing : W - p - k * spacing;
+      if (x + L > left && x < right) return true;
     }
+    return false;
+  };
+  let best = 0, bestMargin = -1;
+  for (let offset = 0; offset < T; offset += step) {
+    // 各時刻 t について、下りが区間内の間は、上りが区間の外にある余裕（秒）を測る。
+    let margin = Infinity, clash = false;
+    for (let t = 0; t < T && !clash; t += step) {
+      if (!inZone('down', t)) continue;
+      if (inZone('up', t + offset)) { clash = true; break; }
+      let k = 0;
+      while (k < T && !inZone('up', t + offset + k) && !inZone('up', t + offset - k)) k += step;
+      margin = Math.min(margin, k);
+    }
+    if (!clash && margin > bestMargin) { bestMargin = margin; best = offset; }
   }
-  return strips;
+  return Math.round(best / step) * step;
 }
 
 /** The schedule is derived from the supplied clock; it does not alter Game or saves. */
 export class TownTrainService {
-  private readonly strips = new WeakMap<AreaRuntime, RailStrip[]>();
   private readonly config: Readonly<TownTrainConfig>;
+  private readonly offsets = new Map<string, number>();
 
   constructor(config: Readonly<TownTrainConfig> = TOWN_TRAIN_PROTOTYPE) {
     validateTrainConfig(config);
     this.config = Object.freeze({ ...config });
   }
 
-  frames(area: AreaRuntime, timeSeconds: number): TrainFrame[] {
-    if (!Number.isFinite(timeSeconds) || timeSeconds < 0) return [];
-    let strips = this.strips.get(area);
-    if (!strips) { strips = findRailStrips(area); this.strips.set(area, strips); }
+  /** layout を省くと、エリアの登録済みの線形を使う。屋内や線路の無いエリアは空。 */
+  frames(area: AreaRuntime, timeSeconds: number, layout: TownRailLayout | undefined = TOWN_RAIL_LAYOUTS[area.def.id]): TrainFrame[] {
+    if (!layout || area.def.kind !== 'outdoor' || !Number.isFinite(timeSeconds) || timeSeconds < 0) return [];
     const { intervalSeconds, speedPixelsPerSecond, lengthPixels, heightPixels } = this.config;
-    const spacing = intervalSeconds * speedPixelsPerSecond;
+    const spacing = intervalSeconds * speedPixelsPerSecond, W = area.width * TILE;
+    const key = `${area.def.id}:${layout.singleX0}:${layout.singleX1}:${W}`;
+    let offset = this.offsets.get(key);
+    if (offset === undefined) { offset = upLineOffset(layout, area.width, this.config); this.offsets.set(key, offset); }
     const frames: TrainFrame[] = [];
-    for (const strip of strips) {
-      const height = heightPixels, heading = headingOf(strip.direction);
-      // 上り線は半周期ずらし、上下の列車が同じ位置に並ばないようにする。
-      const phase = ((timeSeconds + (strip.direction === 'up' ? intervalSeconds / 2 : 0)) % intervalSeconds) * speedPixelsPerSecond;
-      // 足元（下端）が線路の行の下端に揃い、車体は上へはみ出す。
-      const y = strip.bottom - height;
+    for (const direction of ['down', 'up'] as const) {
+      const heading = headingOf(direction);
+      const phase = (((timeSeconds + (direction === 'up' ? offset : 0)) % intervalSeconds)) * speedPixelsPerSecond;
+      const strip: RailStripBounds = { left: 0, right: W, top: layout.northRow * TILE, bottom: ((direction === 'down' ? layout.northRow : layout.southRow) + 1) * TILE };
+      const push = (x: number) => {
+        const footY = lineFootY(layout, direction, x + lengthPixels / 2);
+        frames.push({ x, y: footY - heightPixels, length: lengthPixels, height: heightPixels, footY, strip, direction, heading });
+      };
       if (heading === 'right') {
-        for (let x = strip.left - lengthPixels + phase; x < strip.right; x += spacing) {
-          if (x + lengthPixels > strip.left) frames.push({ x, y, length: lengthPixels, height, strip, direction: strip.direction, heading });
-        }
+        for (let x = -lengthPixels + phase; x < W; x += spacing) if (x + lengthPixels > 0) push(x);
       } else {
-        for (let x = strip.right - phase; x + lengthPixels > strip.left; x -= spacing) {
-          if (x < strip.right) frames.push({ x, y, length: lengthPixels, height, strip, direction: strip.direction, heading });
-        }
+        for (let x = W - phase; x + lengthPixels > 0; x -= spacing) if (x < W) push(x);
       }
     }
     return frames;

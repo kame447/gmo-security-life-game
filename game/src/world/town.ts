@@ -3,6 +3,7 @@ import type { AreaDef, FacilityDef, ObjectDef } from '../core/types';
 import { INTERIOR_ENTRIES } from './interiors';
 import { LANDMARKS, MAIN_STATION_LAYOUT } from './landmarks';
 import { isRoad, isSolidGround, T } from './tiles';
+import { applyRailSwitches, townRailLayout } from './rail-layout';
 
 const shops = [
   ['greengrocer', 'やおや'], ['bookstore', 'ほんや'], ['candy', 'だがしや'],
@@ -73,6 +74,8 @@ export function createTown(): AreaDef {
     ground[y * width + x] = previous === T.WATER ? T.RAIL_BRIDGE
       : isRoad(previous) || previous === T.SIDEWALK ? T.CROSSING : T.RAIL;
   }
+  // 駅の区間は北の行の1線。両端のポイントを経て、外側は上下線の2線。
+  applyRailSwitches(ground, width, townRailLayout(MAIN_STATION_LAYOUT));
   // Signal posts stand on blocked railway land, preserving the public door fronts alongside it.
   for (const y of [MAIN_STATION_LAYOUT.trackY, MAIN_STATION_LAYOUT.trackY + MAIN_STATION_LAYOUT.trackRows - 1]) for (let x = 0; x < width; x++) {
     if (at(x, y) === T.RAIL && ((x > 0 && at(x - 1, y) === T.CROSSING) || (x + 1 < width && at(x + 1, y) === T.CROSSING))) {

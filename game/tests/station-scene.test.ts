@@ -32,7 +32,7 @@ describe.each(['station', 'station-neighbor'])('%s: trains drawn on the station 
     }
   });
 
-  it('lets the player stand at each door front and keeps the stopped train off the gate passage', () => {
+  it('lets the player stand at each door front', () => {
     const a = area();
     for (const p of flow.platforms) {
       expect(isSolidTile(a, p.doorFront.x, p.doorFront.y)).toBe(false);
@@ -40,10 +40,6 @@ describe.each(['station', 'station-neighbor'])('%s: trains drawn on the station 
       expect(a.ground[p.door.y * a.width + p.door.x]).toBe(T.RAIL);
       expect(findPath(a, flow.alight, p.doorFront), p.id).not.toBeNull();
       expect(findPath(a, flow.alight, p.boardTile), p.id).not.toBeNull();
-      const left = trainStopX(p), right = left + TRAIN_LENGTH_PX;
-      for (const gx of [flow.gate.tile.x, flow.gate.tile.x + 1]) {
-        if (p.direction === 'up') expect(gx * TILE >= right || (gx + 1) * TILE <= left, `${p.id} passage ${gx}`).toBe(true);
-      }
     }
   });
 

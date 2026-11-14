@@ -1,5 +1,6 @@
 import type { AreaDef, FacilityDef, ObjectDef } from '../../core/types';
 import { isRoad, T } from '../tiles';
+import { applyRailSwitches, townRailLayout } from '../rail-layout';
 import { getStationFlow, NEIGHBOR_FLOW_LAYOUT, NEIGHBOR_FLOW_PLATFORMS } from '../station-flow';
 
 /** Provisional geometry, shared by the outdoor station, entrance and tests. */
@@ -18,7 +19,8 @@ export const NEIGHBOR_STATION_ACCESS = {
   name: 'となりまち',
   boarding: { areaId: 'station-neighbor-interior', x: NEIGHBOR_FLOW_PLATFORMS[0].sign.x, y: NEIGHBOR_FLOW_PLATFORMS[0].sign.y + 1, facing: 'up', interactionId: NEIGHBOR_FLOW_PLATFORMS[0].sign.interactionId,
     eventKey: NEIGHBOR_FLOW_PLATFORMS[0].sign.eventKey },
-  arrival: getStationFlow('station-neighbor').alight,
+  // 到着後に操作を戻す位置 = 改札の外。
+  arrival: { areaId: 'station-neighbor-interior', ...getStationFlow('station-neighbor').gate.outside },
   entrance: { areaId: 'station-neighbor-interior', x: 6, y: 14, facing: 'up' },
   townFront: { areaId: 'town-neighbor', ...NEIGHBOR_STATION_LAYOUT.front, facing: 'down' },
 } as const;
@@ -55,6 +57,7 @@ export function createNeighborTown(): AreaDef {
         : isRoad(previous) || previous === T.SIDEWALK || previous === T.PARKPATH ? T.CROSSING : T.RAIL;
     }
   }
+  applyRailSwitches(ground, width, townRailLayout(NEIGHBOR_STATION_LAYOUT));
   rect(12, 40, 25, height - 40, T.PLAZA);
   rect(7, 20, 10, 7, T.GARDEN); rect(27, 18, 8, 11, T.PARKPATH);
   const station = NEIGHBOR_STATION_LAYOUT.building;
@@ -89,25 +92,24 @@ export function createNeighborStation(): AreaDef {
   const f = NEIGHBOR_FLOW_LAYOUT, width = f.width, height = f.height;
   const ground = new Uint8Array(width * height).fill(T.FLOOR_CLASS);
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-    const edge = x === 0 || x === width - 1;
-    // 線路の2行は部屋の左右の端まで続く（列車は部屋の端から出入りする）。
-    if (y === f.downTrackY || y === f.upTrackY) { ground[y * width + x] = T.RAIL; continue; }
-    if (edge || y === 0 || y === height - 1) { ground[y * width + x] = T.WALL; continue; }
+    // 線路は1本で、部屋の左右の端まで連続する。
+    if (y === f.trackY) { ground[y * width + x] = T.RAIL; continue; }
+    if (x === 0 || x === width - 1 || y === 0 || y === height - 1) { ground[y * width + x] = T.WALL; continue; }
     if (y === f.northFenceY || y === f.gateY) ground[y * width + x] = T.RAIL_FENCE;
     else if (y >= f.platformTop && y <= f.platformBottom) ground[y * width + x] = T.PLATFORM;
   }
-  for (const x of f.gateXs) { ground[f.upTrackY * width + x] = T.PLATFORM; ground[f.gateY * width + x] = T.TICKET_GATE; }
-  for (const p of NEIGHBOR_FLOW_PLATFORMS) ground[p.sign.y * width + p.sign.x] = T.BOARDING_SIGN;
+  for (const x of f.gateXs) ground[f.gateY * width + x] = T.TICKET_GATE;
+  for (const p of NEIGHBOR_FLOW_PLATFORMS.slice(0, 1)) ground[p.sign.y * width + p.sign.x] = T.BOARDING_SIGN;
   ground[(height - 1) * width + f.gateXs[0]] = T.MAT;
   const gate = getStationFlow('station-neighbor').gate;
   return {
     id: f.areaId, name: 'となりまちのえき', kind: 'indoor', width, height, ground,
-    objects: [{ id: 'neighbor-station-bench', kind: 'bench', x: 2, y: 5, w: 2, h: 1, solid: true }, { id: 'neighbor-station-bench-2', kind: 'bench', x: 20, y: 4, w: 2, h: 1, solid: true }],
+    objects: [{ id: 'neighbor-station-bench', kind: 'bench', x: 2, y: 5, w: 2, h: 1, solid: true }, { id: 'neighbor-station-bench-2', kind: 'bench', x: 24, y: 5, w: 2, h: 1, solid: true }],
     portals: [{ id: 'neighbor-station-exit', from: { x: f.gateXs[0], y: height - 1 }, to: { ...NEIGHBOR_STATION_ACCESS.townFront }, facilityId: NEIGHBOR_STATION_ACCESS.stationId }],
     interactions: [
       { id: gate.interactionId, kind: 'object', name: 'かいさつ', x: gate.tile.x, y: gate.tile.y, w: 2, solid: true, eventKey: gate.eventKey,
         lines: ['きっぷを とおすところだ。'] },
-      ...NEIGHBOR_FLOW_PLATFORMS.map(p => ({ id: p.sign.interactionId, kind: 'sign' as const, name: 'でんしゃのあんない', x: p.sign.x, y: p.sign.y,
+      ...NEIGHBOR_FLOW_PLATFORMS.slice(0, 1).map(p => ({ id: p.sign.interactionId, kind: 'sign' as const, name: 'でんしゃのあんない', x: p.sign.x, y: p.sign.y,
         solid: true, eventKey: p.sign.eventKey, lines: ['ここから でんしゃに のれるよ。'] })),
     ],
   };

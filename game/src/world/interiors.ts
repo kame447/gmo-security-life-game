@@ -90,25 +90,24 @@ export function createStation(): AreaDef {
   const a = room(STATION_ACCESS.areaId, 'まちのえき こうない', 36, T.PLAZA, 18);
   const f = STATION_FLOW_LAYOUT;
   for (let x = 0; x < a.width; x++) {
-    // 線路の2行は部屋の左右の端まで続き、列車は部屋の端から出入りする。
-    a.ground[f.downTrackY * a.width + x] = T.RAIL;
-    a.ground[f.upTrackY * a.width + x] = T.RAIL;
+    // 線路は1本で、部屋の左右の端まで連続する。列車は部屋の端から出入りする。
+    a.ground[f.trackY * a.width + x] = T.RAIL;
     if (x === 0 || x === a.width - 1) continue;
     for (let y = 1; y < f.northFenceY; y++) a.ground[y * a.width + x] = T.VOID;
     a.ground[f.northFenceY * a.width + x] = T.RAIL_FENCE;
     for (let y = f.platformTop; y <= f.platformBottom; y++) a.ground[y * a.width + x] = T.PLATFORM;
     a.ground[f.gateY * a.width + x] = T.RAIL_FENCE;
   }
-  for (const x of f.gateXs) { a.ground[f.upTrackY * a.width + x] = T.PLATFORM; a.ground[f.gateY * a.width + x] = T.TICKET_GATE; }
-  for (const p of STATION_FLOW_PLATFORMS) a.ground[p.sign.y * a.width + p.sign.x] = T.BOARDING_SIGN;
-  furnish(a, 'bench', 3, 6, 3, 1); furnish(a, 'bench', 21, 6, 3, 1);
+  for (const x of f.gateXs) a.ground[f.gateY * a.width + x] = T.TICKET_GATE;
+  for (const p of STATION_FLOW_PLATFORMS.slice(0, 1)) a.ground[p.sign.y * a.width + p.sign.x] = T.BOARDING_SIGN;
+  furnish(a, 'bench', 3, 6, 3, 1); furnish(a, 'bench', 27, 6, 3, 1);
   a.portals = [{ id: STATION_ACCESS.exitPortalId, from: { x: 17, y: 17, w: 2 },
     to: toTown(LANDMARKS.stationFront), facilityId: STATION_ACCESS.stationId }];
   a.interactions = [
     // 改札（2タイル）。操作の対象が solid なので、行き先を決める操作を通らずにホームへは入れない。
     { id: 'station-ticket', kind: 'object', name: 'かいさつ', x: f.gateXs[0], y: f.gateY, w: 2, solid: true, eventKey: 'station.ticket',
       lines: ['きっぷを とおすところだ。きょうは まちを たんけんしよう。'] },
-    ...STATION_FLOW_PLATFORMS.map(p => ({ id: p.sign.interactionId, eventKey: p.sign.eventKey, x: p.sign.x, y: p.sign.y, kind: 'sign' as const, name: 'のりば', solid: true, lines: ['ここが でんしゃの のりばだ。'] })),
+    ...STATION_FLOW_PLATFORMS.slice(0, 1).map(p => ({ id: p.sign.interactionId, eventKey: p.sign.eventKey, x: p.sign.x, y: p.sign.y, kind: 'sign' as const, name: 'のりば', solid: true, lines: ['ここが でんしゃの のりばだ。'] })),
   ];
   return a;
 }

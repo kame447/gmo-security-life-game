@@ -61,12 +61,14 @@ describe('provisional neighboring town', () => {
     // 改札は歩いて通れない。行き先を選ぶ操作を経ないとホームへは入れない（移動は乗車側が行う）。
     expect(findPath(station, stop.entrance, stop.boarding)).toBeNull();
     expect(station.ground[8 * station.width + 6]).toBe(T.TICKET_GATE);
-    expect(findPath(station, stop.arrival, stop.boarding)).not.toBeNull();
+    // 降車後の位置は改札の外（通路）で、改札は通れないのでホームへは歩いて行けない。
+    expect(findPath(station, stop.arrival, stop.boarding)).toBeNull();
+    expect(findPath(station, stop.arrival, stop.entrance)).not.toBeNull();
     expect(station.portalAt.has(stop.arrival.y * station.width + stop.arrival.x)).toBe(false);
     expect(station.portalAt.has(stop.boarding.y * station.width + stop.boarding.x)).toBe(false);
-    for (let x = 0; x < station.width; x++) for (const y of [2, 7]) {
-      expect(station.ground[y * station.width + x]).toBe(y === 7 && (x === 6 || x === 7) ? T.PLATFORM : T.RAIL);
-      if (y === 7 && (x === 6 || x === 7)) continue;
+    // 線路は1本（y=2）で、左右の端まで連続する。
+    for (let x = 0; x < station.width; x++) for (const y of [2]) {
+      expect(station.ground[y * station.width + x]).toBe(T.RAIL);
       expect(isSolidTile(station, x, y)).toBe(true);
       expect(station.portalAt.has(y * station.width + x)).toBe(false);
     }
