@@ -70,11 +70,28 @@ describe('furniture pixel artwork', () => {
       expect(sprite.canvas.width).toBe(variant.w * 16);
       expect(sprite.canvas.height).toBe(variant.h * 16 + variant.overhang);
       const pixels = raster(sprite.canvas).data();
-      expect(pixels.some(pixel => pixel === 0)).toBe(true);
-      expect(new Set(pixels).size).toBeGreaterThan(4);
+      const visibleColors = new Set(pixels.filter(pixel => (pixel & 255) !== 0));
+      const details = `${entry.id}/${variant.facing}: opaque=${pixels.filter(pixel => (pixel & 255) === 255).length}, `
+        + `transparent=${pixels.filter(pixel => pixel === 0).length}, colors=${visibleColors.size}`;
+      expect(pixels.some(pixel => pixel === 0), details).toBe(true);
+      if (entry.id === 'rug-large') {
+        expect([...visibleColors].sort((a, b) => a - b), details).toEqual([0x39414aff, 0xb88876ff, 0xcda28aff, 0xead2adff]);
+      } else {
+        expect(visibleColors.size, details).toBeGreaterThan(4);
+      }
       expect([...pixels].every(pixel => [0, 38, 255].includes(pixel & 255))).toBe(true);
       if (variant.overhang) expect(pixels.slice(0, variant.overhang * sprite.canvas.width).some(Boolean)).toBe(true);
       expect(raster(sprite.canvas).context.imageSmoothingEnabled).toBe(false);
+    }
+  });
+
+  it('keeps the rug as four opaque fabric shades, transparent corners and a woven center motif', () => {
+    for (const facing of ['down', 'left'] as const) {
+      const { canvas } = furnitureSprite({ catalogId: 'rug-large', facing })!;
+      const data = raster(canvas).data(), at = (x: number, y: number) => data[y * canvas.width + x];
+      expect(at(0, 0)).toBe(0); expect(at(canvas.width - 1, canvas.height - 1)).toBe(0);
+      expect(at(8, 8)).toBe(0xb88876ff); expect(at(10, 10)).toBe(0xcda28aff);
+      expect([...data].every(pixel => [0, 255].includes(pixel & 255))).toBe(true);
     }
   });
 
