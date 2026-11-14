@@ -3,7 +3,7 @@ import { assembleEditorWorld } from '../editor/runtime';
 import type { EditorValidationContext } from '../editor/types';
 import type { World } from '../world/runtime';
 import { furnitureById, furnitureVariant, nextFacing } from '../render/furniture/catalog';
-import { assertHomeWorldEdit as assertInteriorEdit } from './policy';
+import { assertWorldEdit } from './world-policy';
 import { worldDocument } from './document';
 import { withDerived } from '../editor/changes';
 import { trustedContext } from './trusted-context';
@@ -42,7 +42,7 @@ export class WorldEditorModel {
   }
   issues(candidate: EditorDocument): string[] {
     let derived: EditorDocument;
-    try { derived=withDerived(candidate,this.context);assertInteriorEdit(this.initial,derived,HOME_AREA); }
+    try { derived=withDerived(candidate,this.context);assertWorldEdit(this.initial,derived,this.context); }
     catch (error) { return [(error as Error).message]; }
     return validateDocument(derived,this.context).map(issue => {
       if (issue.code === 'arrival') return '出入口の到着位置をふさぐことはできません';
