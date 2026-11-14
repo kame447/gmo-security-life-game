@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { FURNITURE, furnitureById, furnitureVariant, nextFacing } from '../src/render/furniture/catalog';
 
 describe('provisional furniture catalog (DOM independent)', () => {
-  it('contains three immutable, unique prototype entries with explicit placement and footprint', () => {
+  it('contains immutable, unique entries with explicit placement and footprint', () => {
     expect(typeof document).toBe('undefined');
-    expect(FURNITURE.map(entry => entry.id)).toEqual(['chair-wood', 'sofa-2seat', 'rug-large']);
+    expect(FURNITURE.map(entry => entry.id)).toEqual(expect.arrayContaining(['chair-wood', 'sofa-2seat', 'rug-large']));
+    expect(new Set(FURNITURE.map(entry => entry.id)).size).toBe(FURNITURE.length);
     expect(Object.isFrozen(FURNITURE)).toBe(true);
     for (const entry of FURNITURE) {
       expect(entry.id).toMatch(/^[a-z]+(?:-[a-z0-9]+)*$/);

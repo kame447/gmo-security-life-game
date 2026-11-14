@@ -4,6 +4,7 @@ import { makeCanvas, R } from '../draw';
 import type { Sprite } from '../sprites';
 import { furnitureVariant } from './catalog';
 import { drawChair, drawRug, drawSofa } from './art';
+import { drawHomeFurniture } from './home-art';
 
 const sprites = new Map<string, Sprite>();
 
@@ -19,7 +20,7 @@ export function furnitureSprite(o: Pick<ObjectDef, 'catalogId' | 'facing'>): Spr
     case 'chair-wood': drawChair(c, variant.facing); break;
     case 'sofa-2seat': drawSofa(c, variant.facing); break;
     case 'rug-large': drawRug(c, canvas.width, canvas.height); break;
-    default: return undefined;
+    default: if (!drawHomeFurniture(c, o.catalogId, variant)) return undefined;
   }
   const sprite = { canvas, ox: 0, oy: -variant.overhang };
   sprites.set(key, sprite);
