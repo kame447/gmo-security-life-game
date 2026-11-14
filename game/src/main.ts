@@ -2,6 +2,8 @@
 import { exposeDebug, FrameRecorder } from './app/debug';
 import { startLoop } from './app/loop';
 import { loadSave, writeSave } from './app/save-store';
+import { LifeEventDirector } from './events/director';
+import { CHILDHOOD_SAMPLE_EVENTS } from './events/samples/childhood';
 import { Controls } from './input/controls';
 import { Minimap } from './minimap/view';
 import { Renderer } from './render/renderer';
@@ -10,10 +12,13 @@ import { AvatarPanel } from './ui/avatar-panel';
 import { UiController } from './ui/controller';
 import { $ } from './ui/dom';
 import { Hud } from './ui/hud';
+import { LifeEventPanel } from './ui/life-event-panel';
 import { buildWorld } from './world';
 
 const world = buildWorld();
-const game = new Game(world, { save: loadSave(world) });
+// 人生イベント：話しかけたときに選択肢つきの出来事を起こす（現在は仮サンプルのみ・保存は未対応）。
+const lifeEvents = new LifeEventDirector(CHILDHOOD_SAMPLE_EVENTS);
+const game = new Game(world, { save: loadSave(world), sink: lifeEvents });
 const canvas = $<HTMLCanvasElement>('#view');
 const renderer = new Renderer(canvas);
 const controls = new Controls();
@@ -35,6 +40,7 @@ const avatar = new AvatarPanel(game, commit => {
 const minimap: Minimap = new Minimap(game, (): boolean => ui.mode === 'explore', () => controls.clear(), () => { controls.clear(); ui.focusMap(); });
 const ui: UiController = new UiController(game, controls, avatar, canvas, minimap);
 const hud = new Hud(game, () => ui.primaryAction());
+const lifeEventPanel = new LifeEventPanel(game, lifeEvents, () => controls.clear());
 ui.bind({ onReset: () => { game.reset(); save(); } });
 exposeDebug(game, renderer, frames);
 
@@ -62,6 +68,7 @@ const loop = startLoop({
   afterFrame: (now, frame, input) => {
     frames.record(now, frame, input, game, renderer);
     avatar.drawPreview(now);
+    lifeEventPanel.update();
     hud.update(now);
     minimap.update();
   },
