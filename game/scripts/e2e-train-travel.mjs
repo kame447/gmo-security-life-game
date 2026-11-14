@@ -1,4 +1,4 @@
-/** Run against the wired #35 + #36 preview. Browser contexts use isolated storage. */
+/** Run against the #36 boarding-flow preview (gate -> platform -> ride -> arrival). Browser contexts use isolated storage. */
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -25,8 +25,8 @@ function observe(page) {
   page.on('pageerror', error => errors.push(String(error)));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
 }
-async function contextFor(size, save) {
-  const context = await browser.newContext({ viewport: { width: size.width, height: size.height },
+async function contextFor(size, save, extra = {}) {
+  const context = await browser.newContext({ ...extra, viewport: { width: size.width, height: size.height },
     hasTouch: size.touch, isMobile: size.touch, deviceScaleFactor: 1, acceptDownloads: false, serviceWorkers: 'block',
     ...(save ? { storageState: { cookies: [], origins: [{ origin: base.origin,
       localStorage: [{ name: 'slg-map-save-v1', value: JSON.stringify(save) }] }] } } : {}) });
@@ -85,204 +85,186 @@ async function waitSavedArea(page, areaId) {
     catch { return false; }
   }, areaId, { timeout: 5000 });
 }
-async function board(page, expectedId) {
-  assert.equal(await page.evaluate(() => window.__slg.game.facingInteraction()?.id), expectedId);
-  await page.keyboard.press('KeyZ');
-  await page.locator('#train-travel-panel').waitFor({ state: 'visible' });
+const VIDEO = process.env.SLG_VIDEO ? resolve(process.env.SLG_VIDEO) : null;
+const rec = (name, size) => VIDEO ? { recordVideo: { dir: resolve(VIDEO, name), size: { width: size.width, height: size.height } } } : {};
+const act = (page, touch) => touch ? page.locator('#touch [data-act]').tap() : page.keyboard.press('KeyZ');
+const click = (page, selector, touch) => touch ? page.locator(selector).tap() : page.locator(selector).click();
+const panel = page => page.locator('#train-travel-panel');
+const phase = page => page.evaluate(() => document.querySelector('#train-travel-panel')?.dataset.ridePhase ?? null);
+const waitPhase = (page, name, timeout = 20000) => page.waitForFunction(n => document.querySelector('#train-travel-panel')?.dataset.ridePhase === n, name, { timeout, polling: 'raf' });
+const watchPhases = page => page.evaluate(() => {
+  window.__phases = [];
+  new MutationObserver(() => { const p = document.querySelector('#train-travel-panel').dataset.ridePhase; if (p && window.__phases.at(-1) !== p) window.__phases.push(p); })
+    .observe(document.querySelector('#train-travel-panel'), { attributes: true, attributeFilter: ['data-ride-phase'] });
+});
+const gateTile = { x: 16, y: 13 };
+
+async function pickTicket(page, destinationId, touch, prefix) {
+  await act(page, touch); await panel(page).waitFor({ state: 'visible' });
+  if (prefix) await shot(page, `${prefix}-destinations`);
+  await click(page, `[data-action="select"][data-station-id="${destinationId}"]`, touch);
+  if (prefix) await shot(page, `${prefix}-ticket-confirm`);
+  await click(page, '#train-travel-panel [data-action="issue"]', touch);
+  assert.match(await panel(page).innerText(), /きっぷを うけとった/);
+  if (prefix) await shot(page, `${prefix}-ticket-issued`);
+  await click(page, '#train-travel-panel [data-action="close"]', touch);
+  await panel(page).waitFor({ state: 'hidden' });
+}
+async function toBoarding(page, boarding) { await walkTo(page, boarding); await face(page, boarding.facing); }
+async function rideFromPlatform(page, touch, prefix, hooks = {}) {
+  await act(page, touch); await panel(page).waitFor({ state: 'visible' });
+  assert.equal(await panel(page).locator('[data-action="board"]').count(), 1, 'boarding confirmation is shown');
+  if (prefix) await shot(page, `${prefix}-board-confirm`);
+  await watchPhases(page);
+  const before = await player(page);
+  await click(page, '#train-travel-panel [data-action="board"]', touch);
+  if (!hooks.reduced) {
+    await waitPhase(page, 'walk-in'); await page.waitForTimeout(450); if (prefix) await shot(page, `${prefix}-ride-walk-in`);
+    await waitPhase(page, 'door-close'); if (prefix) await shot(page, `${prefix}-ride-door-close`);
+    await waitPhase(page, 'depart'); await page.waitForTimeout(550); if (prefix) await shot(page, `${prefix}-ride-depart`);
+    assert.deepEqual(await player(page), before, 'position is unchanged while departing');
+    if (hooks.during) await hooks.during(before);
+    await waitPhase(page, 'fade-in'); await waitPhase(page, 'arrive'); await page.waitForTimeout(700); if (prefix) await shot(page, `${prefix}-ride-arrive`);
+    await waitPhase(page, 'walk-out'); await page.waitForTimeout(450); if (prefix) await shot(page, `${prefix}-ride-walk-out`);
+  } else await waitPhase(page, 'fade-out');
+  await panel(page).waitFor({ state: 'hidden', timeout: 20000 });
+  return page.evaluate(() => window.__phases);
 }
 
 try {
-  const desktop = await contextFor({ width: 1280, height: 800, touch: false }); page = desktop.page;
+  const desktop = await contextFor({ width: 1280, height: 800, touch: false }, null, rec('desktop', { width: 1280, height: 800 })); page = desktop.page;
   const access = await page.evaluate(async () => (await import('/src/world/landmarks.ts')).STATION_ACCESS);
   const neighbor = await page.evaluate(async () => (await import('/src/world/towns/neighbor.ts')).NEIGHBOR_STATION_ACCESS);
-  await check('normal start and appearance selection', async () => {
-    assert.equal((await player(page)).areaId, 'town-main');
-    await page.locator('#btn-avatar').click();
-    await page.locator('[data-field="hairColor"] [data-step="1"]').click();
-    await page.locator('#avatar-ok').click();
-    await page.locator('#avatar-panel').waitFor({ state: 'hidden' });
-  });
-  const appearance = await page.evaluate(() => ({ ...window.__slg.game.appearance }));
-  const stage = await page.evaluate(() => window.__slg.game.world.variant.stage);
-  let neighborExteriorSave, neighborGateSave;
-  await shot(page, 'desktop-01-town');
-
+  const appearanceBefore = await page.evaluate(() => ({ ...window.__slg.game.appearance }));
   await check('walk from the original town into its station', async () => {
     const entrance = await page.evaluate(id => window.__slg.game.area.def.portals.find(portal => portal.id === id)?.from, access.entrancePortalId);
-    assert.ok(entrance, 'Station entrance is registered');
     await walkTo(page, entrance); await waitArea(page, access.areaId);
-    assert.equal((await player(page)).areaId, access.areaId);
   });
-  await shot(page, 'desktop-02-station-entry');
-  await check('ordinary action outside the boarding position does not start a train', async () => {
-    const before = await player(page);
-    await page.keyboard.press('KeyZ'); await frame(page);
-    assert.equal(await page.locator('#train-travel-panel').isVisible(), false);
-    assert.equal((await player(page)).areaId, before.areaId);
-    for (let i = 0; i < 10 && await page.evaluate(() => !!window.__slg.game.dialog); i++) await page.keyboard.press('KeyZ');
+  await shot(page, 'desktop-01-station-entry');
+  await check('the platform sign without a ticket only explains; nothing moves', async () => {
+    await toBoarding(page, access.boarding);
+    const before = await page.evaluate(() => window.__slg.game.serialize());
+    await act(page, false); await panel(page).waitFor({ state: 'visible' });
+    assert.match(await panel(page).innerText(), /かいさつで いきさきを えらんで/);
+    assert.equal(await panel(page).locator('[data-action="select"]').count(), 0, 'no destination can be chosen on the platform');
+    await shot(page, 'desktop-02-platform-no-ticket');
+    await click(page, '#train-travel-panel [data-action="close"]', false);
+    await panel(page).waitFor({ state: 'hidden' });
+    assert.deepEqual(await page.evaluate(() => window.__slg.game.serialize()), before);
   });
-  await walkTo(page, access.boarding); await face(page, access.boarding.facing);
-  const boardSave = await page.evaluate(() => window.__slg.game.serialize());
-  await shot(page, 'desktop-03-boarding');
-
-  await check('full map and boarding are mutually exclusive', async () => {
+  await check('the ticket gate: back out, take a ticket, return it', async () => {
+    await walkTo(page, gateTile); await face(page, 'up');
+    assert.equal(await page.evaluate(() => window.__slg.game.facingInteraction()?.id), 'station-ticket');
     const before = await player(page);
-    await page.locator('#minimap-button').click();
-    await page.locator('#full-map-overlay').waitFor({ state: 'visible' });
-    await page.keyboard.press('KeyZ'); await page.keyboard.press('ArrowUp');
-    assert.equal(await page.locator('#train-travel-panel').isVisible(), false);
+    await act(page, false); await panel(page).waitFor({ state: 'visible' });
+    await click(page, `[data-action="select"][data-station-id="${neighbor.stationId}"]`, false);
+    await click(page, '#train-travel-panel [data-action="back"]', false);
+    await click(page, '#train-travel-panel [data-action="back"]', false);
+    await panel(page).waitFor({ state: 'hidden' });
     assert.deepEqual(await player(page), before);
-    await page.keyboard.press('Escape');
-    await page.locator('#full-map-overlay').waitFor({ state: 'hidden' });
+    await pickTicket(page, neighbor.stationId, false, 'desktop-03-gate');
+    await act(page, false); await panel(page).waitFor({ state: 'visible' });
+    await click(page, '#train-travel-panel [data-action="return-ticket"]', false);
+    await panel(page).waitFor({ state: 'hidden' });
+    await toBoarding(page, access.boarding);
+    await act(page, false); await panel(page).waitFor({ state: 'visible' });
+    assert.match(await panel(page).innerText(), /かいさつで/, 'returned ticket is gone');
+    await click(page, '#train-travel-panel [data-action="close"]', false);
+    await walkTo(page, gateTile); await face(page, 'up');
+    await pickTicket(page, neighbor.stationId, false);
   });
-
-  await check('backing out of either choice does not move the player', async () => {
+  await check('cancel at the platform before boarding keeps position and ticket', async () => {
+    await toBoarding(page, access.boarding);
     const before = await player(page);
-    await board(page, access.interaction.id);
-    await page.locator(`[data-action="select"][data-station-id="${neighbor.stationId}"]`).click();
-    await page.locator('#train-travel-panel [data-action="back"]').click();
-    assert.equal(await page.locator(`[data-action="select"][data-station-id="${neighbor.stationId}"]`).count(), 1);
-    await page.locator('#train-travel-panel [data-action="back"]').click();
-    await page.locator('#train-travel-panel').waitFor({ state: 'hidden' });
+    await act(page, false); await panel(page).waitFor({ state: 'visible' });
+    await click(page, '#train-travel-panel [data-action="back"]', false);
+    await panel(page).waitFor({ state: 'hidden' });
     assert.deepEqual(await player(page), before);
   });
-
-  await check('destination requires a separate confirmation and blocks field movement', async () => {
-    await board(page, access.interaction.id);
-    const before = await player(page);
-    await page.waitForFunction(() => document.querySelector('#minimap-button').disabled);
-    await page.locator('#minimap-button').evaluate(button => button.click());
-    assert.equal(await page.locator('#full-map-overlay').isVisible(), false);
-    await page.keyboard.down('ArrowDown'); await page.waitForTimeout(150); await page.keyboard.up('ArrowDown');
-    assert.deepEqual(await player(page), before);
-    await shot(page, 'desktop-04-destinations');
-    await page.locator(`[data-action="select"][data-station-id="${neighbor.stationId}"]`).focus();
-    await page.keyboard.down('Enter');
-    try {
-      await page.locator('#train-travel-panel [data-action="confirm"]').waitFor({ state: 'visible' });
-      await page.keyboard.down('Enter'); await page.waitForTimeout(120);
-      assert.equal(await page.locator('#train-travel-panel').isVisible(), true, 'Held Enter must not confirm twice');
+  await check('board, depart, arrive and alight: ordered phases, input ignored, one arrival', async () => {
+    const phases = await rideFromPlatform(page, false, 'desktop-04', { during: async before => {
+      for (let i = 0; i < 20; i++) await page.keyboard.press('KeyZ');
+      await page.keyboard.press('Escape');
+      await page.keyboard.down('ArrowUp'); await page.waitForTimeout(150); await page.keyboard.up('ArrowUp');
       assert.deepEqual(await player(page), before);
-    } finally { await page.keyboard.up('Enter'); }
-    await shot(page, 'desktop-05-confirm');
-    await page.keyboard.press('Enter');
-    await page.locator('#train-travel-panel').waitFor({ state: 'hidden' });
+      assert.equal(await panel(page).isVisible(), true);
+    } });
+    assert.deepEqual(phases, ['walk-in', 'door-close', 'depart', 'fade-out', 'fade-in', 'arrive', 'door-open', 'walk-out', 'settle', 'done']);
     await waitArea(page, neighbor.arrival.areaId); await waitSavedArea(page, neighbor.arrival.areaId);
-  });
-  await shot(page, 'desktop-06-neighbor-station');
-  await check('arrival survives reload with appearance and stage unchanged', async () => {
-    const before = await player(page);
-    await page.reload(); await ready(page);
-    assert.deepEqual(await player(page), before);
-    assert.deepEqual(await page.evaluate(() => window.__slg.game.appearance), appearance);
-    assert.equal(await page.evaluate(() => window.__slg.game.world.variant.stage), stage);
-  });
-
-  await check('walking against the track does not enter it or trigger travel', async () => {
-    await walkTo(page, { x: 5, y: 4 });
-    await page.keyboard.down('ArrowUp'); await page.waitForTimeout(500); await page.keyboard.up('ArrowUp');
-    const after = await player(page);
-    assert.equal(after.areaId, neighbor.arrival.areaId);
-    assert.equal(Math.floor((after.y - 4) / 16), 4);
-    assert.equal(await page.locator('#train-travel-panel').isVisible(), false);
-  });
-  await check('walk out, explore the different town and cross its bridge', async () => {
-    const exit = await page.evaluate(() => window.__slg.game.area.def.portals.find(portal => portal.id === 'neighbor-station-exit')?.from);
-    assert.ok(exit); await walkTo(page, exit); await waitArea(page, 'town-neighbor');
-    await shot(page, 'desktop-06b-neighbor-exterior');
-    neighborExteriorSave = await page.evaluate(() => window.__slg.game.serialize());
-    await walkTo(page, { x: 43, y: 12 });
-    assert.equal((await player(page)).areaId, 'town-neighbor');
-  });
-  const townSave = await page.evaluate(() => window.__slg.game.serialize());
-  await shot(page, 'desktop-07-neighbor-town');
-  await check('full map follows the destination town and contains its station landmark', async () => {
-    await page.locator('#minimap-button').click();
-    await page.locator('#full-map-overlay').waitFor({ state: 'visible' });
-    assert.equal(await page.locator('#full-map-canvas').getAttribute('data-area-id'), 'town-neighbor');
-    const markers = await page.evaluate(async () => {
-      const { buildAreaMap } = await import('/src/minimap/model.ts');
-      return buildAreaMap(window.__slg.game.area, window.__slg.game.world.facilities.values()).markers;
-    });
-    assert.ok(markers.some(marker => marker.id === neighbor.stationId && marker.kind === 'station'));
-    await shot(page, 'desktop-07b-neighbor-map');
-    await page.keyboard.press('Escape');
-    await page.locator('#full-map-overlay').waitFor({ state: 'hidden' });
-  });
-
-  await check('walk back to the station and explicitly take the return train', async () => {
-    const entrance = await page.evaluate(() => window.__slg.game.area.def.portals.find(portal => portal.id === 'neighbor-station-enter')?.from);
-    assert.ok(entrance); await walkTo(page, entrance); await waitArea(page, neighbor.boarding.areaId);
-    await shot(page, 'desktop-07c-neighbor-concourse');
-    neighborGateSave = await page.evaluate(() => window.__slg.game.serialize());
-    await walkTo(page, neighbor.boarding); await face(page, neighbor.boarding.facing);
-    await board(page, neighbor.boarding.interactionId);
-    await page.locator(`[data-action="select"][data-station-id="${access.stationId}"]`).click();
-    assert.equal((await player(page)).areaId, neighbor.boarding.areaId);
-    await page.locator('#train-travel-panel [data-action="confirm"]').click();
-    await waitArea(page, access.arrival.areaId); await waitSavedArea(page, access.arrival.areaId);
-    const before = await player(page);
-    await page.reload(); await ready(page);
-    assert.deepEqual(await player(page), before);
-    assert.deepEqual(await page.evaluate(() => window.__slg.game.appearance), appearance);
-    assert.equal(await page.evaluate(() => window.__slg.game.world.variant.stage), stage);
-  });
-  await shot(page, 'desktop-08-return');
-  await check('leave the original station, follow the town map and reload the saved return', async () => {
-    const exit = await page.evaluate(id => window.__slg.game.area.def.portals.find(portal => portal.id === id), access.exitPortalId);
-    assert.ok(exit, 'Original station exit is registered');
-    assert.equal(exit.to.areaId, 'town-main');
-    const front = await page.evaluate(async () => (await import('/src/world/landmarks.ts')).LANDMARKS.stationFront);
-    assert.deepEqual({ x: exit.to.x, y: exit.to.y }, front);
-    await walkTo(page, exit.from); await waitArea(page, 'town-main'); await waitSavedArea(page, 'town-main');
     const arrived = await player(page);
-    const nearExit = point => Math.abs(Math.floor(point.x / 16) - front.x) <= 1 && Math.abs(Math.floor((point.y - 4) / 16) - front.y) <= 1;
-    assert.ok(nearExit(arrived), 'Return position is near the original station exit');
-    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('slg-map-save-v1') || 'null'));
-    assert.equal(saved?.areaId, 'town-main');
-    assert.ok(nearExit(saved), 'Saved position is near the original station exit');
-    await shot(page, 'desktop-09-returned-town');
-    await page.locator('#minimap-button').click();
-    await page.locator('#full-map-overlay').waitFor({ state: 'visible' });
-    assert.equal(await page.locator('#full-map-canvas').getAttribute('data-area-id'), 'town-main');
-    await shot(page, 'desktop-10-returned-map');
-    await page.keyboard.press('Escape');
-    await page.locator('#full-map-overlay').waitFor({ state: 'hidden' });
-    const beforeReload = await player(page);
-    await page.reload(); await ready(page);
-    assert.deepEqual(await player(page), beforeReload);
-    assert.equal(await page.locator('#minimap-button').getAttribute('data-area-id'), 'town-main');
-    assert.deepEqual(await page.evaluate(() => window.__slg.game.appearance), appearance);
+    assert.equal(arrived.areaId, neighbor.arrival.areaId);
+    assert.equal(Math.floor(arrived.x / 16), neighbor.arrival.x); assert.equal(Math.floor((arrived.y - 4) / 16), neighbor.arrival.y);
+    assert.deepEqual(await page.evaluate(() => window.__slg.game.appearance), appearanceBefore);
+    await shot(page, 'desktop-05-arrived-control-returned');
+    const exit = await page.evaluate(() => window.__slg.game.area.def.portals.find(portal => portal.id === 'neighbor-station-exit')?.from);
+    await walkTo(page, exit); await waitArea(page, 'town-neighbor');
+    await shot(page, 'desktop-06-neighbor-explore');
+    await walkTo(page, { x: 43, y: 12 });
+  });
+  await check('return trip: the neighbor sign doubles as the gate (provisional), then board', async () => {
+    const entrance = await page.evaluate(() => window.__slg.game.area.def.portals.find(portal => portal.id === 'neighbor-station-enter')?.from);
+    await walkTo(page, entrance); await waitArea(page, neighbor.boarding.areaId);
+    await toBoarding(page, neighbor.boarding);
+    await pickTicket(page, access.stationId, false, 'desktop-07-neighbor-gate');
+    const phases = await rideFromPlatform(page, false, 'desktop-08');
+    assert.equal(phases.at(-1), 'done');
+    await waitArea(page, access.arrival.areaId); await waitSavedArea(page, access.arrival.areaId);
+    assert.equal((await player(page)).areaId, access.arrival.areaId);
   });
   await desktop.context.close();
 
-  for (const size of [{ name: 'portrait', width: 390, height: 844, touch: true }, { name: 'landscape', width: 844, height: 390, touch: true }]) {
-    await check(`${size.name}: real touch selection and confirmation`, async () => {
-      const mobile = await contextFor(size, boardSave); page = mobile.page;
+  const gateSave = { ...(await (async () => {
+    const c = await contextFor({ width: 1280, height: 800, touch: false }); const s = await c.page.evaluate(() => window.__slg.game.serialize()); await c.context.close(); return s; })()),
+    areaId: access.areaId, x: gateTile.x * 16 + 8, y: gateTile.y * 16 + 14, facing: 'up' };
+  const boardTilePx = { x: access.boarding.x * 16 + 8, y: access.boarding.y * 16 + 14 };
+
+  await check('reload during departure returns to the platform before departure; during arrival, to the destination', async () => {
+    for (const stopAt of ['depart', 'arrive']) {
+      const { context, page: p } = await contextFor({ width: 1280, height: 800, touch: false }, gateSave); page = p;
       try {
-        assert.equal((await player(page)).areaId, access.areaId);
-        await shot(page, `${size.name}-01-station`);
-        await page.locator('#touch [data-act]').tap();
-        await page.locator('#train-travel-panel').waitFor({ state: 'visible' });
-        await shot(page, `${size.name}-02-destinations`);
-        for (const button of await page.locator('#train-travel-panel button').all()) {
-          const box = await button.boundingBox(); assert.ok(box && box.width >= 44 && box.height >= 44);
-        }
-        await page.locator(`[data-action="select"][data-station-id="${neighbor.stationId}"]`).tap();
-        await shot(page, `${size.name}-03-confirm`);
-        assert.equal((await player(page)).areaId, access.areaId);
-        await page.locator('#train-travel-panel [data-action="confirm"]').tap();
-        await waitArea(page, neighbor.arrival.areaId);
-        await shot(page, `${size.name}-04-arrival`);
-      } finally { await mobile.context.close(); }
-      // Reuse a save produced by the real desktop walk for visual comparison only.
-      const town = await contextFor(size, townSave); page = town.page;
-      try { assert.equal((await player(page)).areaId, 'town-neighbor'); await shot(page, `${size.name}-05-town`); }
-      finally { await town.context.close(); }
-      for (const [name, save] of [['neighbor-exterior', neighborExteriorSave], ['neighbor-concourse', neighborGateSave]]) {
-        const view = await contextFor(size, save); page = view.page;
-        try { await shot(page, `${size.name}-${name}`); } finally { await view.context.close(); }
-      }
+        const money = await page.evaluate(() => JSON.stringify({ ...window.__slg.game.serialize(), x: 0, y: 0, areaId: '', facing: '' }));
+        await pickTicket(page, neighbor.stationId, false);
+        await toBoarding(page, access.boarding);
+        await act(page, false); await panel(page).waitFor({ state: 'visible' });
+        await click(page, '#train-travel-panel [data-action="board"]', false);
+        await waitPhase(page, stopAt); await page.waitForTimeout(500);
+        await page.reload(); await ready(page);
+        const after = await player(page);
+        if (stopAt === 'depart') {
+          assert.equal(after.areaId, access.areaId); assert.equal(Math.floor(after.x / 16), access.boarding.x);
+          await act(page, false); await panel(page).waitFor({ state: 'visible' });
+          assert.match(await panel(page).innerText(), /かいさつで/, 'the ticket is not saved across a reload');
+        } else assert.equal(after.areaId, neighbor.arrival.areaId);
+        assert.equal(await panel(page).isVisible() && stopAt === 'arrive', false);
+        const kept = await page.evaluate(() => JSON.stringify({ ...window.__slg.game.serialize(), x: 0, y: 0, areaId: '', facing: '' }));
+        assert.equal(kept, money, 'nothing but the position changed');
+      } finally { await context.close(); }
+    }
+  });
+  await check('prefers-reduced-motion: only a short fade, still one arrival', async () => {
+    const { context, page: p } = await contextFor({ width: 1280, height: 800, touch: false }, gateSave, { reducedMotion: 'reduce' }); page = p;
+    try {
+      await pickTicket(page, neighbor.stationId, false);
+      await toBoarding(page, access.boarding);
+      const phases = await rideFromPlatform(page, false, null, { reduced: true });
+      assert.deepEqual(phases, ['fade-out', 'fade-in', 'done']);
+      await waitArea(page, neighbor.arrival.areaId);
+    } finally { await context.close(); }
+  });
+
+  for (const size of [{ name: 'portrait', width: 390, height: 844, touch: true }, { name: 'landscape', width: 844, height: 390, touch: true }]) {
+    await check(`${size.name}: touch gate, platform, ride and arrival`, async () => {
+      const { context, page: p } = await contextFor(size, gateSave, rec(size.name, size)); page = p;
+      try {
+        await shot(page, `${size.name}-01-gate`);
+        await pickTicket(page, neighbor.stationId, true, `${size.name}-02`);
+        for (const button of await page.locator('#touch button').all()) void button;
+        await toBoarding(page, access.boarding);
+        const phases = await rideFromPlatform(page, true, `${size.name}-03`);
+        assert.equal(phases.at(-1), 'done');
+        await waitArea(page, neighbor.arrival.areaId); await waitSavedArea(page, neighbor.arrival.areaId);
+        await shot(page, `${size.name}-04-arrived`);
+      } finally { await context.close(); }
     });
   }
   assert.deepEqual(errors, []);

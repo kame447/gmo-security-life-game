@@ -32,12 +32,17 @@ describe('train network with the #35 station and neighboring-area fixture', () =
 
   it('uses the published station constants for a confirmed trip and restored return', () => {
     const world = fixtureWorld(), game = new Game(world);
-    game.player = positionAt(STATION_ACCESS.boarding);
+    game.player = positionAt({ ...STATION_ACCESS.boarding, x: 16, y: 13, facing: 'up' });
     game.setAppearance({ ...game.appearance, outfitColor: 'red' });
     const appearance = { ...game.appearance }, outbound = new TrainTravelSession(game, TRAIN_NETWORK);
     expect(outbound.begin(facingEvent(game))).toBe(true);
     expect(outbound.select(NEIGHBOR_STATION_ACCESS.stationId)).toBe(true);
-    expect(outbound.confirm()).toMatchObject({ ok: true });
+    expect(outbound.issue()).not.toBeNull();
+    outbound.back();
+    game.player = positionAt(STATION_ACCESS.boarding);
+    expect(outbound.begin(facingEvent(game))).toBe(true);
+    expect(outbound.startRide()).not.toBeNull();
+    expect(outbound.commitArrival()).toMatchObject({ ok: true });
     expect(game.player).toEqual(positionAt(NEIGHBOR_STATION_ACCESS.arrival));
     const restored = new Game(world, { save: game.serialize() });
     expect(restored.player).toEqual(game.player);
@@ -46,7 +51,11 @@ describe('train network with the #35 station and neighboring-area fixture', () =
     const returning = new TrainTravelSession(restored, TRAIN_NETWORK);
     expect(returning.begin(facingEvent(restored))).toBe(true);
     expect(returning.select(STATION_ACCESS.stationId)).toBe(true);
-    expect(returning.confirm()).toMatchObject({ ok: true });
+    expect(returning.issue()).not.toBeNull();
+    returning.back();
+    expect(returning.begin(facingEvent(restored))).toBe(true);
+    expect(returning.startRide()).not.toBeNull();
+    expect(returning.commitArrival()).toMatchObject({ ok: true });
     expect(restored.player).toEqual(positionAt(STATION_ACCESS.arrival));
     expect(restored.appearance).toEqual(appearance);
   });
