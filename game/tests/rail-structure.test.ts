@@ -56,7 +56,7 @@ describe('station, crossings and railway bridge', () => {
     const station = buildWorld().areas.get(STATION_ACCESS.areaId)!;
     // 改札（2タイル）は solid な操作対象で、歩いては通れない。
     expect(findPath(station, STATION_ACCESS.entry, STATION_ACCESS.boarding)).toBeNull();
-    expect(findPath(station, STATION_ACCESS.entry, STATION_ACCESS.arrival)).toBeNull();
+    expect(findPath(station, STATION_ACCESS.entry, STATION_ACCESS.arrival)).not.toBeNull(); // 改札の外（通路）
     for (const x of [17, 18]) expect(isSolidTile(station, x, 10)).toBe(true);
     for (const point of railCells(station)) {
       expect(isSolidTile(station, point.x, point.y)).toBe(true);
@@ -67,7 +67,10 @@ describe('station, crossings and railway bridge', () => {
   it('continues the rails across both river banks on a railway-only bridge', () => {
     const town = buildWorld().areas.get('town-main')!;
     for (let y = layout.trackY; y < layout.trackY + layout.trackRows; y++) {
-      for (let x = 0; x < town.width; x++) expect(isRailGround(town.ground[y * town.width + x]), `${x},${y}`).toBe(true);
+      for (let x = 0; x < town.width; x++) {
+        const fence = y === layout.trackY + 1 && x >= layout.building.x && x < layout.building.x + layout.building.w;
+        expect(isRailGround(town.ground[y * town.width + x]) || fence, `${x},${y}`).toBe(true);
+      }
       for (let x = 116; x <= 120; x++) {
         expect(town.ground[y * town.width + x]).toBe(T.RAIL_BRIDGE);
         expect(isSolidTile(town, x, y)).toBe(true);

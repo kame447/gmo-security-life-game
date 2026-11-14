@@ -1,5 +1,5 @@
 import { hash2, TILE } from '../core/coords';
-import { isRailGround, isRoad, T } from '../world/tiles';
+import { isRailGround, isRoad, isSwitchGround, T } from '../world/tiles';
 import { R, type C2D } from './draw';
 
 /** World coordinates seed every mark, so baking a different chunk cannot change it. */
@@ -50,6 +50,33 @@ export function drawGroundTile(c: C2D, t: number, px: number, py: number, tx: nu
       r('#e5d6af', 0, 6, 16, 1);
       if (nb(-1, 0) !== T.CROSSING) for (let y = 0; y < 16; y += 4) r(y % 8 ? '#e9c85d' : '#535b5c', 0, y, 2, 4);
       if (nb(1, 0) !== T.CROSSING) for (let y = 0; y < 16; y += 4) r(y % 8 ? '#e9c85d' : '#535b5c', 14, y, 2, 4);
+    }
+  };
+
+  // ポイント: 上りの線が北の行へ斜め（45°）に寄る。中心線は1px進むごとに1px上がる（下がる）。
+  const switchTile = () => {
+    const north = t === T.SWITCH_W_N || t === T.SWITCH_E_N;
+    if (north) rail(false); else { base('#a6a89c'); grain(['#898f87', '#c0bdae', '#959b91'], 30, 42); }
+    // この tile を通る中心線の y（x は 0..15）。無い x は null。
+    const centre = (x: number): number | null => {
+      if (t === T.SWITCH_W_S) return x <= 8 ? 8 - x : null;
+      if (t === T.SWITCH_W_N) return x >= 8 ? 24 - x : null;
+      if (t === T.SWITCH_E_N) return x <= 8 ? 8 + x : null;
+      return x >= 8 ? x - 8 : null;
+    };
+    const put = (color: string, x: number, y: number, w: number, h: number) => {
+      const y0 = Math.max(0, y), y1 = Math.min(16, y + h);
+      if (y1 > y0) r(color, x, y0, w, y1 - y0);
+    };
+    for (let x = 0; x < 16; x++) {
+      const y = centre(x);
+      if (y === null) continue;
+      if (x % 4 === 0) put('#796c5a', x, y - 6, 2, 12);
+    }
+    for (let x = 0; x < 16; x++) {
+      const y = centre(x);
+      if (y === null) continue;
+      for (const off of [-5, 3]) { put('#596970', x, y + off, 1, 3); put('#e0e4df', x, y + off, 1, 1); }
     }
   };
 
@@ -129,7 +156,11 @@ export function drawGroundTile(c: C2D, t: number, px: number, py: number, tx: nu
     case T.RAIL:
     case T.RAIL_BRIDGE:
     case T.CROSSING_SIGNAL:
-      rail(false);
+    case T.SWITCH_W_S:
+    case T.SWITCH_W_N:
+    case T.SWITCH_E_N:
+    case T.SWITCH_E_S:
+      if (isSwitchGround(t)) switchTile(); else rail(false);
       // Boundaries occupy the already-solid rail tile, never a neighboring public sidewalk.
       for (const [dy, y] of [[-1, 0], [1, 13]]) if (!isRailGround(nb(0, dy))) {
         r(t === T.RAIL_BRIDGE ? '#415e6b' : '#596e6a', 0, y, 16, 3);

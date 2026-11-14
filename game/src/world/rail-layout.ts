@@ -1,0 +1,40 @@
+import { T } from './tiles';
+import type { RailDirection } from './rail-geometry';
+
+/**
+ * 街の線路の線形。駅の区間（駅舎の幅）だけ北の行の1線、その両端の1タイルのポイントを経て、外側は上下線の2線になる。
+ * 下り（北の行）は全域まっすぐ。上り（南の行）は駅の区間の両端で北の行へ斜めに寄って合流し、反対側でまた南へ戻る。
+ */
+export interface TownRailLayout {
+  readonly northRow: number;
+  readonly southRow: number;
+  /** 1線の区間（タイル）。singleX0 以上 singleX1 未満。ポイントはその外側の隣の1タイル。 */
+  readonly singleX0: number;
+  readonly singleX1: number;
+}
+
+export interface StationFrontage { readonly trackY: number; readonly trackRows: number; readonly building: { readonly x: number; readonly w: number } }
+
+export const townRailLayout = (s: StationFrontage): TownRailLayout =>
+  ({ northRow: s.trackY, southRow: s.trackY + 1, singleX0: s.building.x, singleX1: s.building.x + s.building.w });
+
+/** 線路の2行が敷かれたあとに呼び、駅の区間の南の行を柵にし、両端のポイントの tile を置く。 */
+export function applyRailSwitches(ground: Uint8Array, width: number, layout: TownRailLayout): void {
+  const { northRow: n, southRow: s, singleX0, singleX1 } = layout;
+  for (let x = singleX0; x < singleX1; x++) ground[s * width + x] = T.RAIL_FENCE;
+  const c = singleX0 - 1, d = singleX1;
+  ground[s * width + c] = T.SWITCH_W_S; ground[n * width + c] = T.SWITCH_W_N;
+  ground[n * width + d] = T.SWITCH_E_N; ground[s * width + d] = T.SWITCH_E_S;
+}
+
+/** 線の足元（線路の行の下端）の y を、x（px）の関数として返す。ポイントでは 45° で行を移る。 */
+export function lineFootY(layout: TownRailLayout, direction: RailDirection, x: number): number {
+  const north = (layout.northRow + 1) * 16, south = (layout.southRow + 1) * 16;
+  if (direction === 'down') return north;
+  const c0 = (layout.singleX0 - 1) * 16, d0 = layout.singleX1 * 16;
+  if (x <= c0) return south;
+  if (x < c0 + 16) return south - (x - c0);
+  if (x < d0) return north;
+  if (x < d0 + 16) return north + (x - d0);
+  return south;
+}

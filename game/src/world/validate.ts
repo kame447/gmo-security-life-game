@@ -137,9 +137,10 @@ function stationGateLinks(world: World): RailLink[] {
   for (const id of STATION_FLOW_IDS) {
     const flow = getStationFlow(id);
     if (!world.areas.has(flow.gate.areaId)) continue;
-    const front = { areaId: flow.gate.areaId, x: flow.gate.tile.x, y: flow.gate.tile.y + 1 };
+    const front = { areaId: flow.gate.areaId, x: flow.gate.front.x, y: flow.gate.front.y };
     for (const p of flow.platforms) links.push({ from: front, to: { areaId: p.boardTile.areaId, x: p.boardTile.x, y: p.boardTile.y } });
-    links.push({ from: { areaId: flow.alight.areaId, x: flow.alight.x, y: flow.alight.y }, to: front });
+    const inside = { areaId: flow.gate.areaId, x: flow.gate.inside.x, y: flow.gate.inside.y };
+    links.push({ from: inside, to: { areaId: flow.gate.areaId, x: flow.gate.outside.x, y: flow.gate.outside.y } });
   }
   return links;
 }

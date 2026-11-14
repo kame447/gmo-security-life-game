@@ -4,7 +4,7 @@ import type { AreaRuntime } from '../world';
 import { T } from '../world/tiles';
 import { drawTrainFrame, townTrainPaints } from '../town-train/render';
 import { stationScene } from '../town-train/station-scene';
-import { stationPlatformRow as stationRow } from '../town-train/station-scene';
+import { stationTrackRow, trainHeading } from '../town-train/station-scene';
 import { TRAIN_HEIGHT_PX, TRAIN_LENGTH_PX, trainSprite } from '../town-train/car';
 import { makeCanvas, R, type C2D } from './draw';
 import { drawGroundTile } from './ground';
@@ -49,7 +49,7 @@ export class Renderer {
   private readonly timings: RenderTimings = { totalMs: 0, clearMs: 0, groundMs: 0, bakeMs: 0, gatherMs: 0, sortMs: 0, spritesMs: 0, waterMs: 0, markersMs: 0, fadeMs: 0 };
   readonly stats = { chunksCached: 0, chunksDrawn: 0, spritesDrawn: 0, zoom: 1, viewW: 1, viewH: 1, indoor: false, fading: false, camX: 0, camY: 0, chunksBakedThisFrame: 0, timings: null as RenderTimings | null,
     /** この1フレームに描いた列車（足元の y を含む箱）。E2E が線路の上にあることを確かめる。 */
-    trains: [] as { x: number; y: number; w: number; h: number; areaId: string; heading: string; doorOpen: number }[] };
+    trains: [] as { x: number; y: number; w: number; h: number; areaId: string; heading: string; doorOpen: number; direction?: string }[] };
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const c = canvas.getContext('2d');
@@ -250,20 +250,20 @@ export class Renderer {
     }
     if (profiling) { const now = performance.now(); timing.waterMs = now - mark; mark = now; }
     this.stats.trains.length = 0;
-    const pushTrain = (x: number, bottom: number, heading: 'left' | 'right', doorOpen: number, paint?: (c: C2D) => void) => {
+    const pushTrain = (x: number, bottom: number, heading: 'left' | 'right', doorOpen: number, paint?: (c: C2D) => void, direction?: string) => {
       const y = bottom - TRAIN_HEIGHT_PX;
       if (x >= right || x + TRAIN_LENGTH_PX <= camX || y >= camY + this.viewH || bottom <= camY) return;
-      this.stats.trains.push({ x, y, w: TRAIN_LENGTH_PX, h: TRAIN_HEIGHT_PX, areaId: area.def.id, heading, doorOpen });
+      this.stats.trains.push({ x, y, w: TRAIN_LENGTH_PX, h: TRAIN_HEIGHT_PX, areaId: area.def.id, heading, doorOpen, direction });
       const sprite: Sprite = { canvas: trainSprite(heading, doorOpen), ox: 0, oy: 0 };
       this.sorted.push({ sprite, x, y, depth: bottom, decal: false, character: false, seen: this.tick, paint });
     };
     if (!indoor) for (const t of townTrainPaints(area, timeSec)) {
       const frame = t.frame;
-      pushTrain(Math.round(frame.x), frame.strip.bottom, frame.heading, 0, ctx => drawTrainFrame(ctx as unknown as CanvasRenderingContext2D, frame));
+      pushTrain(Math.round(frame.x), Math.round(frame.footY), frame.heading, 0, ctx => drawTrainFrame(ctx as unknown as CanvasRenderingContext2D, frame, 0, t.layout), frame.direction);
     }
     for (const t of scene?.trains ?? []) {
-      const platform = stationRow(area.def.id, t.direction);
-      if (platform) pushTrain(Math.round(t.x), (platform.y + 1) * TILE, platform.heading, t.doorOpen);
+      const row = stationTrackRow(area.def.id);
+      if (row !== null) pushTrain(Math.round(t.x), (row + 1) * TILE, trainHeading(t), t.doorOpen);
     }
     this.sorted.sort((a, b) => a.depth - b.depth || a.x - b.x);
     if (profiling) { const now = performance.now(); timing.sortMs = now - mark; mark = now; }
