@@ -1,6 +1,6 @@
 import { TILE } from '../core/coords';
 import type { AreaRuntime } from '../world';
-import { lineFootY, type TownRailLayout } from '../world/rail-layout';
+import { lineFootY, switchSpan, type TownRailLayout } from '../world/rail-layout';
 import { TOWN_RAIL_LAYOUTS } from '../world/rail-layouts';
 import { headingOf, type RailDirection, type RailHeading } from '../world/rail-geometry';
 import { TOWN_TRAIN_PROTOTYPE, validateTrainConfig, type TownTrainConfig } from './config';
@@ -23,7 +23,8 @@ export interface TrainFrame {
 
 /** 駅の区間（ポイントを含む）の左右の端（px）。この間は1線なので、上りと下りが同時に走らない。 */
 export function singleZone(layout: TownRailLayout): { left: number; right: number } {
-  return { left: (layout.singleX0 - 1) * TILE, right: (layout.singleX1 + 1) * TILE };
+  const span = switchSpan(layout);
+  return { left: span.left * TILE, right: (span.right) * TILE };
 }
 
 /**

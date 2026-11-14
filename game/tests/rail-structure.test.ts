@@ -68,7 +68,7 @@ describe('station, crossings and railway bridge', () => {
     const town = buildWorld().areas.get('town-main')!;
     for (let y = layout.trackY; y < layout.trackY + layout.trackRows; y++) {
       for (let x = 0; x < town.width; x++) {
-        const fence = y === layout.trackY + 1 && x >= layout.building.x && x < layout.building.x + layout.building.w;
+        const fence = y === layout.trackY + 1 && x >= layout.building.x - 3 && x < layout.building.x + layout.building.w + 3;
         expect(isRailGround(town.ground[y * town.width + x]) || fence, `${x},${y}`).toBe(true);
       }
       for (let x = 116; x <= 120; x++) {

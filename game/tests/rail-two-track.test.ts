@@ -6,7 +6,7 @@ import { TRAIN_ROUTE_SAMPLE_STEP } from './helpers/sample-step';
 import { buildWorld, findPath, getStationFlow, isSolidTile, validateWorld } from '../src/world';
 import { MAIN_STATION_LAYOUT } from '../src/world/landmarks';
 import { RAIL_DIRECTIONS, headingOf, trackRowOf } from '../src/world/rail-geometry';
-import { lineFootY } from '../src/world/rail-layout';
+import { lineFootY, SWITCH_TILES } from '../src/world/rail-layout';
 import { TOWN_RAIL_LAYOUTS } from '../src/world/rail-layouts';
 import { isRailGround, T } from '../src/world/tiles';
 import { NEIGHBOR_STATION_LAYOUT } from '../src/world/towns/neighbor';
@@ -15,33 +15,36 @@ import { TRAIN_NETWORK } from '../src/travel/network';
 const towns = [['town-main', MAIN_STATION_LAYOUT], ['town-neighbor', NEIGHBOR_STATION_LAYOUT]] as const;
 
 describe('town railway: one line at the station, two lines outside, joined by points', () => {
-  it.each(towns)('%s: rails only on the two rows, with the single section and four point tiles', (areaId, station) => {
+  it.each(towns)('%s: rails only on the two rows, with the single section and eight point tiles', (areaId, station) => {
     const town = buildWorld().areas.get(areaId)!, layout = TOWN_RAIL_LAYOUTS[areaId];
     expect(layout.northRow).toBe(station.trackY); expect(layout.southRow).toBe(station.trackY + 1);
     const at = (x: number, y: number) => town.ground[y * town.width + x];
+    const w = layout.singleX0 - SWITCH_TILES, e = layout.singleX1;
     for (let y = 0; y < town.height; y++) for (let x = 0; x < town.width; x++) {
       const rail = isRailGround(at(x, y));
-      const inSingle = x >= layout.singleX0 && x < layout.singleX1;
-      const expected = y === layout.northRow || (y === layout.southRow && !inSingle);
+      // 南の行は、西のポイントの終わり（w+1）までと、東のポイントの始まり（e+1）からだけが線路。その間は柵。
+      const southRail = x <= w + 1 || x >= e + 1;
+      const expected = y === layout.northRow || (y === layout.southRow && southRail);
       expect(rail, `${areaId} ${x},${y}`).toBe(expected);
     }
-    const c = layout.singleX0 - 1, d = layout.singleX1;
-    expect([at(c, layout.southRow), at(c, layout.northRow), at(d, layout.northRow), at(d, layout.southRow)])
-      .toEqual([T.SWITCH_W_S, T.SWITCH_W_N, T.SWITCH_E_N, T.SWITCH_E_S]);
-    // 駅の区間の南の行は、歩けない柵。駅舎の幅と一致する。
-    for (let x = layout.singleX0; x < layout.singleX1; x++) { expect(at(x, layout.southRow)).toBe(T.RAIL_FENCE); expect(isSolidTile(town, x, layout.southRow)).toBe(true); }
+    expect([at(w, layout.southRow), at(w + 1, layout.southRow), at(w + 1, layout.northRow), at(w + 2, layout.northRow)])
+      .toEqual([T.SWITCH_WS_A, T.SWITCH_WS_B, T.SWITCH_WN_C, T.SWITCH_WN_D]);
+    expect([at(e, layout.northRow), at(e + 1, layout.northRow), at(e + 1, layout.southRow), at(e + 2, layout.southRow)])
+      .toEqual([T.SWITCH_EN_D, T.SWITCH_EN_C, T.SWITCH_ES_B, T.SWITCH_ES_A]);
+    // 駅舎の幅と、ポイントの内側の南の行は、歩けない柵。
+    for (let x = w + 2; x <= e; x++) { expect(at(x, layout.southRow)).toBe(T.RAIL_FENCE); expect(isSolidTile(town, x, layout.southRow)).toBe(true); }
     expect(layout.singleX0).toBe(station.building.x); expect(layout.singleX1).toBe(station.building.x + station.building.w);
   });
 
-  it.each(towns)('%s: the up line is a connected tile path through the north row between the points', (areaId) => {
+  it.each(towns)('%s: the up line is a connected tile path that rises one row over three tiles on each side', (areaId) => {
     const town = buildWorld().areas.get(areaId)!, layout = TOWN_RAIL_LAYOUTS[areaId];
-    // 西の南の行 → 西のポイント（南・北）→ 北の行 → 東のポイント（北・南）→ 東の南の行、が1本につながる。
+    const w = layout.singleX0 - SWITCH_TILES, e = layout.singleX1;
     const path: [number, number][] = [];
-    for (let x = 0; x <= layout.singleX0 - 1; x++) path.push([x, layout.southRow]);
-    path.push([layout.singleX0 - 1, layout.northRow]);
-    for (let x = layout.singleX0; x < layout.singleX1; x++) path.push([x, layout.northRow]);
-    path.push([layout.singleX1, layout.northRow]);
-    for (let x = layout.singleX1; x < town.width; x++) path.push([x, layout.southRow]);
+    for (let x = 0; x <= w; x++) path.push([x, layout.southRow]);
+    path.push([w + 1, layout.southRow], [w + 1, layout.northRow], [w + 2, layout.northRow]);
+    for (let x = w + 3; x <= e; x++) path.push([x, layout.northRow]);
+    path.push([e + 1, layout.northRow], [e + 1, layout.southRow], [e + 2, layout.southRow]);
+    for (let x = e + 3; x < town.width; x++) path.push([x, layout.southRow]);
     for (const [x, y] of path) expect(isRailGround(town.ground[y * town.width + x]), `${x},${y}`).toBe(true);
     for (let i = 1; i < path.length; i++) expect(Math.abs(path[i][0] - path[i - 1][0]) + Math.abs(path[i][1] - path[i - 1][1]), `step ${i}`).toBe(1);
   });
@@ -57,7 +60,7 @@ describe('town railway: one line at the station, two lines outside, joined by po
       expect(crossings).toBeGreaterThan(0);
     }
     // 柵・ポイントの付近へ歩いて入れない（4辺のどちらからも）。
-    for (let x = layout.singleX0 - 1; x <= layout.singleX1; x++) for (const y of [layout.northRow, layout.southRow]) expect(isSolidTile(town, x, y)).toBe(true);
+    for (let x = layout.singleX0 - SWITCH_TILES; x <= layout.singleX1 + SWITCH_TILES; x++) for (const y of [layout.northRow, layout.southRow]) expect(isSolidTile(town, x, y)).toBe(true);
     if (areaId === 'town-neighbor') for (const y of [layout.northRow, layout.southRow]) expect(town.ground[y * town.width + 38]).toBe(T.RAIL_BRIDGE);
   });
 
@@ -67,16 +70,18 @@ describe('town railway: one line at the station, two lines outside, joined by po
     expect(trackRowOf(10, 'down')).toBe(10); expect(trackRowOf(10, 'up')).toBe(11);
   });
 
-  it('moves the up line onto the north row at 45 degrees across the points', () => {
+  it('moves the up line onto the north row smoothly over three tiles on each side', () => {
     const layout = TOWN_RAIL_LAYOUTS['town-main'], south = (layout.southRow + 1) * TILE, north = (layout.northRow + 1) * TILE;
-    const zone = singleZone(layout);
+    const zone = singleZone(layout), ramp = SWITCH_TILES * TILE;
+    expect(zone.left).toBe((layout.singleX0 - SWITCH_TILES) * TILE);
     expect(lineFootY(layout, 'up', zone.left - 1)).toBe(south);
     expect(lineFootY(layout, 'up', zone.left)).toBe(south);
-    expect(lineFootY(layout, 'up', zone.left + TILE)).toBe(north);
-    expect(lineFootY(layout, 'up', zone.left + TILE / 2)).toBe(south - TILE / 2);
-    expect(lineFootY(layout, 'up', zone.right - TILE)).toBe(north);
+    expect(lineFootY(layout, 'up', zone.left + ramp)).toBe(north);
+    expect(lineFootY(layout, 'up', zone.left + ramp / 2)).toBeCloseTo(south - TILE / 2);
+    expect(lineFootY(layout, 'up', zone.right - ramp)).toBe(north);
     expect(lineFootY(layout, 'up', zone.right)).toBe(south);
-    expect(lineFootY(layout, 'up', zone.right - TILE / 2)).toBe(north + TILE / 2);
+    // なめらか: 隣り合う px で足元が1px以上跳ばない（傾きは1/3）。
+    for (let x = zone.left; x < zone.right; x++) expect(Math.abs(lineFootY(layout, 'up', x + 1) - lineFootY(layout, 'up', x))).toBeLessThanOrEqual(1 / 3 + 1e-9);
     for (let x = 0; x < 100 * TILE; x++) expect(lineFootY(layout, 'down', x)).toBe(north);
   });
 });
