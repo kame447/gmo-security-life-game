@@ -58,6 +58,7 @@ const getSave = () => `GET /api/saves/auto HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthor
 const putBody = JSON.stringify({ schemaVersion: 1, expectedRevision: 0, idempotencyKey: 'drain-key-00001', data: { v: 1 } });
 const putSave = () => `PUT /api/saves/auto HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer ${token()}\r\n` +
   `Content-Type: application/json\r\nContent-Length: ${putBody.length}\r\n\r\n${putBody}`;
+const keptAlive = (c: ReturnType<typeof client>) => !/connection: close/i.test(c.text()) && c.closed() === undefined;
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 function gated(memory = new MemorySaveStorage()) {
   let entered!: () => void; let release!: () => void;
@@ -98,28 +99,37 @@ describe('stopping with connections in unusual receive states', () => {
     await first; await s.handle.closed; expect(s.close).toHaveBeenCalledTimes(1);
   });
 
-  it('closes a keep-alive connection that is mid-way through its next request without a response or a write', async () => {
+  it('answers a keep-alive connection that is mid-way through its next request with 400 at the receive deadline, without a write', async () => {
     const memory = new MemorySaveStorage(); const write = vi.spyOn(memory, 'compareAndSwap');
     const s = await local(memory); const c = client(s.port);
-    c.socket.write(health); await c.until(() => c.responses().length === 1);
+    c.socket.write(getSave()); await c.until(() => c.responses().length === 1);
+    expect(keptAlive(c)).toBe(true); // really keep-alive, not a connection that was already closing
     c.socket.write(`PUT /api/saves/auto HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer ${token()}\r\nContent-Type: application/json\r\n`);
     await wait(100); s.stop();
-    await c.waitClosed(3000); await s.handle.closed;
-    // As observed on Node 24: no 400, and well before the 5 second receive deadline.
-    expect(c.responses()).toEqual(['HTTP/1.1 200']);
-    expect(c.closed()).toBeLessThan(3000);
+    await c.waitClosed(7000); await s.handle.closed;
+    expect(c.responses()).toEqual(['HTTP/1.1 404', 'HTTP/1.1 400']); expect(c.text()).toMatch(/connection: close/i);
+    expect(c.closed()).toBeGreaterThanOrEqual(4500); expect(c.closed()).toBeLessThan(7000);
     expect(write).not.toHaveBeenCalled(); expect(s.close).toHaveBeenCalledTimes(1);
+  }, 10000);
+
+  it('closes an idle keep-alive connection immediately when the stop begins', async () => {
+    const s = await local(); const c = client(s.port);
+    c.socket.write(getSave()); await c.until(() => c.responses().length === 1);
+    expect(keptAlive(c)).toBe(true);
+    s.stop(); await c.waitClosed(3000); await s.handle.closed;
+    expect(c.responses()).toEqual(['HTTP/1.1 404']); expect(c.closed()).toBeLessThan(3000);
   }, 10000);
 
   it('writes nothing for a complete PUT sent after the stop began, on a new or an already-idle keep-alive connection', async () => {
     const memory = new MemorySaveStorage(); const write = vi.spyOn(memory, 'compareAndSwap');
     const s = await local(memory); const idle = client(s.port);
-    idle.socket.write(health); await idle.until(() => idle.responses().length === 1);
+    idle.socket.write(getSave()); await idle.until(() => idle.responses().length === 1);
+    expect(keptAlive(idle)).toBe(true);
     s.stop(); await idle.waitClosed(3000); await s.handle.closed;
     idle.socket.write(putSave());
     const fresh = client(s.port); fresh.socket.write(putSave());
     await fresh.waitClosed(3000);
-    expect(fresh.responses()).toEqual([]); expect(idle.responses()).toEqual(['HTTP/1.1 200']);
+    expect(fresh.responses()).toEqual([]); expect(idle.responses()).toEqual(['HTTP/1.1 404']);
     expect(write).not.toHaveBeenCalled(); expect(s.close).toHaveBeenCalledTimes(1);
   }, 10000);
 
@@ -146,4 +156,35 @@ describe('without a stop', () => {
     expect(slow.responses()).toEqual(['HTTP/1.1 400']);
     expect(slow.closed()).toBeGreaterThanOrEqual(4500); expect(slow.closed()).toBeLessThan(7000);
   }, 10000);
+});
+
+describe('keep-alive after replies that are produced synchronously', () => {
+  const alive = keptAlive;
+  it('keeps one connection open across repeated health checks', async () => {
+    const s = await local(); const c = client(s.port);
+    for (const count of [1, 2, 3]) { c.socket.write(health); await c.until(() => c.responses().length === count); }
+    expect(c.responses()).toEqual(['HTTP/1.1 200', 'HTTP/1.1 200', 'HTTP/1.1 200']); expect(alive(c)).toBe(true);
+  });
+  it.each([
+    ['401', 'GET /api/saves/auto HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n', 'HTTP/1.1 401'],
+    ['404', 'GET /api/nothing HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n', 'HTTP/1.1 404'],
+    ['405', 'POST /api/health HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n', 'HTTP/1.1 405'],
+    ['405 with Content-Length: 0', 'POST /api/health HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 0\r\n\r\n', 'HTTP/1.1 405'],
+  ])('lets the next request reuse the connection after a %s without a body', async (_name, request, status) => {
+    const s = await local(); const c = client(s.port);
+    c.socket.write(request); await c.until(() => c.responses().length === 1);
+    c.socket.write(health); await c.until(() => c.responses().length === 2);
+    expect(c.responses()).toEqual([status, 'HTTP/1.1 200']); expect(alive(c)).toBe(true);
+  });
+  it.each([
+    ['Content-Length', 'Content-Length: 10\r\n'],
+    ['Transfer-Encoding', 'Transfer-Encoding: chunked\r\n'],
+  ])('still closes the connection when an unread %s body may remain', async (_name, header) => {
+    const memory = new MemorySaveStorage(); const write = vi.spyOn(memory, 'compareAndSwap');
+    const s = await local(memory); const c = client(s.port);
+    c.socket.write(`PUT /api/saves/auto HTTP/1.1\r\nHost: 127.0.0.1\r\n${header}\r\n`);
+    await c.waitClosed(3000);
+    expect(c.responses()).toEqual(['HTTP/1.1 401']); expect(c.text()).toMatch(/connection: close/i);
+    expect(write).not.toHaveBeenCalled();
+  });
 });

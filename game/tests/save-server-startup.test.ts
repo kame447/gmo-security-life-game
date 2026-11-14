@@ -215,8 +215,8 @@ describe('injected startup and graceful lifecycle', () => {
     ['immediately after connecting', [] as string[]],
     ['a partial request line', ['GET /api/sav']],
     ['partial headers', ['GET /api/saves/auto HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Pending: ']],
-    ['a keep-alive connection waiting for its next request', ['GET /api/health HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n', 'WAIT']],
-    ['the middle of the next request on a keep-alive connection', ['GET /api/health HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n', 'WAIT',
+    ['a keep-alive connection waiting for its next request', [`GET /api/saves/auto HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer ${token()}\r\n\r\n`, 'WAIT']],
+    ['the middle of the next request on a keep-alive connection', [`GET /api/saves/auto HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer ${token()}\r\n\r\n`, 'WAIT',
       'GET /api/saves/auto HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Pending: ']],
   ])('stopping with an unfinished receive: %s', (_name, steps) => {
     it.each(['SIGTERM', 'SIGINT'])('finishes %s within the existing receive deadline', async signal => {
@@ -224,12 +224,16 @@ describe('injected startup and graceful lifecycle', () => {
       const socket = rawConnect(s.handle.address.port, '127.0.0.1');
       let text = ''; let healthy!: () => void;
       const responded = new Promise<void>(resolve => { healthy = resolve; });
-      socket.on('data', value => { text += value.toString('latin1'); if (text.includes('"ok":true')) healthy(); });
+      socket.on('data', value => { text += value.toString('latin1'); if (text.includes('HTTP/1.1 404')) healthy(); });
       socket.on('error', () => undefined);
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
         for (const step of steps) {
-          if (step === 'WAIT') await responded; else socket.write(step);
+          if (step === 'WAIT') {
+            await responded;
+            // A reply that already said Connection: close would make the keep-alive cases vacuous.
+            expect(text).not.toMatch(/connection: close/i);
+          } else socket.write(step);
         }
         await new Promise(resolve => setTimeout(resolve, 100));
         s.events.emit(signal); s.events.emit(signal === 'SIGTERM' ? 'SIGINT' : 'SIGTERM');

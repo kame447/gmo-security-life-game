@@ -44,8 +44,11 @@ export function createSaveHttpServer({ service, verifyToken, maxBodyBytes, healt
   const server = createServer({ requestTimeout: RECEIVE_TIMEOUT_MS, headersTimeout: RECEIVE_TIMEOUT_MS, connectionsCheckingInterval: 1000 }, (request, response) => {
     const reply = (result, headers = {}) => {
       if (response.destroyed || response.writableEnded) return;
-      // Do not keep an unread/oversized body alive on this connection.
-      if (!request.complete) { request.pause(); response.setHeader('Connection', 'close'); }
+      // Do not keep an unread/oversized body alive on this connection. A request that cannot carry a
+      // body (no Transfer-Encoding, no non-zero Content-Length) leaves nothing behind, so it may stay open.
+      const length = request.headers['content-length'];
+      const mayHaveBody = request.headers['transfer-encoding'] !== undefined || (length !== undefined && length !== '0');
+      if (!request.complete && mayHaveBody) { request.pause(); response.setHeader('Connection', 'close'); }
       response.writeHead(result.status, { 'Content-Type': 'application/json; charset=utf-8',
         'Cache-Control': 'no-store', ...headers });
       response.end(JSON.stringify(result.body));
