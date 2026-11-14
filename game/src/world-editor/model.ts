@@ -5,6 +5,8 @@ import type { World } from '../world/runtime';
 import { furnitureById, furnitureVariant, nextFacing } from '../render/furniture/catalog';
 import { assertInteriorEdit } from './policy';
 import { worldDocument } from './document';
+import { withDerived } from '../editor/changes';
+import { trustedContext } from './trusted-context';
 
 export const HOME_AREA = 'home-family-interior';
 export class WorldEditorModel {
@@ -13,8 +15,8 @@ export class WorldEditorModel {
   session: EditorSession;
   private readonly used = new Set<string>();
   constructor(world: World) {
-    this.context = { baselineWorld: structuredClone(world) };
-    this.initial = parseDocument(worldDocument(world), this.context);
+    this.context = trustedContext(world);
+    this.initial = parseDocument(withDerived(worldDocument(world),this.context), this.context);
     this.session = new EditorSession(this.initial, { context: this.context });
     for (const list of [this.initial.objects,this.initial.interactions,this.initial.portals]) for (const item of list) this.used.add(item.id);
   }
@@ -36,12 +38,13 @@ export class WorldEditorModel {
         linked.x = object.x; linked.y = object.y; linked.w = object.w; linked.h = object.h;
       }
     }
-    return next;
+    return withDerived(next,this.context);
   }
   issues(candidate: EditorDocument): string[] {
-    try { assertInteriorEdit(this.initial,candidate,HOME_AREA); }
+    let derived: EditorDocument;
+    try { derived=withDerived(candidate,this.context);assertInteriorEdit(this.initial,derived,HOME_AREA); }
     catch (error) { return [(error as Error).message]; }
-    return validateDocument(candidate,this.context).map(issue => {
+    return validateDocument(derived,this.context).map(issue => {
       if (issue.code === 'arrival') return '出入口の到着位置をふさぐことはできません';
       if (issue.code === 'unreachable') return '出入口や調べる場所への通路を保ってください';
       if (issue.code === 'overlap') return '壁やほかの家具と重なっています';
@@ -49,6 +52,7 @@ export class WorldEditorModel {
     });
   }
   commit(candidate: EditorDocument) {
+    candidate=withDerived(candidate,this.context);
     const errors = this.issues(candidate); if (errors.length) throw new Error(errors[0]);
     const changes = diffDocuments(this.document,candidate,this.context);
     this.session.commit(changes.operations);

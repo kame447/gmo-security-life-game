@@ -44,6 +44,11 @@ export interface EditorRailLink {
 export interface EditorValidationContext {
   readonly baselineWorld: World;
   readonly railLinks?: readonly EditorRailLink[];
+  /** Fixed application declarations; never read these from an edited document. */
+  readonly derived?: {
+    readonly startPortalId?: string;
+    readonly placedNpcEventKeys?: true;
+  };
 }
 
 export interface EditorDocument {

@@ -3,6 +3,31 @@ import { EDITOR_TABLES, EditorValidationError, type ChangeSet, type EditOperatio
 
 const equal = (a: unknown, b: unknown) => canonicalJSON(a) === canonicalJSON(b);
 
+/** Derive only the application-declared fields, before validating a draft's references. */
+export function withDerived(document: EditorDocument, context?: EditorValidationContext): EditorDocument {
+  const rule=context?.derived;
+  if(!rule)return document;
+  if(Object.keys(rule).some(key=>!['startPortalId','placedNpcEventKeys'].includes(key)) ||
+      (rule.placedNpcEventKeys!==undefined&&rule.placedNpcEventKeys!==true))
+    fail('context.derived','metadata','Unknown derived metadata declaration');
+  const next=structuredClone(document);
+  if(rule.startPortalId!==undefined){
+    const portal=next.portals.find(portal=>portal.id===rule.startPortalId);
+    if(!portal)return fail('context.derived.startPortalId','reference','The declared start portal does not exist');
+    next.start=structuredClone(portal.to);
+  }
+  if(rule.placedNpcEventKeys){
+    const source=new Map([...context!.baselineWorld.areas.values()].flatMap(area=>area.def.interactions.map(item=>[item.id,item] as const)));
+    for(const item of next.interactions){
+      const original=source.get(item.id);
+      if(original ? original.eventKey!==item.eventKey : item.kind!=='npc'||item.eventKey!==`npc.${item.id}`)
+        fail(`interactions.${item.id}.eventKey`,'reference','Preserve the source event key or use the new NPC own key');
+    }
+    next.catalogs.eventKeys=[...new Set(next.interactions.map(item=>item.eventKey))].sort();
+  }
+  return next;
+}
+
 export function parseChangeSet(raw: unknown, context?: EditorValidationContext): ChangeSet {
   const issues: ValidationIssue[] = [];
   const addIssue = (path: string, message: string) => { issues.push({ path, code: 'schema', message }); };
@@ -65,7 +90,7 @@ function applyParsed(document: EditorDocument, changes: ChangeSet, context?: Edi
     else if (op.type === 'add') list.push(structuredClone(op.after));
     else list[index] = structuredClone(op.after);
   }
-  return parseDocument(draft, context);
+  return parseDocument(withDerived(draft, context), context);
 }
 
 export function applyChangeSet(document: unknown, changes: unknown, context?: EditorValidationContext): EditorDocument {
@@ -84,8 +109,12 @@ export function createChangeSet(document: unknown, operations: readonly EditOper
 export function diffDocuments(before: unknown, after: unknown, context?: EditorValidationContext): ChangeSet {
   const base = parseDocument(before, context), next = parseDocument(after, context);
   const metadata = (document: EditorDocument) => {
-    const { areas: _, facilities: __, objects: ___, interactions: ____, portals: _____, ...rest } = document;
-    return rest;
+    const derived=withDerived(document,context),rule=context?.derived;
+    if(rule?.startPortalId!==undefined&&!equal(document.start,derived.start))fail('start','derived','Start must match the declared portal destination');
+    if(rule?.placedNpcEventKeys&&!equal(document.catalogs.eventKeys,derived.catalogs.eventKeys))fail('catalogs.eventKeys','derived','Event keys must match the current interactions');
+    const { areas: _, facilities: __, objects: ___, interactions: ____, portals: _____, start, catalogs, ...rest } = document;
+    return {...rest,...(rule?.startPortalId!==undefined?{}:{start}),catalogs:{sprites:catalogs.sprites,
+      ...(rule?.placedNpcEventKeys?{}:{eventKeys:catalogs.eventKeys})}};
   };
   if (!equal(metadata(base), metadata(next))) fail('$', 'metadata', 'Document identity, tileSize, start and catalogs are authored separately in schema v1');
   const operations: EditOperation[] = [];

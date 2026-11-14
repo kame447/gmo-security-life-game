@@ -7,6 +7,7 @@ import { canonicalJSON } from '../editor/schema';
 import { documentLayout, worldDocument } from './document';
 import { HOME_AREA } from './model';
 import { assertInteriorEdit } from './policy';
+import { trustedContext } from './trusted-context';
 
 /** Called with a World loaded by the writer, never with a browser-supplied context. */
 export function prepareSave(raw: unknown, world: World) {
@@ -14,7 +15,7 @@ export function prepareSave(raw: unknown, world: World) {
   const request = raw as { areaId: string; changes: unknown };
   if (Object.keys(request).sort().join() !== 'areaId,changes' || request.areaId !== HOME_AREA) throw new Error('保存できるのは「じぶんのいえ」の配置だけです');
   if (staleLayouts(AREA_FACTORIES.map(create => create())).length) throw new Error('生成元が変わっています。配置ファイルの移行を確認してください');
-  const context = { baselineWorld: world };
+  const context = trustedContext(world);
   const current = parseDocument(worldDocument(world),context);
   const preview = previewChangeSet(current,request.changes,context);
   assertInteriorEdit(current,preview.document,HOME_AREA);
