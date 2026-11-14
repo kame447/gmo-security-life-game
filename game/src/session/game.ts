@@ -5,6 +5,7 @@
 import { normalizeAppearance, type PlayerAppearance } from '../core/appearance';
 import type { InteractionDef, MapEvent, MapEventSink } from '../core/types';
 import { DialogController, type DialogState } from '../events/dialog';
+import { restoreLifeSave, type LifeSaveRestoration } from '../events/life-save';
 import { MapExplorer, positionAt, type InputState, type PlayerPosition } from '../map/explorer';
 import { PHONE_INITIAL_OWNED } from '../phone/config';
 import { PHONE_BUDGET_PROTOTYPE, type PhoneBudgetConfig } from '../phone/budget-config';
@@ -12,6 +13,7 @@ import type { PhoneUsageContext } from '../phone/budget';
 import { PHONE_CONTENT } from '../phone/content';
 import { PhoneModel } from '../phone/model';
 import { createSave, parseSave, type SaveData } from '../state/save';
+import { copySaveJson } from '../state/save-json';
 import type { AreaRuntime, World } from '../world';
 import { PlayerAssets } from '../state/assets';
 
@@ -22,6 +24,8 @@ export class Game {
   appearance: PlayerAppearance;
   readonly assets: PlayerAssets;
   readonly phone: PhoneModel;
+  readonly life: LifeSaveRestoration;
+  private readonly originalLife: unknown;
   private readonly phoneDataConfig: Readonly<PhoneBudgetConfig>;
   private readonly explorer: MapExplorer;
   private readonly dialogs = new DialogController();
@@ -35,6 +39,8 @@ export class Game {
     this.phoneDataConfig = opts?.phoneDataConfig ?? PHONE_BUDGET_PROTOTYPE;
     const initialOwned = opts?.initialPhoneOwned ?? PHONE_INITIAL_OWNED;
     const saved = parseSave(opts?.save, world, initialOwned, this.phoneDataConfig);
+    this.originalLife = saved?.life;
+    this.life = restoreLifeSave(this.originalLife);
     this.appearance = normalizeAppearance(saved?.appearance);
     this.assets = new PlayerAssets(saved?.assets);
     const start = saved
@@ -107,6 +113,10 @@ export class Game {
 
   serialize(): SaveData {
     this.updatePhoneLocation();
-    return createSave(this.world, this.player, this.appearance, this.assets.snapshot(), this.phone.save(), this.phoneDataConfig);
+    // Recovery never grants permission to replace life. Transport its original JSON
+    // while the store/session report that new event progress could not be saved.
+    const life = this.life.status === 'recovered' || this.life.status === 'protected'
+      ? copySaveJson(this.originalLife) : this.life.serialize();
+    return { ...createSave(this.world, this.player, this.appearance, this.assets.snapshot(), this.phone.save(), this.phoneDataConfig), life };
   }
 }

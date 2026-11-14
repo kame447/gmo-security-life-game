@@ -67,7 +67,8 @@ describe('shared v1 save preservation without a phone UI', () => {
       dataBudget: { v: 1, remainingMb: 123.75, capacityMb: 1234, savedAtEpochMs: 1000, activeAtSave: true } } };
     const parsed = parseSave(saved, world, true, config)!;
     expect(parsed).toEqual(saved);
-    expect(createSave(world, new Game(world).player, parsed.appearance!, parsed.assets, parsed.phone, config)).toEqual(saved);
+    const { life: _life, ...withoutLife } = saved;
+    expect(createSave(world, new Game(world).player, parsed.appearance!, parsed.assets, parsed.phone, config)).toEqual(withoutLife);
     const game = new Game(world, { save: saved, phoneDataConfig: config });
     expect(game.serialize().phone).toMatchObject({ v: 1, owned: false,
       dataBudget: { v: 1, remainingMb: 123.75, capacityMb: 1234 } });

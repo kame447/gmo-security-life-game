@@ -41,7 +41,9 @@ const seed = { ...baseline, assets: { moneyYen: 2480,
     chat: { v: 1, contacts: [{ id: 'family', name: '家族', icon: 'person' }], threads: [
       { id: 'family-chat', contactId: 'family', messages: [{ id: 'saved', from: 'family', text: '保存した会話', atMs: 5, read: false }],
         pending: [], nextSequence: 1, replyCursor: 0 }], futureChat: [false, null] } },
-  life: { v: 7, history: ['preserve-old-life'] }, future: { keep: [false, null, '未知欄'] } };
+  life: { v: 1, stats: { friendship: 2.5 }, flags: { 'future.flag': false },
+    history: [{ eventId: 'unknown-event', choiceId: null, futureEntry: [false, null] }], futureLife: { v: 7 } },
+  future: { keep: [false, null, '未知欄'] } };
 const largeSave = () => ({ ...seed,
   future: { ...seed.future, capacityProbe: 'あ'.repeat(64) },
   phone: { ...seed.phone, chat: { ...largeChat, futureChat: seed.phone.chat.futureChat } } });
@@ -173,7 +175,7 @@ try {
     const fresh = JSON.parse(await raw(page));
     assert.equal(fresh.assets.moneyYen, baseline.assets.moneyYen);
     assert.deepEqual(fresh.assets.items, []);
-    assert.equal(Object.hasOwn(fresh, 'life'), false);
+    assert.deepEqual(fresh.life, baseline.life);
     assert.equal(Object.hasOwn(fresh, 'future'), false);
     assert.equal(Object.hasOwn(fresh.assets, 'futureWallet'), false);
     assert.equal(Object.hasOwn(fresh.phone, 'futurePhone'), false);

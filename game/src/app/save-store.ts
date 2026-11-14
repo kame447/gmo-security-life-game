@@ -3,6 +3,7 @@ import { hasFutureSaveSection, parseSave, preserveSaveExtensions, type SaveData 
 import { checkSaveTree, saveJsonText, saveRecord, SaveValidationError, type SaveValidationOptions } from '../state/save-json';
 import type { PhoneBudgetConfig } from '../phone/budget-config';
 import type { World } from '../world';
+import { restoreLifeSave } from '../events/life-save';
 
 const SAVE_KEY = 'slg-map-save-v1';
 const PROTECTED_KEY = `${SAVE_KEY}.protected`;
@@ -28,6 +29,8 @@ export interface SaveStatus {
   readonly changed: boolean;
   /** An unreadable old value has been preserved during this session. */
   readonly backedUp: boolean;
+  /** Other fields may be saved, but new event progress cannot replace this raw life. */
+  readonly lifeProtected: boolean;
 }
 
 function storageFailure(error: unknown): SaveFailure {
@@ -46,11 +49,12 @@ export function createSaveStore(options: SaveStoreOptions = {}) {
   let unreadAtStartup = false;
   let changed = false;
   let backedUp = false;
+  let lifeProtected = false;
 
   function fail(reason: SaveFailure): false { failure = reason; return false; }
   function saveStatus(): SaveStatus {
     return { failed: failure !== null, reason: failure, pending: pending !== undefined,
-      retryable: pending !== undefined, changed, backedUp };
+      retryable: pending !== undefined, changed, backedUp, lifeProtected };
   }
 
   function loadSave(world: World, readOptions: SaveReadOptions = {}): SaveData | undefined {
@@ -59,11 +63,12 @@ export function createSaveStore(options: SaveStoreOptions = {}) {
     catch (error) { unreadAtStartup = true; fail(storageFailure(error)); return undefined; }
     observed = raw;
     unreadAtStartup = false;
-    if (raw === null) { if (pending === undefined) failure = null; return undefined; }
+    if (raw === null) { if (pending === undefined) failure = null; lifeProtected = false; return undefined; }
     try {
       const saved = parseSave(JSON.parse(raw), world, readOptions.initialPhoneOwned, readOptions.phoneDataConfig,
         { maxBytes: readOptions.maxBytes ?? options.maxBytes });
       if (!saved) { fail('protected-save'); return undefined; }
+      lifeProtected = protectedLife(saved.life);
       if (pending === undefined) failure = null;
       return saved;
     } catch { fail('protected-save'); return undefined; }
@@ -86,6 +91,17 @@ export function createSaveStore(options: SaveStoreOptions = {}) {
         if (!saveRecord(previous) || previous.v !== 1 || previous.variantId !== current.variantId ||
             hasFutureSaveSection(previous)) protect = true;
       } catch { protect = true; }
+    }
+    // An unreadable life section is still valid, opaque JSON. Preserve the disk
+    // value even if another tab installed it after this Game was constructed.
+    // Do not merge histories or discard the rest of the current snapshot.
+    lifeProtected = protectedLife(current.life);
+    if (!protect && saveRecord(previous) && protectedLife(previous.life)) {
+      current.life = previous.life;
+      lifeProtected = true;
+    } else if (!protect && saveRecord(previous) && lifeProtected && Object.hasOwn(previous, 'life')) {
+      // This Game still has an older protected life; keep a newer disk value until reload.
+      current.life = previous.life;
     }
     let text: string;
     try { text = saveJsonText(preserveSaveExtensions(protect ? undefined : previous, current), options); }
@@ -130,6 +146,11 @@ export function createSaveStore(options: SaveStoreOptions = {}) {
 
   /** Retry the latest valid snapshot; never an older one after a successful save. */
   return { loadSave, writeSave, saveStatus, retrySave: flush };
+}
+
+function protectedLife(raw: unknown): boolean {
+  const status = restoreLifeSave(raw).status;
+  return status === 'recovered' || status === 'protected';
 }
 
 const defaultStore = createSaveStore();

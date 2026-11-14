@@ -27,16 +27,15 @@ import { ShopPanel } from './ui/shop-panel';
 import { buildWorld } from './world';
 
 const world = buildWorld();
-// 人生イベントは試作段階。まだ永続保存には対応していない。
-const lifeEvents = new LifeEventDirector(CHILDHOOD_SAMPLE_EVENTS);
 const review = bagReviewOptions(window.location.search);
 const shopReview = review.temporary && new URLSearchParams(window.location.search).get('shopReview') === '1';
 let shopEvents: MapEventSink | undefined;
 const phoneOptions = { initialPhoneOwned: PHONE_INITIAL_OWNED, phoneDataConfig: PHONE_BUDGET_PROTOTYPE };
 const localSave = new LocalSaveSession(world, { readOptions: phoneOptions, disabled: review.temporary });
-const game = new Game(world, { ...phoneOptions, save: localSave.initialSave, sink: {
+const game: Game = new Game(world, { ...phoneOptions, save: localSave.initialSave, sink: {
   onMapEvent: event => shopEvents?.onMapEvent(event) ?? lifeEvents.onMapEvent(event),
 } });
+const lifeEvents = new LifeEventDirector(CHILDHOOD_SAMPLE_EVENTS, game.life.state);
 if (shopReview) prepareShopReview(game);
 else if (review.temporary) applyBagReviewFixture(game.assets);
 game.phone.setVisible(!document.hidden);
@@ -52,7 +51,7 @@ function saveSnapshot() {
   if (confirmed) data.appearance = confirmed;
   return data;
 }
-function save() { if (!review.temporary) localSave.save(saveSnapshot()); }
+function save() { if (!review.temporary) localSave.save(saveSnapshot); }
 
 const avatar = new AvatarPanel(game, commit => {
   controls.clear();

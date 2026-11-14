@@ -59,12 +59,12 @@ export class LocalSavePanel implements ModalPanel {
     this.panel.append(heading, this.menu, this.question, this.confirm, this.status, this.back);
     this.overlay.append(this.panel); stage.append(this.overlay, this.indicator);
     this.overlay.addEventListener('click', event => { if (event.target === this.overlay) this.close(); });
-    this.write.addEventListener('click', () => { this.session.save(this.actions.snapshot(), true); });
+    this.write.addEventListener('click', () => { this.session.save(() => this.actions.snapshot(), true); });
     this.resume.addEventListener('click', () => this.ask('continue'));
     this.start.addEventListener('click', () => this.ask('new'));
     this.back.addEventListener('click', () => this.goBack());
     this.confirm.addEventListener('click', () => {
-      const result = this.view === 'continue' ? this.session.continue() : this.session.startNew(this.actions.newGame());
+      const result = this.view === 'continue' ? this.session.continue() : this.session.startNew(() => this.actions.newGame());
       if (result.ok) { this.sync(); this.actions.reload(); }
     });
     this.session.onChange(() => this.sync());

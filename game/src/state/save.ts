@@ -29,6 +29,8 @@ export interface SaveData {
   assets?: AssetSnapshot;
   /** Optional for saves from before the phone prototype. */
   phone?: PhoneSave;
+  /** Kept raw so the life adapter can recover supported fields and protect unreadable versions. */
+  life?: unknown;
 }
 
 const FACINGS: readonly unknown[] = ['up', 'down', 'left', 'right'];
@@ -72,10 +74,13 @@ export function preserveSaveExtensions(previous: unknown, current: SaveData,
   checkSaveTree(current);
   // Older builds transport layout opaquely; inventory-aware builds normalize its
   // owned fields while still preserving metadata introduced by a newer caller.
+  // A life-aware snapshot owns its complete section, including its JSON field
+  // position. Older callers that omit life still transport it opaquely.
+  const ownedFields = Object.hasOwn(current, 'life') ? { ...SAVE_FIELDS, life: null } : SAVE_FIELDS;
   const fields = saveRecord(current.assets) && Object.hasOwn(current.assets, 'layout')
-    ? { ...SAVE_FIELDS, assets: { ...ASSET_FIELDS,
+    ? { ...ownedFields, assets: { ...ASSET_FIELDS,
       layout: { v: null, bag: null, hotbar: null, selectedHotbar: null } } }
-    : SAVE_FIELDS;
+    : ownedFields;
   return copySaveJson(retainFields(previous, current, fields), options) as SaveData;
 }
 

@@ -16,6 +16,7 @@
 | retryable | 再試行用の pending があるか。再試行の成功は保存先の状態に依存する |
 | changed | 最後の保存試行で、前に観測した値からの外部変更を検知したか |
 | backedUp | このセッションで、読めない旧保存の退避を確認できたか |
+| lifeProtected | 接続候補でlifeを元のJSONのまま保護したか。trueなら他欄の書込が成功しても新しい人生イベントの進行は未保存 |
 
 失敗理由は `quota-exceeded`（容量超過）、`storage-unavailable`（保存領域へのアクセス拒否・未提供）、`storage-error`（その他の保存先の例外）、`invalid-data`（JSON として損失なく扱えない入力）、`too-large`（指定した上限の超過）、`protected-save`（旧保存を安全に退避できない）に分ける。例外のメッセージや保存内容は状態に含めない。
 
@@ -29,7 +30,7 @@
 
 `game/src/state/save.ts` は既知の位置・外見・資産・スマホを従来どおり修復し、最上位と外見・資産・phone・phone.dataBudget・phone.chat の未知メンバーを保持する。たとえば `assets.layout` や `life`（欄名は仮称）が該当する。既知の配列の内容はその担当 codec が検証・正規化する。壊れた既知の時刻などを「未知欄」として復活させない。
 
-`life` の数値・目印・履歴・順序と入れ子の版は不透明な JSON として保持する。この変更はイベントの進行状態とセーブを接続するものではない。`main.ts` にある現在の `LifeEventDirector` は引き続き保存・復元へ未接続で、新たなイベントの進捗はこの変更だけでは永続化されない。旧保存に `life` がなければ作らない。
+保存安全性の独立候補では `life` の数値・目印・履歴・順序と入れ子の版は不透明なJSONとして保持する。後段の接続候補 `feat/life-local-save` は [人生イベントの保存](life-save.md) のアダプタをGameとDirectorへ接続し、通常の進行を保存する。外側のcodecはraw lifeを運搬し、保護対象lifeは書込直前にも元データを優先する。その場合は `lifeProtected` を返し、LocalSaveSessionは既存の失敗通知へ伝える。外側全体を読めない場合の退避・拒否契約は従来どおり。
 
 `loadSave → Game → writeSave` では、Game が知らない欄を自分の DTO に含めなくても、保存層がその時点の保存済み JSON から未知欄を保持する。再試行時も、元の呼出側の JSON にディスクの最新の未知欄を引き継ぐ。保存へ明示的に新しい未知欄の値を渡した場合は、その値を使う。Game の `serialize()` 単独には未知欄を引き継ぐ責務を加えていない。
 

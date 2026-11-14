@@ -117,7 +117,7 @@ describe('local save gameplay session', () => {
     expect(s.values.get(BACKUP)).toBe(raw); expect(JSON.parse(s.values.get(KEY)!)).toEqual(data);
     expect(s.session.save(new Game(world, { save: original }).serialize())).toEqual({ ok: false, reason: 'paused' });
     const next = new LocalSaveSession(world, s.options); expect(next.initialSave?.assets?.moneyYen).toBe(1000);
-    expect(next.initialSave).not.toHaveProperty('life');
+    expect(next.initialSave?.life).toEqual({ v: 1, stats: {}, flags: {}, history: [] });
   });
 
   it('can start anew from corrupt data only after it has been backed up', () => {
@@ -141,14 +141,16 @@ describe('local save gameplay session', () => {
   it('updates the single previous-generation backup only on a confirmed new game', () => {
     const s = setup(JSON.stringify(fresh())); s.values.set(BACKUP, 'older backup');
     s.session.save(fresh()); expect(s.values.get(BACKUP)).toBe('older backup');
+    const previous = s.values.get(KEY);
     expect(s.session.startNew(fresh()).ok).toBe(true);
-    expect(s.values.get(BACKUP)).toBe(JSON.stringify(fresh()));
+    expect(s.values.get(BACKUP)).toBe(previous);
   });
 
   it('preserves the latest disk extensions during normal saves and supports a caller size bound', () => {
     const data = fresh(); const s = setup(JSON.stringify(data), { maxBytes: 1024 });
     const life = { v: 2, history: [1] }; s.values.set(KEY, JSON.stringify({ ...data, life }));
-    expect(s.session.save(data).ok).toBe(true); expect(JSON.parse(s.values.get(KEY)!).life).toEqual(life);
+    expect(s.session.save(data)).toEqual({ ok: false, reason: 'protected-life' });
+    expect(JSON.parse(s.values.get(KEY)!).life).toEqual(life);
     expect(s.session.save({ ...data, future: 'あ'.repeat(500) }, true)).toEqual({ ok: false, reason: 'too-large' });
   });
 

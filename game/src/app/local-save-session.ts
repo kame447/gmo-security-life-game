@@ -2,8 +2,11 @@
 import { createSaveStore, type SaveFailure, type SaveReadOptions, type SaveStorage, type SaveStoreOptions } from './save-store';
 import type { SaveData } from '../state/save';
 import type { World } from '../world';
+import { LifeSaveError } from '../events/life-save';
+import { SaveValidationError } from '../state/save-json';
 
-export type LocalSaveProblem = SaveFailure | 'missing' | 'review';
+export type LocalSaveProblem = SaveFailure | 'missing' | 'review' | 'protected-life';
+export type SaveSnapshot = SaveData | (() => SaveData);
 export type LocalSaveResult = { ok: true } | { ok: false; reason: LocalSaveProblem | 'paused' };
 export type LocalSaveNotice = { kind: 'none' | 'saved' } | { kind: 'error'; reason: LocalSaveProblem };
 export interface LocalSaveOptions extends SaveStoreOptions {
@@ -30,6 +33,8 @@ export class LocalSaveSession {
     if (this.writer.saveStatus().failed) {
       this.automaticAllowed = false;
       this.currentNotice = { kind: 'error', reason: this.writer.saveStatus().reason! };
+    } else if (this.writer.saveStatus().lifeProtected) {
+      this.currentNotice = { kind: 'error', reason: 'protected-life' };
     }
   }
 
@@ -57,6 +62,8 @@ export class LocalSaveSession {
     if (reader.saveStatus().failed) {
       this.automaticAllowed = false;
       this.fail(reader.saveStatus().reason!);
+    } else if (reader.saveStatus().lifeProtected) {
+      this.fail('protected-life');
     } else if (!saved && !this.automaticAllowed) {
       // Storage recovered and is provably empty. The current in-memory game can
       // now be saved without replacing an unread old checkpoint.
@@ -68,14 +75,18 @@ export class LocalSaveSession {
   }
 
   /** Every autosave source uses this same gate; manual saves may run inside the panel. */
-  save(data: SaveData, manual = false): LocalSaveResult {
+  save(source: SaveSnapshot, manual = false): LocalSaveResult {
     if (this.disabled) return { ok: false, reason: 'review' };
     if (this.switching || (this.held && !manual)) return { ok: false, reason: 'paused' };
     if (!this.automaticAllowed) {
       return this.fail(this.currentNotice.kind === 'error' ? this.currentNotice.reason : 'protected-save');
     }
+    let data: SaveData;
+    try { data = typeof source === 'function' ? source() : source; }
+    catch (error) { return this.fail(snapshotFailure(error)); }
     if (!this.writer.writeSave(data)) return this.fail(this.writer.saveStatus().reason!);
     this.saved = true;
+    if (this.writer.saveStatus().lifeProtected) return this.fail('protected-life');
     this.announce({ kind: manual ? 'saved' : 'none' });
     return { ok: true };
   }
@@ -92,9 +103,12 @@ export class LocalSaveSession {
   }
 
   /** Confirmed new game: preserve the current raw string, then replace without old extensions. */
-  startNew(data: SaveData): LocalSaveResult {
+  startNew(source: SaveSnapshot): LocalSaveResult {
     if (this.disabled) return { ok: false, reason: 'review' };
     if (this.switching) return { ok: false, reason: 'paused' };
+    let data: SaveData;
+    try { data = typeof source === 'function' ? source() : source; }
+    catch (error) { return this.fail(snapshotFailure(error)); }
     const getStorage = this.options.storage ?? (() => localStorage);
     // This adapter is used for this one explicit replacement only. The existing
     // store still validates JSON and reports failures; its read sees no old DTO.
@@ -115,4 +129,10 @@ export class LocalSaveSession {
     this.switching = true;
     return { ok: true };
   }
+}
+
+function snapshotFailure(error: unknown): LocalSaveProblem {
+  if (error instanceof LifeSaveError && error.reason === 'protected-life') return 'protected-life';
+  if (error instanceof LifeSaveError || error instanceof SaveValidationError) return error.reason;
+  return 'invalid-data';
 }
