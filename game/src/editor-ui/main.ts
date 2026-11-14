@@ -9,6 +9,8 @@ import { MapInspector } from './map/inspector.ts';
 import { referenceScene } from './map/reference.ts';
 import { sceneEntries } from './map/scene.ts';
 import { operationsFromDraft } from './map/operations.ts';
+import { MAP_CELL, tileFromClient } from './map/viewport.ts';
+import { NpcPanel } from './npc/panel.ts';
 
 const model = new EditorModel(createEditorBackend(JSON.parse(source)));
 const $ = <T extends Element>(selector: string): T => {
@@ -32,6 +34,7 @@ const mapView = new MapView(model, canvas, $<HTMLElement>('#map-viewport'), () =
 const mapInspector = new MapInspector(model, $<HTMLElement>('#map-fields'), () => {
   json.value = model.draft?.text ?? ''; renderValidation(); renderControls();
 });
+const npcPanel = new NpcPanel(model, render, renderControls, renderGrid);
 
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string): HTMLElementTagNameMap[K] {
   const element = document.createElement(tag);
@@ -63,15 +66,26 @@ function renderList(): void {
   }));
 }
 
-function renderGrid(): void { mapView.draw(); }
+function renderGrid(): void {
+  mapView.draw();
+  const preview = npcPanel.placementPreview;
+  if (mapView.readOnly || preview?.areaId !== mapView.areaId) return;
+  const c = canvas.getContext('2d');
+  if (!c) return;
+  c.save(); c.setLineDash([6, 4]); c.lineWidth = 3; c.strokeStyle = '#7042a0';
+  c.strokeRect(preview.x * MAP_CELL + 2, preview.y * MAP_CELL + 2, preview.w * MAP_CELL - 4, preview.h * MAP_CELL - 4);
+  c.restore();
+}
 
 function renderInspector(): void {
   mapInspector.render();
   const draft = model.draft;
-  form.hidden = mapView.readOnly || !draft; $('#empty-inspector').toggleAttribute('hidden', !!draft);
+  const npcActive = npcPanel.render();
+  $<HTMLFormElement>('#npc-form').hidden = mapView.readOnly || !npcActive;
+  form.hidden = mapView.readOnly || !draft || npcActive; $('#empty-inspector').toggleAttribute('hidden', !!draft);
   $('#draft-kind').textContent = draft ? labels[draft.table] : '';
   $('#selected-caption').textContent = draft ? `${draft.id === null ? '新規' : '選択中'}：${labels[draft.table]} / ${draft.id ?? '未保存'}` : '一覧またはグリッドから対象を選択してください。';
-  if (!draft) return;
+  if (!draft || npcActive) return;
   $('#draft-description').textContent = draft.id === null ? '新規データを入力して反映してください。' : `ID: ${draft.id}`;
   json.value = draft.text; xInput.value = draft.x; yInput.value = draft.y;
   $('#coordinates').toggleAttribute('hidden', !draft.positioned);
@@ -112,6 +126,7 @@ function renderControls(): void {
   $<HTMLButtonElement>('#apply').disabled = mapView.readOnly || !model.pending;
   $<HTMLButtonElement>('#cancel-draft').disabled = !model.pending && model.issues.length === 0;
   $<HTMLButtonElement>('#delete').disabled = mapView.readOnly || model.pending;
+  npcPanel.updateControls();
   $('#export-hint').textContent = model.pending ? '未反映の入力を反映または取り消してください。' : model.issues.length ? '検証エラーを解消してください。' : model.changes.operations.length ? '検証済みの差分を書き出せます。' : '変更を反映すると書き出せます。';
 }
 function render(): void { renderList(); renderGrid(); renderInspector(); renderValidation(); renderChanges(); renderControls(); mapView.afterRender(); }
@@ -126,13 +141,24 @@ json.addEventListener('change', () => { mapInspector.render(); mapInspector.prev
 form.addEventListener('submit', event => {
   event.preventDefault(); if (mapView.readOnly) return;
   const draft = model.draft;
-  model.applyDraft(draft && ['objects', 'facilities', 'portals'].includes(draft.table) ? () => operationsFromDraft(model.document, draft) : undefined); render();
+  if (draft && ['objects', 'facilities', 'portals'].includes(draft.table)) model.applyDraft(() => operationsFromDraft(model.document, draft));
+  else npcPanel.applyCurrentDraft();
+  render();
 });
 $('#cancel-draft').addEventListener('click', () => { if (mapView.readOnly) return; model.cancelDraft(); render(); });
 $('#delete').addEventListener('click', () => { if (mapView.readOnly) return; model.deleteSelection(); render(); });
 undo.addEventListener('click', () => { if (mapView.readOnly) return; model.history('undo'); render(); });
 redo.addEventListener('click', () => { if (mapView.readOnly) return; model.history('redo'); render(); });
 canvas.addEventListener('click', event => {
+  const tile = tileFromClient(event.clientX, event.clientY, canvas.getBoundingClientRect(), canvas);
+  // A reference click belongs to MapView. It never changes the retained sample NPC draft.
+  if (mapView.readOnly || canvas.dataset.mapReadOnly === 'true') {
+    npcPanel.placeAt(tile.x, tile.y); // The NPC guard cancels any previously armed placement.
+    if (mapView.readOnly) mapView.click(event); else render();
+    return;
+  }
+  // NPC placement owns this click; MapView must not select or drag another entity afterward.
+  if (npcPanel.placeAt(tile.x, tile.y)) return;
   if (canvas.dataset.npcPlacement === 'true') return;
   mapView.click(event);
 });

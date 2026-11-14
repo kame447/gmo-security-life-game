@@ -1,0 +1,10 @@
+#npc-add { margin-top: 8px; width: 100%; }
+.npc-form > input, .npc-form > select, .npc-form > textarea { margin-bottom: 12px; }
+.npc-form textarea { min-height: 90px; font-family: inherit; }
+.npc-preview-row { display: grid; grid-template-columns: minmax(0, 1fr) 86px; gap: 12px; align-items: center; margin-bottom: 12px; }
+.npc-preview-row select { margin-bottom: 9px; }
+#npc-preview { width: 72px; height: 104px; background: #dce8d7; border: 1px solid #c4d4c5; border-radius: 6px; image-rendering: pixelated; }
+#npc-place { width: 100%; margin: 10px 0 3px; }
+#npc-place[aria-pressed="true"] { background: #e3f1e7; border-color: #4f9272; }
+.npc-check { display: flex; align-items: center; gap: 7px; margin: 12px 0; }
+.npc-check input { width: auto; }

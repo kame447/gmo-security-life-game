@@ -31,6 +31,7 @@
         <div class="add-box">
           <label for="add-type">新しい対象</label>
           <div class="add-row"><select id="add-type"><option value="objects">配置物</option><option value="facilities">施設</option><option value="interactions">調査対象</option><option value="portals">出入口</option></select><button id="add" type="button">＋ 追加</button></div>
+          <button id="npc-add" type="button">＋ NPC を追加</button>
         </div>
       </aside>
       <section class="panel map-panel" aria-labelledby="map-heading">
@@ -64,6 +65,28 @@
           <textarea id="entity-json" spellcheck="false" rows="17" aria-describedby="json-help"></textarea>
           <p id="json-help" class="helper small">既存の ID は変更できません。入力は「編集を反映」で検証されます。</p>
           <div class="form-actions"><button class="primary" id="apply" type="submit">編集を反映</button><button id="cancel-draft" type="button">入力を取り消す</button><button id="delete" class="danger" type="button">削除</button></div>
+        </form>
+        <form id="npc-form" class="npc-form" hidden novalidate>
+          <p class="helper">NPC の ID は英小文字の kebab-case で入力します。</p>
+          <label for="npc-id">NPC ID</label><input id="npc-id" autocomplete="off" />
+          <label for="npc-name">表示名</label><input id="npc-name" autocomplete="off" />
+          <div class="npc-preview-row">
+            <div><label for="npc-sprite">スプライト</label><select id="npc-sprite"></select>
+              <label for="npc-facing">向き</label><select id="npc-facing"><option value="down">下</option><option value="up">上</option><option value="left">左</option><option value="right">右</option></select></div>
+            <canvas id="npc-preview" width="72" height="104" aria-label="NPC のスプライトプレビュー"></canvas>
+          </div>
+          <div class="coordinates">
+            <label>X <input id="npc-x" type="number" min="0" step="1" inputmode="numeric" /></label>
+            <label>Y <input id="npc-y" type="number" min="0" step="1" inputmode="numeric" /></label>
+            <label>幅 <input id="npc-w" type="number" min="1" step="1" inputmode="numeric" /></label>
+            <label>高さ <input id="npc-h" type="number" min="1" step="1" inputmode="numeric" /></label>
+          </div>
+          <button id="npc-place" type="button" aria-pressed="false">グリッドで位置を指定</button>
+          <p id="npc-place-help" class="helper small">ボタンの後にグリッドをクリックして位置を指定できます。</p>
+          <label class="npc-check"><input id="npc-solid" type="checkbox" /> 通行をふさぐ</label>
+          <label for="npc-event">イベント参照</label><select id="npc-event"></select>
+          <label for="npc-lines">既定の会話（1行に1つ）</label><textarea id="npc-lines" rows="4"></textarea>
+          <div class="form-actions"><button id="npc-apply" class="primary" type="submit">編集を反映</button><button id="npc-cancel" type="button">入力を取り消す</button><button id="npc-delete" class="danger" type="button">削除</button></div>
         </form>
         <div id="validation" class="validation" aria-live="polite"><h3>検証</h3><p>検証エラーはありません。</p></div>
         <p id="status" class="status" role="status" aria-live="polite"></p>
