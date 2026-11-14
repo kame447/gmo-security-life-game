@@ -16,54 +16,6 @@
     "original_file": "opening-a-pit-original.png"
   },
   {
-    "asset": "opening-a-wings",
-    "prompt": "Use case: stylized-concept. Original 2D pixel-art sprite sheet on a truly transparent background. Exactly TWO animation frames arranged horizontally, each 64x32 logical pixels, total 128x32 logical aspect 4:1. In EACH frame, show one complete symmetric pair of small white feathered wings with a small empty transparent gap at center for attaching a title. Frame 1 on left: wings extended outward horizontally. Frame 2 on right: the same pair raised upwards in a flap. Keep identical scale and centered attachment point within each cell. Pearl-white feathers, pale blue-grey shading, tiny dark slate pixel outlines, simple chunky square pixels readable at 64x32, 16-32 colors, no antialiasing. No body, people, birds, halo, text, frame lines, labels, letters, numbers, UI, logos, watermarks. Transparent all around both pairs.",
-    "tool": "image_gen.imagegen",
-    "model": "Tool did not expose model identifier",
-    "generated_date": "2026-11-14 JST",
-    "original_file": "opening-a-wings-original.png"
-  },
-  {
-    "asset": "opening-b-sky",
-    "prompt": "Use case: stylized-concept. Original crisp 2D pixel-art sky background for a side-scrolling everyday-life game. Wide 16:9 full-bleed canvas, intended logical size 480x270. Only clear pale blue morning-to-noon sky and a few soft white pixel clouds, no ground, no horizon, no sun disk. Bright calm atmosphere, subtle sky color bands instead of smooth gradients, chunky square pixel edges, limited pastel palette, no antialiasing. Horizontally seamless tile: sky color must be identical at left and right at each height, leave both outer 15 percent edge bands cloud-free. Clouds small and well-spaced. No text, logos, watermarks, UI, people or objects.",
-    "tool": "image_gen.imagegen",
-    "model": "Tool did not expose model identifier",
-    "generated_date": "2026-11-14 JST",
-    "original_file": "opening-b-sky-original.png"
-  },
-  {
-    "asset": "opening-b-far",
-    "prompt": "Use case: stylized-concept. Original 2D pixel-art parallax background strip, a very wide thin panorama intended to be 960x150 logical pixels. Pure side-on orthographic view of distant low and medium-rise Japanese semi-urban buildings against low layered mountain silhouettes, quiet residential town, no skyscrapers. Simplified muted blue-grey and sage silhouettes, a few pale window blocks, low detail suitable for far distance, crisp square pixels with no antialiasing. All buildings and mountains anchored to a single straight horizontal baseline at the very bottom; no visible ground underneath. Top and all empty space truly transparent, no sky fill, no checkerboard. Horizontally looping composition: both far left and far right edges end with the same low silhouette height and mountain tone, no conspicuous landmark at either edge. Broad low building skyline throughout, mountains behind. No people, letters, numbers, signs, text, logos, watermarks or UI.",
-    "tool": "image_gen.imagegen",
-    "model": "Tool did not expose model identifier",
-    "generated_date": "2026-11-14 JST",
-    "original_file": "opening-b-far-original.png"
-  },
-  {
-    "asset": "opening-b-near",
-    "prompt": "Use case: stylized-concept. Original 2D pixel-art parallax game strip intended as a 960x170 logical-pixel very wide panorama. Strict SIDE VIEW, orthographic elevation, no isometric perspective, no overhead view. A continuous Japanese semi-urban street frontage: modest two-story tiled-roof houses, a tiny neighborhood shop with plain blank awning and absolutely no sign lettering, utility poles, small street trees, low garden walls. Warm cream walls, terracotta and slate roofs, sage leaves, restrained sunny 32-48-color everyday palette. Crisp chunky pixels, no antialiasing. One straight ground baseline along the very bottom of all buildings, no road or pavement below it; transparent sky above roofs and transparent gaps. Truly transparent background, not checkerboard. Horizontal looping strip: left and right edges meet at matching low garden wall and shrub height, do not cut a large building at edge. All objects seen from directly sideways. No people, animals, cars, text, letters, numbers, logos, brands, watermarks, UI or border.",
-    "tool": "image_gen.imagegen",
-    "model": "Tool did not expose model identifier",
-    "generated_date": "2026-11-14 JST",
-    "original_file": "opening-b-near-original.png"
-  },
-  {
-    "asset": "opening-b-ground",
-    "prompt": "Use case: stylized-concept. Original 2D pixel-art ground tile for a side-scrolling game, intended logical resolution 96x64, aspect 3:2. A straight perfectly horizontal strip: top 24 pixels show a light warm grey rectangular sidewalk surface with simple paving joints, next 6 pixels a slightly darker vertical curb edge, bottom 34 pixels dark slate asphalt road with a few restrained tiny texture pixels. Strict game-side-view ground band, not perspective; no diagonal lines. Fully opaque edge-to-edge rectangle. Seamless horizontally: paving rhythm repeats and left/right edge pixels align at every height. Crisp square pixel art, calm sunny everyday neighborhood palette, 16-32 colors, no antialiasing. No buildings, plants, people, vehicles, road markings, text, labels, logos, watermarks or UI.",
-    "tool": "image_gen.imagegen",
-    "model": "Tool did not expose model identifier",
-    "generated_date": "2026-11-14 JST",
-    "original_file": "opening-b-ground-original.png"
-  },
-  {
-    "asset": "opening-b-pit",
-    "prompt": "Use case: stylized-concept. Original 2D pixel-art sprite for a side-scrolling game: a small pit cut into a flat road, shown strictly FROM THE SIDE as a cross-section, logical 64x48 pixels, aspect 4:3. Broken dark grey asphalt lips at upper left and upper right form a gap, with jagged warm brown soil walls descending into a deep nearly black navy cavity, a few small stones at the rim. The top opening is a shallow narrow ellipse seen nearly edge-on, not a wide top-down bowl. Compact readable silhouette, centered with transparent padding. True alpha transparent background outside the pit; inside cavity opaque dark. Muted warm 24-40 colors, crisp chunky square pixel edges, no antialiasing, no shadows outside silhouette. No people, objects, text, numbers, letters, logos, watermarks, UI.",
-    "tool": "image_gen.imagegen",
-    "model": "Tool did not expose model identifier",
-    "generated_date": "2026-11-14 JST",
-    "original_file": "opening-b-pit-original.png"
-  },
-  {
     "asset": "opening-c-pitwall",
     "prompt": "Use case: stylized-concept. Original crisp 2D pixel-art game background, square composition intended 480x480 logical pixels. Camera at the very bottom of a deep circular earthen pit looking straight UP vertically toward the sky opening. Rough earth and stone walls fill all four outer canvas edges and corners and converge radially toward a circular opening exactly in the center. The central opening has diameter approximately 140 pixels of the 480 square (29 percent of canvas width). THE CENTRAL OPENING IS TRUE TRANSPARENT ALPHA, with no painted sky, no dark fill and no checkerboard. Everything outside the central opening is opaque earthen wall all the way to the square canvas edges; do not isolate a donut on transparent outside. From dark brown foreground at outer edges to lighter ochre-brown walls toward center, angular rocks, occasional small roots, broken slate asphalt and a few green grass tufts around the distant circular mouth. Strong radial upward perspective; clearly looking out of a pit, not down into a hole. Friendly adventure-game pixel style, restrained 32-48 colors, square pixels, no antialiasing. No people, animals, text, logos, watermarks, UI.",
     "tool": "image_gen.imagegen",

@@ -1,10 +1,11 @@
 /** オープニング候補 3 案の比較用ページ。上の切り替え欄は確認専用で、採用後のゲーム画面には含めない。 */
+import type { ArtId } from './art';
 import { parseVariant, VARIANT_IDS, type VariantId } from './core';
 import { startOpening, type OpeningHandle } from './opening';
 
 /** 本編の保存キー（game/src/app/save-store.ts）。有無を読むだけで、書き換えない。 */
 const SAVE_KEY = 'slg-map-save-v1';
-const NAMES: Record<VariantId, string> = { a: '案A 落とし穴に落ちる', b: '案B 跳び越える', c: '案C 穴の底から' };
+const NAMES: Record<VariantId, string> = { a: '案A 落とし穴に落ちる', b: '案B 分かれ道', c: '案C 穴の底から' };
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
@@ -54,8 +55,8 @@ async function start(): Promise<void> {
   if (mine !== generation) { started.destroy(); return; }
   handle = started;
   // 画像が届いていない素材は仮の絵で動く。どちらで描いているかを確認できるようにする。
-  const ids = ['a-street', 'a-pit', 'a-wings', 'b-sky', 'b-far', 'b-near', 'b-ground', 'b-pit', 'c-pitwall', 'c-sky', 'c-town', 'dust'] as const;
-  const code = ids.filter((id) => id.startsWith(variant) || id === 'dust').filter((id) => handle!.art.source(id) === 'code');
+  const used: Record<VariantId, readonly ArtId[]> = { a: ['a-street', 'a-pit', 'dust'], b: ['a-pit', 'dust'], c: ['c-pitwall', 'c-sky', 'c-town', 'dust'] };
+  const code = used[variant].filter((id) => handle!.art.source(id) === 'code');
   $('pv-art').textContent = code.length ? `仮の絵：${code.join('、')}` : '';
 }
 

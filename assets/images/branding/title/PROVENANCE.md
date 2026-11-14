@@ -2,7 +2,18 @@
 
 **案A・B・Cはいずれも採用未決定の候補です。これらの素材が追加されたことは、採用・本編接続・最終デザインの確定を意味しません。**
 
-作成日: 2026-11-14（JST）。12点すべて、OpenAI の組み込み `image_gen.imagegen` ツールで実際に画像生成した原本から書き出しました。具体的な生成モデルの識別子はツールの返却値に含まれず、確認できませんでした。特定モデル名を推測していません。外部の参照画像は入力していません。人物、文字、ロゴ、UI、既存作品・キャラクターの模倣を含めない指示で生成しました。
+作成日: 2026-11-14（JST）。現在の6点すべて、OpenAI の組み込み `image_gen.imagegen` ツールで実際に画像生成した原本から書き出しました。具体的な生成モデルの識別子はツールの返却値に含まれず、確認できませんでした。特定モデル名を推測していません。外部の参照画像は入力していません。人物、文字、ロゴ、UI、既存作品・キャラクターの模倣を含めない指示で生成しました。
+
+## 2026-11-14 のレビュー後の整理
+
+当初は12点を書き出しましたが、2026-11-14 の利用者レビュー（[Issue #50](https://github.com/kame447/gmo-security-life-game/issues/50)）で案Aの羽の演出と案Bの横スクロールの演出が不採用になったため、使わなくなった次の6点を書き出し先・加工スクリプト・生成記録・検査結果から外しました。新しい画像は生成していません。
+
+- `opening-a-wings.png`（案Aの羽）
+- `opening-b-sky.png`・`opening-b-far.png`・`opening-b-near.png`・`opening-b-ground.png`・`opening-b-pit.png`（案Bの横スクロール用）
+
+外した6点の書き出し画像と記録は、コミット 3d40d2a までの履歴に残っています。原本（`*-original.png`）は当初からコミットしておらず、作業用の手元にあるままです。
+
+作り直した案Bは画像生成を使っていません。地面・小物・主人公は本編の描画コード（`game/src/render/`）で描き、落とし穴は `opening-a-pit.png` を縮小して使います。
 
 ## 利用条件・再配布について確認した事実と未確認事項
 
@@ -16,13 +27,13 @@
 
 ## 原本・加工・検査
 
-原本は `assets/sources/images/branding/title/` の `*-original.png` に、ツールが出力した PNG をそのままコピーして保存しています。原本には加工前の余白や半透明の縁が残ります。原本12点は合計約13MBあるため、採用が決まるまでリポジトリにはコミットせず、作業用の手元にだけ置いています（スクリプトと記録2点はコミット済み）。ゲームに読み込むのは `assets/images/branding/title/` の書き出し画像です。
+原本は `assets/sources/images/branding/title/` の `*-original.png` に、ツールが出力した PNG をそのままコピーして保存しています。原本には加工前の余白や半透明の縁が残ります。原本は合計約13MB（整理した6点の分を含む）あるため、採用が決まるまでリポジトリにはコミットせず、作業用の手元にだけ置いています（スクリプトと記録2点はコミット済み）。ゲームに読み込むのは `assets/images/branding/title/` の書き出し画像です。
 
 加工は Python 3.13 と Pillow 13.0.0 を仮想環境で使用しました。再現用スクリプトは [process-assets.py](../../../sources/images/branding/title/process-assets.py)、生成要求の機械可読記録は [generation-manifest.json](../../../sources/images/branding/title/generation-manifest.json)、寸法・色数・アルファ・左右端一致・SHA-256・原本サイズの検査結果は [validation-report.json](../../../sources/images/branding/title/validation-report.json) です。
 
 共通処理は最近傍法による縮小、MEDIANCUT による減色（ディザなし）、アルファを閾値128で0/255に二値化、完全透過画素のRGBを0へ統一、PNG保存です。不透明画像は48色以内、透過画像は最大47色＋透過1色です。透過は実際のアルファチャンネルであり、市松模様の描き込みではありません。コードは生成画像の縮小・切り出し・並べ替え・継ぎ目調整に使用したもので、コード描画による代替素材はありません。
 
-画像は原本と書き出しの両方をツール内で目視確認しました。指定寸法、人物・文字・ロゴ・UIが見当たらないこと、各視点、透過の挙動を確認しています。案Bの4タイルは左右端RGBAが完全一致し、遠景・近景の下端アルファは全幅255です。実際のアニメーション・ゲーム内合成は親側の実装で確認する範囲です。
+画像は原本と書き出しの両方をツール内で目視確認しました。指定寸法、人物・文字・ロゴ・UIが見当たらないこと、各視点、透過の挙動を確認しています。実際のアニメーション・ゲーム内合成は親側の実装で確認する範囲です。
 
 ## opening-a-street.png
 
@@ -50,90 +61,6 @@ Use case: stylized-concept. Create an original 2D pixel-art game background, asp
 
 ```text
 Use case: stylized-concept. Original 2D pixel-art game sprite of a deep pit in asphalt seen from directly above, designed for 160x112 pixels. One irregular oval hole, width about 150 and height about 96 at target resolution, centered with transparent margins. Broken chunky grey asphalt rim, a few small loose stones close to rim, warm brown soil immediately inside, dark navy-black deep interior. Near-overhead view compatible with a top-down residential street. Clear readable silhouette, friendly adventure-game mood, 32-48 muted warm colors, crisp square pixels, no antialiasing. Genuine transparent background outside the hole and its broken rim; the dark interior is opaque. Do not depict surrounding street or rectangular floor. No text, letters, numbers, logos, watermarks, UI, people or characters.
-```
-
-## opening-a-wings.png
-
-- 生成日: 2026-11-14（JST）。
-- 生成手段: `image_gen.imagegen`、具体的なモデル名は未公開・未確認。
-- 原本: `assets/sources/images/branding/title/opening-a-wings-original.png`。
-- 加工手順: 原本を左右2分割し、それぞれアルファ外接矩形を抽出。共通縮尺で最大60×28以内に縮小し、64×32の各コマの中央・下端y=30に配置。128×32のシート。左=水平に開く、右=上へ羽ばたく。2コマとも左右一対の羽を含みます。 最後に上記の共通減色・アルファ処理・PNG保存を実施。
-- 利用条件・再配布: 共通節の規約上の事実を確認。個別契約・素材ライセンス・再配布条件の最終確認は未完了。
-
-プロンプト全文:
-
-```text
-Use case: stylized-concept. Original 2D pixel-art sprite sheet on a truly transparent background. Exactly TWO animation frames arranged horizontally, each 64x32 logical pixels, total 128x32 logical aspect 4:1. In EACH frame, show one complete symmetric pair of small white feathered wings with a small empty transparent gap at center for attaching a title. Frame 1 on left: wings extended outward horizontally. Frame 2 on right: the same pair raised upwards in a flap. Keep identical scale and centered attachment point within each cell. Pearl-white feathers, pale blue-grey shading, tiny dark slate pixel outlines, simple chunky square pixels readable at 64x32, 16-32 colors, no antialiasing. No body, people, birds, halo, text, frame lines, labels, letters, numbers, UI, logos, watermarks. Transparent all around both pairs.
-```
-
-## opening-b-sky.png
-
-- 生成日: 2026-11-14（JST）。
-- 生成手段: `image_gen.imagegen`、具体的なモデル名は未公開・未確認。
-- 原本: `assets/sources/images/branding/title/opening-b-sky-original.png`。
-- 加工手順: 全体を480×270へ最近傍縮小。左右各24pxの帯で対応画素が共通色へ収束するよう調整し、減色。左右端RGBAが一致。 最後に上記の共通減色・アルファ処理・PNG保存を実施。
-- 利用条件・再配布: 共通節の規約上の事実を確認。個別契約・素材ライセンス・再配布条件の最終確認は未完了。
-
-プロンプト全文:
-
-```text
-Use case: stylized-concept. Original crisp 2D pixel-art sky background for a side-scrolling everyday-life game. Wide 16:9 full-bleed canvas, intended logical size 480x270. Only clear pale blue morning-to-noon sky and a few soft white pixel clouds, no ground, no horizon, no sun disk. Bright calm atmosphere, subtle sky color bands instead of smooth gradients, chunky square pixel edges, limited pastel palette, no antialiasing. Horizontally seamless tile: sky color must be identical at left and right at each height, leave both outer 15 percent edge bands cloud-free. Clouds small and well-spaced. No text, logos, watermarks, UI, people or objects.
-```
-
-## opening-b-far.png
-
-- 生成日: 2026-11-14（JST）。
-- 生成手段: `image_gen.imagegen`、具体的なモデル名は未公開・未確認。
-- 原本: `assets/sources/images/branding/title/opening-b-far-original.png`。
-- 加工手順: 原本下端から高さ339pxの帯を切り出し、960×150へ最近傍縮小。遠景を小さく保つため上部に透明余白があります。左右各24pxを継ぎ目調整。下端が不透明な建物基準線、左右端RGBAが一致。 最後に上記の共通減色・アルファ処理・PNG保存を実施。
-- 利用条件・再配布: 共通節の規約上の事実を確認。個別契約・素材ライセンス・再配布条件の最終確認は未完了。
-
-プロンプト全文:
-
-```text
-Use case: stylized-concept. Original 2D pixel-art parallax background strip, a very wide thin panorama intended to be 960x150 logical pixels. Pure side-on orthographic view of distant low and medium-rise Japanese semi-urban buildings against low layered mountain silhouettes, quiet residential town, no skyscrapers. Simplified muted blue-grey and sage silhouettes, a few pale window blocks, low detail suitable for far distance, crisp square pixels with no antialiasing. All buildings and mountains anchored to a single straight horizontal baseline at the very bottom; no visible ground underneath. Top and all empty space truly transparent, no sky fill, no checkerboard. Horizontally looping composition: both far left and far right edges end with the same low silhouette height and mountain tone, no conspicuous landmark at either edge. Broad low building skyline throughout, mountains behind. No people, letters, numbers, signs, text, logos, watermarks or UI.
-```
-
-## opening-b-near.png
-
-- 生成日: 2026-11-14（JST）。
-- 生成手段: `image_gen.imagegen`、具体的なモデル名は未公開・未確認。
-- 原本: `assets/sources/images/branding/title/opening-b-near-original.png`。
-- 加工手順: アルファ>=128の外接矩形で透明余白を切り、960×170へ最近傍縮小。指定寸法へ合わせるため元の帯を縦方向に少し圧縮。左右各24pxを継ぎ目調整。下端が地面基準線、左右端RGBAが一致。 最後に上記の共通減色・アルファ処理・PNG保存を実施。
-- 利用条件・再配布: 共通節の規約上の事実を確認。個別契約・素材ライセンス・再配布条件の最終確認は未完了。
-
-プロンプト全文:
-
-```text
-Use case: stylized-concept. Original 2D pixel-art parallax game strip intended as a 960x170 logical-pixel very wide panorama. Strict SIDE VIEW, orthographic elevation, no isometric perspective, no overhead view. A continuous Japanese semi-urban street frontage: modest two-story tiled-roof houses, a tiny neighborhood shop with plain blank awning and absolutely no sign lettering, utility poles, small street trees, low garden walls. Warm cream walls, terracotta and slate roofs, sage leaves, restrained sunny 32-48-color everyday palette. Crisp chunky pixels, no antialiasing. One straight ground baseline along the very bottom of all buildings, no road or pavement below it; transparent sky above roofs and transparent gaps. Truly transparent background, not checkerboard. Horizontal looping strip: left and right edges meet at matching low garden wall and shrub height, do not cut a large building at edge. All objects seen from directly sideways. No people, animals, cars, text, letters, numbers, logos, brands, watermarks, UI or border.
-```
-
-## opening-b-ground.png
-
-- 生成日: 2026-11-14（JST）。
-- 生成手段: `image_gen.imagegen`、具体的なモデル名は未公開・未確認。
-- 原本: `assets/sources/images/branding/title/opening-b-ground-original.png`。
-- 加工手順: 原本上部に意図しない黒い余白が生成されたため除去。原本y=256..479の歩道を96×24、y=480..554の縁石を96×6、y=555..1023の道路を96×34へ最近傍縮小して縦に結合。合計96×64。左右各8pxを継ぎ目調整し、左右端RGBAが一致。上端から歩道が始まります。 最後に上記の共通減色・アルファ処理・PNG保存を実施。
-- 利用条件・再配布: 共通節の規約上の事実を確認。個別契約・素材ライセンス・再配布条件の最終確認は未完了。
-
-プロンプト全文:
-
-```text
-Use case: stylized-concept. Original 2D pixel-art ground tile for a side-scrolling game, intended logical resolution 96x64, aspect 3:2. A straight perfectly horizontal strip: top 24 pixels show a light warm grey rectangular sidewalk surface with simple paving joints, next 6 pixels a slightly darker vertical curb edge, bottom 34 pixels dark slate asphalt road with a few restrained tiny texture pixels. Strict game-side-view ground band, not perspective; no diagonal lines. Fully opaque edge-to-edge rectangle. Seamless horizontally: paving rhythm repeats and left/right edge pixels align at every height. Crisp square pixel art, calm sunny everyday neighborhood palette, 16-32 colors, no antialiasing. No buildings, plants, people, vehicles, road markings, text, labels, logos, watermarks or UI.
-```
-
-## opening-b-pit.png
-
-- 生成日: 2026-11-14（JST）。
-- 生成手段: `image_gen.imagegen`、具体的なモデル名は未公開・未確認。
-- 原本: `assets/sources/images/branding/title/opening-b-pit-original.png`。
-- 加工手順: アルファ>=128の外接矩形を切り出し、縦横比を保って64×48の透明キャンバスに配置（周囲2px以上）。横視点の断面で、内部は不透明な暗色です。 最後に上記の共通減色・アルファ処理・PNG保存を実施。
-- 利用条件・再配布: 共通節の規約上の事実を確認。個別契約・素材ライセンス・再配布条件の最終確認は未完了。
-
-プロンプト全文:
-
-```text
-Use case: stylized-concept. Original 2D pixel-art sprite for a side-scrolling game: a small pit cut into a flat road, shown strictly FROM THE SIDE as a cross-section, logical 64x48 pixels, aspect 4:3. Broken dark grey asphalt lips at upper left and upper right form a gap, with jagged warm brown soil walls descending into a deep nearly black navy cavity, a few small stones at the rim. The top opening is a shallow narrow ellipse seen nearly edge-on, not a wide top-down bowl. Compact readable silhouette, centered with transparent padding. True alpha transparent background outside the pit; inside cavity opaque dark. Muted warm 24-40 colors, crisp chunky square pixel edges, no antialiasing, no shadows outside silhouette. No people, objects, text, numbers, letters, logos, watermarks, UI.
 ```
 
 ## opening-c-pitwall.png
@@ -194,4 +121,4 @@ Use case: stylized-concept. Original 2D pixel-art animation sprite sheet, exactl
 
 ## 未作成・未解決
 
-要求された12点に未作成はありません。生成失敗や代替のコード描画はありません。案Cの口は約156×160pxで、約140pxという目安より少し大きいまま自然な輪郭を保持しています。正確なモデル識別子、個別契約の適用、公開用素材ライセンスは未確認です。採用案の選択・ゲーム内でのアニメーション調整・最終公開はこの素材作業には含みません。
+現在の6点に未作成はありません。生成失敗や、生成画像の代わりに描いた画像ファイルはありません。案Cの口は約156×160pxで、約140pxという目安より少し大きいまま自然な輪郭を保持しています。正確なモデル識別子、個別契約の適用、公開用素材ライセンスは未確認です。採用案の選択・ゲーム内でのアニメーション調整・最終公開はこの素材作業には含みません。

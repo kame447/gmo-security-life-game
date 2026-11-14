@@ -6,8 +6,7 @@
 import { hash } from './core';
 
 export type ArtId =
-  | 'a-street' | 'a-pit' | 'a-wings'
-  | 'b-sky' | 'b-far' | 'b-near' | 'b-ground' | 'b-pit'
+  | 'a-street' | 'a-pit'
   | 'c-pitwall' | 'c-sky' | 'c-town' | 'dust';
 export type Picture = HTMLCanvasElement | HTMLImageElement;
 export interface Art { get(id: ArtId): Picture; source(id: ArtId): 'image' | 'code' }
@@ -81,47 +80,6 @@ const FALLBACK: Record<ArtId, () => HTMLCanvasElement> = {
       const a = (i / 14) * Math.PI * 2;
       R(c, '#3c3f47', 80 + Math.cos(a) * 74 - 3, 56 + Math.sin(a) * 51 - 2, 7, 5);
     }
-  }),
-  'a-wings': () => canvas(128, 32, (c) => {
-    for (let f = 0; f < 2; f++) for (const side of [-1, 1]) {
-      for (let i = 0; i < 5; i++) {
-        const len = 22 - i * 4, y = f ? 14 + i * 3 : 6 + i * 4;
-        const x = 32 + f * 64 + side * 4;
-        R(c, '#2a2140', side > 0 ? x - 1 : x - len - 1, y - 1, len + 2, 5);
-        R(c, i < 2 ? '#ffffff' : '#dfe8f2', side > 0 ? x : x - len, y, len, 3);
-      }
-    }
-  }),
-  'b-sky': () => canvas(480, 270, (c, w, h) => sky(c, w, h, 3)),
-  'b-far': () => canvas(960, 150, (c, w, h) => {
-    for (let x = 0; x < w; x += 4) R(c, '#9db8c9', x, h - 70 - Math.sin((x / w) * Math.PI * 6) * 22 - Math.sin((x / w) * Math.PI * 14) * 8, 4, 150);
-    for (let i = 0, x = 0; x < w; i++) {
-      const bw = 26 + Math.floor(hash(i) * 30), bh = 34 + Math.floor(hash(i + 20) * 70);
-      R(c, i % 3 ? '#8097ad' : '#93a8bb', x, h - bh, Math.min(bw, w - x), bh);
-      for (let wy = h - bh + 6; wy < h - 6; wy += 9) for (let wx = x + 4; wx < x + bw - 5 && wx < w - 4; wx += 8) R(c, '#c6d6e2', wx, wy, 4, 4);
-      x += bw + Math.floor(hash(i + 60) * 10);
-    }
-  }),
-  'b-near': () => canvas(960, 170, (c, w, h) => {
-    for (let i = 0, x = 12; x < w - 70; i++) {
-      const bw = 44 + Math.floor(hash(i + 3) * 36), bh = 46 + Math.floor(hash(i + 9) * 50);
-      house(c, x, h, bw, bh, i);
-      const gap = x + bw + 14;
-      if (i % 2) { R(c, '#6b4a34', gap + 2, h - 22, 4, 22); ellipse(c, '#4f8f52', gap + 4, h - 30, 12, 13); ellipse(c, '#6aa868', gap + 1, h - 34, 6, 6); }
-      else { R(c, '#5b5560', gap + 3, h - 96, 3, 96); R(c, '#5b5560', gap - 5, h - 88, 19, 2); }
-      x = gap + 22;
-    }
-  }),
-  'b-ground': () => canvas(96, 64, (c, w, h) => {
-    R(c, '#d6cfc0', 0, 0, w, 10); R(c, '#b9b1a1', 0, 10, w, 3);
-    for (let x = 0; x < w; x += 24) R(c, '#b9b1a1', x, 0, 1, 10);
-    R(c, '#6c7078', 0, 13, w, h - 13);
-    for (let i = 0; i < 40; i++) R(c, '#747983', hash(i) * w, 14 + hash(i + 7) * (h - 16), 2, 1);
-    R(c, '#ece8da', 8, 36, 30, 3); R(c, '#ece8da', 56, 36, 30, 3);
-  }),
-  'b-pit': () => canvas(64, 48, (c) => {
-    c.fillStyle = '#0d0a0e'; c.beginPath(); c.moveTo(4, 0); c.lineTo(60, 0); c.lineTo(50, 48); c.lineTo(14, 48); c.fill();
-    R(c, '#5e452f', 4, 0, 5, 16); R(c, '#5e452f', 55, 0, 5, 16); R(c, '#3c3f47', 0, 0, 8, 4); R(c, '#3c3f47', 56, 0, 8, 4);
   }),
   'c-pitwall': () => canvas(480, 480, (c, w, h) => {
     const rings = ['#1a1214', '#2b1f1a', '#3d2c22', '#4f3a2b', '#5e452f', '#6f5438', '#7e6242'];
