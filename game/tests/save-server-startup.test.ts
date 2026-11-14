@@ -26,6 +26,15 @@ interface TestChild {
 const { fork } = await vi.importActual<{ fork(path: string, args: string[], options: {
   execArgv: string[]; env: Record<string, string>; stdio: ['ignore', 'pipe', 'pipe', 'ipc'];
 }): TestChild }>('node:child_process');
+interface PartialRequest {
+  write(chunk: string): void;
+  destroy(): void;
+  on(event: 'error', callback: () => void): unknown;
+}
+const { request: httpRequest } = await vi.importActual<{ request(url: string, options: {
+  method: string; headers: Record<string, string>;
+}, response: (value: { statusCode: number; headers: Record<string, string | undefined>;
+  on(event: string, callback: (value: unknown) => void): unknown }) => void): PartialRequest }>('node:http');
 const keys = signer();
 const environment = () => ({ SAVE_API_HOST: '127.0.0.1', SAVE_API_PORT: '0', SAVE_API_TABLE_NAME: 'local-save-test',
   AWS_REGION: 'ap-northeast-1', COGNITO_ISSUER: 'https://cognito-idp.ap-northeast-1.amazonaws.com/ap-northeast-1_TestPool',
@@ -161,6 +170,61 @@ describe('injected startup and graceful lifecycle', () => {
     await s.handle.closed; expect(closeBackend).toHaveBeenCalledTimes(1); expect(s.events.count()).toBe(0);
     expect(s.handle.stop()).toBe(s.handle.stop());
   });
+  it('keeps the existing body receive deadline after SIGTERM followed by SIGINT', async () => {
+    const storage = new MemorySaveStorage(); const read = vi.spyOn(storage, 'read');
+    let accepted!: () => void;
+    const authenticating = new Promise<void>(resolve => { accepted = resolve; });
+    const s = await local(storage, () => { accepted(); return keys.jwks; });
+    const body = JSON.stringify({ schemaVersion: 1, expectedRevision: 0, idempotencyKey: 'partial-key-0001', data: { v: 1 } });
+    let partial!: PartialRequest; let timer: ReturnType<typeof setTimeout> | undefined;
+    const started = Date.now();
+    const response = new Promise<{ status: number; cache?: string; connection?: string; body: unknown }>((resolve, reject) => {
+      timer = setTimeout(() => reject(new Error('TEST_RECEIVE_DEADLINE_LOST_DURING_STOP')), 7500);
+      partial = httpRequest(`${s.base}/api/saves/auto`, { method: 'PUT', headers: {
+        Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json', 'Content-Length': String(body.length),
+      } }, incoming => {
+        let text = '';
+        incoming.on('data', value => { text += String(value); });
+        incoming.on('end', () => {
+          try { resolve({ status: incoming.statusCode, cache: incoming.headers['cache-control'],
+            connection: incoming.headers.connection, body: JSON.parse(text) as unknown }); }
+          catch { reject(new Error('TEST_BODY_DEADLINE_RESPONSE_INVALID')); }
+        });
+      });
+      partial.on('error', () => reject(new Error('TEST_PARTIAL_REQUEST_FAILED')));
+      partial.write(body.slice(0, 1));
+    });
+    try {
+      await authenticating;
+      await new Promise(resolve => setTimeout(resolve, 100));
+      s.events.emit('SIGTERM'); s.events.emit('SIGINT');
+      expect(s.close).not.toHaveBeenCalled();
+      expect(await response).toEqual({ status: 400, cache: 'no-store', connection: 'close',
+        body: { error: { code: 'INVALID_REQUEST' } } });
+      await s.handle.closed;
+      expect(Date.now() - started).toBeGreaterThanOrEqual(4500);
+      expect(s.close).toHaveBeenCalledTimes(1); expect(s.events.count()).toBe(0); expect(read).not.toHaveBeenCalled();
+    } finally { if (timer) clearTimeout(timer); partial.destroy(); }
+  }, 10000);
+  it('does not apply a body receive deadline to a complete PUT waiting on storage during shutdown', async () => {
+    const memory = new MemorySaveStorage(); let entered!: () => void; let release!: () => void;
+    const active = new Promise<void>(resolve => { entered = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const s = await local({ read: async key => { entered(); await gate; return memory.read(key); },
+      compareAndSwap: (key, expected, next) => memory.compareAndSwap(key, expected, next) });
+    let settled = false;
+    const response = fetch(`${s.base}/api/saves/auto`, { method: 'PUT', headers: {
+      Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json',
+    }, body: JSON.stringify({ schemaVersion: 1, expectedRevision: 0, idempotencyKey: 'complete-key-0001', data: { v: 1 } }) });
+    void response.then(() => { settled = true; }, () => { settled = true; });
+    await active; s.events.emit('SIGTERM');
+    try {
+      await new Promise(resolve => setTimeout(resolve, 5200));
+      expect(settled).toBe(false); expect(s.close).not.toHaveBeenCalled();
+    } finally { release(); }
+    const result = await response; expect(result.status).toBe(200); await result.arrayBuffer();
+    await s.handle.closed; expect(s.close).toHaveBeenCalledTimes(1);
+  }, 10000);
 });
 
 async function temporary() {

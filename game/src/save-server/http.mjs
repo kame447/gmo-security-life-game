@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { IdTokenError } from './jwt.mjs';
 
 const failure = (status, code) => ({ status, body: { error: { code } } });
+const RECEIVE_TIMEOUT_MS = 5000;
 class BodyError extends Error {
   constructor(status, code) { super(code); this.response = failure(status, code); }
 }
@@ -40,15 +41,25 @@ export function createSaveHttpServer({ service, verifyToken, maxBodyBytes, healt
   if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes < 1 || !/^\/api\/[a-z0-9/_-]+$/.test(healthPath)) {
     throw new Error('INVALID_SERVER_CONFIGURATION');
   }
-  const server = createServer({ requestTimeout: 5000, headersTimeout: 5000, connectionsCheckingInterval: 1000 }, (request, response) => {
+  const server = createServer({ requestTimeout: RECEIVE_TIMEOUT_MS, headersTimeout: RECEIVE_TIMEOUT_MS, connectionsCheckingInterval: 1000 }, (request, response) => {
     const reply = (result, headers = {}) => {
-      if (response.destroyed) return;
+      if (response.destroyed || response.writableEnded) return;
       // Do not keep an unread/oversized body alive on this connection.
       if (!request.complete) { request.pause(); response.setHeader('Connection', 'close'); }
       response.writeHead(result.status, { 'Content-Type': 'application/json; charset=utf-8',
         'Cache-Control': 'no-store', ...headers });
       response.end(JSON.stringify(result.body));
     };
+    // Node stops its connection-checking interval when server.close() starts. Keep
+    // the same body receive budget alive for active requests during that drain.
+    const receiveDeadline = setTimeout(() => {
+      if (!request.complete && !request.destroyed) reply(failure(400, 'INVALID_REQUEST'));
+    }, RECEIVE_TIMEOUT_MS);
+    receiveDeadline.unref();
+    const clearReceiveDeadline = () => clearTimeout(receiveDeadline);
+    request.once('end', clearReceiveDeadline);
+    request.once('close', clearReceiveDeadline);
+    response.once('close', clearReceiveDeadline);
     const handle = async () => {
       // Compare the raw path, without URL dot-segment normalization or trusting Host.
       const path = (request.url ?? '').split('?')[0];
