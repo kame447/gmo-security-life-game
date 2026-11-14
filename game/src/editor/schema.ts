@@ -1,4 +1,6 @@
 import { T, isSolidGround } from '../world/tiles.ts';
+import { furnitureById, furnitureVariant } from '../render/furniture/catalog.ts';
+import type { ObjectDef } from '../core/types.ts';
 import { assembleEditorWorld } from './runtime.ts';
 import { EDITOR_TABLES, EditorValidationError, type EditorDocument, type EditorEntity, type EditorTable, type EditorValidationContext, type ValidationIssue } from './types.ts';
 
@@ -53,10 +55,11 @@ const variant = shape({ id: idCheck, stage: literal('childhood', 'student', 'adu
   disabledPortals: optional(array(idCheck)), disabledInteractions: optional(array(idCheck)),
   extraInteractions: optional(record(idCheck, array(shape(interactionFields)))), edgeMessage: optional(text) });
 const entityChecks: Record<EditorTable, Check> = {
-  areas: shape({ id: idCheck, name: text, kind: literal('outdoor', 'indoor'), width: integer(1, 256), height: integer(1, 256), ground: array(literal(...Object.values(T)), 65536), districts: optional(array(district)) }),
+  areas: shape({ id: idCheck, name: text, kind: literal('outdoor', 'indoor'), width: integer(1, 256), height: integer(1, 256), ground: array(literal(...Object.values(T)), 65536), districts: optional(array(district)),
+    surfaces: optional(shape({ palette: array(idCheck, 255), cells: array(integer(0, 255), 65536) })) }),
   facilities: shape({ id: idCheck, name: text, areaId: idCheck, interior: literal('full', 'interaction', 'background'), state: literal('open', 'closed'), kind: optional(facilityKind) }),
   objects: shape({ id: idCheck, areaId: idCheck, kind: idCheck, ...position, w: integer(1, 256), h: integer(1, 256), solid: boolean,
-    style: optional(objectStyle), layer: optional(literal('decal', 'sorted')), facilityId }),
+    style: optional(objectStyle), layer: optional(literal('decal', 'sorted')), facilityId, facing: optional(facing), catalogId: optional(idCheck) }),
   interactions: shape({ ...interactionFields, areaId: idCheck, objectId: optional(idCheck) }),
   portals: shape({ id: idCheck, areaId: idCheck, from: shape({ ...position, w: optional(integer(1, 256)) }),
     to: shape({ areaId: idCheck, ...position, facing }), facilityId, returnPortalId: optional(idCheck) }),
@@ -70,6 +73,14 @@ const documentCheck = shape({ schemaVersion: literal(1), id: idCheck, tileSize: 
 
 export function checkEntity(table: EditorTable, value: unknown, path: string, issues: ValidationIssue[]): void {
   entityChecks[table](value, path, issues);
+}
+
+/** Shared by the authoring document and the game's layout-file reader. */
+export function furnitureDefinitionIssue(o: ObjectDef): string | undefined {
+  if (!o.catalogId) return;
+  const entry=furnitureById(o.catalogId),variant=furnitureVariant(o.catalogId,o.facing);
+  if (!entry || !variant || variant.facing !== (o.facing ?? 'down') || variant.w !== o.w || variant.h !== o.h || o.solid !== entry.solid || o.layer !== entry.layer)
+    return 'Unknown catalog item, orientation or footprint';
 }
 
 /** Canonical keys; array order is preserved (ground cells and dialogue lines are ordered). */
@@ -121,6 +132,19 @@ export function validateDocument(raw: unknown, context?: EditorValidationContext
   for (const a of d.areas) {
     totalTiles += a.width * a.height;
     if (a.ground.length !== a.width * a.height) error(`areas.${a.id}.ground`, 'layer-size', 'Ground length must equal width * height');
+    if (a.surfaces) {
+      if (a.surfaces.cells.length !== a.width * a.height) error(`areas.${a.id}.surfaces`, 'layer-size', 'Surface length must equal width * height');
+      if (new Set(a.surfaces.palette).size !== a.surfaces.palette.length) error(`areas.${a.id}.surfaces`, 'duplicate-id', 'Duplicate surface');
+      const floor = new Set(['floor-wood-light','floor-wood-dark','floor-tatami','floor-carpet-beige','floor-tile-check','floor-shop-white']);
+      const wall = new Set(['wall-plain-cream','wall-stripe-green','wall-wood-panel','wall-shop-white']);
+      for (const id of a.surfaces.palette) if (!floor.has(id) && !wall.has(id)) error(`areas.${a.id}.surfaces`, 'reference', 'Unknown surface');
+      a.surfaces.cells.forEach((n, index) => {
+        if (n > a.surfaces!.palette.length) error(`areas.${a.id}.surfaces`, 'reference', 'Surface index is outside palette');
+        const id = a.surfaces!.palette[n - 1];
+        if (id && (wall.has(id) ? a.ground[index] !== T.WALL : !new Set<number>([T.FLOOR_WOOD, T.FLOOR_TATAMI, T.FLOOR_CLASS, T.MAT]).has(a.ground[index])))
+          error(`areas.${a.id}.surfaces`, 'placement', 'Surface must match the floor or back wall');
+      });
+    }
     const source = context?.baselineWorld.areas.get(a.id)?.def;
     if (source && canonicalJSON(a.districts) !== canonicalJSON(source.districts)) {
       error(`areas.${a.id}.districts`, 'metadata', 'Source district metadata must be preserved');
@@ -140,6 +164,16 @@ export function validateDocument(raw: unknown, context?: EditorValidationContext
   };
   for (const f of d.facilities) if (!areas.has(f.areaId)) error(`facilities.${f.id}.areaId`, 'reference', `Unknown area ${f.areaId}`);
   for (const table of ['objects', 'interactions'] as const) for (const entity of d[table]) rect(entity.areaId, entity, `${table}.${entity.id}`);
+  for (const o of d.objects) if (o.catalogId) {
+    const problem=furnitureDefinitionIssue(o);
+    if (problem) { error(`objects.${o.id}.catalogId`, 'catalog', problem); continue; }
+    const entry = furnitureById(o.catalogId)!;
+    const a = areas.get(o.areaId);
+    if (a) for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) {
+      const tile = a.ground[y * a.width + x];
+      if (entry.placement === 'wall' ? tile !== T.WALL : isSolidGround(tile)) error(`objects.${o.id}`, 'placement', 'Furniture must match its placement surface');
+    }
+  }
   for (const o of d.objects) if (o.facilityId) {
     if (facilities.get(o.facilityId)?.areaId !== o.areaId) error(`objects.${o.id}.facilityId`, 'reference', 'Facility must exist in the same area');
   }

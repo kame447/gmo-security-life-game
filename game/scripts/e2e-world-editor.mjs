@@ -1,0 +1,102 @@
+/** Parent/CI runs this headless. All saves and restarts use an isolated game copy. */
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { cp,mkdir,mkdtemp,readFile,realpath,symlink,rm } from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright';
+
+const source=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const temp=await realpath(await mkdtemp(path.join(os.tmpdir(),'slg-world-editor-e2e-'))),root=path.join(temp,'game');
+const output=process.env.SLG_SHOTS||path.join(temp,'shots');assert.ok(path.isAbsolute(output));await mkdir(output,{recursive:true});
+const port=Number(process.env.SLG_WORLD_EDITOR_PORT||5380);assert.ok(Number.isSafeInteger(port)&&port>1023&&port<65536);
+const origin=`http://127.0.0.1:${port}`,layoutFile='data/world/areas/home-family-interior.json';
+const original=await readFile(path.join(source,layoutFile),'utf8');
+await cp(source,root,{recursive:true,filter:file=>!['node_modules','dist'].some(name=>{const p=path.relative(source,file);return p===name||p.startsWith(`${name}/`);})});
+await symlink(path.join(source,'node_modules'),path.join(root,'node_modules'),'dir');
+let server,serverOutput='',browser,passed=0;
+const pass=name=>{passed++;console.log('PASS',name);};
+async function start(){serverOutput='';server=spawn(process.execPath,[path.join(source,'node_modules/vite/bin/vite.js'),'--host','127.0.0.1','--port',String(port),'--strictPort'],{cwd:root,env:{...process.env,NO_COLOR:'1'},stdio:['ignore','pipe','pipe']});
+ server.stdout.on('data',b=>serverOutput+=b);server.stderr.on('data',b=>serverOutput+=b);
+ const deadline=Date.now()+20000;while(Date.now()<deadline){if(server.exitCode!==null)throw new Error(serverOutput);try{if(serverOutput.includes('Local:')&&(await fetch(`${origin}/world-editor.html`)).ok)return;}catch{}await new Promise(r=>setTimeout(r,100));}throw new Error(`Server timeout: ${serverOutput}`);}
+async function stop(){if(!server||server.exitCode!==null)return;const p=server,done=new Promise(r=>p.once('exit',r));p.kill('SIGTERM');await done;}
+const documentOf=page=>page.evaluate(()=>window.__worldEditor.model.document);
+const ready=async page=>{await page.goto(`${origin}/world-editor.html`);await page.waitForFunction(()=>window.__worldEditor?.renderer.stats.chunksDrawn>0);await page.locator('#workspace').focus();};
+async function session(viewport,touch=false){const context=await browser.newContext({viewport,hasTouch:touch,acceptDownloads:false,serviceWorkers:'block'});const errors=[],blocked=[];
+ await context.route('**/*',route=>{const u=new URL(route.request().url());if(u.origin===origin||u.protocol==='data:')return route.continue();blocked.push(u.href);return route.abort();});
+ await context.routeWebSocket('**',socket=>{if(new URL(socket.url()).origin===origin.replace('http','ws'))socket.connectToServer();else{blocked.push(socket.url());void socket.close();}});
+ const page=await context.newPage();page.on('pageerror',e=>errors.push(String(e)));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('download',d=>{errors.push('Unexpected download');void d.cancel();});
+ return {context,page,errors,blocked};}
+async function point(page,id){return page.evaluate(async id=>{
+ const app=window.__worldEditor,o=app.model.object(id);if(!o)throw new Error(`Missing ${id}`);
+ const{objectSprite}=await import('/src/render/sprites.ts'),s=objectSprite(o),data=s.canvas.getContext('2d').getImageData(0,0,s.canvas.width,s.canvas.height).data;
+ let best;for(let y=0;y<s.canvas.height;y++)for(let x=0;x<s.canvas.width;x++)if(data[(y*s.canvas.width+x)*4+3]){
+  const score=Math.abs(x-s.canvas.width/2)+Math.abs(y-(s.canvas.height-7));if(!best||score<best.score)best={x,y,score};}
+ const p=app.toScreen(o.x*16+s.ox+best.x+.5,o.y*16+s.oy+best.y+.5),rect=document.querySelector('#workspace').getBoundingClientRect();
+ return {...p,x:p.x+rect.x,y:p.y+rect.y,object:o};
+ },id);}
+async function move(page,id,x,y){const p=await point(page,id),q=await page.evaluate(({dx,dy})=>{const a=window.__worldEditor.toScreen(0,0),b=window.__worldEditor.toScreen(dx*16,dy*16);return{x:b.x-a.x,y:b.y-a.y};},{dx:x-p.object.x,dy:y-p.object.y});
+ await page.mouse.move(p.x,p.y);await page.mouse.down();await page.mouse.move(p.x+q.x,p.y+q.y,{steps:8});await page.mouse.up();
+ await page.waitForFunction(({id,x,y})=>{const o=window.__worldEditor.model.object(id);return o?.x===x&&o?.y===y;},{id,x,y});}
+async function tilePoint(page,x,y){return page.evaluate(({x,y})=>{const p=window.__worldEditor.toScreen(x*16+8,y*16+8),r=document.querySelector('#workspace').getBoundingClientRect();return{x:p.x+r.x,y:p.y+r.y};},{x,y});}
+async function select(page,id){const p=await point(page,id);await page.mouse.click(p.x,p.y);await page.locator('#properties').waitFor({state:'visible'});}
+async function walk(page,target,gameName='editor'){
+ const route=await page.evaluate(async({target,gameName})=>{const game=gameName==='editor'?window.__worldEditor.game:window.__slg.game;const{findPath}=await import('/src/world/index.ts');return findPath(game.area,{x:Math.floor(game.player.x/16),y:Math.floor((game.player.y-4)/16)},target);},{target,gameName});assert.ok(route,'No walking route');
+ for(const tile of route)for(const axis of ['x','y']){const value=tile[axis]*16+(axis==='x'?8:14);let reached=false;
+  for(let n=0;n<45;n++){const p=await page.evaluate(gameName=>({...((gameName==='editor'?window.__worldEditor.game:window.__slg.game).player)}),gameName);
+   if(p.areaId!==target.areaId&&target.areaId){return;}
+   const delta=value-p[axis];if(Math.abs(delta)<=2){reached=true;break;}
+   const key=axis==='x'?(delta>0?'ArrowRight':'ArrowLeft'):(delta>0?'ArrowDown':'ArrowUp');
+   await page.keyboard.press(key,{delay:Math.min(70,Math.max(20,(Math.abs(delta)-1)/72*1000))});
+  }assert.ok(reached,`Walking stopped before ${JSON.stringify({tile,axis,target})}`);
+ }
+}
+async function actOn(page,id){const target=await page.evaluate(async id=>{const game=window.__worldEditor.game,i=game.area.interactions.find(i=>i.id===id),{findPath}=await import('/src/world/index.ts');
+ const from={x:Math.floor(game.player.x/16),y:Math.floor((game.player.y-4)/16)};
+ for(const[dx,dy,key]of[[0,1,'ArrowUp'],[-1,0,'ArrowRight'],[0,-1,'ArrowDown'],[1,0,'ArrowLeft']]){const t={x:i.x+dx,y:i.y+dy};if(findPath(game.area,from,t))return{...t,key,areaId:game.player.areaId};}return null;},id);assert.ok(target);
+ await walk(page,target);await page.keyboard.press(target.key,{delay:35});assert.equal(await page.evaluate(()=>window.__worldEditor.game.facingInteraction()?.id),id);await page.keyboard.press('KeyZ');}
+
+try{
+ await start();browser=await chromium.launch({headless:true,args:['--disable-background-networking','--disable-gpu-vsync','--disable-frame-rate-limit']});
+ const s=await session({width:1280,height:800}),{page}=s;await ready(page);
+ assert.equal(await page.locator('[data-layer]:checked').count(),0);assert.equal(await page.locator('[data-catalog-id]').count(),16);pass('actual renderer and sixteen furniture thumbnails');
+ const pixels=await page.evaluate(async()=>{const app=window.__worldEditor,actual=document.querySelector('#scene'),host=document.querySelector('#workspace'),canvas=document.createElement('canvas');const{Renderer}=await import('/src/render/renderer.ts');const{DEFAULT_APPEARANCE}=await import('/src/core/appearance.ts');
+ const r=new Renderer(canvas);r.resize(host.clientWidth,host.clientHeight,devicePixelRatio);r.draw({area:app.model.runtime().areas.get('home-family-interior'),player:{x:8,y:14,facing:'down'},appearance:DEFAULT_APPEARANCE,moving:false,walkTime:0,dialog:{},camera:{...app.camera},hidePlayer:true,instant:true},0);
+ const a=actual.getContext('2d').getImageData(0,0,actual.width,actual.height).data,b=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;return{equal:a.length===b.length&&a.every((v,i)=>v===b[i]),length:a.length};});assert.equal(pixels.equal,true);assert.ok(pixels.length>1000);pass('editor pixels equal an independent game Renderer');
+ await page.screenshot({path:path.join(output,'desktop-editor.png')});
+ const sofa='home-family-interior-sofa-1-9',desk='home-family-interior-desk-4-1';
+ await move(page,sofa,2,9);assert.equal((await documentOf(page)).objects.find(o=>o.id===sofa).x,2);pass('sprite drag commits at a tile');
+ await page.locator('#undo').click();assert.equal((await documentOf(page)).objects.find(o=>o.id===sofa).x,1);await page.locator('#redo').click();assert.equal((await documentOf(page)).objects.find(o=>o.id===sofa).x,2);pass('move undo and redo');
+ await select(page,desk);assert.equal(await page.locator('#delete').isDisabled(),true);await page.keyboard.press('Delete');assert.ok((await documentOf(page)).objects.some(o=>o.id===desk));pass('linked furniture deletion is disabled');
+ await move(page,desk,4,2);await page.locator('#rotate').click();const rotated=await documentOf(page),d=rotated.objects.find(o=>o.id===desk),interaction=rotated.interactions.find(i=>i.id==='home-study-desk');assert.deepEqual([d.x,d.y,d.w,d.h],[4,2,1,2]);assert.deepEqual([interaction.x,interaction.y,interaction.w,interaction.h],[4,2,1,2]);pass('desk rotation and interaction move atomically');
+ await page.locator('[data-catalog-id="chair-wood"]').click();const chair=await page.evaluate(()=>window.__worldEditor.ghost.object.id);let p=await tilePoint(page,8,6);await page.mouse.click(p.x,p.y);assert.ok((await documentOf(page)).objects.some(o=>o.id===chair));pass('catalog placement uses the game artwork');
+ await page.locator('#rotate').click();assert.equal((await documentOf(page)).objects.find(o=>o.id===chair).facing,'left');await page.locator('#duplicate').click();const copied=await page.evaluate(()=>window.__worldEditor.ghost.object.id);p=await tilePoint(page,9,6);await page.mouse.click(p.x,p.y);assert.notEqual(copied,chair);await page.locator('#delete').click();assert.ok(!(await documentOf(page)).objects.some(o=>o.id===copied));await page.locator('#undo').click();assert.ok((await documentOf(page)).objects.some(o=>o.id===copied));await page.locator('#redo').click();pass('rotation duplicate delete undo redo');
+ await page.locator('[data-catalog-id="chair-wood"]').click();const invalid=await page.evaluate(()=>window.__worldEditor.ghost.object.id);p=await tilePoint(page,7,10);await page.mouse.click(p.x,p.y);assert.ok(!(await documentOf(page)).objects.some(o=>o.id===invalid));pass('arrival obstruction is refused');
+ await page.locator('#surface-tab').click();assert.equal(await page.locator('[data-catalog-id]').count(),10);await page.locator('[data-catalog-id="floor-wood-dark"]').click();p=await tilePoint(page,8,4);await page.mouse.click(p.x,p.y);await page.locator('#stop-placement').click();const painted=await documentOf(page);assert.ok(painted.areas.find(a=>a.id==='home-family-interior').surfaces.cells[4*16+8]>0);pass('floor and wall surface catalog and painting');
+ await page.locator('#layers summary').click();for(const layer of ['collision','portals','reachable','grid','ids'])await page.locator(`[data-layer="${layer}"]`).check();await page.locator('#layers summary').click();await page.screenshot({path:path.join(output,'desktop-overlays.png')});await page.locator('#layers summary').click();for(const layer of ['collision','portals','reachable','grid','ids'])await page.locator(`[data-layer="${layer}"]`).uncheck();await page.locator('#layers summary').click();pass('all overlays are optional layers over the real scene');
+ const storage=await page.evaluate(()=>({...localStorage}));await page.locator('#play').click();await page.locator('#workspace').focus();await actOn(page,'home-mother');await page.locator('#walk-dialog').waitFor({state:'visible'});assert.match(await page.locator('#walk-dialog').innerText(),/おかあさん/);await page.keyboard.press('KeyZ');
+ const exit=await page.evaluate(()=>window.__worldEditor.game.area.def.portals.find(p=>p.id==='home-exit'));await walk(page,{...exit.from,areaId:'home-family-interior'});assert.equal(await page.evaluate(()=>window.__worldEditor.game.player.areaId),'town-main');await page.keyboard.press('Escape');assert.deepEqual(await page.evaluate(()=>({...localStorage})),storage);pass('walk mother conversation and exit without player save writes');
+ const target=path.join(root,layoutFile),before=await readFile(target,'utf8');await page.locator('#save').click();await page.locator('#save-confirm').waitFor({state:'visible'});assert.match(await page.locator('#save-target').innerText(),/home-family-interior.json/);await page.locator('#save-cancel').click();assert.equal(await readFile(target,'utf8'),before);pass('save confirmation cancellation preserves file bytes');
+ await page.locator('#save').click();await page.locator('#save-commit').click();const deadline=Date.now()+15000;while(await readFile(target,'utf8')===before){if(Date.now()>deadline)throw new Error('Save timeout');await new Promise(r=>setTimeout(r,50));}const saved=await readFile(target,'utf8');assert.equal(JSON.parse(saved).objects.find(o=>o.id===desk).facing,'left');pass('confirmed save changes only the area JSON');
+ for(const headers of [{Origin:'https://invalid.example','Content-Type':'application/json','X-World-Editor':'1'},{Origin:origin,'Content-Type':'text/plain','X-World-Editor':'1'},{Origin:origin,'Content-Type':'application/json'}])assert.equal((await fetch(`${origin}/__world-editor/save`,{method:'POST',headers,body:'{}'})).status,403);
+ assert.equal((await fetch(`${origin}/__world-editor/save`,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','X-World-Editor':'1'},body:JSON.stringify({areaId:'../../outside',changes:{}})})).status,400);assert.equal(await readFile(target,'utf8'),saved);pass('write origin content type header and output scope guards');
+ await stop();await start();await page.goto(`${origin}/`);await page.waitForFunction(()=>!!window.__slg?.game);const entry=await page.evaluate(()=>window.__slg.game.area.def.portals.find(p=>p.id==='home-enter'));await walk(page,{...entry.from,areaId:'town-main'},'game');assert.equal(await page.evaluate(()=>window.__slg.game.player.areaId),'home-family-interior');assert.equal(await page.evaluate(id=>window.__slg.game.area.objects.find(o=>o.id===id).x,sofa),2);assert.equal(await page.evaluate(id=>window.__slg.game.area.objects.find(o=>o.id===id).facing,desk),'left');pass('server restart and real game home entry use the saved arrangement');
+ assert.deepEqual(s.errors,[]);assert.deepEqual(s.blocked,[]);await s.context.close();
+ for(const[name,viewport]of [['portrait',{width:390,height:844}],['landscape',{width:844,height:390}]]){
+  const mobile=await session(viewport,true),page=mobile.page;await ready(page);await page.screenshot({path:path.join(output,`${name}-editor.png`)});
+  await page.locator('#zoom-out').click();await page.locator('#zoom-out').click();const from=await point(page,sofa),delta=await page.evaluate(()=>{const a=window.__worldEditor.toScreen(0,0),b=window.__worldEditor.toScreen(16,0);return b.x-a.x;});
+  const cdp=await mobile.context.newCDPSession(page);const touch=(type,points)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:points.map((p,i)=>({x:p.x,y:p.y,id:i+1,radiusX:2,radiusY:2}))});
+  await touch('touchStart',[from]);for(let n=1;n<=8;n++){await touch('touchMove',[{x:from.x+delta*n/8,y:from.y}]);await page.waitForTimeout(20);}await touch('touchEnd',[]);assert.equal((await documentOf(page)).objects.find(o=>o.id===sofa).x,from.object.x+1);pass(`${name}: one-finger furniture drag`);
+  const doc=await documentOf(page),bounds=await page.locator('#workspace').boundingBox(),a={x:bounds.x+25,y:bounds.y+25},b={x:bounds.x+100,y:bounds.y+25};const prior=await page.evaluate(()=>({...window.__worldEditor.camera}));
+  await touch('touchStart',[a,b]);await touch('touchMove',[{x:a.x+10,y:a.y+10},{x:b.x+90,y:b.y+10}]);await page.waitForTimeout(70);const enlarged=await page.evaluate(()=>({...window.__worldEditor.camera}));assert.notEqual(enlarged.zoom,prior.zoom);await touch('touchMove',[a,b]);await touch('touchEnd',[]);assert.deepEqual(await documentOf(page),doc);pass(`${name}: two-finger zoom/pan leaves authoring data unchanged`);
+  assert.equal(await page.locator('#save').isDisabled(),true);await page.locator('#play').click();
+  const beforeWalk=await page.evaluate(()=>({...window.__worldEditor.game.player})),up=await page.locator('[data-direction="up"]').boundingBox();
+  await touch('touchStart',[{x:up.x+up.width/2,y:up.y+up.height/2}]);await page.waitForTimeout(130);await touch('touchEnd',[]);
+  assert.ok(await page.evaluate(y=>window.__worldEditor.game.player.y<y-2,beforeWalk.y));
+  await page.locator('#walk-action').tap();await page.locator('#play').tap();assert.deepEqual(mobile.errors,[]);assert.deepEqual(mobile.blocked,[]);await cdp.detach();await mobile.context.close();pass(`${name}: touch play and PC-only save`);
+ }
+ assert.equal(await readFile(path.join(source,layoutFile),'utf8'),original);pass('original project and all previews remain unchanged');
+ console.log(`SUMMARY ${passed}/${passed} PASS`,JSON.stringify({output}));
+}catch(error){console.error('FAIL',error);console.error(serverOutput);process.exitCode=1;}
+finally{await browser?.close();await stop();if(!process.exitCode)await rm(temp,{recursive:true,force:true});else console.error('Failure copy preserved:',root);}

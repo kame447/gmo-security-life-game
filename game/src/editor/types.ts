@@ -9,6 +9,7 @@ export interface EditorArea {
   width: number;
   height: number;
   ground: number[];
+  surfaces?: { palette: string[]; cells: number[] };
   /** Optional source district metadata, retained in its authored order. */
   districts?: DistrictDef[];
 }

@@ -19,9 +19,10 @@ const unchanged = () => {
 };
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'slg-editor-cli-'));
-  for (const part of ['src/editor', 'src/world', 'scripts', 'data']) mkdirSync(join(directory, part), { recursive: true });
+  for (const part of ['src/editor', 'src/world', 'src/render/furniture', 'scripts', 'data']) mkdirSync(join(directory, part), { recursive: true });
   cpSync(join(source, 'src/editor'), join(directory, 'src/editor'), { recursive: true });
   cpSync(join(source, 'src/world/tiles.ts'), join(directory, 'src/world/tiles.ts'));
+  cpSync(join(source, 'src/render/furniture/catalog.ts'), join(directory, 'src/render/furniture/catalog.ts'));
   cpSync(join(source, 'scripts/editor.mjs'), join(directory, 'scripts/editor.mjs'));
   target = join(directory, 'data/editor-prototype.json');
   original = readFileSync(join(source, 'data/editor-prototype.json'), 'utf8');

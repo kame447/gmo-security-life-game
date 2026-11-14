@@ -37,8 +37,9 @@ export function buildWorld(variant: VariantDef = CHILDHOOD_VARIANT): World {
   const isClosed = (id: string) => facilities.get(id)?.state === 'closed';
   const areas = new Map<string, AreaRuntime>();
   for (const create of AREA_FACTORIES) {
-    const runtime = toRuntime(applyVariant(create(), variant, isClosed));
+    const runtime = toRuntime(applyVariant(applyAreaLayout(create()), variant, isClosed));
     areas.set(runtime.def.id, runtime);
   }
   return { areas, facilities, start: { ...START }, variant };
 }
+import { applyAreaLayout } from './layouts';

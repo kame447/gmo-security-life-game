@@ -8,7 +8,7 @@ describe('read-only inventory and fidelity measurements', () => {
   it('inventories all current areas with explicit IDs and separately derived collision cells', () => {
     const world = buildWorld(), before = structuredClone(world), report = inventoryMap(world);
     expect(report.areas.map(a => [a.areaId, a.objects.sourceId, a.objects.auxiliary, a.portals.sourceId])).toEqual([
-      ['home-family-interior', 13, 0, 1], ['school-classroom-interior', 21, 0, 1],
+      ['home-family-interior', 15, 0, 1], ['school-classroom-interior', 21, 0, 1],
       ['shop-konbini-interior', 8, 0, 1], ['town-main', 270, 0, 3],
     ]);
     expect(report.areas.reduce((n, a) => n + a.facilities.sourceId, 0)).toBe(12);

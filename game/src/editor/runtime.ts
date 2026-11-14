@@ -7,8 +7,10 @@ import type { EditorDocument } from './types.ts';
 export function assembleEditorWorld(document: EditorDocument): World {
   const areas = new Map<string, AreaRuntime>();
   for (const area of document.areas) {
+    const { surfaces, ...areaFields } = area;
     const def: AreaDef = {
-      ...area, ...(area.districts ? { districts: area.districts.map(district => ({ ...district })) } : {}),
+      ...areaFields, ...(area.districts ? { districts: area.districts.map(district => ({ ...district })) } : {}),
+      ...(surfaces ? { surfaces: { palette: [...surfaces.palette], cells: Uint8Array.from(surfaces.cells) } } : {}),
       ground: Uint8Array.from(area.ground),
       objects: document.objects.filter(o => o.areaId === area.id).map(({ areaId: _, ...o }) => ({ ...o })),
       interactions: document.interactions.filter(i => i.areaId === area.id).map(({ areaId: _, objectId: __, ...i }) => ({ ...i, lines: [...i.lines] })),

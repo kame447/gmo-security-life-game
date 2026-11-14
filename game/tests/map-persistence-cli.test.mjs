@@ -49,7 +49,7 @@ describe('map persistence evaluation CLI', () => {
   it('emits reproducible inventory JSON and an area table without writing a destination', () => {
     const json = run('inventory'); assert.equal(json.status, 0, json.stderr);
     const data = JSON.parse(json.stdout); assert.equal(data.sourceFingerprint, fingerprint);
-    assert.equal(data.areas.reduce((n, a) => n + a.objects.total, 0), 312);
+    assert.equal(data.areas.reduce((n, a) => n + a.objects.total, 0), 314);
     const second = run('inventory'); assert.equal(second.stdout, json.stdout);
     const table = run('inventory', '--markdown'); assert.equal(table.status, 0, table.stderr);
     assert.match(table.stdout, /town-main \| 12\/0 \| 270\/0/);
