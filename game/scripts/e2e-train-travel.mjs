@@ -120,7 +120,7 @@ const watchRide = page => page.evaluate(() => {
     const data = pc.getImageData(0, 0, 64, 36).data; let dark = 0;
     for (let i = 0; i < data.length; i += 4) if (data[i] < 24 && data[i + 1] < 24 && data[i + 2] < 24) dark++;
     const stats = window.__slg.renderer.stats, g = window.__slg.game;
-    window.__log.push({ stage: root.dataset.rideStage ?? null, dark: dark / (64 * 36), fading: !!stats.fading,
+    window.__log.push({ t: performance.now(), stage: root.dataset.rideStage ?? null, dark: dark / (64 * 36), fading: !!stats.fading,
       trains: stats.trains.map(t => ({ ...t })), area: g.area.def.id, player: { x: g.player.x, y: g.player.y }, camX: stats.camX, camY: stats.camY });
     requestAnimationFrame(loop);
   };
@@ -151,10 +151,22 @@ async function ride(page, touch, prefix, hooks = {}) {
   const darkMax = Math.max(...log.map(l => l.dark)), baseline = Math.max(log[0].dark, log.at(-1).dark);
   assert.ok(darkMax <= baseline + 0.12, `no darker than the plain map (${baseline}): ${darkMax}`);
   for (let i = 1; i < log.length; i++) assert.ok(Math.abs(log[i].dark - log[i - 1].dark) < 0.4, `no flash at frame ${i}: ${log[i - 1].dark} -> ${log[i].dark}`);
+  // 切り替えの前後で、列車が1つも見えない時間（ミリ秒）。フレーム数は描画速度で変わるので、時刻で測る。
+  const emptyMs = (() => {
+    const at = log.findIndex(l => l.stage === 'destination');
+    let start = null, worst = 0;
+    for (let i = Math.max(0, at - 400); i < Math.min(log.length, at + 400); i++) {
+      if (log[i].trains.length) { if (start !== null) worst = Math.max(worst, log[i].t - start); start = null; } else if (start === null) start = log[i].t;
+    }
+    return Math.round(worst);
+  })();
+  console.log(`  train-less time around the switch: ${emptyMs} ms`);
+  assert.ok(emptyMs <= MAX_EMPTY_MS, `train-less time around the switch: ${emptyMs} ms`);
   const trainFrames = log.filter(l => l.trains.length);
   assert.ok(trainFrames.length > 20, 'a train was drawn on the map');
   return { phases: await page.evaluate(() => window.__phases), log };
 }
+const MAX_EMPTY_MS = Number(process.env.SLG_MAX_EMPTY_MS || 50);
 const tileOf = p => ({ x: Math.floor(p.x / 16), y: Math.floor((p.y - 4) / 16) });
 const setPlayerTo = (page, point) => page.evaluate(async point => {
   const { positionAt } = await import('/src/map/explorer.ts'); window.__slg.game.player = positionAt(point);
@@ -247,7 +259,7 @@ try {
         const rest = () => page.evaluate(() => JSON.stringify({ ...window.__slg.game.serialize(), x: 0, y: 0, areaId: '', facing: '' }));
         const money = await rest();
         await decide(page, neighbor.stationId, false);
-        if (stopAt === 'depart') { await waitPhase(page, 'origin'); await page.waitForTimeout(4300); } else await waitPhase(page, 'destination');
+        if (stopAt === 'depart') { await waitPhase(page, 'origin'); await page.waitForTimeout(2900); } else await waitPhase(page, 'destination');
         await page.waitForTimeout(300);
         await page.reload(); await ready(page);
         const after = await player(page);

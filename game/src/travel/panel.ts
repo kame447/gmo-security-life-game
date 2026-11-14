@@ -110,6 +110,12 @@ export class TrainTravelPanel {
     this.play(ride);
   }
 
+  /** 描画と同じ式で、いま見えている幅（論理px）。列車を画面の端で出入りさせるのに使う。 */
+  private static viewWidth(): number {
+    const dpr = window.devicePixelRatio || 1, physical = Math.max(1, Math.round(window.innerWidth * dpr));
+    return Math.ceil(physical / Math.max(1, Math.round(physical / (26 * TILE))));
+  }
+
   private areaWidth(areaId: string): number { return (this.game.world.areas.get(areaId)?.width ?? 0) * TILE; }
 
   private static prefersReducedMotion(): boolean {
@@ -131,8 +137,8 @@ export class TrainTravelPanel {
     this.stage.classList.add('travel-open');
     stationScene.setFadeSuppressed(true);
     const player = this.game.player;
-    const board = boardPlan({ x: player.x, y: player.y }, ride.boardPlatform, this.areaWidth(ride.originAreaId));
-    const alight = alightPlan(ride.alightPlatform, ride.alight, this.areaWidth(ride.destinationAreaId));
+    const board = boardPlan({ x: player.x, y: player.y }, ride.boardPlatform, this.areaWidth(ride.originAreaId), TrainTravelPanel.viewWidth());
+    const alight = alightPlan(ride.alightPlatform, ride.alight, this.areaWidth(ride.destinationAreaId), TrainTravelPanel.viewWidth());
     const script = new RideScript(board, alight, TrainTravelPanel.prefersReducedMotion());
     let t = 0, last = performance.now(), committed = false, released = false;
     const area = { origin: ride.originAreaId, destination: ride.destinationAreaId };

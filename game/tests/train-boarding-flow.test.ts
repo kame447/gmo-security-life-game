@@ -121,6 +121,55 @@ describe('direction', () => {
   });
 });
 
+describe('train switch between stations', () => {
+  const mainFlow = getStationFlow(STATION_ACCESS.stationId), neighborFlow = getStationFlow(NEIGHBOR);
+  const VIEW = 416;
+  const build = (direction: 'up' | 'down') => {
+    const p = mainFlow.platforms.find(item => item.direction === direction)!, q = neighborFlow.platforms.find(item => item.direction === direction)!;
+    const start = { x: flow.gate.tile.x * 16 + 8, y: (flow.gate.tile.y + 1) * 16 + 14 };
+    return new RideScript(boardPlan(start, p, 36 * 16, VIEW), alightPlan(q, neighborFlow.alight, 32 * 16, VIEW));
+  };
+
+  it('moves the switch to the view edge: the train leaves, and the next one enters, from just outside the view', () => {
+    for (const direction of ['down', 'up'] as const) {
+      const p = mainFlow.platforms.find(item => item.direction === direction)!;
+      const board = boardPlan({ x: 280, y: 200 }, p, 36 * 16, VIEW), room = boardPlan({ x: 280, y: 200 }, p, 36 * 16);
+      expect(Math.abs(board.exitX - board.stopX)).toBeLessThanOrEqual(Math.abs(room.exitX - room.stopX));
+      const alight = alightPlan(neighborFlow.platforms.find(item => item.direction === direction)!, neighborFlow.alight, 32 * 16, VIEW);
+      expect(Math.abs(alight.entryX - alight.stopX)).toBeLessThanOrEqual(VIEW / 2 + TRAIN_LENGTH_PX + 40 + 100);
+    }
+  });
+
+  it('keeps the train speed the same just before and just after the switch', () => {
+    for (const direction of ['down', 'up'] as const) {
+      const script = build(direction), c = script.commitTime;
+      const before = script.sample(c - 1).train!, before2 = script.sample(c - 11).train!;
+      const after = script.sample(c + 1).train!, after2 = script.sample(c + 11).train!;
+      const vBefore = Math.abs(before.x - before2.x) / 10 * 1000, vAfter = Math.abs(after2.x - after.x) / 10 * 1000;
+      expect(Math.abs(vBefore - vAfter) / vBefore).toBeLessThan(0.1);
+      expect(script.sample(c - 1).stage).toBe('origin');
+      expect(script.sample(c + 1).stage).toBe('destination');
+    }
+  });
+
+  it('never leaves the station without a train in view for more than a few frames around the switch', () => {
+    // 画面の幅を VIEW とした描画のとき、列車の箱が画面の中にまったく無いフレームの連続数を数える。
+    for (const direction of ['down', 'up'] as const) {
+      const script = build(direction), c = script.commitTime, visibleAt = (t: number, centerX: number) => {
+        const train = script.sample(t).train;
+        return !!train && train.x < centerX + VIEW / 2 && train.x + TRAIN_LENGTH_PX > centerX - VIEW / 2;
+      };
+      const p = mainFlow.platforms.find(item => item.direction === direction)!, q = neighborFlow.platforms.find(item => item.direction === direction)!;
+      let run = 0, worst = 0;
+      for (let t = c - 800; t < c + 800; t += 16) {
+        const centerX = t < c ? Math.min(36 * 16 - VIEW / 2, Math.max(VIEW / 2, p.door.x * 16 + 8)) : Math.min(32 * 16 - VIEW / 2, Math.max(VIEW / 2, q.door.x * 16 + 8));
+        if (visibleAt(t, centerX)) run = 0; else worst = Math.max(worst, ++run);
+      }
+      expect(worst).toBeLessThanOrEqual(4);
+    }
+  });
+});
+
 describe('ride choreography on the station map', () => {
   const mainFlow = getStationFlow(STATION_ACCESS.stationId), neighborFlow = getStationFlow(NEIGHBOR);
   const widthOf = (areaId: string) => (buildWorld().areas.get(areaId)?.width ?? 36) * 16;
