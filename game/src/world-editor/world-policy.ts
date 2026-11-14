@@ -4,6 +4,7 @@ import type { EditorDocument, EditorPortal, EditorValidationContext } from '../e
 import { equal } from '../world/layouts/codec';
 import { assertInteriorEdit } from './policy';
 import { trustedContext } from './trusted-context';
+import { assertOutdoorEdit } from './outdoor/policy';
 
 export type AreaEditPolicy = (before: EditorDocument, after: EditorDocument, areaId: string) => void;
 export type AreaEditPolicies = Readonly<Record<string, AreaEditPolicy>>;
@@ -11,6 +12,7 @@ export type AreaEditPolicies = Readonly<Record<string, AreaEditPolicy>>;
 /** Application-owned registry. Outdoor editing is registered by U4, never by a save request. */
 export const AREA_EDIT_POLICIES: AreaEditPolicies = Object.freeze({
   'home-family-interior': assertInteriorEdit,
+  'town-main': (before, after, areaId) => assertOutdoorEdit(before, after, { areaId }),
 });
 
 const fixed = (before: unknown, after: unknown, message: string) => {

@@ -53,10 +53,10 @@ describe('まちの初回配置とワールド単位の保存計画', () => {
       expect(layoutArea(layout, source).districts).toEqual(source.districts);
     }
   });
-  it('屋外だけなら2ファイル、変更なしなら0ファイルで、製品の登録は自宅だけ', () => {
+  it('既定の方針でも屋外だけなら2ファイル、変更なしなら0ファイル', () => {
     const { world, changes } = fixture(false);
     expect(prepareSave({ changes }, world, testPolicies).files.map(f => f.areaId)).toEqual(['shop-konbini-interior', 'town-main']);
-    expect(() => prepareSave({ changes }, world)).toThrow('town-main');
+    expect(prepareSave({ changes }, world).files.map(f => f.areaId)).toEqual(['shop-konbini-interior', 'town-main']);
     const model = new WorldEditorModel(world);
     expect(prepareSave({ changes: model.session.exportChanges() }, world).files).toEqual([]);
     for (const extra of [{ files: [] }, { baselineWorld: world }, { areaId: 'town-main' }, { derived: {} }, { policies: {} }]) {
