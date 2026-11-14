@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { layoutFacilityIcons, layoutFacilityLabels, type FacilityLabel, type LabelBox } from '../src/minimap/markers';
+import { layoutFacilityIcons, layoutFacilityLabels, type LabelBox } from '../src/minimap/markers';
 import { buildAreaMap, fitProjection, localProjection, projectPoint, type FacilityMarker, type MapPoint } from '../src/minimap/model';
 import { buildWorld, LANDMARKS } from '../src/world';
 
@@ -21,12 +21,6 @@ const touchesLine = (a: MapPoint, b: MapPoint, raw: LabelBox, margin = 2) => {
       Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) <= Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) &&
       orient(a, b, c) * orient(a, b, d) <= 0 && orient(c, d, a) * orient(c, d, b) <= 0;
   });
-};
-
-const properlyCross = (a: FacilityLabel, b: FacilityLabel) => {
-  const orient = (p: MapPoint, q: MapPoint, r: MapPoint) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
-  return orient(a.anchor, a.end, b.anchor) * orient(a.anchor, a.end, b.end) < 0 &&
-    orient(b.anchor, b.end, a.anchor) * orient(b.anchor, b.end, a.end) < 0;
 };
 
 describe('provisional facility display priority', () => {
@@ -67,45 +61,44 @@ describe('provisional facility display priority', () => {
     expect(result.map(icon => icon.marker.id)).toEqual(['a']);
   });
 
-  it.each([[900, 562, 12], [340, 470, 9], [794, 260, 10]])('keeps names and their leaders clear at every landmark on %i×%i', (width, height, expectedMinimum) => {
+  it.each([[900, 562], [340, 470], [794, 260]])('keeps all twelve names and their leaders clear at every landmark on %i×%i', (width, height) => {
     const world = buildWorld(), area = world.areas.get('town-main')!;
     const map = buildAreaMap(area, world.facilities.values());
     const projection = fitProjection(map.width, map.height, width, height, 18);
-    let minimum = Infinity;
     for (const landmark of Object.values(LANDMARKS)) {
       const player = projectPoint(projection, { x: landmark.x + .5, y: landmark.y + .5 });
       const iconPixel = projection.scale >= 4 ? 2 : 1, playerRadius = width >= 600 ? 15 : 8;
       const icons = layoutFacilityIcons(map.markers, projection, width, height, player, iconPixel, playerRadius);
       const labels = layoutFacilityLabels(map.markers, projection, width, height, text => text.length * 13, player,
         { mapWidth: map.width, mapHeight: map.height, iconPixel, playerRadius, icons });
-      minimum = Math.min(minimum, labels.length);
       const playerBox = { x: player.x - playerRadius - 2, y: player.y - playerRadius - 2, width: 2 * playerRadius + 4, height: 2 * playerRadius + 4 };
-      expect(labels.length).toBeGreaterThan(0);
-      expect(new Set(labels.map(label => label.marker.id)).size).toBe(labels.length);
+      expect(labels.map(label => label.marker.id).sort()).toEqual(map.markers.map(marker => marker.id).sort());
       for (const label of labels) {
         expect(label.x).toBeGreaterThanOrEqual(0); expect(label.y).toBeGreaterThanOrEqual(0);
         expect(label.x + label.width).toBeLessThanOrEqual(width); expect(label.y + label.height).toBeLessThanOrEqual(height);
         expect(label.anchor).toEqual(projectPoint(projection, label.marker));
-        expect(touchesLine(label.anchor, label.end, playerBox)).toBe(false);
+        expect(touchesLine(label.start, label.end, playerBox)).toBe(false);
+        if (label.start.x !== label.anchor.x || label.start.y !== label.anchor.y) {
+          expect(label.anchor.x).toBeGreaterThanOrEqual(playerBox.x - 2);
+          expect(label.anchor.x).toBeLessThanOrEqual(playerBox.x + playerBox.width + 2);
+          expect(label.anchor.y).toBeGreaterThanOrEqual(playerBox.y - 2);
+          expect(label.anchor.y).toBeLessThanOrEqual(playerBox.y + playerBox.height + 2);
+          expect(Math.min(Math.abs(label.start.x - (playerBox.x - 2)), Math.abs(label.start.x - (playerBox.x + playerBox.width + 2)),
+            Math.abs(label.start.y - (playerBox.y - 2)), Math.abs(label.start.y - (playerBox.y + playerBox.height + 2)))).toBeLessThan(.11);
+        }
         for (const icon of icons) {
           expect(overlaps(label, icon, 3)).toBe(false);
-          if (icon.marker.id !== label.marker.id) expect(touchesLine(label.anchor, label.end, icon)).toBe(false);
+          if (icon.marker.id !== label.marker.id) expect(touchesLine(label.start, label.end, icon)).toBe(false);
         }
         for (const other of labels) if (label !== other) {
           expect(overlaps(label, other, 3)).toBe(false);
-          expect(touchesLine(label.anchor, label.end, other)).toBe(false);
-          expect(properlyCross(label, other)).toBe(false);
+          expect(touchesLine(label.start, label.end, other)).toBe(false);
         }
       }
     }
-    expect(minimum).toBe(expectedMinimum);
   });
 
-  it.each([
-    [900, 562, []],
-    [340, 470, ['school-gym', 'shop-candy']],
-    [794, 260, ['shop-candy', 'shop-konbini']],
-  ])('documents the exact labels omitted at the shopping street on %i×%i', (width, height, omitted) => {
+  it.each([[900, 562], [340, 470], [794, 260]])('keeps every name at the shopping street on %i×%i', (width, height) => {
     const world = buildWorld(), map = buildAreaMap(world.areas.get('town-main')!, world.facilities.values());
     const projection = fitProjection(map.width, map.height, width, height, 18);
     const player = projectPoint(projection, { x: LANDMARKS.shoppingStreet.x + .5, y: LANDMARKS.shoppingStreet.y + .625 });
@@ -113,20 +106,24 @@ describe('provisional facility display priority', () => {
     const icons = layoutFacilityIcons(map.markers, projection, width, height, player, iconPixel, playerRadius);
     const labels = layoutFacilityLabels(map.markers, projection, width, height, text => text.length * 13, player,
       { mapWidth: map.width, mapHeight: map.height, iconPixel, playerRadius, icons });
-    expect(map.markers.filter(marker => !labels.some(label => label.marker.id === marker.id)).map(marker => marker.id).sort()).toEqual(omitted);
+    expect(labels.map(label => label.marker.id).sort()).toEqual(map.markers.map(marker => marker.id).sort());
   });
 
-  it('omits a name when its true anchor is covered by the player, instead of drawing a misleading leader', () => {
+  it('keeps a covered facility name and ends its leader at the player marker edge', () => {
     const crowded: FacilityMarker[] = [
       { id: 'covered', name: '隠れた店', kind: 'cafe', x: 100, y: 50 },
       { id: 'visible', name: '見える店', kind: 'bakery', x: 160, y: 50 },
     ];
     const labels = layoutFacilityLabels(crowded, projection, 240, 140, () => 52, { x: 100, y: 50 },
       { mapWidth: 240, mapHeight: 140, iconPixel: 2, playerRadius: 15 });
-    expect(labels.map(label => label.marker.id)).toEqual(['visible']);
+    expect(labels.map(label => label.marker.id).sort()).toEqual(['covered', 'visible']);
+    const covered = labels.find(label => label.marker.id === 'covered')!;
+    expect(covered.anchor).toEqual({ x: 100, y: 50 });
+    expect(covered.start).not.toEqual(covered.anchor);
+    expect(touchesLine(covered.start, covered.end, { x: 83, y: 33, width: 34, height: 34 })).toBe(false);
   });
 
-  it('uses the full-map margin on portrait screens and omits lower-priority names only if no space remains', () => {
+  it('uses the full-map margin on portrait screens and keeps the legacy small-canvas fallback', () => {
     const world = buildWorld(), area = world.areas.get('town-main')!;
     const map = buildAreaMap(area, world.facilities.values());
     const projection = fitProjection(map.width, map.height, 338, 470, 18);
@@ -134,7 +131,8 @@ describe('provisional facility display priority', () => {
     const labels = layoutFacilityLabels(map.markers, projection, 338, 470, text => text.length * 13, player,
       { mapWidth: map.width, mapHeight: map.height, iconPixel: 1, playerRadius: 8 });
     const mapRect = { x: projection.left, y: projection.top, width: map.width * projection.scale, height: map.height * projection.scale };
-    expect(labels.filter(label => !overlaps(label, mapRect)).length).toBeGreaterThanOrEqual(6);
+    expect(labels).toHaveLength(12);
+    expect(labels.filter(label => !overlaps(label, mapRect)).length).toBe(4);
     const dense: FacilityMarker[] = Array.from({ length: 8 }, (_, i) => ({ id: `facility-${i}`, name: '施設', kind: 'facility', x: 20 + i * 4, y: 20 }));
     const small = layoutFacilityLabels(dense, projection, 100, 60, () => 26, { x: 50, y: 30 });
     expect(small.length).toBeLessThan(dense.length);

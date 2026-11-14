@@ -166,7 +166,7 @@ export class Minimap {
         { mapWidth: this.map!.width, mapHeight: this.map!.height, iconPixel, playerRadius: radius, icons });
       this.full.dataset.labelCount = String(labels.length);
       for (const label of labels) {
-        context.beginPath(); context.moveTo(label.anchor.x, label.anchor.y); context.lineTo(label.end.x, label.end.y);
+        context.beginPath(); context.moveTo(label.start.x, label.start.y); context.lineTo(label.end.x, label.end.y);
         context.strokeStyle = '#fff9e9'; context.lineWidth = 3; context.stroke();
         context.strokeStyle = '#243034'; context.lineWidth = 1; context.stroke();
       }

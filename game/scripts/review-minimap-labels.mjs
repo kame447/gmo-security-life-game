@@ -110,7 +110,7 @@ function inspectPaint() {
   };
   CanvasRenderingContext2D.prototype.fillText = function (text, x, y, maxWidth) {
     const key = target(this.canvas);
-    if (key && window.__labelPaint[key]) window.__labelPaint[key].texts.push({ text, font: this.font });
+    if (key && window.__labelPaint[key]) window.__labelPaint[key].texts.push({ text, x, y, font: this.font });
     return maxWidth === undefined ? originalFillText.call(this, text, x, y) : originalFillText.call(this, text, x, y, maxWidth);
   };
 }
@@ -147,30 +147,50 @@ async function checkPaint(page, mode, size) {
     for (let j = i + 1; j < boxes.length; j++) assert.ok(!overlaps(box, boxes[j]), `${size}/${mode}: two painted boxes overlap`);
   }
   if (mode === 'full') {
-    assert.equal(info.markerCount, '12');
+    assert.equal(info.markerCount, '12'); assert.equal(info.labelCount, '12');
     assert.equal(Number(info.labelCount), info.frame.labels.length);
     assert.equal(info.frame.texts.length, info.frame.labels.length);
     assert.equal(info.frame.leaders.length, info.frame.labels.length, `${size}: each name must have one leader`);
-    assert.ok(info.frame.labels.length >= (size === 'desktop' ? 11 : 9), `${size}: too many names omitted`);
+    assert.deepEqual(info.frame.texts.map(entry => entry.text).sort(), info.markers.map(marker => marker.name).sort(), `${size}: facility names must be unique and complete`);
+    const textByBox = new Map();
+    for (const label of info.frame.labels) {
+      const entries = info.frame.texts.filter(entry => contains(label, entry));
+      assert.equal(entries.length, 1, `${size}: each name must belong to exactly one label box`);
+      textByBox.set(label, entries[0]);
+    }
+    for (const entry of info.frame.texts) assert.equal(info.frame.labels.filter(label => contains(label, entry)).length, 1, `${size}: text must belong to one label box`);
     for (const marker of info.markers) assert.ok(info.aria.includes(marker.name), `${size}: missing ${marker.name} from full-map aria-label`);
+    for (const marker of info.markers) assert.ok(info.frame.texts.some(entry => entry.text === marker.name && entry.font.includes('13px')), `${size}: missing readable ${marker.name}`);
     for (const entry of info.frame.texts) assert.ok(info.markers.some(marker => marker.name === entry.text) && entry.font.includes('13px'), `${size}: incorrect or unreadable ${entry.text}`);
     for (const line of info.frame.leaders) {
       assert.ok(!touchesLine(line, player), `${size}: leader crosses current location`);
       const own = info.frame.labels.filter(label => contains(label, line.end));
       assert.equal(own.length, 1, `${size}: leader does not end at exactly one label`);
+      const marker = info.markers.find(item => item.name === textByBox.get(own[0]).text);
+      assert.ok(marker, `${size}: no facility for label`);
+      if (Math.hypot(marker.point.x - line.start.x, marker.point.y - line.start.y) > .001) {
+        assert.ok(contains(expand(player, 2), marker.point), `${size}: displaced leader did not start under the player`);
+        const border = expand(player, 2);
+        const edgeDistance = Math.min(Math.abs(line.start.x - border.x), Math.abs(line.start.x - border.x - border.width),
+          Math.abs(line.start.y - border.y), Math.abs(line.start.y - border.y - border.height));
+        assert.ok(edgeDistance < .11 && Math.abs(orient(marker.point, line.end, line.start)) < .01, `${size}: clipped leader must stop at the player edge`);
+      }
       for (const label of info.frame.labels) if (label !== own[0]) assert.ok(!touchesLine(line, label), `${size}: leader crosses another label`);
       for (const icon of info.frame.icons) {
         const ownIcon = Math.abs(icon.x + icon.width / 2 - line.start.x) <= .51 && Math.abs(icon.y + icon.height / 2 - line.start.y) <= .51;
         if (!ownIcon) assert.ok(!touchesLine(line, icon), `${size}: leader crosses another facility icon`);
       }
-      for (const other of info.frame.leaders) if (line !== other) assert.ok(!intersects(line.start, line.end, other.start, other.end), `${size}: leaders cross`);
     }
   } else assert.equal(info.frame.labels.length, 0, 'local map uses icons; names remain on full map');
   const shown = new Set(info.frame.texts.map(entry => entry.text));
   const omitted = mode === 'full' ? info.markers.filter(marker => !shown.has(marker.name)).map(marker => ({
     name: marker.name, id: marker.id, reason: contains(expand(player, 2), marker.point) ? 'anchor-covered-by-player' : 'no-clear-label-and-leader',
   })) : [];
-  return { icons: info.frame.icons.length, labels: info.frame.labels.length, canvas: [info.width, info.height], omitted };
+  let crossings = 0;
+  for (let i = 0; i < info.frame.leaders.length; i++) for (let j = i + 1; j < info.frame.leaders.length; j++) {
+    if (intersects(info.frame.leaders[i].start, info.frame.leaders[i].end, info.frame.leaders[j].start, info.frame.leaders[j].end)) crossings++;
+  }
+  return { icons: info.frame.icons.length, labels: info.frame.labels.length, canvas: [info.width, info.height], omitted, crossings };
 }
 
 async function checkHud(page, viewport, size, bag) {
