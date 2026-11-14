@@ -2,7 +2,7 @@ import type { Facing } from '../core/coords';
 import type { Game } from '../session/game';
 import type { AreaRuntime } from '../world';
 import { AreaMapCache, fitProjection, localProjection, playerMapPoint, projectPoint, type AreaMap, type MapProjection } from './model';
-import { drawFacilityIcon, layoutFacilityLabels } from './markers';
+import { drawFacilityIcon, layoutFacilityIcons, layoutFacilityLabels } from './markers';
 import './minimap.css';
 
 const ANGLES: Record<Facing, number> = { up: 0, right: Math.PI / 2, down: Math.PI, left: -Math.PI / 2 };
@@ -154,10 +154,16 @@ export class Minimap {
     context.drawImage(this.image!, projection.left, projection.top,
       this.map!.width * projection.scale, this.map!.height * projection.scale);
     const point = projectPoint(projection, { x, y });
+    // Provisional: larger local pictograms remain legible after the mini canvas is scaled down.
+    const iconPixel = this.opened ? (projection.scale >= 4 ? 2 : 1) : 2;
+    const radius = this.opened && canvas.width >= 600 ? 15 : 8;
+    const icons = layoutFacilityIcons(this.map!.markers, projection, canvas.width, canvas.height, point, iconPixel, radius);
+    canvas.dataset.visibleMarkerCount = String(icons.length);
     if (this.opened) {
       context.font = 'bold 13px sans-serif';
       context.textBaseline = 'middle';
-      const labels = layoutFacilityLabels(this.map!.markers, projection, canvas.width, canvas.height, text => context.measureText(text).width, point);
+      const labels = layoutFacilityLabels(this.map!.markers, projection, canvas.width, canvas.height, text => context.measureText(text).width, point,
+        { mapWidth: this.map!.width, mapHeight: this.map!.height, iconPixel, playerRadius: radius });
       this.full.dataset.labelCount = String(labels.length);
       for (const label of labels) {
         const endX = Math.max(label.x, Math.min(label.x + label.width, label.anchor.x));
@@ -172,13 +178,7 @@ export class Minimap {
         context.fillStyle = '#243034'; context.fillText(label.marker.name, label.x + 6, label.y + label.height / 2);
       }
     }
-    for (const marker of this.map!.markers) {
-      const anchor = projectPoint(projection, marker);
-      const margin = this.opened ? 12 : 8;
-      if (anchor.x < margin || anchor.y < margin || anchor.x > canvas.width - margin || anchor.y > canvas.height - margin) continue;
-      drawFacilityIcon(context, marker, anchor, this.opened && projection.scale >= 4 ? 2 : 1);
-    }
-    const radius = this.opened && canvas.width >= 600 ? 15 : 8;
+    for (const icon of icons) drawFacilityIcon(context, icon.marker, icon.anchor, iconPixel);
     context.save();
     context.translate(point.x, point.y);
     context.rotate(ANGLES[facing]);

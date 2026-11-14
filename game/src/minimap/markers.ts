@@ -33,29 +33,70 @@ export function drawFacilityIcon(context: CanvasRenderingContext2D, marker: Faci
 
 export interface LabelBox { x: number; y: number; width: number; height: number }
 export interface FacilityLabel extends LabelBox { marker: FacilityMarker; anchor: MapPoint }
+export interface FacilityIcon extends LabelBox { marker: FacilityMarker; anchor: MapPoint }
+export interface LabelLayoutOptions { mapWidth: number; mapHeight: number; iconPixel: number; playerRadius: number }
+
+// Provisional spacing in canvas pixels; labels and icons can be adjusted after visual review.
 const overlaps = (a: LabelBox, b: LabelBox): boolean =>
   a.x < b.x + b.width + 3 && a.x + a.width + 3 > b.x && a.y < b.y + b.height + 3 && a.y + a.height + 3 > b.y;
 
-/** Place nearby labels first, then search outward; never cover another label or symbol. */
+function iconBox(anchor: MapPoint, pixel: number): LabelBox {
+  const size = 9 * pixel;
+  // Includes the half-pixel border and its one-pixel stroke in drawFacilityIcon.
+  return { x: Math.round(anchor.x - size / 2) - 3, y: Math.round(anchor.y - size / 2) - 3, width: size + 6, height: size + 6 };
+}
+
+function orderedMarkers(markers: readonly FacilityMarker[], projection: MapProjection, player: MapPoint) {
+  return markers.map(marker => ({ marker, anchor: projectPoint(projection, marker) })).sort((a, b) => {
+    const distance = (a.anchor.x - player.x) ** 2 + (a.anchor.y - player.y) ** 2 -
+      ((b.anchor.x - player.x) ** 2 + (b.anchor.y - player.y) ** 2);
+    return distance || (a.marker.id < b.marker.id ? -1 : a.marker.id > b.marker.id ? 1 : 0);
+  });
+}
+
+/** Keep true map positions: the player wins, then nearer icons, with ID as a stable tie-breaker. */
+export function layoutFacilityIcons(markers: readonly FacilityMarker[], projection: MapProjection,
+  width: number, height: number, player: MapPoint, pixel: number, playerRadius: number): FacilityIcon[] {
+  const radius = playerRadius + 2;
+  const occupied: LabelBox[] = [{ x: player.x - radius, y: player.y - radius, width: 2 * radius, height: 2 * radius }];
+  const icons: FacilityIcon[] = [];
+  for (const { marker, anchor } of orderedMarkers(markers, projection, player)) {
+    const box = iconBox(anchor, pixel);
+    if (box.x < 0 || box.y < 0 || box.x + box.width > width || box.y + box.height > height || occupied.some(other => overlaps(box, other))) continue;
+    icons.push({ ...box, marker, anchor }); occupied.push(box);
+  }
+  return icons;
+}
+
+/** Names nearer the player are placed first; omit a name only when no clear box fits. */
 export function layoutFacilityLabels(markers: readonly FacilityMarker[], projection: MapProjection,
-  width: number, height: number, measure: (text: string) => number, player: MapPoint): FacilityLabel[] {
-  const points = markers.map(marker => ({ marker, anchor: projectPoint(projection, marker) }));
-  const occupied: LabelBox[] = points.map(({ anchor }) => ({ x: anchor.x - 11, y: anchor.y - 11, width: 22, height: 22 }));
-  occupied.push({ x: player.x - 16, y: player.y - 16, width: 32, height: 32 });
+  width: number, height: number, measure: (text: string) => number, player: MapPoint, options?: LabelLayoutOptions): FacilityLabel[] {
+  const points = orderedMarkers(markers, projection, player);
+  const occupied: LabelBox[] = points.map(({ anchor }) => iconBox(anchor, options?.iconPixel ?? 2));
+  const radius = (options?.playerRadius ?? 15) + 2;
+  occupied.push({ x: player.x - radius, y: player.y - radius, width: 2 * radius, height: 2 * radius });
+  const map = options && { x: projection.left, y: projection.top, width: options.mapWidth * projection.scale, height: options.mapHeight * projection.scale };
   const labels: FacilityLabel[] = [];
   for (const { marker, anchor } of points) {
     const w = Math.ceil(measure(marker.name)) + 12, h = 23;
-    let placed = false;
-    for (let distance = 17; distance < height && !placed; distance += 27) {
-      for (const dy of [-distance - h, distance]) {
-        for (const dx of [-w / 2, 15, -w - 15]) {
-          const box = { x: Math.max(5, Math.min(width - w - 5, anchor.x + dx)), y: anchor.y + dy, width: w, height: h };
-          if (box.y < 5 || box.y + h > height - 5 || occupied.some(other => overlaps(box, other))) continue;
-          labels.push({ ...box, marker, anchor }); occupied.push(box); placed = true; break;
-        }
-        if (placed) break;
-      }
+    const maxX = width - w - 5, maxY = height - h - 5;
+    if (maxX < 5 || maxY < 5) continue;
+    const clamp = (value: number, max: number) => Math.max(5, Math.min(max, value));
+    const xs = new Set([5, maxX, clamp(anchor.x - w / 2, maxX), clamp(anchor.x + 15, maxX), clamp(anchor.x - w - 15, maxX)]);
+    const ys = new Set([5, maxY, clamp(anchor.y - h - 17, maxY), clamp(anchor.y + 17, maxY)]);
+    for (let x = 5; x <= maxX; x += 12) xs.add(x);
+    for (let y = 5; y <= maxY; y += 26) ys.add(y);
+    let best: LabelBox | undefined, bestScore = Infinity;
+    for (const y of ys) for (const x of xs) {
+      const box = { x, y, width: w, height: h };
+      if (occupied.some(other => overlaps(box, other))) continue;
+      const coverWidth = map ? Math.max(0, Math.min(x + w, map.x + map.width) - Math.max(x, map.x)) : 0;
+      const coverHeight = map ? Math.max(0, Math.min(y + h, map.y + map.height) - Math.max(y, map.y)) : 0;
+      const coverPenalty = 180 * coverWidth * coverHeight / (w * h);
+      const score = Math.hypot(x + w / 2 - anchor.x, y + h / 2 - anchor.y) + coverPenalty;
+      if (score < bestScore) { best = box; bestScore = score; }
     }
+    if (best) { labels.push({ ...best, marker, anchor }); occupied.push(best); }
   }
   return labels;
 }
