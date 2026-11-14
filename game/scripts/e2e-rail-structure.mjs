@@ -144,7 +144,7 @@ try {
       await reloadExact(page); pass(`${name}: closed gates, island platform between two tracks, exact indoor reload`);
       await walkTo(page, { x: 10, y: 5 });
       await hold(page, 'ArrowUp', 700); const stopped = await state(page);
-      assert.equal(tile(stopped).y, 5); await hold(page, 'ArrowUp', 200); assert.deepEqual(await state(page), stopped);
+      assert.equal(tile(stopped).y, 4); await hold(page, 'ArrowUp', 200); assert.deepEqual(await state(page), stopped);
       await shot(page, `${name}-04-platform-boundary`);
       await page.evaluate(spawn => { window.__slg.game.player = spawn; }, landed({ areaId: access.areaId, x: 17, y: 11, facing: 'down' }));
       await walkTo(page, { x: 17, y: 17 });

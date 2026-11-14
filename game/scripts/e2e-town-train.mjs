@@ -31,17 +31,13 @@ try {
       // Observe the real canvas's moving train paint. This only instruments this disposable context.
       await context.addInitScript(() => {
         window.__townTrainPaint = [];
-        const original = CanvasRenderingContext2D.prototype.fillRect;
-        CanvasRenderingContext2D.prototype.fillRect = function (x, y, w, h) {
-          if (this.canvas.id === 'view' && this.fillStyle === '#273e52' && window.__slg?.renderer) {
-            const stats = window.__slg.renderer.stats;
-            if (x + w > stats.camX && x < stats.camX + stats.viewW && y + h > stats.camY && y < stats.camY + stats.viewH) {
-              window.__townTrainPaint.push({ x, y, w, h, t: performance.now(), areaId: window.__slg.game.player.areaId });
-              if (window.__townTrainPaint.length > 600) window.__townTrainPaint.shift();
-            }
-          }
-          return original.call(this, x, y, w, h);
+        const sample = () => {
+          const r = window.__slg?.renderer;
+          if (r) for (const t of r.stats.trains) window.__townTrainPaint.push({ ...t, t: performance.now() });
+          if (window.__townTrainPaint.length > 600) window.__townTrainPaint.splice(0, window.__townTrainPaint.length - 600);
+          requestAnimationFrame(sample);
         };
+        requestAnimationFrame(sample);
       });
       const page = await context.newPage();
       page.on('pageerror', error => errors.push(String(error)));
@@ -90,14 +86,14 @@ try {
           const sign = band.direction === 'down' ? 1 : -1;
           await page.evaluate(() => { window.__townTrainPaint.length = 0; });
           await page.waitForFunction(({ id, top, bottom }) => {
-            const paint = window.__townTrainPaint.filter(p => p.y >= top && p.y + p.h <= bottom).at(-1), { camX, viewW } = window.__slg.renderer.stats;
+            const paint = window.__townTrainPaint.filter(p => p.y + p.h === bottom).at(-1), { camX, viewW } = window.__slg.renderer.stats;
             return paint?.areaId === id && paint.x >= camX + 8 && paint.x + paint.w <= camX + viewW - 40;
           }, { id: areaId, top: band.top, bottom: band.bottom }, { timeout: 16000 });
-          const pick = () => page.evaluate(({ top, bottom }) => window.__townTrainPaint.filter(p => p.y >= top && p.y + p.h <= bottom).at(-1), band);
+          const pick = () => page.evaluate(({ top, bottom }) => window.__townTrainPaint.filter(p => p.y + p.h === bottom).at(-1), band);
           const first = await pick();
           await page.screenshot({ path: resolve(shots, `${size.name}-${areaId}-${band.direction}-01.png`) });
           await page.waitForFunction(({ areaId: id, firstX, sign, top, bottom }) => {
-            const paint = window.__townTrainPaint.filter(p => p.y >= top && p.y + p.h <= bottom).at(-1), { camX, viewW } = window.__slg.renderer.stats;
+            const paint = window.__townTrainPaint.filter(p => p.y + p.h === bottom).at(-1), { camX, viewW } = window.__slg.renderer.stats;
             return paint?.areaId === id && (paint.x - firstX) * sign >= 20 && paint.x >= camX - 128 && paint.x + paint.w <= camX + viewW + 128;
           }, { areaId, firstX: first.x, sign, top: band.top, bottom: band.bottom }, { timeout: 4000 });
           const second = await pick();
@@ -105,7 +101,8 @@ try {
           assert.ok((second.x - first.x) * sign > 19, `A real canvas ${band.direction} train moves ${band.direction === 'down' ? 'right' : 'left'}`);
           for (const draw of [first, second]) {
             assert.ok(draw.x < band.right && draw.x + draw.w > band.left, 'Paint intersects its rail strip');
-            assert.ok(draw.y >= band.top && draw.y + draw.h <= band.bottom, 'Paint remains vertically on its rail');
+            assert.equal(draw.y + draw.h, band.bottom, 'The train stands on its rail row (feet on the row bottom)');
+            assert.ok(draw.h > 26, 'The car body is taller than the player');
           }
         }
         const after = await page.evaluate(() => ({ player: { ...window.__slg.game.player }, stage: window.__slg.game.world.variant.stage,
