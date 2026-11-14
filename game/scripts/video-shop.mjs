@@ -84,7 +84,7 @@ async function record(name, width, height) {
       assert.deepEqual(await assets(page), initial);
     });
     await step('review item and quantity', async () => {
-      if (mobile) await page.locator('#shop-review').tap(); else await page.keyboard.press('KeyZ');
+      if (mobile) await page.locator('.shop-product').nth(1).tap(); else await page.keyboard.press('KeyZ');
       assert.equal(await phase(page), 'confirm');
     });
     await step('two items: insufficient funds', async () => {
@@ -112,7 +112,7 @@ async function record(name, width, height) {
       assert.equal(await receipt.isVisible(), true); assert.match(await receipt.innerText(), /ノート/);
     });
     await step('return to the same room', async () => {
-      if (mobile) await page.locator('#shop-receipt button').tap(); else await page.keyboard.press('KeyZ');
+      if (mobile) await page.locator('#shop-exit').tap(); else await page.keyboard.press('Escape');
       await page.locator('#shop-panel').waitFor({ state: 'hidden' });
       assert.equal(await page.locator('#view').evaluate(element => document.activeElement === element), true);
     });

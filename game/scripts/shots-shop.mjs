@@ -23,13 +23,13 @@ try {
       await page.goto(shopUrl(true)); await ready(page);
       await shot('01-open');
       await page.locator('.shop-product').nth(1).click(); await shot('02-selected');
-      await page.locator('#shop-review').click(); await page.locator('#shop-more').click(); await shot('03-confirm');
+      await page.locator('.shop-product').nth(1).click(); await page.locator('#shop-more').click(); await shot('03-confirm');
       await page.locator('#shop-back').click(); await shot('04-cancelled');
       await seed(page, 80); await openClerk(page);
-      await page.locator('.shop-product').nth(1).click(); await page.locator('#shop-review').click(); await page.locator('#shop-more').click();
+      await page.locator('.shop-product').nth(1).click(); await page.locator('.shop-product').nth(1).click(); await page.locator('#shop-more').click();
       await shot('05-insufficient');
       await closeShop(page); await seed(page); await openClerk(page);
-      await page.locator('.shop-product').nth(1).click(); await page.locator('#shop-review').click(); await page.locator('#shop-more').click();
+      await page.locator('.shop-product').nth(1).click(); await page.locator('.shop-product').nth(1).click(); await page.locator('#shop-more').click();
       await page.locator('#shop-confirm').click(); await shot('06-receipt');
       assert.deepEqual(errors, []); assert.deepEqual(network.blocked, []); assert.deepEqual(network.downloads, []);
       console.log(`PASS ${viewport.name}: 6 screenshots`);

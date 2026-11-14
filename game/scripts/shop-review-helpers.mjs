@@ -47,8 +47,9 @@ export async function openClerk(page, touch = false) {
   assert.deepEqual(await assets(page), initial, 'Opening never buys anything');
   assert.equal(await page.evaluate(() => window.__slg.game.dialog), null);
   assert.equal(await page.locator('#dialog').isVisible(), false);
-  assert.equal(await page.locator('#shop-start, #shop-next, #shop-quit').count(), 0, 'No initial buy/advance screen');
-  for (const selector of ['#shop-conversation', '#shop-products', '#shop-description', '#shop-money', '#shop-review']) {
+  assert.equal(await page.locator('#shop-start, #shop-next, #shop-quit, #shop-review, #shop-close').count(), 0, 'No initial buy/advance screen or extra buttons');
+  assert.equal(await page.locator('.shop-product.is-selected').evaluate(row => row === row.parentElement.firstElementChild), true, 'The cursor starts on the first product');
+  for (const selector of ['#shop-conversation', '#shop-line', '#shop-products', '#shop-description', '#shop-icon svg', '#shop-money']) {
     assert.equal(await page.locator(selector).isVisible(), true, `${selector} is immediately visible`);
   }
 }
@@ -62,6 +63,7 @@ export async function tabTo(page, id) {
 
 /** Measure actual painted boxes and hit targets; no scroll/DOM/CSS overrides. */
 export async function assertFits(page) {
+  await afterPointer(page); // the renderer camera is only valid after a painted frame
   const result = await page.evaluate(() => {
     const root = document.querySelector('#shop-panel');
     const box = element => {
@@ -71,8 +73,8 @@ export async function assertFits(page) {
     const visible = element => element.getClientRects().length > 0;
     const items = [...root.querySelectorAll('button, h2, h3, #shop-money, #shop-description, #shop-line, #shop-result, #shop-notice, #shop-total, #shop-after')]
       .filter(visible).map(element => ({ id: element.id || element.textContent, ...box(element) }));
-    const regions = ['#shop-products', '#shop-detail', '#shop-checkout', '#shop-conversation']
-      .map(selector => root.querySelector(selector)).filter(visible).map(element => ({ id: element.id, ...box(element) }));
+    const regions = ['.shop-wallet', '#shop-products', '#shop-conversation']
+      .map(selector => root.querySelector(selector)).filter(visible).map(element => ({ id: element.id || 'shop-wallet', ...box(element) }));
     const hits = [...root.querySelectorAll('button')].filter(element => visible(element) && !element.disabled).map(element => {
       const r = element.getBoundingClientRect();
       const points = [[r.x + r.width / 2, r.y + r.height / 2], [r.x + 4, r.y + 4], [r.right - 4, r.y + 4],
@@ -84,37 +86,36 @@ export async function assertFits(page) {
       overflow: document.documentElement.scrollWidth > innerWidth };
   });
   assert.equal(result.overflow, false);
-  for (const item of [result.panel, ...result.items]) {
+  assert.equal(result.regions.length, 3, 'Wallet, product list and bar are three separate boxes');
+  for (const item of [...result.regions, ...result.items]) {
     assert.ok(item.x >= 0 && item.y >= 0 && item.right <= result.width + 1 && item.bottom <= result.height + 1,
       `Visible information/control fits: ${JSON.stringify(item)}`);
   }
   for (let i = 0; i < result.regions.length; i++) for (let j = i + 1; j < result.regions.length; j++) {
     const a = result.regions[i], b = result.regions[j];
     assert.ok(Math.min(a.right, b.right) - Math.max(a.x, b.x) <= 1 || Math.min(a.bottom, b.bottom) - Math.max(a.y, b.y) <= 1,
-      `Conversation/product/detail/checkout do not overlap: ${JSON.stringify({ a, b })}`);
+      `Wallet/product list/bar do not overlap: ${JSON.stringify({ a, b })}`);
   }
   for (const hit of result.hits) {
     assert.ok(hit.width >= 44 && hit.height >= 44, `Touch target is at least 44px: ${JSON.stringify(hit)}`);
     assert.equal(hit.onTop, true, `Button center and corners remain exposed: ${JSON.stringify(hit)}`);
   }
-  // The clerk and the player stay visible above the panel (feet point, from the renderer camera).
+  // The clerk and the player stay visible beside the three boxes (feet and head points, from the renderer camera).
   const actors = await page.evaluate(async () => {
     const { feetAtTile } = await import('/src/core/coords.ts');
     const game = window.__slg.game, stats = window.__slg.renderer.stats, view = document.querySelector('#view').getBoundingClientRect();
-    const scale = view.width / (stats.viewW * stats.zoom);
-    const at = feet => ({ x: view.x + (feet.x - stats.camX) * stats.zoom * scale, y: view.y + (feet.y - stats.camY) * stats.zoom * scale });
+    const scale = view.width / (stats.viewW * stats.zoom), up = 26 * stats.zoom * scale;
+    const at = feet => { const x = view.x + (feet.x - stats.camX) * stats.zoom * scale, y = view.y + (feet.y - stats.camY) * stats.zoom * scale; return [{ x, y }, { x, y: y - up }]; };
     const clerk = game.facingInteraction(), tile = game.world.areas.get(game.player.areaId).interactions.find(item => item.eventKey === clerk?.eventKey);
     return { player: at(game.player), clerk: tile && at(feetAtTile(tile.x, tile.y)) };
   });
-  for (const [who, point] of Object.entries(actors)) {
-    if (!point) continue;
-    const covered = point.x >= result.panel.x && point.x <= result.panel.right && point.y >= result.panel.y && point.y <= result.panel.bottom;
-    assert.equal(covered, false, `The ${who} is not hidden behind the panel: ${JSON.stringify({ point, panel: result.panel })}`);
+  for (const [who, points] of Object.entries(actors)) for (const point of points ?? []) for (const box of result.regions) {
+    const covered = point.x >= box.x && point.x <= box.right && point.y >= box.y && point.y <= box.bottom;
+    assert.equal(covered, false, `The ${who} is not hidden behind ${box.id}: ${JSON.stringify({ point, box })}`);
   }
-  // Implementation guards for this compact revision, not user-approved size specifications.
-  const area = result.panel.width * result.panel.height / (result.width * result.height);
-  assert.ok(area <= (result.phase === 'catalog' ? .60 : .75), `The room remains visible: ${JSON.stringify({ area, panel: result.panel })}`);
-  assert.ok(result.panel.width <= 640, 'No large central shopping window');
+  // Implementation guard for this revision, not a user-approved size specification.
+  const area = result.regions.reduce((sum, box) => sum + box.width * box.height, 0) / (result.width * result.height);
+  assert.ok(area <= (result.phase === 'confirm' ? .75 : .60), `The room remains visible: ${JSON.stringify({ area })}`);
   return result;
 }
 export function observe(page) {
