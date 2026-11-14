@@ -96,7 +96,8 @@ export class LocalSavePanel implements ModalPanel {
     this.resume.disabled = !this.session.hasSave;
     this.confirm.disabled = this.session.isSwitching;
     const notice = this.session.notice;
-    const message = notice.kind === 'saved' ? 'セーブしました' : notice.kind === 'error' ? localSaveProblemText(notice.reason) : '';
+    const savedMessage = this.view === 'menu' ? 'セーブしました' : '';
+    const message = notice.kind === 'saved' ? savedMessage : notice.kind === 'error' ? localSaveProblemText(notice.reason) : '';
     this.status.textContent = message; this.status.dataset.state = notice.kind; this.status.hidden = !message;
     this.indicator.textContent = notice.kind === 'error' ? message : '';
     this.indicator.hidden = this.opened || notice.kind !== 'error';
