@@ -1,11 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { layoutFacilityIcons, layoutFacilityLabels, type LabelBox } from '../src/minimap/markers';
-import { buildAreaMap, fitProjection, localProjection, projectPoint, type FacilityMarker } from '../src/minimap/model';
+import { layoutFacilityIcons, layoutFacilityLabels, type FacilityLabel, type LabelBox } from '../src/minimap/markers';
+import { buildAreaMap, fitProjection, localProjection, projectPoint, type FacilityMarker, type MapPoint } from '../src/minimap/model';
 import { buildWorld, LANDMARKS } from '../src/world';
 
 const overlaps = (a: LabelBox, b: LabelBox, gap = 0) =>
   a.x < b.x + b.width + gap && a.x + a.width + gap > b.x &&
   a.y < b.y + b.height + gap && a.y + a.height + gap > b.y;
+
+// Independent edge-intersection check, including the painted leader's stroke.
+const touchesLine = (a: MapPoint, b: MapPoint, raw: LabelBox, margin = 2) => {
+  const box = { x: raw.x - margin, y: raw.y - margin, width: raw.width + 2 * margin, height: raw.height + 2 * margin };
+  const inside = (p: MapPoint) => p.x >= box.x && p.x <= box.x + box.width && p.y >= box.y && p.y <= box.y + box.height;
+  if (inside(a) || inside(b)) return true;
+  const corners = [{ x: box.x, y: box.y }, { x: box.x + box.width, y: box.y },
+    { x: box.x + box.width, y: box.y + box.height }, { x: box.x, y: box.y + box.height }];
+  const orient = (p: MapPoint, q: MapPoint, r: MapPoint) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  return corners.some((c, i) => {
+    const d = corners[(i + 1) % corners.length];
+    return Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)) <= Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) &&
+      Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) <= Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) &&
+      orient(a, b, c) * orient(a, b, d) <= 0 && orient(c, d, a) * orient(c, d, b) <= 0;
+  });
+};
+
+const properlyCross = (a: FacilityLabel, b: FacilityLabel) => {
+  const orient = (p: MapPoint, q: MapPoint, r: MapPoint) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  return orient(a.anchor, a.end, b.anchor) * orient(a.anchor, a.end, b.end) < 0 &&
+    orient(b.anchor, b.end, a.anchor) * orient(b.anchor, b.end, a.end) < 0;
+};
 
 describe('provisional facility display priority', () => {
   const projection = { left: 0, top: 0, scale: 1 };
@@ -45,24 +67,63 @@ describe('provisional facility display priority', () => {
     expect(result.map(icon => icon.marker.id)).toEqual(['a']);
   });
 
-  it.each([[900, 562], [338, 470], [792, 260]])('keeps all current names readable and separated on %i×%i', (width, height) => {
+  it.each([[900, 562, 12], [340, 470, 9], [794, 260, 10]])('keeps names and their leaders clear at every landmark on %i×%i', (width, height, expectedMinimum) => {
     const world = buildWorld(), area = world.areas.get('town-main')!;
     const map = buildAreaMap(area, world.facilities.values());
     const projection = fitProjection(map.width, map.height, width, height, 18);
+    let minimum = Infinity;
     for (const landmark of Object.values(LANDMARKS)) {
       const player = projectPoint(projection, { x: landmark.x + .5, y: landmark.y + .5 });
       const iconPixel = projection.scale >= 4 ? 2 : 1, playerRadius = width >= 600 ? 15 : 8;
       const icons = layoutFacilityIcons(map.markers, projection, width, height, player, iconPixel, playerRadius);
       const labels = layoutFacilityLabels(map.markers, projection, width, height, text => text.length * 13, player,
-        { mapWidth: map.width, mapHeight: map.height, iconPixel, playerRadius });
-      expect(labels.map(label => label.marker.id).sort()).toEqual(map.markers.map(marker => marker.id).sort());
+        { mapWidth: map.width, mapHeight: map.height, iconPixel, playerRadius, icons });
+      minimum = Math.min(minimum, labels.length);
+      const playerBox = { x: player.x - playerRadius - 2, y: player.y - playerRadius - 2, width: 2 * playerRadius + 4, height: 2 * playerRadius + 4 };
+      expect(labels.length).toBeGreaterThan(0);
+      expect(new Set(labels.map(label => label.marker.id)).size).toBe(labels.length);
       for (const label of labels) {
         expect(label.x).toBeGreaterThanOrEqual(0); expect(label.y).toBeGreaterThanOrEqual(0);
         expect(label.x + label.width).toBeLessThanOrEqual(width); expect(label.y + label.height).toBeLessThanOrEqual(height);
-        for (const icon of icons) expect(overlaps(label, icon, 3)).toBe(false);
-        for (const other of labels) if (label !== other) expect(overlaps(label, other, 3)).toBe(false);
+        expect(label.anchor).toEqual(projectPoint(projection, label.marker));
+        expect(touchesLine(label.anchor, label.end, playerBox)).toBe(false);
+        for (const icon of icons) {
+          expect(overlaps(label, icon, 3)).toBe(false);
+          if (icon.marker.id !== label.marker.id) expect(touchesLine(label.anchor, label.end, icon)).toBe(false);
+        }
+        for (const other of labels) if (label !== other) {
+          expect(overlaps(label, other, 3)).toBe(false);
+          expect(touchesLine(label.anchor, label.end, other)).toBe(false);
+          expect(properlyCross(label, other)).toBe(false);
+        }
       }
     }
+    expect(minimum).toBe(expectedMinimum);
+  });
+
+  it.each([
+    [900, 562, []],
+    [340, 470, ['school-gym', 'shop-candy']],
+    [794, 260, ['shop-candy', 'shop-konbini']],
+  ])('documents the exact labels omitted at the shopping street on %i×%i', (width, height, omitted) => {
+    const world = buildWorld(), map = buildAreaMap(world.areas.get('town-main')!, world.facilities.values());
+    const projection = fitProjection(map.width, map.height, width, height, 18);
+    const player = projectPoint(projection, { x: LANDMARKS.shoppingStreet.x + .5, y: LANDMARKS.shoppingStreet.y + .625 });
+    const iconPixel = projection.scale >= 4 ? 2 : 1, playerRadius = width >= 600 ? 15 : 8;
+    const icons = layoutFacilityIcons(map.markers, projection, width, height, player, iconPixel, playerRadius);
+    const labels = layoutFacilityLabels(map.markers, projection, width, height, text => text.length * 13, player,
+      { mapWidth: map.width, mapHeight: map.height, iconPixel, playerRadius, icons });
+    expect(map.markers.filter(marker => !labels.some(label => label.marker.id === marker.id)).map(marker => marker.id).sort()).toEqual(omitted);
+  });
+
+  it('omits a name when its true anchor is covered by the player, instead of drawing a misleading leader', () => {
+    const crowded: FacilityMarker[] = [
+      { id: 'covered', name: '隠れた店', kind: 'cafe', x: 100, y: 50 },
+      { id: 'visible', name: '見える店', kind: 'bakery', x: 160, y: 50 },
+    ];
+    const labels = layoutFacilityLabels(crowded, projection, 240, 140, () => 52, { x: 100, y: 50 },
+      { mapWidth: 240, mapHeight: 140, iconPixel: 2, playerRadius: 15 });
+    expect(labels.map(label => label.marker.id)).toEqual(['visible']);
   });
 
   it('uses the full-map margin on portrait screens and omits lower-priority names only if no space remains', () => {

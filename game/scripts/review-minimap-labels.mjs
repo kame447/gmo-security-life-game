@@ -55,6 +55,19 @@ async function startServer(directory, port) {
 
 const overlaps = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 const expand = (box, n) => ({ x: box.x - n, y: box.y - n, width: box.width + n * 2, height: box.height + n * 2 });
+const contains = (box, point) => point.x >= box.x && point.x <= box.x + box.width && point.y >= box.y && point.y <= box.y + box.height;
+const orient = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+const intersects = (a, b, c, d) =>
+  Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)) <= Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) &&
+  Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) <= Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) &&
+  orient(a, b, c) * orient(a, b, d) <= 0 && orient(c, d, a) * orient(c, d, b) <= 0;
+const touchesLine = (line, rectangle) => {
+  const box = expand(rectangle, 2);
+  if (contains(box, line.start) || contains(box, line.end)) return true;
+  const corners = [{ x: box.x, y: box.y }, { x: box.x + box.width, y: box.y },
+    { x: box.x + box.width, y: box.y + box.height }, { x: box.x, y: box.y + box.height }];
+  return corners.some((point, i) => intersects(line.start, line.end, point, corners[(i + 1) % corners.length]));
+};
 
 function inspectPaint() {
   window.__labelPaint = { mini: null, full: null, counts: { mini: 0, full: 0 }, writes: 0 };
@@ -67,11 +80,26 @@ function inspectPaint() {
   };
   const originalFillRect = CanvasRenderingContext2D.prototype.fillRect;
   const originalFillText = CanvasRenderingContext2D.prototype.fillText;
+  const originalBeginPath = CanvasRenderingContext2D.prototype.beginPath;
+  const originalMoveTo = CanvasRenderingContext2D.prototype.moveTo;
+  const originalLineTo = CanvasRenderingContext2D.prototype.lineTo;
+  const originalStroke = CanvasRenderingContext2D.prototype.stroke;
+  const paths = new WeakMap();
   const target = canvas => canvas.id === 'full-map-canvas' ? 'full' : canvas.parentElement?.id === 'minimap-button' ? 'mini' : null;
+  CanvasRenderingContext2D.prototype.beginPath = function () { paths.set(this, []); return originalBeginPath.call(this); };
+  CanvasRenderingContext2D.prototype.moveTo = function (x, y) { paths.get(this)?.push({ x, y }); return originalMoveTo.call(this, x, y); };
+  CanvasRenderingContext2D.prototype.lineTo = function (x, y) { paths.get(this)?.push({ x, y }); return originalLineTo.call(this, x, y); };
+  CanvasRenderingContext2D.prototype.stroke = function (...args) {
+    const points = paths.get(this), frame = window.__labelPaint.full;
+    if (target(this.canvas) === 'full' && frame && this.strokeStyle === '#fff9e9' && this.lineWidth === 3 && points?.length === 2) {
+      frame.leaders.push({ start: points[0], end: points[1] });
+    }
+    return originalStroke.apply(this, args);
+  };
   CanvasRenderingContext2D.prototype.fillRect = function (x, y, width, height) {
     const key = target(this.canvas);
     if (key && x === 0 && y === 0 && width === this.canvas.width && height === this.canvas.height) {
-      window.__labelPaint[key] = { icons: [], labels: [], texts: [] };
+      window.__labelPaint[key] = { icons: [], labels: [], texts: [], leaders: [] };
       window.__labelPaint.counts[key]++;
     } else if (key && this.fillStyle === '#fff9e9' && window.__labelPaint[key]) {
       const box = { x, y, width, height };
@@ -99,11 +127,14 @@ async function playerBox(page, mode) {
 }
 
 async function checkPaint(page, mode, size) {
-  const info = await page.evaluate(which => {
+  const info = await page.evaluate(async which => {
+    const { buildAreaMap, fitProjection, projectPoint } = await import('/src/minimap/model.ts');
     const canvas = which === 'full' ? document.querySelector('#full-map-canvas') : document.querySelector('#minimap-button canvas');
+    const game = window.__slg.game, map = buildAreaMap(game.area, game.world.facilities.values());
+    const projection = fitProjection(map.width, map.height, canvas.width, canvas.height, 18);
     return { width: canvas.width, height: canvas.height, frame: window.__labelPaint[which],
       visible: Number(canvas.dataset.visibleMarkerCount), markerCount: canvas.dataset.markerCount, labelCount: canvas.dataset.labelCount,
-      names: [...window.__slg.game.world.facilities.values()].filter(f => f.areaId === 'town-main').map(f => f.name) };
+      aria: canvas.getAttribute('aria-label'), markers: map.markers.map(marker => ({ ...marker, point: projectPoint(projection, marker) })) };
   }, mode);
   assert.ok(info.frame && info.frame.icons.length > 0, `${size}/${mode}: no facility icons painted`);
   assert.equal(info.visible, info.frame.icons.length, `${size}/${mode}: icon count differs from painted canvas`);
@@ -116,11 +147,30 @@ async function checkPaint(page, mode, size) {
     for (let j = i + 1; j < boxes.length; j++) assert.ok(!overlaps(box, boxes[j]), `${size}/${mode}: two painted boxes overlap`);
   }
   if (mode === 'full') {
-    assert.equal(info.markerCount, '12'); assert.equal(info.labelCount, '12');
-    assert.equal(info.frame.labels.length, 12);
-    for (const name of info.names) assert.ok(info.frame.texts.some(entry => entry.text === name && entry.font.includes('13px')), `${size}: missing readable ${name}`);
+    assert.equal(info.markerCount, '12');
+    assert.equal(Number(info.labelCount), info.frame.labels.length);
+    assert.equal(info.frame.texts.length, info.frame.labels.length);
+    assert.equal(info.frame.leaders.length, info.frame.labels.length, `${size}: each name must have one leader`);
+    assert.ok(info.frame.labels.length >= (size === 'desktop' ? 11 : 9), `${size}: too many names omitted`);
+    for (const marker of info.markers) assert.ok(info.aria.includes(marker.name), `${size}: missing ${marker.name} from full-map aria-label`);
+    for (const entry of info.frame.texts) assert.ok(info.markers.some(marker => marker.name === entry.text) && entry.font.includes('13px'), `${size}: incorrect or unreadable ${entry.text}`);
+    for (const line of info.frame.leaders) {
+      assert.ok(!touchesLine(line, player), `${size}: leader crosses current location`);
+      const own = info.frame.labels.filter(label => contains(label, line.end));
+      assert.equal(own.length, 1, `${size}: leader does not end at exactly one label`);
+      for (const label of info.frame.labels) if (label !== own[0]) assert.ok(!touchesLine(line, label), `${size}: leader crosses another label`);
+      for (const icon of info.frame.icons) {
+        const ownIcon = Math.abs(icon.x + icon.width / 2 - line.start.x) <= .51 && Math.abs(icon.y + icon.height / 2 - line.start.y) <= .51;
+        if (!ownIcon) assert.ok(!touchesLine(line, icon), `${size}: leader crosses another facility icon`);
+      }
+      for (const other of info.frame.leaders) if (line !== other) assert.ok(!intersects(line.start, line.end, other.start, other.end), `${size}: leaders cross`);
+    }
   } else assert.equal(info.frame.labels.length, 0, 'local map uses icons; names remain on full map');
-  return { icons: info.frame.icons.length, labels: info.frame.labels.length, canvas: [info.width, info.height] };
+  const shown = new Set(info.frame.texts.map(entry => entry.text));
+  const omitted = mode === 'full' ? info.markers.filter(marker => !shown.has(marker.name)).map(marker => ({
+    name: marker.name, id: marker.id, reason: contains(expand(player, 2), marker.point) ? 'anchor-covered-by-player' : 'no-clear-label-and-leader',
+  })) : [];
+  return { icons: info.frame.icons.length, labels: info.frame.labels.length, canvas: [info.width, info.height], omitted };
 }
 
 async function checkHud(page, viewport, size, bag) {
