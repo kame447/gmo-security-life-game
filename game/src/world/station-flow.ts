@@ -15,7 +15,7 @@ export interface InteriorStationLayout {
   readonly platformBottom: number;
   readonly upTrackY: number;
   readonly gateY: number;
-  /** [0] は入場の改札（行き先を決めるまで通れない）、[1] は出場の改札（通れる）。構内通路は上り線を渡る。 */
+  /** 改札の2タイル。どちらも solid な操作対象で、歩いては通れない（南側から上向きで入場、ホーム側から下向きで出場の操作をする）。構内通路は上り線を渡る。 */
   readonly gateXs: readonly [number, number];
 }
 
@@ -37,7 +37,7 @@ export interface StationPlatform {
 export interface StationFlow {
   readonly stationId: string;
   readonly gate: { readonly areaId: string; readonly interactionId: string; readonly eventKey: string;
-    readonly tile: { readonly x: number; readonly y: number }; readonly w: 1; readonly exitTile: { readonly x: number; readonly y: number } };
+    readonly tile: { readonly x: number; readonly y: number }; readonly w: 2 };
   readonly platforms: readonly StationPlatform[];
   readonly alight: { readonly areaId: string; readonly x: number; readonly y: number; readonly facing: 'up' | 'down' };
 }
@@ -80,16 +80,14 @@ const flows: Readonly<Record<string, StationFlow>> = {
   station: {
     stationId: 'station',
     gate: { areaId: STATION_FLOW_LAYOUT.areaId, interactionId: 'station-ticket', eventKey: 'station.ticket',
-      tile: { x: STATION_FLOW_LAYOUT.gateXs[0], y: STATION_FLOW_LAYOUT.gateY }, w: 1,
-      exitTile: { x: STATION_FLOW_LAYOUT.gateXs[1], y: STATION_FLOW_LAYOUT.gateY } },
+      tile: { x: STATION_FLOW_LAYOUT.gateXs[0], y: STATION_FLOW_LAYOUT.gateY }, w: 2 },
     platforms: STATION_FLOW_PLATFORMS,
     alight: { areaId: STATION_FLOW_LAYOUT.areaId, x: 17, y: 7, facing: 'down' },
   },
   'station-neighbor': {
     stationId: 'station-neighbor',
     gate: { areaId: NEIGHBOR_FLOW_LAYOUT.areaId, interactionId: 'neighbor-station-ticket', eventKey: 'neighbor.station.ticket',
-      tile: { x: NEIGHBOR_FLOW_LAYOUT.gateXs[0], y: NEIGHBOR_FLOW_LAYOUT.gateY }, w: 1,
-      exitTile: { x: NEIGHBOR_FLOW_LAYOUT.gateXs[1], y: NEIGHBOR_FLOW_LAYOUT.gateY } },
+      tile: { x: NEIGHBOR_FLOW_LAYOUT.gateXs[0], y: NEIGHBOR_FLOW_LAYOUT.gateY }, w: 2 },
     platforms: NEIGHBOR_FLOW_PLATFORMS,
     alight: { areaId: NEIGHBOR_FLOW_LAYOUT.areaId, x: 9, y: 5, facing: 'down' },
   },
@@ -100,3 +98,5 @@ export function getStationFlow(stationId: string): StationFlow {
   if (!flow) throw new Error(`Unknown station: ${stationId}`);
   return flow;
 }
+
+export const STATION_FLOW_IDS: readonly string[] = Object.keys(flows);

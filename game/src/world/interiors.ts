@@ -104,8 +104,8 @@ export function createStation(): AreaDef {
   a.portals = [{ id: STATION_ACCESS.exitPortalId, from: { x: 17, y: 17, w: 2 },
     to: toTown(LANDMARKS.stationFront), facilityId: STATION_ACCESS.stationId }];
   a.interactions = [
-    // 入場の改札。操作の対象が solid なので、行き先を決める操作を通らずにホームへは入れない。出場側は通れる。
-    { id: 'station-ticket', kind: 'object', name: 'かいさつ', x: f.gateXs[0], y: f.gateY, solid: true, eventKey: 'station.ticket',
+    // 改札（2タイル）。操作の対象が solid なので、行き先を決める操作を通らずにホームへは入れない。
+    { id: 'station-ticket', kind: 'object', name: 'かいさつ', x: f.gateXs[0], y: f.gateY, w: 2, solid: true, eventKey: 'station.ticket',
       lines: ['きっぷを とおすところだ。きょうは まちを たんけんしよう。'] },
     ...STATION_FLOW_PLATFORMS.map(p => ({ id: p.sign.interactionId, eventKey: p.sign.eventKey, x: p.sign.x, y: p.sign.y, kind: 'sign' as const, name: 'のりば', solid: true, lines: ['ここが でんしゃの のりばだ。'] })),
   ];

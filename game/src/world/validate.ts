@@ -2,6 +2,8 @@ import { inside, isSolidTile, neighbors, type AreaRuntime, type World } from './
 
 type TileRect = { x: number; y: number; w?: number; h?: number };
 
+import { getStationFlow, STATION_FLOW_IDS } from './station-flow';
+
 export interface RailPoint { readonly areaId: string; readonly x: number; readonly y: number }
 /** Directed, explicitly confirmed travel; these links never create automatic portals. */
 export interface RailLink { readonly from: RailPoint; readonly to: RailPoint }
@@ -67,7 +69,7 @@ export function validateWorld(world: World, options: WorldValidationOptions = {}
     }
     if (valid) validLinks.push(link);
   }
-  const reached = reachableTiles(world, validLinks);
+  const reached = reachableTiles(world, [...validLinks, ...stationGateLinks(world)]);
   for (const [areaId, a] of world.areas) {
     const seen = reached.get(areaId)!;
     for (const p of a.def.portals) {
@@ -124,4 +126,20 @@ function isAccessible(a: AreaRuntime, r: TileRect, seen: Set<number>): boolean {
     }
   }
   return false;
+}
+
+/**
+ * 改札は歩いて通れない（操作の対象が solid）。行き先を選んだあとの移動（改札の前 → ホーム、ホーム → 改札の前）を、
+ * 到達性の検証だけが辿れる辺として加える。実際の移動は乗車側が行う。
+ */
+function stationGateLinks(world: World): RailLink[] {
+  const links: RailLink[] = [];
+  for (const id of STATION_FLOW_IDS) {
+    const flow = getStationFlow(id);
+    if (!world.areas.has(flow.gate.areaId)) continue;
+    const front = { areaId: flow.gate.areaId, x: flow.gate.tile.x, y: flow.gate.tile.y + 1 };
+    for (const p of flow.platforms) links.push({ from: front, to: { areaId: p.boardTile.areaId, x: p.boardTile.x, y: p.boardTile.y } });
+    links.push({ from: { areaId: flow.alight.areaId, x: flow.alight.x, y: flow.alight.y }, to: front });
+  }
+  return links;
 }

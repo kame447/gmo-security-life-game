@@ -38,20 +38,26 @@ describe('station, crossings and railway bridge', () => {
     walk(game, LANDMARKS.stationFront);
     walk(game, STATION_ACCESS.outdoorEntrance);
     expect(game.player).toEqual(positionAt(STATION_ACCESS.entry));
-    const route = findPath(game.area, STATION_ACCESS.entry, STATION_ACCESS.boarding)!;
-    expect(route.some(p => p.y === 12 && [17, 18].includes(p.x))).toBe(true);
-    walk(game, STATION_ACCESS.boarding);
+    // 改札の前までは歩けるが、改札は通れない。ホームへは行き先を選んだあとの移動（乗車側）で入る。
+    walk(game, { x: 17, y: 11 });
+    game.update(1 / 120, { dir: 'up', run: false });
+    expect(game.facingInteraction()?.id).toBe('station-ticket');
+    game.update(0.5, { dir: 'up', run: true });
+    expect(feetTile(game)).toEqual({ x: 17, y: 11 });
+    game.player = positionAt(STATION_ACCESS.boarding);
     game.update(1 / 120, { dir: STATION_ACCESS.boarding.facing, run: false });
     expect(game.facingInteraction()?.id).toBe(STATION_ACCESS.interaction.id);
     expect(game.area.ground[feetTile(game).y * game.area.width + feetTile(game).x]).toBe(T.PLATFORM);
+    game.player = positionAt({ areaId: STATION_ACCESS.areaId, x: 17, y: 11, facing: 'down' });
     walk(game, { x: 17, y: 17 });
     expect(game.player).toEqual(positionAt({ areaId: 'town-main', ...LANDMARKS.stationFront, facing: 'down' }));
   });
   it('has no path around the ticket gates or from either platform side onto the tracks', () => {
     const station = buildWorld().areas.get(STATION_ACCESS.areaId)!;
-    const closedGates = { ...station, solid: station.solid.slice() };
-    for (const x of [17, 18]) closedGates.solid[12 * station.width + x] = 1;
-    expect(findPath(closedGates, STATION_ACCESS.entry, STATION_ACCESS.boarding)).toBeNull();
+    // 改札（2タイル）は solid な操作対象で、歩いては通れない。
+    expect(findPath(station, STATION_ACCESS.entry, STATION_ACCESS.boarding)).toBeNull();
+    expect(findPath(station, STATION_ACCESS.entry, STATION_ACCESS.arrival)).toBeNull();
+    for (const x of [17, 18]) expect(isSolidTile(station, x, 10)).toBe(true);
     for (const point of railCells(station)) {
       expect(isSolidTile(station, point.x, point.y)).toBe(true);
       expect(findPath(station, STATION_ACCESS.entry, point)).toBeNull();
