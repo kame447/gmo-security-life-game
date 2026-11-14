@@ -1,4 +1,5 @@
-import type { AreaKind, FacilityDef, InteractionDef, ObjectDef, PortalDef, SpawnPoint } from '../core/types.ts';
+import type { AreaKind, DistrictDef, FacilityDef, InteractionDef, ObjectDef, PortalDef, SpawnPoint, VariantDef } from '../core/types.ts';
+import type { World } from '../world/runtime.ts';
 
 /** JSON authoring data, independent of generated town/NPC definitions and editor UI state. */
 export interface EditorArea {
@@ -8,6 +9,8 @@ export interface EditorArea {
   width: number;
   height: number;
   ground: number[];
+  /** Optional source district metadata, retained in its authored order. */
+  districts?: DistrictDef[];
 }
 export interface EditorObject extends ObjectDef { id: string; areaId: string }
 export interface EditorInteraction extends InteractionDef {
@@ -30,11 +33,25 @@ export interface EditorTables {
 export type EditorTable = keyof EditorTables;
 export type EditorEntity = EditorTables[EditorTable];
 
+/** Explicit links describe actions, never automatic portal transitions. */
+export interface EditorRailLink {
+  from: { areaId: string; x: number; y: number };
+  to: { areaId: string; x: number; y: number };
+}
+
+/** Provided by trusted application code; never deserialize this from an edited document. */
+export interface EditorValidationContext {
+  readonly baselineWorld: World;
+  readonly railLinks?: readonly EditorRailLink[];
+}
+
 export interface EditorDocument {
   schemaVersion: 1;
   id: string;
   tileSize: 16;
   start: SpawnPoint;
+  /** Metadata for the resolved source snapshot; it is not reapplied to the snapshot. */
+  variant?: VariantDef;
   /** References only; branching scenarios and sprite implementation remain outside this file. */
   catalogs: { sprites: string[]; eventKeys: string[] };
   areas: EditorArea[];
