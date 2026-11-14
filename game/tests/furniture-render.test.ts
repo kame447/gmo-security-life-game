@@ -107,6 +107,16 @@ describe('furniture pixel artwork', () => {
     expect(() => furnitureThumbnail('missing')).toThrow('Unknown furniture');
     expect(() => furnitureThumbnail('chair-wood', 0)).toThrow(RangeError);
   });
+
+  it.each(['toybox', 'fridge'])('keeps legacy %s artwork separate after the same ID is registered in the catalog', kind => {
+    const object = { id: `legacy-${kind}`, kind, x: 0, y: 0, w: 1, h: 1, solid: true };
+    const old = objectSprite(object);
+    const modern = objectSprite({ ...object, catalogId: kind });
+    expect(modern).not.toBe(old);
+    expect([...raster(modern.canvas).data()]).not.toEqual([...raster(old.canvas).data()]);
+    expect(objectSprite(object)).toBe(old);
+    expect(object).not.toHaveProperty('catalogId');
+  });
 });
 
 function view(kind: 'indoor' | 'outdoor' = 'outdoor'): RenderView {
