@@ -1,7 +1,7 @@
 /** Run headless outside the Codex sandbox. Both servers use disposable git archives. */
 import assert from 'node:assert/strict';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -38,7 +38,7 @@ function archive(revision, directory, source = repoRoot) {
 
 async function startServer(directory, port) {
   let log = '';
-  const child = spawn(process.execPath, [path.join(gameDir, 'node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(port), '--strictPort'],
+  const child = spawn(process.execPath, [path.join(directory, 'game/node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(port), '--strictPort'],
     { cwd: path.join(directory, 'game'), stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NO_COLOR: '1' } });
   servers.push(child);
   child.stdout.on('data', chunk => { log += chunk; });
@@ -222,7 +222,7 @@ try {
     execFileSync('git', ['merge-base', '--is-ancestor', afterRevision, bagHead], { cwd: sourceReal });
     execFileSync('git', ['merge-base', '--is-ancestor', '4bd0b9d6911ac971ebb6ec722a5561eb6fda4eb4', bagHead], { cwd: sourceReal });
     const directory = path.join(temp, 'bag'); await mkdir(directory); archive(bagHead, directory, sourceReal);
-    await symlink(path.join(gameDir, 'node_modules'), path.join(directory, 'game/node_modules'), 'dir');
+    await cp(path.join(gameDir, 'node_modules'), path.join(directory, 'game/node_modules'), { recursive: true });
     const origin = await startServer(directory, ports[0]);
     browser = await chromium.launch({ headless: true, args: ['--disable-gpu-vsync', '--disable-frame-rate-limit'] });
     for (const [name, viewport, touch] of sizes) await capture(browser, origin, 'bag', name, viewport, touch, summary);
@@ -232,7 +232,7 @@ try {
     const directories = [path.join(temp, 'before'), path.join(temp, 'after')];
     await Promise.all(directories.map(directory => mkdir(directory)));
     archive(beforeRevision, directories[0]); archive(afterRevision, directories[1]);
-    for (const directory of directories) await symlink(path.join(gameDir, 'node_modules'), path.join(directory, 'game/node_modules'), 'dir');
+    for (const directory of directories) await cp(path.join(gameDir, 'node_modules'), path.join(directory, 'game/node_modules'), { recursive: true });
     const origins = [await startServer(directories[0], ports[0]), await startServer(directories[1], ports[1])];
     browser = await chromium.launch({ headless: true, args: ['--disable-gpu-vsync', '--disable-frame-rate-limit'] });
     for (const [name, viewport, touch] of sizes) {
