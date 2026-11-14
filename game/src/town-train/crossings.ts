@@ -12,6 +12,7 @@ export const CROSSING_PROTOTYPE = Object.freeze({
   lowerSeconds: 0.7,
   raiseSeconds: 0.7,
   escapeMarginSeconds: 0.35,
+  minimumOpenSeconds: 8,
   clearancePixels: 3,
 });
 
@@ -21,6 +22,9 @@ export interface Crossing {
   readonly right: number;
   readonly top: number;
   readonly bottom: number;
+  /** 線路際の支柱の足元。車体と人物の高さを含む停止線とは分ける。 */
+  readonly northGateY: number;
+  readonly southGateY: number;
   /** 足元の待機位置。列車の車体と主人公の絵全体も重ならない余白を取る。 */
   readonly northWaitY: number;
   readonly southWaitY: number;
@@ -53,6 +57,8 @@ export function getCrossings(area: AreaRuntime): readonly Crossing[] {
       while (x < area.width && isCrossing(x)) x++;
       const top = layout.northRow * TILE, bottom = (layout.southRow + 1) * TILE;
       result.push(Object.freeze({ id: `${area.def.id}:${start}`, left: start * TILE, right: x * TILE, top, bottom,
+        northGateY: top - CROSSING_PROTOTYPE.clearancePixels,
+        southGateY: bottom + 8 + CROSSING_PROTOTYPE.clearancePixels,
         northWaitY: top - (TOWN_TRAIN_PROTOTYPE.heightPixels - TILE) - CROSSING_PROTOTYPE.clearancePixels,
         southWaitY: bottom + PLAYER_H + CROSSING_PROTOTYPE.clearancePixels }));
     }
@@ -64,6 +70,15 @@ export function getCrossings(area: AreaRuntime): readonly Crossing[] {
 /** 待機線から待機線まで。左右は足元の hitbox の半幅を渡し、角からの侵入も止める。 */
 export function crossingContains(c: Crossing, x: number, y: number, halfWidth = 5): boolean {
   return x + halfWidth > c.left && x - halfWidth < c.right && y > c.northWaitY && y < c.southWaitY;
+}
+
+/** One bounded movement step. Closed entrances reject newcomers; an occupant can still walk north or south out. */
+export function canTakeCrossingStep(c: Crossing, state: Pick<CrossingState, 'blocked'>,
+  from: { x: number; y: number }, to: { x: number; y: number }): boolean {
+  if (!state.blocked) return true;
+  if (!crossingContains(c, from.x, from.y)) return !crossingContains(c, to.x, to.y);
+  // Sideways entry into railway land is never an escape route; the static guard also closes these sides.
+  return Math.abs(to.x - from.x) < 1e-9 && Math.abs(to.y - from.y) > 1e-9;
 }
 
 /**

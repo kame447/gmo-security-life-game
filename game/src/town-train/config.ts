@@ -9,7 +9,8 @@ export interface TownTrainConfig {
 }
 
 export const TOWN_TRAIN_PROTOTYPE: Readonly<TownTrainConfig> = Object.freeze({
-  intervalSeconds: 12,
+  // 仮値。全踏切に連続8秒以上の歩行可能時間を確保する（crossing-gates.test.ts）。
+  intervalSeconds: 30,
   speedPixelsPerSecond: 160,
   lengthPixels: TRAIN_LENGTH_PX,
   heightPixels: TRAIN_HEIGHT_PX,

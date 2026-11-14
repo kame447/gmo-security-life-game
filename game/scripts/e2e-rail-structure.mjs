@@ -53,10 +53,12 @@ async function walkTo(page, goal) {
       const key = axis === 'x' ? (delta > 0 ? 'ArrowRight' : 'ArrowLeft') : (delta > 0 ? 'ArrowDown' : 'ArrowUp');
       await page.keyboard.down(key);
       try {
+        // A walking route may wait at a timed crossing; allow a full train cycle plus walking time.
+        const timeout = await page.evaluate(async () => ((await import('/src/town-train/config.ts')).TOWN_TRAIN_PROTOTYPE.intervalSeconds + 8) * 1000);
         await page.waitForFunction(({ axis, value, sign, areaId }) => {
           const p = window.__slg.game.player;
           return p.areaId !== areaId || (p[axis] - value) * sign >= -3;
-        }, { axis, value, sign: Math.sign(delta), areaId: before.areaId }, { polling: 'raf', timeout: 4000 });
+        }, { axis, value, sign: Math.sign(delta), areaId: before.areaId }, { polling: 'raf', timeout });
       } finally { await page.keyboard.up(key); }
       if ((await state(page)).areaId !== before.areaId) {
         await page.waitForFunction(() => !window.__slg.renderer.stats.fading); return;
@@ -159,12 +161,14 @@ try {
         await walkTo(page, { x, y: layout.trackY + layout.trackRows + 1 }); await walkTo(page, { x, y: layout.trackY - 1 });
       }
       pass(`${name}: all three level crossings connect both sides`);
-      await walkTo(page, { x: 123, y: layout.trackY + layout.trackRows }); await shot(page, `${name}-05-railway-bridge`);
+      const RAIL_BUFFER_TILES = await page.evaluate(async () => (await import('/src/world/rail-protection.ts')).RAIL_BUFFER_TILES);
+      await walkTo(page, { x: 125, y: layout.trackY + layout.trackRows + RAIL_BUFFER_TILES }); await shot(page, `${name}-05-railway-bridge`);
       await reloadExact(page); pass(`${name}: bridge approach preserves exact outdoor save and appearance`);
-      await walkTo(page, { x: 10, y: layout.trackY - 1 });
+      const fenceApproachY = layout.trackY - RAIL_BUFFER_TILES - 1;
+      await walkTo(page, { x: 10, y: fenceApproachY });
       await hold(page, 'ArrowDown', 280); const outside = await state(page);
-      assert.equal(tile(outside).y, layout.trackY - 1); await hold(page, 'ArrowDown', 200); assert.deepEqual(await state(page), outside);
-      pass(`${name}: ordinary street movement cannot enter the track band`);
+      assert.equal(tile(outside).y, fenceApproachY); await hold(page, 'ArrowDown', 200); assert.deepEqual(await state(page), outside);
+      pass(`${name}: continuous protection fence blocks ordinary street movement`);
     } catch (error) {
       if (output) await shot(page, `${name}-failure`).catch(() => {});
       throw error;

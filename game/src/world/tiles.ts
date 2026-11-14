@@ -47,13 +47,15 @@ export const T = {
   SWITCH_EN_C: 39,
   SWITCH_ES_B: 40,
   SWITCH_ES_A: 41,
+  /** 柵で囲う線路の保護帯。歩けない地面と周囲の柵を同じ tile から導く。 */
+  RAIL_GUARD: 42,
 } as const;
 
 export type TileId = (typeof T)[keyof typeof T];
 
 const SOLID = new Set<number>([T.VOID, T.WATER, T.BANK, T.RAIL, T.FENCE, T.HEDGE, T.WALL, T.WALL_TOP,
   T.RAIL_BRIDGE, T.RAIL_FENCE, T.PLATFORM_EDGE, T.BOARDING_SIGN, T.CROSSING_SIGNAL,
-  T.SWITCH_WS_A, T.SWITCH_WS_B, T.SWITCH_WN_C, T.SWITCH_WN_D, T.SWITCH_EN_D, T.SWITCH_EN_C, T.SWITCH_ES_B, T.SWITCH_ES_A]);
+  T.SWITCH_WS_A, T.SWITCH_WS_B, T.SWITCH_WN_C, T.SWITCH_WN_D, T.SWITCH_EN_D, T.SWITCH_EN_C, T.SWITCH_ES_B, T.SWITCH_ES_A, T.RAIL_GUARD]);
 const ROAD = new Set<number>([T.ASPHALT, T.LANE_H, T.LANE_V, T.ZEBRA_H, T.ZEBRA_V]);
 
 export const isSolidGround = (t: number): boolean => SOLID.has(t);

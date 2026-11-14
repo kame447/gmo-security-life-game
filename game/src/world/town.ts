@@ -4,6 +4,7 @@ import { INTERIOR_ENTRIES } from './interiors';
 import { LANDMARKS, MAIN_STATION_LAYOUT } from './landmarks';
 import { isRoad, isSolidGround, T } from './tiles';
 import { applyRailSwitches, townRailLayout } from './rail-layout';
+import { applyRailProtection } from './rail-protection';
 
 const shops = [
   ['greengrocer', 'やおや'], ['bookstore', 'ほんや'], ['candy', 'だがしや'],
@@ -220,6 +221,7 @@ export function createTown(): AreaDef {
     decorate('tree', 123, y + 1, 1, 'cherry');
   }
   for (const x of [88, 95, 103, 111]) decorate(x === 103 ? 'lamp' : 'tree', x, 69, 1, 'cherry');
+  applyRailProtection(ground, width, height, townRailLayout(MAIN_STATION_LAYOUT));
   return {
     id: 'town-main', name: 'いつものまち', kind: 'outdoor', width, height, ground, objects,
     districts: [

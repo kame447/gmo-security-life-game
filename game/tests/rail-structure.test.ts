@@ -19,8 +19,8 @@ function walk(game: Game, target: { x: number; y: number }) {
     expect(feetTile(game)).toEqual(next);
   }
 }
-const railCells = (area: AreaRuntime) => Array.from(area.ground, (tile, i) => ({ tile, x: i % area.width, y: Math.floor(i / area.width) }))
-  .filter(point => isRailGround(point.tile));
+const railCells = (area: AreaRuntime, includeGuard = false) => Array.from(area.ground, (tile, i) => ({ tile, x: i % area.width, y: Math.floor(i / area.width) }))
+  .filter(point => isRailGround(point.tile) || (includeGuard && point.tile === T.RAIL_GUARD));
 
 describe('station, crossings and railway bridge', () => {
   it('registers a reachable station using the existing facility and preserves the station staff', () => {
@@ -103,7 +103,7 @@ describe('station, crossings and railway bridge', () => {
     let borders = 0;
     for (const areaId of ['town-main', STATION_ACCESS.areaId]) {
       const area = world.areas.get(areaId)!;
-      for (const point of railCells(area).filter(p => p.tile !== T.CROSSING)) {
+      for (const point of railCells(area, true).filter(p => p.tile !== T.CROSSING)) {
         expect(isSolidTile(area, point.x, point.y)).toBe(true);
         for (const [direction, { dx, dy }] of Object.entries(DIR)) {
           const from = { x: point.x - dx, y: point.y - dy };
@@ -112,7 +112,7 @@ describe('station, crossings and railway bridge', () => {
           game.player = positionAt({ areaId, ...from, facing: direction as keyof typeof DIR });
           game.update(2, { dir: direction as keyof typeof DIR, run });
           const tile = feetTile(game), standing = game.area.ground[tile.y * game.area.width + tile.x];
-          expect([T.RAIL, T.RAIL_BRIDGE, T.CROSSING_SIGNAL]).not.toContain(standing);
+          expect([T.RAIL, T.RAIL_BRIDGE, T.CROSSING_SIGNAL, T.RAIL_GUARD]).not.toContain(standing);
           expect(canStand(game.area, game.player.x, game.player.y)).toBe(true);
         }
       }

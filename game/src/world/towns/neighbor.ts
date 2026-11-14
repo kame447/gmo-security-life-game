@@ -1,6 +1,7 @@
 import type { AreaDef, FacilityDef, ObjectDef } from '../../core/types';
 import { isRoad, T } from '../tiles';
 import { applyRailSwitches, townRailLayout } from '../rail-layout';
+import { applyRailProtection } from '../rail-protection';
 import { getStationFlow, NEIGHBOR_FLOW_LAYOUT, NEIGHBOR_FLOW_PLATFORMS } from '../station-flow';
 
 /** Provisional geometry, shared by the outdoor station, entrance and tests. */
@@ -70,6 +71,7 @@ export function createNeighborTown(): AreaDef {
     object(`neighbor-tree-${x}-${y}`, 'tree', x, y, 1, 1, true, 'green');
   }
 
+  applyRailProtection(ground, width, height, townRailLayout(NEIGHBOR_STATION_LAYOUT));
   return {
     id: 'town-neighbor', name: 'となりまち', kind: 'outdoor', width, height, ground, objects,
     districts: [

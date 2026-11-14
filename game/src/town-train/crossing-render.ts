@@ -8,13 +8,21 @@ export function crossingVisual(state: CrossingState, timeSeconds: number, reduce
     lamps: state.blocked ? (reduced ? [true, true] : [alternate, !alternate]) : [false, false] };
 }
 
+/** Visible stop lines identify the safe foot positions while the hardware itself stands beside the rails. */
+export function drawCrossingStopLines(c: C2D, crossing: Crossing): void {
+  for (const [y, sign] of [[crossing.northWaitY + 1, 1], [crossing.southWaitY - 2, -1]]) {
+    R(c, '#526d6a', crossing.left + 2, y - sign, crossing.right - crossing.left - 4, 4);
+    R(c, '#f6f1db', crossing.left + 2, y, crossing.right - crossing.left - 4, 2);
+  }
+}
+
 /** Original procedural pixel art, matching the existing ground signal colors. One pair spans an entrance. */
 export function drawCrossingGate(c: C2D, crossing: Crossing, state: CrossingState, timeSeconds: number, reduced: boolean, south: boolean): void {
   const visual = crossingVisual(state, timeSeconds, reduced);
-  const y = south ? crossing.southWaitY : crossing.northWaitY;
-  const length = Math.ceil((crossing.right - crossing.left) / 2) + 2;
+  const y = south ? crossing.southGateY : crossing.northGateY;
+  const length = Math.ceil((crossing.right - crossing.left) / 2) + 5;
   const angle = (1 - visual.armDown) * Math.PI / 2;
-  for (const [x, sign] of [[crossing.left - 1, 1], [crossing.right + 1, -1]]) {
+  for (const [x, sign] of [[crossing.left - 4, 1], [crossing.right + 4, -1]]) {
     R(c, '#596e6a', x - 3, y - 3, 7, 4); R(c, '#c0bdae', x - 2, y - 3, 5, 1);
     R(c, '#425157', x - 1, y - 16, 3, 14);
     for (let n = 0; n < 4; n++) R(c, n % 2 ? '#425157' : '#e9c85d', x - 1, y - 15 + n * 3, 3, 3);

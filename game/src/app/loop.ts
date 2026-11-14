@@ -32,7 +32,6 @@ export function startLoop(hooks: LoopHooks): { resetClock(): void } {
   let previous = 0;
   let accumulator = 0;
   function frame(now: number) {
-    advanceCrossingClock(now / 1000);
     hooks.beforeFrame();
     const interval = previous ? Math.max(0, now - previous) : 0;
     previous = now;
@@ -41,6 +40,7 @@ export function startLoop(hooks: LoopHooks): { resetClock(): void } {
     const droppedMs = Math.max(0, available - accumulator) * 1000;
     const measured = hooks.measuring();
     const input = hooks.input();
+    advanceCrossingClock(now / 1000, input);
     const updateStart = measured ? performance.now() : 0;
     let steps = 0;
     while (accumulator + 1e-9 >= FIXED_STEP) {

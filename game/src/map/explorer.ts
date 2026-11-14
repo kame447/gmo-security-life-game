@@ -6,7 +6,7 @@ import { DIR, TILE, feetAtTile, pxToTile, type Facing } from '../core/coords';
 import type { InteractionDef, MapEvent, SpawnPoint } from '../core/types';
 import type { AreaRuntime, World } from '../world';
 import { crossingTime, watchCrossingClock } from '../town-train/crossing-clock';
-import { CROSSING_PROTOTYPE, crossingContains, crossingState, getCrossings, type Crossing } from '../town-train/crossings';
+import { CROSSING_PROTOTYPE, canTakeCrossingStep, crossingContains, crossingState, getCrossings, type Crossing } from '../town-train/crossings';
 
 export interface InputState { dir: Facing | null; run: boolean }
 export interface PlayerPosition { areaId: string; x: number; y: number; facing: Facing }
@@ -65,22 +65,31 @@ export class MapExplorer {
   halt(): void { this.moving = this.escape !== null; }
 
   /** Safety runs before drawing even when a map/dialog has stopped ordinary Game.update. */
-  crossingTick(timeSeconds: number, dt: number): void {
+  crossingTick(timeSeconds: number, dt: number, input: InputState): void {
     this.retreatedThisFrame = false;
     const crossing = getCrossings(this.area).find(c => crossingContains(c, this.player.x, this.player.y) &&
       crossingState(this.area, c, timeSeconds).blocked);
     if (!crossing) { if (this.escape) this.moving = false; this.escape = null; return; }
-    if (this.escape?.crossingId !== crossing.id) {
-      const points = this.escapePoints(crossing);
-      if (!points) return; // Authored crossings are tested to have clear escape routes at every standable position.
-      this.escape = { crossingId: crossing.id, points };
+    const state = crossingState(this.area, crossing, timeSeconds);
+    const length = (points: { x: number; y: number }[]) => {
+      let x = this.player.x, y = this.player.y, distance = 0;
+      for (const p of points) { distance += Math.abs(p.x - x) + Math.abs(p.y - y); x = p.x; y = p.y; }
+      return distance;
+    };
+    let points = this.escapePoints(crossing), speed = WALK_SPEED;
+    if (!points) return; // Every standable authored position has a tested, clear escape route.
+    if (input.dir === 'up' || input.dir === 'down') {
+      const requested = this.escapePoints(crossing, input.dir === 'up' ? crossing.northWaitY : crossing.southWaitY);
+      // Reserve enough time for walking even if the player releases run or changes their mind next frame.
+      if (requested && state.nextArrivalIn > length(requested) / WALK_SPEED + CROSSING_PROTOTYPE.escapeMarginSeconds) {
+        points = requested; speed = input.run ? RUN_SPEED : WALK_SPEED;
+      }
     }
-    const points = this.escape.points, state = crossingState(this.area, crossing, timeSeconds);
-    let x = this.player.x, y = this.player.y, distance = 0;
-    for (const p of points) { distance += Math.abs(p.x - x) + Math.abs(p.y - y); x = p.x; y = p.y; }
+    this.escape = { crossingId: crossing.id, points };
+    const distance = length(points);
     // A restored save or a suspended tab can arrive too late for walking. Recover before its first train frame.
     const recover = state.nextArrivalIn <= distance / WALK_SPEED + CROSSING_PROTOTYPE.escapeMarginSeconds;
-    let remaining = recover ? distance : dt * WALK_SPEED;
+    let remaining = recover ? distance : dt * speed;
     this.moving = remaining > 0;
     this.retreatedThisFrame = this.moving;
     while (remaining > 1e-9 && points.length) {
@@ -89,7 +98,7 @@ export class MapExplorer {
       if (length < 1e-9) { points.shift(); continue; }
       this.player.facing = dx ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
       this.player.x += Math.sign(dx) * step; this.player.y += Math.sign(dy) * step;
-      if (!recover) this.walkTime += step / WALK_SPEED;
+      if (!recover) this.walkTime += step / speed;
       remaining -= step;
       if (step >= length) points.shift();
     }
@@ -97,11 +106,11 @@ export class MapExplorer {
   }
 
   /** Straight walking routes to either wait line, validated against the unchanged static hitbox. */
-  private escapePoints(c: Crossing): { x: number; y: number }[] | null {
+  private escapePoints(c: Crossing, requestedY?: number): { x: number; y: number }[] | null {
     const { x, y } = this.player;
     const candidates: { points: { x: number; y: number }[]; distance: number }[] = [];
     const middleX = Math.max(c.left + HITBOX.halfW, Math.min(c.right - HITBOX.halfW, x));
-    for (const targetY of [c.northWaitY, c.southWaitY]) for (const targetX of [x, middleX]) {
+    for (const targetY of requestedY === undefined ? [c.northWaitY, c.southWaitY] : [requestedY]) for (const targetX of [x, middleX]) {
       const points = [{ x: targetX, y }, { x: targetX, y: targetY }].filter((p, i) =>
         i === 0 ? p.x !== x : p.y !== y);
       let from = { x, y }, distance = 0, valid = true;
@@ -148,7 +157,7 @@ export class MapExplorer {
     const canMove = (x: number, y: number): boolean => {
       if (!canStand(this.area, x, y)) return false;
       const time = crossingTime();
-      return time === null || !getCrossings(this.area).some(c => crossingContains(c, x, y) && crossingState(this.area, c, time).blocked);
+      return time === null || getCrossings(this.area).every(c => canTakeCrossingStep(c, crossingState(this.area, c, time), this.player, { x, y }));
     };
     if (canMove(nx, ny)) return { x: nx, y: ny };
     if (outside(this.area, nx, ny)) {

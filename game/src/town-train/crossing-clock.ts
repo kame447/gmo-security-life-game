@@ -1,5 +1,7 @@
-/** The real loop publishes its rAF timestamp before updates, including frames with paused input. */
-export interface CrossingParticipant { crossingTick(timeSeconds: number, dt: number): void }
+import type { InputState } from '../map/explorer';
+
+/** The real loop publishes the rAF timestamp and allowed input before updates, including paused-input frames. */
+export interface CrossingParticipant { crossingTick(timeSeconds: number, dt: number, input: InputState): void }
 const participants = new Set<WeakRef<CrossingParticipant>>();
 let current: number | null = null;
 
@@ -8,13 +10,13 @@ export function watchCrossingClock(participant: CrossingParticipant): void {
 }
 export function crossingTime(): number | null { return current; }
 
-export function advanceCrossingClock(timeSeconds: number): void {
+export function advanceCrossingClock(timeSeconds: number, input: InputState = { dir: null, run: false }): void {
   if (!Number.isFinite(timeSeconds) || timeSeconds < 0) return;
   const dt = current === null ? 0 : Math.max(0, timeSeconds - current);
   current = timeSeconds;
   for (const ref of participants) {
     const participant = ref.deref();
-    if (participant) participant.crossingTick(timeSeconds, dt); else participants.delete(ref);
+    if (participant) participant.crossingTick(timeSeconds, dt, input); else participants.delete(ref);
   }
 }
 

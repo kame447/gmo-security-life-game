@@ -34,7 +34,9 @@ describe('town train prototype', () => {
   it('uses periodic elapsed time instead of accumulated frames, and accommodates multiple trains', () => {
     const town = buildWorld().areas.get('town-main')!, service = new TownTrainService();
     const baseline = service.frames(town, 3.25);
-    expect(baseline.length).toBeGreaterThan(1);
+    expect(baseline.length).toBeGreaterThan(0);
+    expect(Array.from({ length: TOWN_TRAIN_PROTOTYPE.intervalSeconds * 4 }, (_, i) => service.frames(town, i / 4))
+      .flat().some(f => f.direction === 'up')).toBe(true);
     const round = (frames: ReturnType<typeof service.frames>) => frames.map(f => ({ ...f, x: Math.round(f.x * 1e4) / 1e4, y: Math.round(f.y * 1e4) / 1e4, footY: Math.round(f.footY * 1e4) / 1e4 }));
     expect(round(service.frames(town, 3.25 + TOWN_TRAIN_PROTOTYPE.intervalSeconds))).toEqual(round(baseline));
     const before = service.frames(town, 2)[0], after = service.frames(town, 2.5)[0];
@@ -44,6 +46,7 @@ describe('town train prototype', () => {
     expect(service.frames(town, NaN)).toEqual([]);
     expect(service.frames(town, -1)).toEqual([]);
     const slower = new TownTrainService({ ...TOWN_TRAIN_PROTOTYPE, intervalSeconds: 8, speedPixelsPerSecond: 64 });
+    expect(slower.frames(town, 2.5).length).toBeGreaterThan(1);
     expect(slower.frames(town, 2.5)[0].x - slower.frames(town, 2)[0].x).toBeCloseTo(32);
     expect(round(slower.frames(town, 10))).toEqual(round(slower.frames(town, 2)));
     expect(() => new TownTrainService({ ...TOWN_TRAIN_PROTOTYPE, intervalSeconds: 0 })).toThrow();
@@ -72,7 +75,7 @@ describe('town train prototype', () => {
     const area = buildWorld().areas.get('town-main')!, layout = TOWN_RAIL_LAYOUTS['town-main'], service = new TownTrainService();
     // 上りの列車が斜めの区間にかかり、車両ごとに足元が違う時刻を探す。
     let frame;
-    for (let t = 0; t < 12 && !frame; t += 0.05) frame = service.frames(area, t, layout).find(f => f.direction === 'up' && f.x > 0 &&
+    for (let t = 0; t < TOWN_TRAIN_PROTOTYPE.intervalSeconds && !frame; t += 0.05) frame = service.frames(area, t, layout).find(f => f.direction === 'up' && f.x > 0 &&
       lineFootY(layout, 'up', f.x + 32) !== lineFootY(layout, 'up', f.x + 164));
     expect(frame).toBeDefined();
     const draws: number[][] = [];

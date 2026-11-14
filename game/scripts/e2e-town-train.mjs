@@ -48,6 +48,7 @@ try {
         const setup = await page.evaluate(async id => {
                     const { canStand, positionAt } = await import('/src/map/explorer.ts');
           const { isRailGround } = await import('/src/world/tiles.ts');
+          const { crossingContains, getCrossings } = await import('/src/town-train/crossings.ts');
           const game = window.__slg.game, area = game.world.areas.get(id);
           if (!area) throw new Error(`Missing area ${id}`);
           const { TOWN_RAIL_LAYOUTS } = await import('/src/world/rail-layouts.ts');
@@ -61,7 +62,9 @@ try {
             for (let dx = 0; dx < area.width && !position; dx++) for (const x of [center + dx, center - dx]) {
               if (x < 0 || x >= area.width || y < 0 || y >= area.height || area.portalAt.has(y * area.width + x)) continue;
               const candidate = positionAt({ areaId: id, x, y, facing: 'down' });
-              if (canStand(area, candidate.x, candidate.y)) { position = candidate; break; }
+              if (canStand(area, candidate.x, candidate.y) && !getCrossings(area).some(c => crossingContains(c, candidate.x, candidate.y))) {
+                position = candidate; break;
+              }
             }
           }
           if (!position) throw new Error(`No safe viewing position near ${id} rail`);
@@ -80,6 +83,7 @@ try {
           const l = TOWN_RAIL_LAYOUTS[id];
           return { north: (l.northRow + 1) * 16, south: (l.southRow + 1) * 16, width: window.__slg.game.world.areas.get(id).width * 16 };
         }, areaId);
+        const trainTimeout = await page.evaluate(async () => ((await import('/src/town-train/config.ts')).TOWN_TRAIN_PROTOTYPE.intervalSeconds + 5) * 1000);
         for (const direction of ['down', 'up']) {
           const sign = direction === 'down' ? 1 : -1;
           await page.evaluate(() => { window.__townTrainPaint.length = 0; });
@@ -87,7 +91,7 @@ try {
           await page.waitForFunction(({ id, d }) => {
             const paint = window.__townTrainPaint.filter(p => p.direction === d).at(-1), { camX, viewW } = window.__slg.renderer.stats;
             return paint?.areaId === id && paint.x >= camX + 8 && paint.x + paint.w <= camX + viewW - 40;
-          }, { id: areaId, d: direction }, { timeout: 20000 });
+          }, { id: areaId, d: direction }, { timeout: trainTimeout });
           const first = await pick();
           await page.screenshot({ path: resolve(shots, `${size.name}-${areaId}-${direction}-01.png`) });
           await page.waitForFunction(({ id, firstX, sign, d }) => {
