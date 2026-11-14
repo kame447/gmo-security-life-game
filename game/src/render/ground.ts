@@ -154,6 +154,11 @@ export function drawGroundTile(c: C2D, t: number, px: number, py: number, tx: nu
         for (let x = 1; x < 16; x += 3) { r('#c7a24a', x, 10); r('#ffe29a', x, 12); }
         r('#f8f0d5', 0, 14, 16, 1); r('#778782', 0, 15, 16, 1);
       }
+      if (nb(0, -1) === T.RAIL) {
+        r('#778782', 0, 0, 16, 1); r('#f8f0d5', 0, 1, 16, 1);
+        r('#f2cf65', 0, 2, 16, 4);
+        for (let x = 1; x < 16; x += 3) { r('#ffe29a', x, 3); r('#c7a24a', x, 5); }
+      }
       break;
     case T.PLATFORM_EDGE:
       stone('#c7c7b7', '#e0dfc9', '#b0b4a7', 8);

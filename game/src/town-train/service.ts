@@ -57,10 +57,11 @@ export class TownTrainService {
     const spacing = intervalSeconds * speedPixelsPerSecond;
     const frames: TrainFrame[] = [];
     for (const strip of strips) {
-      const height = Math.min(heightPixels, strip.bottom - strip.top), heading = headingOf(strip.direction);
+      const height = heightPixels, heading = headingOf(strip.direction);
       // 上り線は半周期ずらし、上下の列車が同じ位置に並ばないようにする。
       const phase = ((timeSeconds + (strip.direction === 'up' ? intervalSeconds / 2 : 0)) % intervalSeconds) * speedPixelsPerSecond;
-      const y = strip.top + (strip.bottom - strip.top - height) / 2;
+      // 足元（下端）が線路の行の下端に揃い、車体は上へはみ出す。
+      const y = strip.bottom - height;
       if (heading === 'right') {
         for (let x = strip.left - lengthPixels + phase; x < strip.right; x += spacing) {
           if (x + lengthPixels > strip.left) frames.push({ x, y, length: lengthPixels, height, strip, direction: strip.direction, heading });

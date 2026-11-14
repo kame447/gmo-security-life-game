@@ -89,18 +89,19 @@ export function createKonbini(): AreaDef {
 export function createStation(): AreaDef {
   const a = room(STATION_ACCESS.areaId, 'まちのえき こうない', 36, T.PLAZA, 18);
   const f = STATION_FLOW_LAYOUT;
-  for (let x = 1; x < a.width - 1; x++) {
+  for (let x = 0; x < a.width; x++) {
+    // 線路の2行は部屋の左右の端まで続き、列車は部屋の端から出入りする。
+    a.ground[f.downTrackY * a.width + x] = T.RAIL;
+    a.ground[f.upTrackY * a.width + x] = T.RAIL;
+    if (x === 0 || x === a.width - 1) continue;
     for (let y = 1; y < f.northFenceY; y++) a.ground[y * a.width + x] = T.VOID;
     a.ground[f.northFenceY * a.width + x] = T.RAIL_FENCE;
-    a.ground[f.downTrackY * a.width + x] = T.RAIL;
-    a.ground[(f.downTrackY + 1) * a.width + x] = T.PLATFORM_EDGE;
     for (let y = f.platformTop; y <= f.platformBottom; y++) a.ground[y * a.width + x] = T.PLATFORM;
-    a.ground[f.upTrackY * a.width + x] = T.RAIL;
     a.ground[f.gateY * a.width + x] = T.RAIL_FENCE;
   }
   for (const x of f.gateXs) { a.ground[f.upTrackY * a.width + x] = T.PLATFORM; a.ground[f.gateY * a.width + x] = T.TICKET_GATE; }
   for (const p of STATION_FLOW_PLATFORMS) a.ground[p.sign.y * a.width + p.sign.x] = T.BOARDING_SIGN;
-  furnish(a, 'bench', 4, 7, 3, 1); furnish(a, 'bench', 28, 7, 3, 1);
+  furnish(a, 'bench', 3, 6, 3, 1); furnish(a, 'bench', 21, 6, 3, 1);
   a.portals = [{ id: STATION_ACCESS.exitPortalId, from: { x: 17, y: 17, w: 2 },
     to: toTown(LANDMARKS.stationFront), facilityId: STATION_ACCESS.stationId }];
   a.interactions = [
