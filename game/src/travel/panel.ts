@@ -52,6 +52,8 @@ export class TrainTravelPanel {
     this.stage.classList.add('travel-open');
     this.render();
     this.hooks.onOpen();
+    // 出場は選択を出さず、操作1回で通る。
+    if (this.session.state.step === 'exit') this.passGate();
     return true;
   }
 
@@ -123,6 +125,7 @@ export class TrainTravelPanel {
       this.root.classList.remove('train-travel-passing');
       this.passing = false;
       if (moved) this.finish();
+      else if (this.session.state.step === 'exit') { this.session.cancel(); this.finish(); }
       else { this.message = 'いまは かいさつを とおれません。'; this.render(); }
     };
     if (reduced) done(); else window.setTimeout(done, 220);
@@ -172,7 +175,7 @@ export class TrainTravelPanel {
 
   private render(): void {
     const state = this.session.state;
-    if (state.step === 'closed' || state.step === 'riding') return;
+    if (state.step === 'closed' || state.step === 'riding' || state.step === 'exit') return;
     const card = element('section', 'train-travel-card');
     card.setAttribute('role', 'dialog'); card.setAttribute('aria-modal', 'true'); card.setAttribute('aria-labelledby', 'train-travel-title');
     const title = element('h2'); title.id = 'train-travel-title';

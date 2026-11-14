@@ -4,7 +4,7 @@ import { positionAt } from '../src/map/explorer';
 import { Game } from '../src/session/game';
 import { TRAIN_NETWORK } from '../src/travel/network';
 import { TrainTravelSession } from '../src/travel/session';
-import { buildWorld, validateWorld } from '../src/world';
+import { buildWorld, getStationFlow, validateWorld } from '../src/world';
 import { STATION_ACCESS } from '../src/world/landmarks';
 import { toRuntime } from '../src/world/runtime';
 import { createNeighborStation, createNeighborTown, NEIGHBOR_FACILITIES, NEIGHBOR_STATION_ACCESS } from '../src/world/towns/neighbor';
@@ -32,13 +32,13 @@ describe('train network with the #35 station and neighboring-area fixture', () =
 
   it('uses the published station constants for a confirmed trip and restored return', () => {
     const world = fixtureWorld(), game = new Game(world);
-    game.player = positionAt({ ...STATION_ACCESS.boarding, x: 16, y: 13, facing: 'up' });
+    game.player = positionAt({ ...STATION_ACCESS.boarding, x: 17, y: 11, facing: 'up' });
     game.setAppearance({ ...game.appearance, outfitColor: 'red' });
     const appearance = { ...game.appearance }, outbound = new TrainTravelSession(game, TRAIN_NETWORK);
     expect(outbound.begin(facingEvent(game))).toBe(true);
     expect(outbound.select(NEIGHBOR_STATION_ACCESS.stationId)).toBe(true);
     expect(outbound.issue()).not.toBeNull();
-    outbound.back();
+    expect(outbound.passGate()).toBe(true);
     game.player = positionAt(STATION_ACCESS.boarding);
     expect(outbound.begin(facingEvent(game))).toBe(true);
     expect(outbound.startRide()).not.toBeNull();
@@ -47,12 +47,15 @@ describe('train network with the #35 station and neighboring-area fixture', () =
     const restored = new Game(world, { save: game.serialize() });
     expect(restored.player).toEqual(game.player);
     expect(restored.appearance).toEqual(appearance);
-    restored.player = positionAt(NEIGHBOR_STATION_ACCESS.boarding);
+    // 帰路は上り: となりまちの改札で選び、上りのホームで乗る。
+    const gate = getStationFlow(NEIGHBOR_STATION_ACCESS.stationId).gate, upBoard = getStationFlow(NEIGHBOR_STATION_ACCESS.stationId).platforms.find(p => p.direction === 'up')!.boardTile;
+    restored.player = positionAt({ areaId: gate.areaId, x: gate.tile.x, y: gate.tile.y + 1, facing: 'up' });
     const returning = new TrainTravelSession(restored, TRAIN_NETWORK);
     expect(returning.begin(facingEvent(restored))).toBe(true);
     expect(returning.select(STATION_ACCESS.stationId)).toBe(true);
-    expect(returning.issue()).not.toBeNull();
-    returning.back();
+    expect(returning.issue()).toMatchObject({ direction: 'up' });
+    expect(returning.passGate()).toBe(true);
+    restored.player = positionAt(upBoard);
     expect(returning.begin(facingEvent(restored))).toBe(true);
     expect(returning.startRide()).not.toBeNull();
     expect(returning.commitArrival()).toMatchObject({ ok: true });

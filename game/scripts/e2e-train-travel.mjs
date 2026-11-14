@@ -97,9 +97,12 @@ const watchPhases = page => page.evaluate(() => {
   new MutationObserver(() => { const p = document.querySelector('#train-travel-panel').dataset.ridePhase; if (p && window.__phases.at(-1) !== p) window.__phases.push(p); })
     .observe(document.querySelector('#train-travel-panel'), { attributes: true, attributeFilter: ['data-ride-phase'] });
 });
-const gateTile = { x: 16, y: 13 };
+const setPlayer = (page, point) => page.evaluate(async point => {
+  const { positionAt } = await import('/src/map/explorer.ts'); window.__slg.game.player = positionAt(point);
+}, point);
 
-async function pickTicket(page, destinationId, touch, prefix) {
+/** 改札の前（南）で操作し、行き先を選んで、きっぷを受け取る。pass なら改札を通ってホーム側へ出る。 */
+async function pickTicket(page, destinationId, touch, prefix, pass = true) {
   await act(page, touch); await panel(page).waitFor({ state: 'visible' });
   if (prefix) await shot(page, `${prefix}-destinations`);
   await click(page, `[data-action="select"][data-station-id="${destinationId}"]`, touch);
@@ -107,7 +110,7 @@ async function pickTicket(page, destinationId, touch, prefix) {
   await click(page, '#train-travel-panel [data-action="issue"]', touch);
   assert.match(await panel(page).innerText(), /きっぷを うけとった/);
   if (prefix) await shot(page, `${prefix}-ticket-issued`);
-  await click(page, '#train-travel-panel [data-action="close"]', touch);
+  await click(page, `#train-travel-panel [data-action="${pass ? 'pass-gate' : 'close'}"]`, touch);
   await panel(page).waitFor({ state: 'hidden' });
 }
 async function toBoarding(page, boarding) { await walkTo(page, boarding); await face(page, boarding.facing); }
@@ -130,19 +133,34 @@ async function rideFromPlatform(page, touch, prefix, hooks = {}) {
   await panel(page).waitFor({ state: 'hidden', timeout: 20000 });
   return page.evaluate(() => window.__phases);
 }
+const tileOf = p => ({ x: Math.floor(p.x / 16), y: Math.floor((p.y - 4) / 16) });
+const feetOf = (tile, facing, areaId) => ({ areaId, x: tile.x, y: tile.y, facing });
+const areaCount = page => page.evaluate(() => window.__areaEnters ?? 0);
 
 try {
   const desktop = await contextFor({ width: 1280, height: 800, touch: false }, null, rec('desktop', { width: 1280, height: 800 })); page = desktop.page;
   const access = await page.evaluate(async () => (await import('/src/world/landmarks.ts')).STATION_ACCESS);
   const neighbor = await page.evaluate(async () => (await import('/src/world/towns/neighbor.ts')).NEIGHBOR_STATION_ACCESS);
+  const flows = await page.evaluate(async () => { const { getStationFlow } = await import('/src/world/index.ts'); return { main: getStationFlow('station'), neighbor: getStationFlow('station-neighbor') }; });
+  const mainGate = flows.main.gate, nGate = flows.neighbor.gate;
+  const mainSouth = { x: mainGate.tile.x, y: mainGate.tile.y + 1 }, mainNorth = { x: mainGate.tile.x, y: mainGate.tile.y - 1 };
+  const nSouth = { x: nGate.tile.x, y: nGate.tile.y + 1 }, nNorth = { x: nGate.tile.x, y: nGate.tile.y - 1 };
+  const nUp = flows.neighbor.platforms.find(p => p.direction === 'up').boardTile;
   const appearanceBefore = await page.evaluate(() => ({ ...window.__slg.game.appearance }));
   await check('walk from the original town into its station', async () => {
     const entrance = await page.evaluate(id => window.__slg.game.area.def.portals.find(portal => portal.id === id)?.from, access.entrancePortalId);
     await walkTo(page, entrance); await waitArea(page, access.areaId);
   });
   await shot(page, 'desktop-01-station-entry');
+  await check('the ticket gate cannot be walked through without a ticket', async () => {
+    await walkTo(page, mainSouth); await face(page, 'up');
+    const before = await player(page);
+    await page.keyboard.down('ArrowUp'); await page.waitForTimeout(500); await page.keyboard.up('ArrowUp');
+    assert.deepEqual(tileOf(await player(page)), mainSouth);
+    assert.equal(before.areaId, (await player(page)).areaId);
+  });
   await check('the platform sign without a ticket only explains; nothing moves', async () => {
-    await toBoarding(page, access.boarding);
+    await setPlayer(page, access.boarding); await face(page, access.boarding.facing);
     const before = await page.evaluate(() => window.__slg.game.serialize());
     await act(page, false); await panel(page).waitFor({ state: 'visible' });
     assert.match(await panel(page).innerText(), /かいさつで いきさきを えらんで/);
@@ -151,9 +169,10 @@ try {
     await click(page, '#train-travel-panel [data-action="close"]', false);
     await panel(page).waitFor({ state: 'hidden' });
     assert.deepEqual(await page.evaluate(() => window.__slg.game.serialize()), before);
+    await setPlayer(page, feetOf(mainSouth, 'up', access.areaId)); await frame(page);
   });
-  await check('the ticket gate: back out, take a ticket, return it', async () => {
-    await walkTo(page, gateTile); await face(page, 'up');
+  await check('the ticket gate: back out, take a ticket, return it, take it again and pass', async () => {
+    await face(page, 'up');
     assert.equal(await page.evaluate(() => window.__slg.game.facingInteraction()?.id), 'station-ticket');
     const before = await player(page);
     await act(page, false); await panel(page).waitFor({ state: 'visible' });
@@ -162,16 +181,14 @@ try {
     await click(page, '#train-travel-panel [data-action="back"]', false);
     await panel(page).waitFor({ state: 'hidden' });
     assert.deepEqual(await player(page), before);
-    await pickTicket(page, neighbor.stationId, false, 'desktop-03-gate');
+    await pickTicket(page, neighbor.stationId, false, 'desktop-03-gate', false);
+    assert.deepEqual(await player(page), before, 'taking a ticket does not move the player');
     await act(page, false); await panel(page).waitFor({ state: 'visible' });
     await click(page, '#train-travel-panel [data-action="return-ticket"]', false);
     await panel(page).waitFor({ state: 'hidden' });
-    await toBoarding(page, access.boarding);
-    await act(page, false); await panel(page).waitFor({ state: 'visible' });
-    assert.match(await panel(page).innerText(), /かいさつで/, 'returned ticket is gone');
-    await click(page, '#train-travel-panel [data-action="close"]', false);
-    await walkTo(page, gateTile); await face(page, 'up');
     await pickTicket(page, neighbor.stationId, false);
+    assert.deepEqual(tileOf(await player(page)), mainNorth, 'passed the gate to the platform side');
+    await shot(page, 'desktop-03b-after-gate');
   });
   await check('cancel at the platform before boarding keeps position and ticket', async () => {
     await toBoarding(page, access.boarding);
@@ -181,7 +198,17 @@ try {
     await panel(page).waitFor({ state: 'hidden' });
     assert.deepEqual(await player(page), before);
   });
+  await check('the other platform of the island refuses a down ticket', async () => {
+    const up = flows.main.platforms.find(p => p.direction === 'up').boardTile;
+    await toBoarding(page, up);
+    await act(page, false); await panel(page).waitFor({ state: 'visible' });
+    assert.match(await panel(page).innerText(), /のりばは ここでは/);
+    await shot(page, 'desktop-03c-wrong-platform');
+    await click(page, '#train-travel-panel [data-action="close"]', false);
+    await panel(page).waitFor({ state: 'hidden' });
+  });
   await check('board, depart, arrive and alight: ordered phases, input ignored, one arrival', async () => {
+    await toBoarding(page, access.boarding);
     const phases = await rideFromPlatform(page, false, 'desktop-04', { during: async before => {
       for (let i = 0; i < 20; i++) await page.keyboard.press('KeyZ');
       await page.keyboard.press('Escape');
@@ -192,37 +219,44 @@ try {
     assert.deepEqual(phases, ['walk-in', 'door-close', 'depart', 'fade-out', 'fade-in', 'arrive', 'door-open', 'walk-out', 'settle', 'done']);
     await waitArea(page, neighbor.arrival.areaId); await waitSavedArea(page, neighbor.arrival.areaId);
     const arrived = await player(page);
-    assert.equal(arrived.areaId, neighbor.arrival.areaId);
-    assert.equal(Math.floor(arrived.x / 16), neighbor.arrival.x); assert.equal(Math.floor((arrived.y - 4) / 16), neighbor.arrival.y);
+    assert.deepEqual(tileOf(arrived), { x: neighbor.arrival.x, y: neighbor.arrival.y });
     assert.deepEqual(await page.evaluate(() => window.__slg.game.appearance), appearanceBefore);
     await shot(page, 'desktop-05-arrived-control-returned');
+  });
+  await check('exit through the gate from the platform side (one action, no destination menu), then explore', async () => {
+    await walkTo(page, nNorth); await face(page, 'down');
+    await act(page, false);
+    await page.waitForFunction(() => window.__slg.game.player.y > 0 && !document.querySelector('#train-travel-panel') || document.querySelector('#train-travel-panel').hidden, null, { timeout: 5000 });
+    await page.waitForFunction(s => Math.floor((window.__slg.game.player.y - 4) / 16) === s, nSouth.y, { timeout: 5000 });
+    assert.equal(await panel(page).locator('[data-action="select"]').count(), 0);
+    await shot(page, 'desktop-05b-exited-gate');
     const exit = await page.evaluate(() => window.__slg.game.area.def.portals.find(portal => portal.id === 'neighbor-station-exit')?.from);
     await walkTo(page, exit); await waitArea(page, 'town-neighbor');
     await shot(page, 'desktop-06-neighbor-explore');
     await walkTo(page, { x: 43, y: 12 });
   });
-  await check('return trip: the neighbor sign doubles as the gate (provisional), then board', async () => {
+  await check('return trip: neighbor gate, up platform, board', async () => {
     const entrance = await page.evaluate(() => window.__slg.game.area.def.portals.find(portal => portal.id === 'neighbor-station-enter')?.from);
     await walkTo(page, entrance); await waitArea(page, neighbor.boarding.areaId);
-    await toBoarding(page, neighbor.boarding);
+    await walkTo(page, nSouth); await face(page, 'up');
     await pickTicket(page, access.stationId, false, 'desktop-07-neighbor-gate');
+    await toBoarding(page, nUp);
     const phases = await rideFromPlatform(page, false, 'desktop-08');
     assert.equal(phases.at(-1), 'done');
     await waitArea(page, access.arrival.areaId); await waitSavedArea(page, access.arrival.areaId);
-    assert.equal((await player(page)).areaId, access.arrival.areaId);
+    assert.deepEqual(tileOf(await player(page)), { x: access.arrival.x, y: access.arrival.y });
   });
   await desktop.context.close();
 
-  const gateSave = { ...(await (async () => {
-    const c = await contextFor({ width: 1280, height: 800, touch: false }); const s = await c.page.evaluate(() => window.__slg.game.serialize()); await c.context.close(); return s; })()),
-    areaId: access.areaId, x: gateTile.x * 16 + 8, y: gateTile.y * 16 + 14, facing: 'up' };
-  const boardTilePx = { x: access.boarding.x * 16 + 8, y: access.boarding.y * 16 + 14 };
+  const base0 = await (async () => { const c = await contextFor({ width: 1280, height: 800, touch: false }); const s = await c.page.evaluate(() => window.__slg.game.serialize()); await c.context.close(); return s; })();
+  const gateSave = { ...base0, areaId: access.areaId, x: mainSouth.x * 16 + 8, y: mainSouth.y * 16 + 14, facing: 'up' };
 
   await check('reload during departure returns to the platform before departure; during arrival, to the destination', async () => {
     for (const stopAt of ['depart', 'arrive']) {
       const { context, page: p } = await contextFor({ width: 1280, height: 800, touch: false }, gateSave); page = p;
       try {
-        const money = await page.evaluate(() => JSON.stringify({ ...window.__slg.game.serialize(), x: 0, y: 0, areaId: '', facing: '' }));
+        const rest = () => page.evaluate(() => JSON.stringify({ ...window.__slg.game.serialize(), x: 0, y: 0, areaId: '', facing: '' }));
+        const money = await rest();
         await pickTicket(page, neighbor.stationId, false);
         await toBoarding(page, access.boarding);
         await act(page, false); await panel(page).waitFor({ state: 'visible' });
@@ -231,15 +265,26 @@ try {
         await page.reload(); await ready(page);
         const after = await player(page);
         if (stopAt === 'depart') {
-          assert.equal(after.areaId, access.areaId); assert.equal(Math.floor(after.x / 16), access.boarding.x);
+          assert.equal(after.areaId, access.areaId); assert.deepEqual(tileOf(after), { x: access.boarding.x, y: access.boarding.y });
           await act(page, false); await panel(page).waitFor({ state: 'visible' });
           assert.match(await panel(page).innerText(), /かいさつで/, 'the ticket is not saved across a reload');
         } else assert.equal(after.areaId, neighbor.arrival.areaId);
-        assert.equal(await panel(page).isVisible() && stopAt === 'arrive', false);
-        const kept = await page.evaluate(() => JSON.stringify({ ...window.__slg.game.serialize(), x: 0, y: 0, areaId: '', facing: '' }));
-        assert.equal(kept, money, 'nothing but the position changed');
+        assert.equal(await rest(), money, 'nothing but the position changed');
       } finally { await context.close(); }
     }
+  });
+  await check('reload while passing the gate returns to a walkable tile before or beyond the gate', async () => {
+    const { context, page: p } = await contextFor({ width: 1280, height: 800, touch: false }, gateSave); page = p;
+    try {
+      await act(page, false); await panel(page).waitFor({ state: 'visible' });
+      await click(page, `[data-action="select"][data-station-id="${neighbor.stationId}"]`, false);
+      await click(page, '#train-travel-panel [data-action="issue"]', false);
+      await click(page, '#train-travel-panel [data-action="pass-gate"]', false);
+      await page.reload(); await ready(page);
+      const tile = tileOf(await player(page));
+      assert.ok(tile.y === mainSouth.y || tile.y === mainNorth.y, `at ${JSON.stringify(tile)}`);
+      assert.equal(await page.evaluate(([x, y]) => { const a = window.__slg.game.area; return a.solid[y * a.width + x]; }, [tile.x, tile.y]), 0);
+    } finally { await context.close(); }
   });
   await check('prefers-reduced-motion: only a short fade, still one arrival', async () => {
     const { context, page: p } = await contextFor({ width: 1280, height: 800, touch: false }, gateSave, { reducedMotion: 'reduce' }); page = p;

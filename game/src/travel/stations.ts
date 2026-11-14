@@ -16,8 +16,11 @@ export interface PlatformFlow {
 }
 export interface StationFlow {
   readonly stationId: string;
-  /** 行き先を選ぶ改札と、通過後に立つ改札の先のタイル。null の駅は、のりばの看板が改札を兼ねる（試験用）。 */
-  readonly gate: (StationInteraction & { readonly exitTile: { readonly x: number; readonly y: number } }) | null;
+  /**
+   * 歩いて通れない改札（左端のタイルと幅）。南（y+1）から上向きに操作すると入場、北（y-1）から下向きなら出場。
+   * null の駅は、のりばの案内が改札を兼ねる（試験用）。
+   */
+  readonly gate: (StationInteraction & { readonly tile: { readonly x: number; readonly y: number }; readonly w: number }) | null;
   readonly platforms: readonly PlatformFlow[];
 }
 

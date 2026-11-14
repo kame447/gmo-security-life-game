@@ -4,7 +4,7 @@ import type { MapEventSink } from '../src/core/types';
 import { Game } from '../src/session/game';
 import { TRAIN_NETWORK } from '../src/travel/network';
 import { TrainTravelSession } from '../src/travel/session';
-import { buildWorld, findPath, LANDMARKS, STATION_ACCESS } from '../src/world';
+import { buildWorld, findPath, getStationFlow, LANDMARKS, STATION_ACCESS } from '../src/world';
 import { toRuntime } from '../src/world/runtime';
 import { createNeighborStation, createNeighborTown, NEIGHBOR_FACILITIES, NEIGHBOR_STATION_ACCESS } from '../src/world/towns/neighbor';
 
@@ -39,14 +39,16 @@ it('walks from home to the real station, takes both trains and walks back after 
   walk(game, STATION_ACCESS.outdoorEntrance);
   expect(game.player.areaId).toBe(STATION_ACCESS.areaId);
   // 改札で行き先を選んできっぷを受け取り、ホームののりばで乗る。
-  walk(game, { x: 16, y: 13 });
+  const flow = getStationFlow(STATION_ACCESS.stationId), neighborFlow = getStationFlow(NEIGHBOR_STATION_ACCESS.stationId);
+  walk(game, { x: flow.gate.tile.x, y: flow.gate.tile.y + 1 });
   game.update(1 / 120, { dir: 'up', run: false });
   expect(game.facingInteraction()?.id).toBe('station-ticket');
   game.action();
   expect(travel.isOpen).toBe(true);
   expect(travel.select(NEIGHBOR_STATION_ACCESS.stationId)).toBe(true);
   expect(travel.issue()).toMatchObject({ direction: 'down' });
-  travel.back();
+  expect(travel.passGate()).toBe(true);
+  expect(feetTile(game)).toEqual({ x: flow.gate.tile.x, y: flow.gate.tile.y - 1 });
   walk(game, STATION_ACCESS.boarding);
   game.update(1 / 120, { dir: STATION_ACCESS.boarding.facing, run: false });
   expect(game.facingInteraction()?.id).toBe(STATION_ACCESS.interaction.id);
@@ -57,7 +59,14 @@ it('walks from home to the real station, takes both trains and walks back after 
   expect(travel.commitArrival()).toMatchObject({ ok: true });
   expect(game.player.areaId).toBe(NEIGHBOR_STATION_ACCESS.arrival.areaId);
 
-  walk(game, { x: 9, y: 11 });
+  // 下車後は改札の北から出場（行き先の選択は出ない）して町へ向かう。
+  walk(game, { x: neighborFlow.gate.tile.x, y: neighborFlow.gate.tile.y - 1 });
+  game.update(1 / 120, { dir: 'down', run: false });
+  game.action();
+  expect(travel.state.step).toBe('exit');
+  expect(travel.passGate()).toBe(true);
+  expect(feetTile(game)).toEqual({ x: neighborFlow.gate.tile.x, y: neighborFlow.gate.tile.y + 1 });
+  walk(game, world.areas.get(NEIGHBOR_STATION_ACCESS.boarding.areaId)!.def.portals[0].from);
   expect(game.player.areaId).toBe('town-neighbor');
   walk(game, { x: 43, y: 12 });
   const saved = game.serialize();
@@ -66,17 +75,23 @@ it('walks from home to the real station, takes both trains and walks back after 
   expect(game.serialize()).toEqual(saved);
   walk(game, world.areas.get('town-neighbor')!.def.portals.find(p => p.id === 'neighbor-station-enter')!.from);
   expect(game.player.areaId).toBe(NEIGHBOR_STATION_ACCESS.boarding.areaId);
-  walk(game, NEIGHBOR_STATION_ACCESS.boarding);
-  game.update(1 / 120, { dir: NEIGHBOR_STATION_ACCESS.boarding.facing, run: false });
+  walk(game, { x: neighborFlow.gate.tile.x, y: neighborFlow.gate.tile.y + 1 });
+  game.update(1 / 120, { dir: 'up', run: false });
   game.action();
-  // 隣町の駅は改札の操作対象がまだ無く、のりばの看板が改札を兼ねる（暫定）。
   expect(travel.select(STATION_ACCESS.stationId)).toBe(true);
   expect(travel.issue()).toMatchObject({ direction: 'up' });
-  travel.back();
+  expect(travel.passGate()).toBe(true);
+  const upBoard = neighborFlow.platforms.find(p => p.direction === 'up')!.boardTile;
+  walk(game, upBoard);
+  game.update(1 / 120, { dir: upBoard.facing, run: false });
   game.action();
   expect(travel.startRide()).toMatchObject({ destinationId: STATION_ACCESS.stationId });
   expect(travel.commitArrival()).toMatchObject({ ok: true });
   expect(game.player.areaId).toBe(STATION_ACCESS.areaId);
+  walk(game, { x: flow.gate.tile.x, y: flow.gate.tile.y - 1 });
+  game.update(1 / 120, { dir: 'down', run: false });
+  game.action();
+  expect(travel.passGate()).toBe(true);
   walk(game, { x: 17, y: 17 });
   expect(game.player.areaId).toBe('town-main');
   expect(game.appearance).toEqual(appearance);

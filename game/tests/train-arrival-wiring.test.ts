@@ -58,7 +58,7 @@ describe('train area-change integration', () => {
     expect(events).toEqual([]);
 
     // 改札で選ぶ。取り消しても、きっぷを受け取っても、位置と保存内容は変わらない。
-    game.player = positionAt({ ...STATION_ACCESS.boarding, x: 16, y: 13, facing: 'up' });
+    game.player = positionAt({ ...STATION_ACCESS.boarding, x: 17, y: 11, facing: 'up' });
     game.action();
     expect(travel.state.step).toBe('destinations');
     expect(travel.select(NEIGHBOR_STATION_ACCESS.stationId)).toBe(true);
@@ -67,20 +67,26 @@ describe('train area-change integration', () => {
     game.action();
     expect(travel.select(NEIGHBOR_STATION_ACCESS.stationId)).toBe(true);
     expect(travel.issue()).not.toBeNull();
-    travel.back();
+    expect(game.player).toEqual(positionAt({ ...STATION_ACCESS.boarding, x: 17, y: 11, facing: 'up' }));
+    // 改札を通る: 改札の北へ移るだけ。エリア変更通知は1回、きっぷは残る。
+    expect(travel.passGate()).toBe(true);
+    expect(game.player).toEqual(positionAt({ areaId: STATION_ACCESS.areaId, x: 17, y: 9, facing: 'up' }));
+    expect(events).toEqual([{ type: 'area-enter', areaId: STATION_ACCESS.areaId }]);
+    expect(travel.currentTicket).not.toBeNull();
+    events.length = 0;
     game.player = positionAt(STATION_ACCESS.boarding);
-    expect(game.serialize()).toEqual(before);
+    const boarded = game.serialize();
     expect(events).toEqual([]);
 
     // のりばで乗る。取り消せるのは乗る前まで。位置が変わるのは到着の1回だけ。
     game.action();
     expect(travel.state.step).toBe('board');
     travel.back();
-    expect(game.serialize()).toEqual(before);
+    expect(game.serialize()).toEqual(boarded);
     game.action();
     expect(travel.startRide()).not.toBeNull();
     expect(travel.startRide()).toBeNull();
-    expect(game.serialize()).toEqual(before);
+    expect(game.serialize()).toEqual(boarded);
     expect(travel.commitArrival()).toMatchObject({ ok: true });
     expect(travel.commitArrival()).toEqual({ ok: false, reason: 'not-riding' });
     expect(game.player).toEqual(positionAt(NEIGHBOR_STATION_ACCESS.arrival));

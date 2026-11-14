@@ -11,8 +11,8 @@ import { createNeighborStation, createNeighborTown, NEIGHBOR_FACILITIES, NEIGHBO
 
 const origin: RailwayStation = {
   id: 'test-origin', name: 'もとのまち',
-  boarding: { areaId: 'test-origin-station', x: 9, y: 5, facing: 'up', interactionId: 'test-origin-board', eventKey: 'travel.station.board' },
-  arrival: { areaId: 'test-origin-station', x: 9, y: 6, facing: 'down' },
+  boarding: { ...neighbor.boarding, areaId: 'test-origin-station', interactionId: 'test-origin-board' },
+  arrival: { ...neighbor.arrival, areaId: 'test-origin-station' },
 };
 const destination: RailwayStation = { id: neighbor.stationId, name: neighbor.name, boarding: neighbor.boarding, arrival: neighbor.arrival };
 
@@ -21,7 +21,8 @@ function setup() {
   for (const facility of NEIGHBOR_FACILITIES) world.facilities.set(facility.id, { ...facility });
   const originArea = { ...original, id: origin.boarding.areaId,
     objects: original.objects.map(object => ({ ...object, id: `origin-${object.id}` })), portals: [],
-    interactions: original.interactions.map(interaction => ({ ...interaction, id: origin.boarding.interactionId })) };
+    interactions: original.interactions.filter(interaction => interaction.id === neighbor.boarding.interactionId)
+      .map(interaction => ({ ...interaction, id: origin.boarding.interactionId })) };
   world.areas.set(originArea.id, toRuntime(originArea));
   world.areas.set(neighbor.arrival.areaId, toRuntime(createNeighborStation()));
   world.areas.set('town-neighbor', toRuntime(createNeighborTown()));
@@ -32,7 +33,10 @@ function setup() {
 }
 
 /** 改札を使わない駅（看板が改札を兼ねる）。きっぷは看板で選び、同じ看板でもう一度操作して乗る。 */
-const FLOWS = [origin.id, neighbor.stationId].map(stationId => ({ stationId, gate: null, platforms: [] }));
+const platformOf = (point: RailwayStation['boarding']) => ({ id: `${point.areaId}-down`, direction: 'down' as const,
+  sign: { interactionId: point.interactionId, eventKey: point.eventKey }, boardTile: { areaId: point.areaId, x: point.x, y: point.y, facing: point.facing as 'up' | 'down' },
+  heading: 'right' as const, arriveFrom: 'left' as const });
+const FLOWS = [origin, destination].map(station => ({ stationId: station.id, gate: null, platforms: [platformOf(station.boarding)] }));
 
 /** 選ぶ → きっぷ → のりばで乗車 → 発車の暗転で到着。 */
 function ride(travel: TrainTravelSession, game: Game, destinationId: string): TravelResult {
@@ -69,10 +73,11 @@ describe('train travel session', () => {
     expect(restored.player).toEqual(positionAt(destination.arrival));
     expect(restored.appearance).toEqual(appearance);
     // Walk from the arrival tile to the boarding point; no automatic rail transition occurs.
-    for (let step = 0; step < 120 && pxToTile(restored.player.y - 4) !== neighbor.boarding.y; step++) {
-      restored.update(1 / 120, { dir: 'up', run: false });
+    for (let step = 0; step < 400 && pxToTile(restored.player.x) !== neighbor.boarding.x; step++) {
+      restored.update(1 / 120, { dir: 'left', run: false });
       expect(restored.player.areaId).toBe(destination.boarding.areaId);
     }
+    restored.update(1 / 120, { dir: 'up', run: false });
     const returning = new TrainTravelSession(restored, railway, undefined, FLOWS);
     expect(ride(returning, restored, origin.id)).toEqual({ ok: true, originId: destination.id, destinationId: origin.id });
     expect(restored.player).toEqual(positionAt(origin.arrival));
@@ -84,7 +89,7 @@ describe('train travel session', () => {
     const { game, travel } = setup(), event = interaction(game), initial = { ...game.player };
     expect(travel.begin({ ...event, type: 'area-enter', areaId: game.player.areaId })).toBe(false);
     expect(travel.begin({ type: 'interact', areaId: game.player.areaId, interactionId: 'wrong', eventKey: 'travel.station.board' })).toBe(false);
-    game.player = { ...initial, ...feetAtTile(10, 5) };
+    game.player = { ...initial, ...feetAtTile(6, 5) };
     expect(travel.begin(event)).toBe(false);
     game.player = { ...initial, facing: 'left' };
     expect(travel.begin(event)).toBe(false);
@@ -102,7 +107,7 @@ describe('train travel session', () => {
     expect(travel.issue()).not.toBeNull();
     travel.back();
     expect(travel.begin(event)).toBe(true);
-    game.player = { ...game.player, ...feetAtTile(10, 5) };
+    game.player = { ...game.player, ...feetAtTile(6, 5) };
     const moved = { ...game.player };
     expect(travel.startRide()).toBeNull();
     expect(travel.commitArrival()).toEqual({ ok: false, reason: 'not-riding' });

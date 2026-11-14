@@ -21,6 +21,7 @@ export interface RideRequest extends Ticket { readonly heading: Heading }
 export type NoticeKind = 'ticket-issued' | 'no-ticket' | 'wrong-platform';
 export type TravelView =
   | TravelMenuState
+  | { readonly step: 'exit' }
   | { readonly step: 'notice'; readonly kind: NoticeKind; readonly destinationName?: string }
   | { readonly step: 'board'; readonly originName: string; readonly destinationName: string }
   | { readonly step: 'riding' };
@@ -28,7 +29,7 @@ export type TravelView =
 /** false means no transition occurred; the shared Game may emit its normal area-enter event on success. */
 export type TravelArrival = (destination: Readonly<SpawnPoint>) => boolean;
 
-type Mode = 'closed' | 'menu' | 'notice' | 'board' | 'riding';
+type Mode = 'closed' | 'menu' | 'notice' | 'exit' | 'board' | 'riding';
 
 /**
  * 改札で行き先を選んできっぷを受け取り、ホームの看板で乗車して発車する流れの状態。
@@ -51,6 +52,7 @@ export class TrainTravelSession {
 
   get state(): TravelView {
     if (this.mode === 'menu') return this.menu.state;
+    if (this.mode === 'exit') return { step: 'exit' };
     if (this.mode === 'notice') {
       const ticket = this.ticket, name = ticket && this.railway.station(ticket.destinationId)?.name;
       return { step: 'notice', kind: this.notice, ...(name ? { destinationName: name } : {}) };
@@ -66,6 +68,14 @@ export class TrainTravelSession {
   private facing(area: string, id: string, key: string): boolean {
     const player = this.game.player, world = this.game.world.areas.get(player.areaId), target = world && this.game.facingInteraction();
     return player.areaId === area && !!world && canStand(world, player.x, player.y) && target?.id === id && target.eventKey === key;
+  }
+
+  /** 改札の南側から上向き＝入場、北側から下向き＝出場。それ以外は null。 */
+  private gateSide(gate: NonNullable<StationFlow['gate']>): 'south' | 'north' | null {
+    const player = this.game.player, x = pxToTile(player.x), y = pxToTile(player.y - 4);
+    if (x < gate.tile.x || x >= gate.tile.x + gate.w) return null;
+    if (y === gate.tile.y + 1 && player.facing === 'up') return 'south';
+    return y === gate.tile.y - 1 && player.facing === 'down' ? 'north' : null;
   }
 
   /** 足元のタイルと向きが乗車位置に合い、のりばの案内を向いているときだけ true。 */
@@ -86,9 +96,12 @@ export class TrainTravelSession {
   begin(event: MapEvent): boolean {
     if (event.type !== 'interact' || this.isOpen || this.game.dialog) return false;
     for (const flow of this.flows) {
-      const gate = flow.gate, origin = this.railway.station(flow.stationId);
-      if (origin && gate && event.areaId === gate.areaId && event.interactionId === gate.interactionId &&
-          event.eventKey === gate.eventKey && this.facing(gate.areaId, gate.interactionId, gate.eventKey)) return this.openMenu(origin);
+      const gate = flow.gate, origin = this.railway.station(flow.stationId), side = gate && this.gateSide(gate);
+      if (!origin || !gate || !side || event.areaId !== gate.areaId || event.interactionId !== gate.interactionId ||
+          event.eventKey !== gate.eventKey || !this.facing(gate.areaId, gate.interactionId, gate.eventKey)) continue;
+      if (side === 'south') return this.openMenu(origin);
+      this.mode = 'exit';
+      return true;
     }
     for (const flow of this.flows) {
       const platform = flow.platforms.find(item => item.boardTile.areaId === event.areaId &&
@@ -119,17 +132,23 @@ export class TrainTravelSession {
   }
 
   /**
-   * きっぷを受け取ったあと、通れない改札の先（exitTile）へ立ち位置を移す。移すだけで、きっぷも所持品も変えない。
-   * 位置の移動は到着と同じ共有フック（エリア変更通知と保存を伴う）を使う。
+   * 改札を通る。入場（きっぷを受け取った直後）は改札の北、出場は改札の南へ立ち位置を移す。
+   * 出場ではきっぷを取り消す（仮）。位置の移動は到着と同じ共有フック（エリア変更通知と保存を伴う）を使う。
    */
   passGate(): boolean {
-    if (this.mode !== 'notice' || this.notice !== 'ticket-issued' || !this.ticket) return false;
-    const flow = this.flows.find(item => item.stationId === this.ticket!.originId), gate = flow?.gate;
-    if (!gate || !this.facing(gate.areaId, gate.interactionId, gate.eventKey)) return false;
-    const spawn = { areaId: gate.areaId, x: gate.exitTile.x, y: gate.exitTile.y, facing: 'up' as const };
+    const entering = this.mode === 'notice' && this.notice === 'ticket-issued' && !!this.ticket;
+    if (!entering && this.mode !== 'exit') return false;
+    const flow = this.flows.find(item => entering ? item.stationId === this.ticket!.originId : item.gate &&
+      item.gate.areaId === this.game.player.areaId), gate = flow?.gate;
+    const side = gate && this.gateSide(gate);
+    if (!gate || side !== (entering ? 'south' : 'north') || !this.facing(gate.areaId, gate.interactionId, gate.eventKey)) return false;
+    const x = pxToTile(this.game.player.x);
+    const spawn = entering ? { areaId: gate.areaId, x, y: gate.tile.y - 1, facing: 'up' as const }
+      : { areaId: gate.areaId, x, y: gate.tile.y + 1, facing: 'down' as const };
     const area = this.game.world.areas.get(spawn.areaId), feet = feetAtTile(spawn.x, spawn.y);
     if (!area || !canStand(area, feet.x, feet.y) || area.portalAt.has(spawn.y * area.width + spawn.x)) return false;
     if (this.arrive) { if (!this.arrive(spawn)) return false; } else this.game.player = positionAt(spawn);
+    if (!entering) this.ticket = null;
     this.mode = 'closed';
     return true;
   }
@@ -143,7 +162,7 @@ export class TrainTravelSession {
       if (this.menu.state.step === 'closed') this.mode = 'closed';
       return changed;
     }
-    if (this.mode === 'notice' || this.mode === 'board') { this.mode = 'closed'; return true; }
+    if (this.mode === 'notice' || this.mode === 'board' || this.mode === 'exit') { this.mode = 'closed'; return true; }
     return false;
   }
   cancel(): void { if (this.mode !== 'riding') { this.menu.cancel(); this.mode = 'closed'; } }

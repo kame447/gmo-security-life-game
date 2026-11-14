@@ -8,10 +8,11 @@ import { REDUCED_TIMING, RIDE_TIMING, RideDirector } from '../src/travel/ride';
 import { sceneState } from '../src/travel/scene';
 import { TrainTravelSession } from '../src/travel/session';
 import type { StationFlow } from '../src/travel/stations';
-import { buildWorld, STATION_ACCESS } from '../src/world';
+import { buildWorld, getStationFlow, STATION_ACCESS } from '../src/world';
 import { NEIGHBOR_STATION_ACCESS } from '../src/world/towns/neighbor';
 
-const gatePoint = { ...STATION_ACCESS.boarding, x: 16, y: 13, facing: 'up' } as const;
+const flow = getStationFlow(STATION_ACCESS.stationId);
+const gatePoint = { ...STATION_ACCESS.boarding, x: flow.gate.tile.x, y: flow.gate.tile.y + 1, facing: 'up' } as const;
 const NEIGHBOR = NEIGHBOR_STATION_ACCESS.stationId;
 
 function event(game: Game): MapEvent {
@@ -69,22 +70,64 @@ describe('ticket gate and platform', () => {
   });
 
   it('refuses a platform that does not serve the ticket direction', () => {
-    const flows: StationFlow[] = [{ stationId: STATION_ACCESS.stationId,
-      gate: { areaId: STATION_ACCESS.areaId, interactionId: 'station-ticket', eventKey: 'station.ticket' },
-      platforms: [{ id: 'up-only', directions: ['up'], sign: { areaId: STATION_ACCESS.areaId, interactionId: STATION_ACCESS.interaction.id, eventKey: STATION_ACCESS.interaction.eventKey } }] }];
+    const down = flow.platforms.find(p => p.direction === 'down')!;
+    const flows: StationFlow[] = [{ ...flow, platforms: [{ ...down, direction: 'up' }] }];
     const { game, travel } = station(flows);
     takeTicket(travel, game);
-    travel.back();
+    expect(travel.passGate()).toBe(true);
     game.player = positionAt(STATION_ACCESS.boarding);
     expect(travel.begin(event(game))).toBe(true);
     expect(travel.state).toMatchObject({ step: 'notice', kind: 'wrong-platform' });
     expect(travel.startRide()).toBeNull();
   });
 
+  it('sends each ticket to its own platform of the island: down to the north line, up to the south line', () => {
+    const up = flow.platforms.find(p => p.direction === 'up')!;
+    const { game, travel } = station();
+    takeTicket(travel, game);
+    expect(travel.passGate()).toBe(true);
+    game.player = positionAt(up.boardTile);
+    expect(travel.begin(event(game))).toBe(true);
+    expect(travel.state).toMatchObject({ kind: 'wrong-platform' });
+    travel.back();
+    game.player = positionAt(STATION_ACCESS.boarding);
+    expect(travel.begin(event(game))).toBe(true);
+    expect(travel.startRide()).toMatchObject({ direction: 'down', heading: 'right' });
+  });
+
+  it('passes the gate only from the south after taking a ticket, and exits only from the north', () => {
+    const { game, travel } = station(), before = game.serialize();
+    expect(travel.passGate()).toBe(false);
+    takeTicket(travel, game);
+    expect(travel.passGate()).toBe(true);
+    expect(game.player).toEqual(positionAt({ areaId: STATION_ACCESS.areaId, x: gatePoint.x, y: flow.gate.tile.y - 1, facing: 'up' }));
+    expect(travel.passGate()).toBe(false);
+    // 出場: 北側から下向きに操作すると、選択を出さずに南側へ出る。きっぷは取り消す（仮）。
+    game.player = positionAt({ areaId: STATION_ACCESS.areaId, x: gatePoint.x, y: flow.gate.tile.y - 1, facing: 'down' });
+    expect(travel.begin(event(game))).toBe(true);
+    expect(travel.state).toEqual({ step: 'exit' });
+    expect(travel.passGate()).toBe(true);
+    expect(game.player).toEqual(positionAt({ areaId: STATION_ACCESS.areaId, x: gatePoint.x, y: flow.gate.tile.y + 1, facing: 'down' }));
+    expect(travel.currentTicket).toBeNull();
+    expect(game.serialize()).not.toEqual(before);
+  });
+
+  it('never leaves the player on the blocked gate tiles: a refused pass keeps the position and the ticket', () => {
+    const game = new Game(buildWorld());
+    game.player = positionAt(gatePoint);
+    const travel = new TrainTravelSession(game, TRAIN_NETWORK, () => false);
+    takeTicket(travel, game);
+    expect(travel.passGate()).toBe(false);
+    expect(game.player).toEqual(positionAt(gatePoint));
+    expect(travel.currentTicket).not.toBeNull();
+    const area = game.world.areas.get(STATION_ACCESS.areaId)!;
+    for (const x of [flow.gate.tile.x, flow.gate.tile.x + 1]) expect(area.solid[flow.gate.tile.y * area.width + x]).toBe(1);
+  });
+
   it('starts a ride once: a second start, a stale tile and a double commit all fail', () => {
     const { game, travel } = station();
     takeTicket(travel, game);
-    travel.back();
+    expect(travel.passGate()).toBe(true);
     game.player = positionAt(STATION_ACCESS.boarding);
     expect(travel.begin(event(game))).toBe(true);
     expect(travel.startRide()).not.toBeNull();
