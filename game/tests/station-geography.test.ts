@@ -5,7 +5,7 @@ import { buildAreaMap } from '../src/minimap/model';
 import { Game } from '../src/session/game';
 import { TRAIN_NETWORK } from '../src/travel/network';
 import { findRailStrips, TownTrainService } from '../src/town-train/service';
-import { buildWorld, findPath, isSolidTile, LANDMARKS, STATION_ACCESS, validateWorld } from '../src/world';
+import { buildWorld, findPath, getStationFlow, isSolidTile, LANDMARKS, STATION_ACCESS, validateWorld } from '../src/world';
 import { MAIN_STATION_LAYOUT } from '../src/world/landmarks';
 import { isRailGround, T } from '../src/world/tiles';
 import { NEIGHBOR_STATION_ACCESS, NEIGHBOR_STATION_LAYOUT } from '../src/world/towns/neighbor';
@@ -39,21 +39,31 @@ describe('station geography', () => {
     expect(findPath(town, front, entry.from)).not.toBeNull();
   });
 
-  it('keeps both stations ordered from entry through gate and platform to the northern tracks', () => {
+  it('keeps both stations ordered from entry through gate to an island platform between the two tracks', () => {
     const world = buildWorld();
-    for (const [areaId, entry, board, railRows] of [
-      [STATION_ACCESS.areaId, STATION_ACCESS.entry, STATION_ACCESS.boarding, [5, 6]],
-      [NEIGHBOR_STATION_ACCESS.entrance.areaId, NEIGHBOR_STATION_ACCESS.entrance, NEIGHBOR_STATION_ACCESS.boarding, [2, 3]],
+    for (const [areaId, entry, stationId] of [
+      [STATION_ACCESS.areaId, STATION_ACCESS.entry, 'station'],
+      [NEIGHBOR_STATION_ACCESS.entrance.areaId, NEIGHBOR_STATION_ACCESS.entrance, 'station-neighbor'],
     ] as const) {
-      const area = world.areas.get(areaId)!, route = findPath(area, entry, board);
-      expect(route).not.toBeNull();
-      expect(entry.y).toBeGreaterThan(board.y);
-      expect(board.y).toBeGreaterThan(Math.max(...railRows));
-      expect(route!.some(p => area.ground[p.y * area.width + p.x] === T.TICKET_GATE)).toBe(true);
-      expect(area.ground[board.y * area.width + board.x]).toBe(T.PLATFORM);
-      for (const y of railRows) for (let x = 1; x < area.width - 1; x++) {
-        expect(isSolidTile(area, x, y), `${areaId} ${x},${y}`).toBe(true);
+      const area = world.areas.get(areaId)!, flow = getStationFlow(stationId), [down, up] = flow.platforms;
+      expect(entry.y).toBeGreaterThan(flow.gate.tile.y);
+      expect(down.direction).toBe('down'); expect(up.direction).toBe('up');
+      // 北が下り、南が上り。ホームは2線の間にあり、改札はその南にある。
+      expect(down.track.y).toBeLessThan(down.boardTile.y);
+      expect(up.boardTile.y).toBeLessThan(up.track.y);
+      expect(up.track.y).toBeLessThan(flow.gate.tile.y);
+      for (const p of flow.platforms) {
+        expect(area.ground[p.boardTile.y * area.width + p.boardTile.x]).toBe(T.PLATFORM);
+        expect(findPath(area, flow.alight, p.boardTile), p.id).not.toBeNull();
+        expect(findPath(area, entry, p.boardTile), p.id).toBeNull();
+        expect(area.interactionAt.get(p.sign.y * area.width + p.sign.x)?.id).toBe(p.sign.interactionId);
+        for (let x = 1; x < area.width - 1; x++) {
+          if (p.track.y === up.track.y && (x === flow.gate.tile.x || x === flow.gate.tile.x + 1)) continue;
+          expect(isSolidTile(area, x, p.track.y), `${areaId} ${x},${p.track.y}`).toBe(true);
+        }
       }
+      for (const x of [flow.gate.tile.x, flow.gate.tile.x + 1]) expect(isSolidTile(area, x, flow.gate.tile.y)).toBe(true);
+      expect(findPath(area, flow.alight, { x: flow.gate.tile.x, y: flow.gate.tile.y - 1 })).not.toBeNull();
     }
     expect(validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
   });
@@ -76,16 +86,24 @@ describe('station geography', () => {
   it.each(['town-main', 'town-neighbor'])('animates only the actual outdoor railway in %s', areaId => {
     const area = buildWorld().areas.get(areaId)!, solid = area.solid.slice(), ground = area.ground.slice();
     const strips = findRailStrips(area), service = new TownTrainService();
-    expect(strips).toHaveLength(1);
-    const [strip] = strips;
-    expect(strip.left).toBe(0);
-    expect(strip.right).toBe(area.width * 16);
-    for (let y = strip.top / 16; y < strip.bottom / 16; y++) for (let x = 0; x < area.width; x++) {
-      expect(isRailGround(area.ground[y * area.width + x])).toBe(true);
+    expect(strips).toHaveLength(2);
+    expect(strips.map(strip => strip.direction)).toEqual(['down', 'up']);
+    for (const strip of strips) {
+      expect(strip.left).toBe(0);
+      expect(strip.right).toBe(area.width * 16);
+      expect(strip.bottom - strip.top).toBe(16);
+      for (let y = strip.top / 16; y < strip.bottom / 16; y++) for (let x = 0; x < area.width; x++) {
+        expect(isRailGround(area.ground[y * area.width + x])).toBe(true);
+      }
     }
     const before = service.frames(area, 2), after = service.frames(area, 2.5);
-    expect(before.length).toBeGreaterThan(0);
-    expect(after[0].x).toBeGreaterThan(before[0].x);
+    // 下り（北の線）は右へ、上り（南の線）は左へ走る。
+    for (const direction of ['down', 'up'] as const) {
+      const b = before.find(f => f.direction === direction)!, a = after.find(f => f.direction === direction)!;
+      expect(b).toBeDefined();
+      expect(a.heading).toBe(direction === 'down' ? 'right' : 'left');
+      expect(direction === 'down' ? a.x > b.x : a.x < b.x).toBe(true);
+    }
     expect(area.solid).toEqual(solid);
     expect(area.ground).toEqual(ground);
   });

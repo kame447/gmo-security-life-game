@@ -31,7 +31,7 @@ describe('explicit railway reachability', () => {
     base.areas.delete('town-neighbor'); base.areas.delete('station-neighbor-interior');
     base.facilities.delete('station-neighbor');
     expect(validateWorld(base)).toEqual([]);
-    expect(STATION_ACCESS.boarding).toEqual({ areaId: 'station-main-interior', x: 17, y: 9, facing: 'up' });
+    expect(STATION_ACCESS.boarding).toEqual({ areaId: 'station-main-interior', x: 12, y: 6, facing: 'up' });
     expect(STATION_ACCESS.arrival.y).not.toBe(STATION_ACCESS.boarding.y);
   });
   it('visits a remote area only through a reachable departure, without creating portals', () => {

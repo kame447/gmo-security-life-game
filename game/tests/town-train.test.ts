@@ -27,29 +27,33 @@ describe('town train prototype', () => {
   it('detects the actual uninterrupted town railway, including crossings and the rail bridge', () => {
     const world = buildWorld(), town = world.areas.get('town-main')!;
     const strips = findRailStrips(town);
-    expect(strips).toHaveLength(1);
-    expect(strips[0].left).toBe(0);
-    expect(strips[0].right).toBe(town.width * TILE);
-    expect(strips[0].bottom - strips[0].top).toBe(2 * TILE);
-    expectRailOnly(town, strips[0]);
+    expect(strips).toHaveLength(2);
+    for (const strip of strips) {
+      expect(strip.left).toBe(0);
+      expect(strip.right).toBe(town.width * TILE);
+      expect(strip.bottom - strip.top).toBe(TILE);
+      expectRailOnly(town, strip);
+    }
+    expect(strips[1].top - strips[0].top).toBe(TILE);
     const y = strips[0].top / TILE;
     expect(town.ground[y * town.width + 56]).toBe(T.CROSSING);
     expect(town.ground[y * town.width + 117]).toBe(T.RAIL_BRIDGE);
   });
 
   it('follows new outdoor rail positions without hard-coded town coordinates', () => {
-    for (const [y, rows] of [[80, 4], [36, 4], [0, 2]]) {
+    for (const [y, rows] of [[80, 2], [36, 2], [0, 1]]) {
       const area = syntheticRail(y, rows), strips = findRailStrips(area);
-      expect(strips).toHaveLength(1);
-      expect(strips[0].top).toBe((y + (rows === 4 ? 1 : 0)) * TILE);
-      expectRailOnly(area, strips[0]);
+      expect(strips).toHaveLength(rows);
+      expect(strips[0].top).toBe(y * TILE);
+      expect(strips.map(s => s.direction)).toEqual(rows === 2 ? ['down', 'up'] : ['down']);
+      for (const strip of strips) expectRailOnly(area, strip);
       expect(new TownTrainService().frames(area, 2).length).toBeGreaterThan(0);
     }
   });
 
   it('does not bridge gaps, invent rails on empty ground, or animate indoor station trains', () => {
-    const split = syntheticRail(36, 4, 24), strips = findRailStrips(split);
-    expect(strips).toHaveLength(2);
+    const split = syntheticRail(36, 2, 24), strips = findRailStrips(split);
+    expect(strips).toHaveLength(4);
     for (const strip of strips) expectRailOnly(split, strip);
     const world = buildWorld();
     const original = world.areas.get('town-neighbor')!;
@@ -67,7 +71,7 @@ describe('town train prototype', () => {
     const frames = new TownTrainService().frames(neighbor, 2);
     for (const strip of strips) {
       expectRailOnly(neighbor, strip);
-      expect(frames).toContainEqual(expect.objectContaining({ strip }));
+      expect(frames.some(f => f.direction === strip.direction && f.strip.top === strip.top)).toBe(true);
     }
   });
 

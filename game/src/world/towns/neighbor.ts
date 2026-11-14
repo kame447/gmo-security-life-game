@@ -104,7 +104,7 @@ export function createNeighborStation(): AreaDef {
     objects: [{ id: 'neighbor-station-bench', kind: 'bench', x: 1, y: 5, w: 2, h: 1, solid: true }],
     portals: [{ id: 'neighbor-station-exit', from: { x: 9, y: height - 1 }, to: { ...NEIGHBOR_STATION_ACCESS.townFront }, facilityId: NEIGHBOR_STATION_ACCESS.stationId }],
     interactions: [
-      { id: gate.interactionId, kind: 'object', name: 'かいさつ', x: gate.tile.x, y: gate.tile.y, solid: true, eventKey: gate.eventKey,
+      { id: gate.interactionId, kind: 'object', name: 'かいさつ', x: gate.tile.x, y: gate.tile.y, w: 2, solid: true, eventKey: gate.eventKey,
         lines: ['きっぷを とおすところだ。'] },
       ...NEIGHBOR_FLOW_PLATFORMS.map(p => ({ id: p.sign.interactionId, kind: 'sign' as const, name: 'でんしゃのあんない', x: p.sign.x, y: p.sign.y,
         solid: true, eventKey: p.sign.eventKey, lines: ['ここから でんしゃに のれるよ。'] })),

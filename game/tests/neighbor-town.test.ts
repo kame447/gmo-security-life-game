@@ -58,14 +58,15 @@ describe('provisional neighboring town', () => {
     expect(exit.to).toEqual(stop.townFront);
     expect(findPath(town, stop.townFront, enter.from)).not.toBeNull();
     expect(findPath(station, stop.entrance, exit.from)).not.toBeNull();
-    const route = findPath(station, stop.entrance, stop.boarding);
-    expect(route).not.toBeNull();
-    expect(route!.some(p => station.ground[p.y * station.width + p.x] === T.TICKET_GATE)).toBe(true);
+    // 改札は歩いて通れない。行き先を選ぶ操作を経ないとホームへは入れない（移動は乗車側が行う）。
+    expect(findPath(station, stop.entrance, stop.boarding)).toBeNull();
+    expect(station.ground[8 * station.width + 9]).toBe(T.TICKET_GATE);
     expect(findPath(station, stop.arrival, stop.boarding)).not.toBeNull();
     expect(station.portalAt.has(stop.arrival.y * station.width + stop.arrival.x)).toBe(false);
     expect(station.portalAt.has(stop.boarding.y * station.width + stop.boarding.x)).toBe(false);
-    for (let x = 1; x < station.width - 1; x++) for (const y of [2, 3]) {
-      expect(station.ground[y * station.width + x]).toBe(T.RAIL);
+    for (let x = 1; x < station.width - 1; x++) for (const y of [2, 7]) {
+      expect(station.ground[y * station.width + x]).toBe(y === 7 && (x === 9 || x === 10) ? T.PLATFORM : T.RAIL);
+      if (y === 7 && (x === 9 || x === 10)) continue;
       expect(isSolidTile(station, x, y)).toBe(true);
       expect(station.portalAt.has(y * station.width + x)).toBe(false);
     }
