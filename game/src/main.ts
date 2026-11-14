@@ -2,6 +2,8 @@
 import { exposeDebug, FrameRecorder } from './app/debug';
 import { startLoop } from './app/loop';
 import { loadSave, writeSave } from './app/save-store';
+import { LifeEventDirector } from './events/director';
+import { CHILDHOOD_SAMPLE_EVENTS } from './events/samples/childhood';
 import { Controls } from './input/controls';
 import { Minimap } from './minimap/view';
 import { Renderer } from './render/renderer';
@@ -12,13 +14,16 @@ import { AvatarPanel } from './ui/avatar-panel';
 import { UiController } from './ui/controller';
 import { $ } from './ui/dom';
 import { Hud } from './ui/hud';
+import { LifeEventPanel } from './ui/life-event-panel';
 import { Smartphone } from './ui/smartphone';
 import { buildWorld } from './world';
 
 const world = buildWorld();
+// 人生イベントは試作段階。まだ永続保存には対応していない。
+const lifeEvents = new LifeEventDirector(CHILDHOOD_SAMPLE_EVENTS);
 const reviewOnly = new URLSearchParams(window.location.search).get('review') === '1';
 const phoneOptions = { initialPhoneOwned: PHONE_INITIAL_OWNED, phoneDataConfig: PHONE_BUDGET_PROTOTYPE };
-const game = new Game(world, { ...phoneOptions, save: reviewOnly ? undefined : loadSave(world, phoneOptions) });
+const game = new Game(world, { ...phoneOptions, save: reviewOnly ? undefined : loadSave(world, phoneOptions), sink: lifeEvents });
 game.phone.setVisible(!document.hidden);
 const canvas = $<HTMLCanvasElement>('#view');
 const renderer = new Renderer(canvas);
@@ -50,6 +55,7 @@ ui.registerPanel({ id: 'phone', panel: phone, open: () => phone.open(), button: 
   shortcut: 'KeyP', canOpen: () => phone.isAvailable });
 game.phone.onChange(() => { save(); ui.update(); });
 const hud = new Hud(game, () => ui.primaryAction());
+const lifeEventPanel = new LifeEventPanel(game, lifeEvents, () => controls.clear());
 ui.bind({ onReset: () => { game.reset(); save(); } });
 exposeDebug(game, renderer, frames);
 
@@ -79,6 +85,7 @@ const loop = startLoop({
     phone.update();
     frames.record(now, frame, input, game, renderer);
     avatar.drawPreview(now);
+    lifeEventPanel.update();
     hud.update(now);
     ui.update();
     minimap.update();
