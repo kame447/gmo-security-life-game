@@ -48,6 +48,8 @@ export interface ObjectDef {
   facilityId?: string;
   /** Furniture front; omitted means down. Non-catalog objects ignore this field. */
   facing?: Facing;
+  /** Explicitly opt into catalog artwork. Legacy kind alone never selects it. */
+  catalogId?: string;
 }
 
 export interface PortalDef {

@@ -65,7 +65,7 @@ const raster = (canvas: HTMLCanvasElement) => canvas as unknown as Canvas;
 describe('furniture pixel artwork', () => {
   it('draws all variants with transparent edges, detailed palettes and footprint-aligned overhangs', () => {
     for (const entry of FURNITURE) for (const variant of entry.variants) {
-      const sprite = furnitureSprite({ kind: entry.id, facing: variant.facing })!;
+      const sprite = furnitureSprite({ catalogId: entry.id, facing: variant.facing })!;
       expect(sprite).toMatchObject({ ox: 0, oy: -variant.overhang });
       expect(sprite.canvas.width).toBe(variant.w * 16);
       expect(sprite.canvas.height).toBe(variant.h * 16 + variant.overhang);
@@ -80,14 +80,14 @@ describe('furniture pixel artwork', () => {
 
   it('uses distinct, cached directional art and integrates without changing legacy furniture', () => {
     for (const entry of FURNITURE) {
-      const views = entry.variants.map(variant => furnitureSprite({ kind: entry.id, facing: variant.facing })!);
+      const views = entry.variants.map(variant => furnitureSprite({ catalogId: entry.id, facing: variant.facing })!);
       expect(new Set(views.map(sprite => [...raster(sprite.canvas).data()].join(','))).size).toBe(views.length);
-      expect(objectSprite({ kind: entry.id, x: 1, y: 1, w: 1, h: 1, solid: true })).toBe(views[0]);
-      expect(furnitureSprite({ kind: entry.id })).toBe(views[0]);
+      expect(objectSprite({ kind: entry.id, catalogId: entry.id, x: 1, y: 1, w: 1, h: 1, solid: true })).toBe(views[0]);
+      expect(furnitureSprite({ catalogId: entry.id })).toBe(views[0]);
     }
     for (const kind of ['sofa', 'bed', 'bookshelf']) {
       const old = { kind, x: 0, y: 0, w: 2, h: 3, solid: true };
-      expect(furnitureSprite(old)).toBeUndefined();
+      expect(furnitureSprite({ ...old, catalogId: undefined })).toBeUndefined();
       const sprite = objectSprite(old);
       expect(sprite.canvas.width).toBe(32); expect(sprite.canvas.height).toBe(48); expect(sprite.oy).toBe(0);
       expect(objectSprite({ ...old, facing: 'up' })).toBe(sprite);
@@ -99,7 +99,7 @@ describe('furniture pixel artwork', () => {
       const thumbnail = raster(furnitureThumbnail(entry.id));
       expect(thumbnail.width).toBe(48); expect(thumbnail.height).toBe(48);
       const draw = thumbnail.context.images[0];
-      expect(draw.image).toBe(furnitureSprite({ kind: entry.id })!.canvas);
+      expect(draw.image).toBe(furnitureSprite({ catalogId: entry.id })!.canvas);
       expect(Number.isInteger(draw.w / draw.image.width)).toBe(true);
       expect(draw.w / draw.image.width).toBe(draw.h / draw.image.height);
       expect(draw.x >= 0 && draw.y >= 0 && draw.x + draw.w <= 48 && draw.y + draw.h <= 48).toBe(true);
@@ -141,7 +141,7 @@ describe('Renderer editor options over the existing drawing path', () => {
 
   it('hides only the player and leaves furniture and NPC drawing in their existing order', () => {
     const game = view();
-    game.area.objects.push({ kind: 'chair-wood', x: 37, y: 29, w: 1, h: 1, solid: true });
+    game.area.objects.push({ kind: 'chair-wood', catalogId: 'chair-wood', x: 37, y: 29, w: 1, h: 1, solid: true });
     game.area.interactions.push({ id: 'test-npc', kind: 'npc', name: 'Test', x: 38, y: 29,
       solid: true, eventKey: 'test', lines: ['Test'] });
     const h = renderer(); h.renderer.draw(game, 0);
