@@ -109,7 +109,7 @@ try {
         for (let y = layout.trackY; y < layout.trackY + layout.trackRows; y++) for (let x = 0; x < town.width; x++) {
           const t = town.ground[y * town.width + x];
           // 駅の区間（駅舎の幅）の南の行は柵（1線の区間）。それ以外は線路で、踏切以外は通れない。
-          const fence = y === layout.trackY + 1 && x >= layout.building.x && x < layout.building.x + layout.building.w;
+          const fence = y === layout.trackY + 1 && x >= layout.building.x - 3 && x < layout.building.x + layout.building.w + 3;
           if (!(isRailGround(t) || fence) || (t !== T.CROSSING && !isSolidTile(town, x, y))) errors.push(`Invalid track at ${x},${y}`);
           if (x >= 116 && x <= 120 && t !== T.RAIL_BRIDGE) errors.push(`Missing railway bridge at ${x},${y}`);
         }

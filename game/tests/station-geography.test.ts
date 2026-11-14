@@ -27,7 +27,7 @@ describe('station geography', () => {
     for (let y = layout.trackY; y < layout.trackY + layout.trackRows; y++) for (let x = 0; x < town.width; x++) {
       const tile = town.ground[y * town.width + x];
       // 駅の区間の南の行だけは柵（1線の区間）。それ以外は線路で、踏切以外は通れない。
-      const fence = y === layout.trackY + 1 && x >= layout.building.x && x < layout.building.x + layout.building.w;
+      const fence = y === layout.trackY + 1 && x >= layout.building.x - 3 && x < layout.building.x + layout.building.w + 3;
       expect(isRailGround(tile) || fence, `${areaId} ${x},${y}`).toBe(true);
       if (tile !== T.CROSSING) expect(isSolidTile(town, x, y)).toBe(true);
     }
@@ -40,7 +40,7 @@ describe('station geography', () => {
     expect(findPath(town, front, entry.from)).not.toBeNull();
   });
 
-  it.each([14, 15, 32, 33])('walks across the neighboring track in both directions at x=%i', x => {
+  it.each([12, 13, 34, 35])('walks across the neighboring track in both directions at x=%i', x => {
     const world = buildWorld(), town = world.areas.get('town-neighbor')!;
     const { trackY, trackRows } = NEIGHBOR_STATION_LAYOUT;
     for (let y = trackY; y < trackY + trackRows; y++) {

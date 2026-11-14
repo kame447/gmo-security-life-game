@@ -49,7 +49,7 @@ export function createNeighborTown(): AreaDef {
   rect(37, 11, 4, 3, T.BRIDGE);
   rect(16, 1, 16, 9, T.PLAZA);
   // Walking crossings flank the station; the river remains a railway-only bridge.
-  for (const x of [14, 32]) rect(x, 35, 2, 10, T.PARKPATH);
+  for (const x of [12, 34]) rect(x, 35, 2, 10, T.PARKPATH);
   for (let y = NEIGHBOR_STATION_LAYOUT.trackY; y < NEIGHBOR_STATION_LAYOUT.trackY + NEIGHBOR_STATION_LAYOUT.trackRows; y++) {
     for (let x = 0; x < width; x++) {
       const previous = ground[y * width + x];
