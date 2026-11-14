@@ -68,6 +68,25 @@ describe('town train prototype', () => {
     expect(dy + dh).toBe(frame.strip.bottom);
   });
 
+  it('moves each car as an undistorted rectangle across the points (no shear)', () => {
+    const area = buildWorld().areas.get('town-main')!, layout = TOWN_RAIL_LAYOUTS['town-main'], service = new TownTrainService();
+    // 上りの列車が斜めの区間にかかり、車両ごとに足元が違う時刻を探す。
+    let frame;
+    for (let t = 0; t < 12 && !frame; t += 0.05) frame = service.frames(area, t, layout).find(f => f.direction === 'up' && f.x > 0 &&
+      lineFootY(layout, 'up', f.x + 32) !== lineFootY(layout, 'up', f.x + 164));
+    expect(frame).toBeDefined();
+    const draws: number[][] = [];
+    const ctx = { drawImage: (_i: unknown, ...a: number[]) => draws.push(a) } as unknown as CanvasRenderingContext2D;
+    vi.stubGlobal('document', { createElement: () => ({ width: 0, height: 0, getContext: () => new Proxy({}, { get: () => () => undefined, set: () => true }) }) });
+    drawTrainFrame(ctx, frame!, 0, layout);
+    vi.unstubAllGlobals();
+    // 薄片ではなく、車両（64px）と連結部（2px）の塊で描き、各塊は元の高さのまま（拡大縮小・せん断なし）。
+    expect(draws.length).toBeGreaterThanOrEqual(3);
+    for (const [, sy, sw, sh, , , dw, dh] of draws) { expect(sy).toBe(0); expect(dw).toBe(sw); expect(dh).toBe(sh); }
+    expect(Math.max(...draws.map(d => d[2]))).toBeLessThanOrEqual(64);
+    expect(draws.filter(d => d[2] >= 32).length).toBeGreaterThanOrEqual(2);
+  });
+
   it('leaves collision, player position, save data and life stage unchanged', () => {
     const world = buildWorld(), game = new Game(world), town = world.areas.get('town-main')!;
     const solid = town.solid.slice(), ground = town.ground.slice(), saved = game.serialize();
