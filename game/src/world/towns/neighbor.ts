@@ -1,11 +1,12 @@
 import type { AreaDef, FacilityDef, ObjectDef } from '../../core/types';
 import { isRoad, T } from '../tiles';
+import { getStationFlow, NEIGHBOR_FLOW_LAYOUT, NEIGHBOR_FLOW_PLATFORMS } from '../station-flow';
 
 /** Provisional geometry, shared by the outdoor station, entrance and tests. */
 export const NEIGHBOR_STATION_LAYOUT = {
   townHeight: 52,
-  trackY: 36,
-  trackRows: 4,
+  trackY: 38,
+  trackRows: 2,
   building: { x: 18, y: 40, w: 12, h: 5 },
   entrance: { x: 24, y: 44 },
   front: { x: 24, y: 45 },
@@ -15,10 +16,10 @@ export const NEIGHBOR_STATION_LAYOUT = {
 export const NEIGHBOR_STATION_ACCESS = {
   stationId: 'station-neighbor',
   name: 'となりまち',
-  boarding: { areaId: 'station-neighbor-interior', x: 9, y: 5, facing: 'up',
-    interactionId: 'neighbor-station-boarding', eventKey: 'travel.station.board' },
-  arrival: { areaId: 'station-neighbor-interior', x: 9, y: 6, facing: 'down' },
-  entrance: { areaId: 'station-neighbor-interior', x: 9, y: 10, facing: 'up' },
+  boarding: { ...NEIGHBOR_FLOW_PLATFORMS[0].boardTile, interactionId: NEIGHBOR_FLOW_PLATFORMS[0].sign.interactionId,
+    eventKey: NEIGHBOR_FLOW_PLATFORMS[0].sign.eventKey },
+  arrival: getStationFlow('station-neighbor').alight,
+  entrance: { areaId: 'station-neighbor-interior', x: 9, y: 14, facing: 'up' },
   townFront: { areaId: 'town-neighbor', ...NEIGHBOR_STATION_LAYOUT.front, facing: 'down' },
 } as const;
 
@@ -69,9 +70,9 @@ export function createNeighborTown(): AreaDef {
   return {
     id: 'town-neighbor', name: 'となりまち', kind: 'outdoor', width, height, ground, objects,
     districts: [
-      { id: 'neighbor-station-district', name: 'えきまえ', x: 0, y: 36, w: 37, h: height - 36 },
-      { id: 'neighbor-river-district', name: 'かわべ', x: 0, y: 0, w: 48, h: 36 },
-      { id: 'neighbor-east-district', name: 'はしのむこう', x: 37, y: 36, w: 11, h: height - 36 },
+      { id: 'neighbor-station-district', name: 'えきまえ', x: 0, y: NEIGHBOR_STATION_LAYOUT.trackY, w: 37, h: height - NEIGHBOR_STATION_LAYOUT.trackY },
+      { id: 'neighbor-river-district', name: 'かわべ', x: 0, y: 0, w: 48, h: NEIGHBOR_STATION_LAYOUT.trackY },
+      { id: 'neighbor-east-district', name: 'はしのむこう', x: 37, y: NEIGHBOR_STATION_LAYOUT.trackY, w: 11, h: height - NEIGHBOR_STATION_LAYOUT.trackY },
     ],
     portals: [{ id: 'neighbor-station-enter', from: { ...NEIGHBOR_STATION_LAYOUT.entrance }, to: { ...NEIGHBOR_STATION_ACCESS.entrance }, facilityId: NEIGHBOR_STATION_ACCESS.stationId }],
     interactions: [
@@ -83,27 +84,30 @@ export function createNeighborTown(): AreaDef {
   };
 }
 
-/** 町とホームを結ぶ駅。乗車の判定は看板での明示操作だけが担当する。 */
+/** 島式1面2線の構内。北の線が下り、南の線が上り。構造は本町の駅と同じ（station-flow.ts）。 */
 export function createNeighborStation(): AreaDef {
-  const width = 20, height = 12;
+  const f = NEIGHBOR_FLOW_LAYOUT, width = f.width, height = 16;
   const ground = new Uint8Array(width * height).fill(T.FLOOR_CLASS);
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-    if (x === 0 || x === width - 1 || y === 0 || y === height - 1) ground[y * width + x] = T.WALL;
-    if (x > 0 && x < width - 1 && (y === 2 || y === 3)) ground[y * width + x] = T.RAIL;
+    if (x === 0 || x === width - 1 || y === 0 || y === height - 1) { ground[y * width + x] = T.WALL; continue; }
+    if (y === f.northFenceY || y === f.gateY) ground[y * width + x] = T.RAIL_FENCE;
+    else if (y === f.downTrackY || y === f.upTrackY) ground[y * width + x] = T.RAIL;
+    else if (y === f.downTrackY + 1) ground[y * width + x] = T.PLATFORM_EDGE;
+    else if (y >= f.platformTop && y <= f.platformBottom) ground[y * width + x] = T.PLATFORM;
   }
-  // Walkable gate tiles retain compatibility with previously saved indoor positions.
-  for (let x = 1; x < width - 1; x++) for (const y of [4, 5, 6, 7]) ground[y * width + x] = T.PLATFORM;
-  for (const x of [9, 10]) ground[8 * width + x] = T.TICKET_GATE;
-  ground[11 * width + 9] = T.MAT;
+  for (const x of f.gateXs) { ground[f.upTrackY * width + x] = T.PLATFORM; ground[f.gateY * width + x] = T.TICKET_GATE; }
+  for (const p of NEIGHBOR_FLOW_PLATFORMS) ground[p.sign.y * width + p.sign.x] = T.BOARDING_SIGN;
+  ground[(height - 1) * width + 9] = T.MAT;
+  const gate = getStationFlow('station-neighbor').gate;
   return {
-    id: 'station-neighbor-interior', name: 'となりまちのえき', kind: 'indoor', width, height, ground,
-    objects: [
-      { id: 'neighbor-station-train', kind: 'train', x: 3, y: 2, w: 14, h: 2, solid: false, layer: 'decal' },
-      { id: 'neighbor-station-board-object', kind: 'board', x: 9, y: 4, w: 1, h: 1, solid: true },
-      { id: 'neighbor-station-bench', kind: 'bench', x: 3, y: 7, w: 2, h: 1, solid: true },
+    id: f.areaId, name: 'となりまちのえき', kind: 'indoor', width, height, ground,
+    objects: [{ id: 'neighbor-station-bench', kind: 'bench', x: 1, y: 5, w: 2, h: 1, solid: true }],
+    portals: [{ id: 'neighbor-station-exit', from: { x: 9, y: height - 1 }, to: { ...NEIGHBOR_STATION_ACCESS.townFront }, facilityId: NEIGHBOR_STATION_ACCESS.stationId }],
+    interactions: [
+      { id: gate.interactionId, kind: 'object', name: 'かいさつ', x: gate.tile.x, y: gate.tile.y, solid: true, eventKey: gate.eventKey,
+        lines: ['きっぷを とおすところだ。'] },
+      ...NEIGHBOR_FLOW_PLATFORMS.map(p => ({ id: p.sign.interactionId, kind: 'sign' as const, name: 'でんしゃのあんない', x: p.sign.x, y: p.sign.y,
+        solid: true, eventKey: p.sign.eventKey, lines: ['ここから でんしゃに のれるよ。'] })),
     ],
-    portals: [{ id: 'neighbor-station-exit', from: { x: 9, y: 11 }, to: { ...NEIGHBOR_STATION_ACCESS.townFront }, facilityId: NEIGHBOR_STATION_ACCESS.stationId }],
-    interactions: [{ id: 'neighbor-station-boarding', kind: 'sign', name: 'でんしゃのあんない', x: 9, y: 4, solid: true,
-      eventKey: 'travel.station.board', lines: ['ここから でんしゃに のれるよ。'] }],
   };
 }

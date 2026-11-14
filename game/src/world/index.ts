@@ -12,6 +12,8 @@ import { createNeighborStation, createNeighborTown, NEIGHBOR_FACILITIES } from '
 export { LANDMARKS, START, STATION_ACCESS } from './landmarks';
 export { districtAt, isSolidTile, type AreaRuntime, type World } from './runtime';
 export { findPath } from './path';
+export { getStationFlow, type StationFlow, type StationPlatform } from './station-flow';
+export { RAIL_DIRECTIONS, RAIL_ORDER, headingOf, trackRowOf, type RailDirection, type RailHeading } from './rail-geometry';
 export { validateWorld, type RailPoint, type RailLink, type WorldValidationOptions } from './validate';
 
 export const CHILDHOOD_VARIANT: VariantDef = {
