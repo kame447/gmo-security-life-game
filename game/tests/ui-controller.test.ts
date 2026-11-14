@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Controls } from '../src/input/controls';
+import type { Minimap } from '../src/minimap/view';
 import type { Game } from '../src/session/game';
 import { UiController } from '../src/ui/controller';
 import type { ModalPanel } from '../src/ui/modal-panels';
@@ -35,7 +36,7 @@ class FakeElement {
   closest(): FakeElement | null { return this.control ? this : null; }
 }
 
-function setup() {
+function setup(minimap?: Minimap) {
   const stage = new FakeElement(), menu = new FakeElement(), canvas = new FakeElement(), touch = new FakeElement();
   const toggle = new FakeElement(true), reset = new FakeElement(true);
   const direction = new FakeElement(true); direction.dataset.dir = 'up'; touch.children.push(direction);
@@ -49,7 +50,7 @@ function setup() {
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
   const game = { dialog: null as object | null, action: vi.fn() };
   const controls = new Controls();
-  const ui = new UiController(game as unknown as Game, controls, canvas as unknown as HTMLCanvasElement);
+  const ui = new UiController(game as unknown as Game, controls, canvas as unknown as HTMLCanvasElement, minimap);
   const resetHandler = vi.fn();
   ui.bind({ onReset: resetHandler });
   return { stage, menu, canvas, touch, toggle, reset, direction, win, game, controls, ui, resetHandler };
@@ -66,6 +67,40 @@ function key(code: string, target: FakeElement, repeat = false) {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('UiController modal integration', () => {
+  it('gives the full map priority over phone openings, movement, reset, action and touch', () => {
+    const minimap = { isOpen: true, handleKey: vi.fn() };
+    const { ui, controls, game, menu, canvas, win, direction, toggle, touch, reset, resetHandler } = setup(minimap as unknown as Minimap);
+    const phone = fakePanel(), button = new FakeElement(true);
+    menu.append(button);
+    ui.registerPanel({ id: 'phone', panel: phone.panel, open: phone.open,
+      button: button as unknown as HTMLButtonElement, shortcut: 'KeyP' });
+    expect(ui.mode).toBe('map');
+    expect(button.disabled).toBe(true);
+    expect(ui.openPanel('phone')).toBe(false);
+    button.fire('click');
+    const shortcut = key('KeyP', canvas);
+    win.fire('keydown', shortcut);
+    expect(minimap.handleKey).toHaveBeenCalledWith(shortcut);
+    expect(phone.panel.isOpen).toBe(false);
+    controls.press('KeyW', 'up');
+    expect(ui.movementInput()).toEqual({ dir: null, run: false });
+    controls.clear();
+    ui.primaryAction(); reset.fire('click'); toggle.fire('click');
+    direction.fire('pointerdown', { preventDefault: vi.fn(), pointerId: 1 });
+    expect(game.action).not.toHaveBeenCalled();
+    expect(resetHandler).not.toHaveBeenCalled();
+    expect(touch.classList.contains('on')).toBe(false);
+    expect(controls.state()).toEqual({ dir: null, run: false });
+    minimap.isOpen = false; ui.update();
+    expect(button.disabled).toBe(false);
+    button.fire('click');
+    expect(ui.mode).toBe('phone');
+    const phoneKey = key('ArrowLeft', canvas);
+    win.fire('keydown', phoneKey);
+    expect(phone.panel.handleKey).toHaveBeenCalledWith(phoneKey);
+    expect(minimap.handleKey).toHaveBeenCalledTimes(1);
+  });
+
   it('routes buttons, shortcuts, movement and touch through the active modal', () => {
     const { ui, controls, game, canvas, stage, menu, direction, reset, resetHandler, win } = setup();
     const inventory = fakePanel(), phone = fakePanel();
