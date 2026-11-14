@@ -3,7 +3,7 @@ import { feetAtTile, pxToTile } from '../src/core/coords';
 import type { MapEvent } from '../src/core/types';
 import { positionAt } from '../src/map/explorer';
 import { Game } from '../src/session/game';
-import { TrainTravelSession } from '../src/travel/session';
+import { TrainTravelSession, type TravelResult } from '../src/travel/session';
 import { buildWorld } from '../src/world';
 import { RailwayNetwork, type RailwayStation } from '../src/world/railway';
 import { toRuntime } from '../src/world/runtime';
@@ -28,7 +28,21 @@ function setup() {
   const railway = new RailwayNetwork([origin, destination], [{ id: 'local-line', stations: [origin.id, destination.id] }]);
   const game = new Game(world);
   game.player = positionAt(origin.boarding);
-  return { world, railway, game, travel: new TrainTravelSession(game, railway) };
+  return { world, railway, game, travel: new TrainTravelSession(game, railway, undefined, FLOWS) };
+}
+
+/** 改札を使わない駅（看板が改札を兼ねる）。きっぷは看板で選び、同じ看板でもう一度操作して乗る。 */
+const FLOWS = [origin.id, neighbor.stationId].map(stationId => ({ stationId, gate: null, platforms: [] }));
+
+/** 選ぶ → きっぷ → のりばで乗車 → 発車の暗転で到着。 */
+function ride(travel: TrainTravelSession, game: Game, destinationId: string): TravelResult {
+  expect(travel.begin(interaction(game))).toBe(true);
+  expect(travel.select(destinationId)).toBe(true);
+  expect(travel.issue()).not.toBeNull();
+  travel.back();
+  expect(travel.begin(interaction(game))).toBe(true);
+  expect(travel.startRide()).not.toBeNull();
+  return travel.commitArrival();
 }
 
 function interaction(game: Game): MapEvent {
@@ -43,10 +57,10 @@ describe('train travel session', () => {
     game.setAppearance({ ...game.appearance, hairColor: 'black', outfitColor: 'red' });
     const appearance = { ...game.appearance }, stage = world.variant.stage;
     expect(travel.begin(interaction(game))).toBe(true);
-    expect(travel.confirm()).toEqual({ ok: false, reason: 'not-confirming' });
+    expect(travel.commitArrival()).toEqual({ ok: false, reason: 'not-riding' });
     expect(game.player).toEqual(positionAt(origin.boarding));
-    expect(travel.select(destination.id)).toBe(true);
-    expect(travel.confirm()).toEqual({ ok: true, originId: origin.id, destinationId: destination.id });
+    travel.cancel();
+    expect(ride(travel, game, destination.id)).toEqual({ ok: true, originId: origin.id, destinationId: destination.id });
     expect(game.player).toEqual(positionAt(destination.arrival));
     expect(game.appearance).toEqual(appearance);
     expect(world.variant.stage).toBe(stage);
@@ -59,10 +73,8 @@ describe('train travel session', () => {
       restored.update(1 / 120, { dir: 'up', run: false });
       expect(restored.player.areaId).toBe(destination.boarding.areaId);
     }
-    const returning = new TrainTravelSession(restored, railway);
-    expect(returning.begin(interaction(restored))).toBe(true);
-    expect(returning.select(origin.id)).toBe(true);
-    expect(returning.confirm()).toEqual({ ok: true, originId: destination.id, destinationId: origin.id });
+    const returning = new TrainTravelSession(restored, railway, undefined, FLOWS);
+    expect(ride(returning, restored, origin.id)).toEqual({ ok: true, originId: destination.id, destinationId: origin.id });
     expect(restored.player).toEqual(positionAt(origin.arrival));
     expect(new Game(world, { save: restored.serialize() }).appearance).toEqual(appearance);
     expect(world.variant.stage).toBe(stage);
@@ -84,11 +96,16 @@ describe('train travel session', () => {
 
   it('rechecks the boarding point on confirmation and never transfers a stale choice', () => {
     const { game, travel } = setup();
-    expect(travel.begin(interaction(game))).toBe(true);
+    const event = interaction(game);
+    expect(travel.begin(event)).toBe(true);
     expect(travel.select(destination.id)).toBe(true);
+    expect(travel.issue()).not.toBeNull();
+    travel.back();
+    expect(travel.begin(event)).toBe(true);
     game.player = { ...game.player, ...feetAtTile(10, 5) };
     const moved = { ...game.player };
-    expect(travel.confirm()).toEqual({ ok: false, reason: 'origin-unavailable' });
+    expect(travel.startRide()).toBeNull();
+    expect(travel.commitArrival()).toEqual({ ok: false, reason: 'not-riding' });
     expect(game.player).toEqual(moved);
     expect(travel.isOpen).toBe(false);
   });
@@ -101,9 +118,7 @@ describe('train travel session', () => {
       if (problem === 'missing') world.areas.delete(destination.arrival.areaId);
       if (problem === 'solid') target.solid[index] = 1;
       if (problem === 'portal') target.portalAt.set(index, { id: 'bad', from: { x: destination.arrival.x, y: destination.arrival.y }, to: origin.arrival });
-      expect(travel.begin(interaction(game))).toBe(true);
-      expect(travel.select(destination.id)).toBe(true);
-      expect(travel.confirm()).toEqual({ ok: false, reason: 'destination-unavailable' });
+      expect(ride(travel, game, destination.id)).toEqual({ ok: false, reason: 'destination-unavailable' });
       expect(game.player).toEqual(before);
     }
   });
@@ -116,14 +131,12 @@ describe('train travel session', () => {
       if (!allowed) return false;
       game.player = positionAt(point);
       return true;
-    });
+    }, FLOWS);
     const before = { ...game.player };
-    expect(travel.begin(interaction(game))).toBe(true);
-    expect(travel.select(destination.id)).toBe(true);
-    expect(travel.confirm()).toEqual({ ok: false, reason: 'destination-unavailable' });
+    expect(ride(travel, game, destination.id)).toEqual({ ok: false, reason: 'destination-unavailable' });
     expect(game.player).toEqual(before);
     allowed = true;
-    expect(travel.confirm()).toEqual({ ok: true, originId: origin.id, destinationId: destination.id });
+    expect(ride(travel, game, destination.id)).toEqual({ ok: true, originId: origin.id, destinationId: destination.id });
     expect(game.player).toEqual(positionAt(destination.arrival));
     expect(calls).toEqual([destination.arrival.areaId, destination.arrival.areaId]);
   });

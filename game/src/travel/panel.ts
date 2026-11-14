@@ -1,8 +1,17 @@
 import type { MapEvent } from '../core/types';
 import type { Game } from '../session/game';
 import type { RailwayNetwork } from '../world/railway';
-import { TrainTravelSession, type TravelArrival, type TravelResult } from './session';
+import { headingOf } from './direction';
+import { RIDE_TIMING, REDUCED_TIMING, RideDirector } from './ride';
+import { drawRideScene, SCENE_H, SCENE_W } from './scene';
+import { TrainTravelSession, type NoticeKind, type TravelArrival, type TravelResult } from './session';
 import './panel.css';
+
+const NOTICE_TEXT: Record<NoticeKind, string> = {
+  'ticket-issued': 'きっぷを うけとった。ホームの のりばへ すすんでね。',
+  'no-ticket': 'のるには、かいさつで いきさきを えらんで、きっぷを うけとってね。',
+  'wrong-platform': 'この きっぷの のりばは ここではないよ。',
+};
 
 /** 共有入力側が開閉時の入力解除・フォーカス復帰と、到着時の保存を行う。 */
 export interface TrainTravelPanelHooks {
@@ -23,8 +32,10 @@ export class TrainTravelPanel {
   private readonly session: TrainTravelSession;
   private readonly root = element('div', 'train-travel-overlay');
   private message = '';
+  private frame = 0;
+  private result: TravelResult | undefined;
 
-  constructor(game: Game, railway: RailwayNetwork, private readonly stage: HTMLElement, private readonly hooks: TrainTravelPanelHooks) {
+  constructor(private readonly game: Game, railway: RailwayNetwork, private readonly stage: HTMLElement, private readonly hooks: TrainTravelPanelHooks) {
     this.session = new TrainTravelSession(game, railway, hooks.arrive);
     this.root.id = 'train-travel-panel';
     this.root.hidden = true;
@@ -46,6 +57,8 @@ export class TrainTravelPanel {
 
   handleKey(event: KeyboardEvent): void {
     if (!this.isOpen) return;
+    // The ride cannot be skipped or cancelled; every key is swallowed until the player is back in control.
+    if (this.session.isRiding) { event.preventDefault(); return; }
     if (event.code === 'Escape') { event.preventDefault(); if (!event.repeat) this.back(); return; }
     const buttons = [...this.root.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
     if (event.code === 'Tab' || ['ArrowUp', 'ArrowDown', 'KeyW', 'KeyS'].includes(event.code)) {
@@ -81,6 +94,7 @@ export class TrainTravelPanel {
   }
 
   private back(): void {
+    if (this.session.isRiding) return;
     this.message = '';
     this.session.back();
     if (this.session.isOpen) this.render();
@@ -88,39 +102,92 @@ export class TrainTravelPanel {
   }
 
   private finish(result?: TravelResult): void {
+    cancelAnimationFrame(this.frame);
     this.root.hidden = true;
     this.root.replaceChildren();
+    delete this.root.dataset.ridePhase;
     this.stage.classList.remove('travel-open');
     this.hooks.onClose(result);
   }
 
-  private confirm(): void {
-    const result = this.session.confirm();
-    if (result.ok || !this.session.isOpen) { this.finish(result); return; }
-    this.message = 'いまは このえきに つけません。';
-    this.render();
+  private closeNotice(): void { this.back(); }
+
+  private issue(): void {
+    if (this.session.issue()) { this.message = ''; this.render(); }
+  }
+
+  private returnTicket(): void { this.session.returnTicket(); this.finish(); }
+
+  /** のる: ここから先は取り消せない。位置の更新は暗転の切れ目の1回だけ。 */
+  private board(): void {
+    const ticket = this.session.startRide();
+    if (!ticket) { this.finish(); return; }
+    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const canvas = element('canvas', 'train-travel-scene');
+    canvas.width = SCENE_W; canvas.height = SCENE_H;
+    canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', 'でんしゃに のって いどうちゅう');
+    const c = canvas.getContext('2d');
+    this.root.replaceChildren(canvas);
+    const fit = () => {
+      const w = this.stage.clientWidth || SCENE_W, h = this.stage.clientHeight || SCENE_H;
+      const limit = Math.min(w, h * SCENE_W / SCENE_H);
+      canvas.style.width = `${limit >= SCENE_W ? Math.floor(limit / SCENE_W) * SCENE_W : Math.floor(limit)}px`;
+    };
+    fit();
+    const onResize = () => fit();
+    window.addEventListener('resize', onResize);
+    const director = new RideDirector(headingOf(ticket.direction), () => {
+      this.result = this.session.commitArrival();
+      return this.result.ok;
+    }, () => {
+      window.removeEventListener('resize', onResize);
+      this.finish(this.result);
+    }, reduced ? REDUCED_TIMING : RIDE_TIMING);
+    let last = performance.now();
+    const tick = (now: number) => {
+      director.advance(now - last); last = now;
+      const snapshot = director.snapshot;
+      this.root.dataset.ridePhase = snapshot.phase;
+      if (c && snapshot.phase !== 'done') drawRideScene(c, this.game.appearance, snapshot, now);
+      if (snapshot.phase !== 'done') this.frame = requestAnimationFrame(tick);
+    };
+    this.frame = requestAnimationFrame(tick);
   }
 
   private render(): void {
     const state = this.session.state;
-    if (state.step === 'closed') return;
+    if (state.step === 'closed' || state.step === 'riding') return;
     const card = element('section', 'train-travel-card');
     card.setAttribute('role', 'dialog'); card.setAttribute('aria-modal', 'true'); card.setAttribute('aria-labelledby', 'train-travel-title');
-    const title = element('h2'); title.id = 'train-travel-title'; title.textContent = 'でんしゃ';
+    const title = element('h2'); title.id = 'train-travel-title';
+    title.textContent = state.step === 'board' ? 'のりば' : state.step === 'notice' ? 'えき' : 'かいさつ';
     card.append(title);
     const prompt = element('p', 'train-travel-prompt');
-    prompt.textContent = state.step === 'destinations' ? 'いきさきを えらんでね。' : `${state.destination.name}へ いきますか？`;
-    card.append(prompt);
+    const ticket = this.session.currentTicket;
     const actions = element('div', 'train-travel-actions');
     if (state.step === 'destinations') {
+      prompt.textContent = 'いきさきを えらんでね。';
       for (const destination of state.destinations) {
         actions.append(this.makeButton(destination.name, 'select', () => {
           if (this.session.select(destination.id)) { this.message = ''; this.render(); }
         }, destination.id));
       }
-    } else actions.append(this.makeButton('のる', 'confirm', () => this.confirm()));
-    actions.append(this.makeButton('もどる', 'back', () => this.back()));
-    card.append(actions);
+      if (ticket) actions.append(this.makeButton('きっぷを かえす', 'return-ticket', () => this.returnTicket()));
+      actions.append(this.makeButton('もどる', 'back', () => this.back()));
+    } else if (state.step === 'confirm') {
+      prompt.textContent = `${state.destination.name}ゆきの きっぷを うけとりますか？`;
+      actions.append(this.makeButton('うけとる', 'issue', () => this.issue()));
+      actions.append(this.makeButton('もどる', 'back', () => this.back()));
+    } else if (state.step === 'board') {
+      prompt.textContent = `${state.destinationName}ゆきに のりますか？`;
+      actions.append(this.makeButton('のる', 'board', () => this.board()));
+      actions.append(this.makeButton('もどる', 'back', () => this.back()));
+    } else {
+      prompt.textContent = state.kind === 'ticket-issued' && state.destinationName
+        ? `${state.destinationName}ゆきの きっぷを うけとった。ホームの のりばへ すすんでね。` : NOTICE_TEXT[state.kind];
+      actions.append(this.makeButton('とじる', 'close', () => this.closeNotice()));
+    }
+    card.append(prompt, actions);
     if (this.message) { const message = element('p', 'train-travel-message'); message.setAttribute('role', 'status'); message.textContent = this.message; card.append(message); }
     this.root.replaceChildren(card);
     actions.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });

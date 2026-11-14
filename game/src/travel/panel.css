@@ -12,3 +12,5 @@
 #train-travel-panel .train-travel-message { margin: 12px 0 0; color: #ffe08a; }
 #stage.travel-open #menu, #stage.travel-open #touch, #stage.travel-open #hint { visibility: hidden; }
 @media (max-height: 400px) { #train-travel-panel .train-travel-card { padding: 12px; } }
+#train-travel-panel .train-travel-scene { display: block; max-width: 100%; height: auto; image-rendering: pixelated; background: #000; }
+#train-travel-panel:has(.train-travel-scene) { background: #000; padding: 0; }

@@ -48,18 +48,41 @@ describe('train area-change integration', () => {
       if (event.type === 'area-enter') { events.push(event); arrivalSave = game.serialize(); }
     });
 
+    // きっぷが無いままのりばを操作しても、案内が出るだけで何も変わらない。
     game.action();
     expect(game.dialog).toBeNull();
-    expect(travel.confirm()).toEqual({ ok: false, reason: 'not-confirming' });
-    expect(travel.select(NEIGHBOR_STATION_ACCESS.stationId)).toBe(true);
-    expect(game.serialize()).toEqual(before);
-    travel.back(); travel.cancel();
+    expect(travel.state).toMatchObject({ step: 'notice', kind: 'no-ticket' });
+    expect(travel.startRide()).toBeNull();
+    travel.back();
     expect(game.serialize()).toEqual(before);
     expect(events).toEqual([]);
 
+    // 改札で選ぶ。取り消しても、きっぷを受け取っても、位置と保存内容は変わらない。
+    game.player = positionAt({ ...STATION_ACCESS.boarding, x: 16, y: 13, facing: 'up' });
+    game.action();
+    expect(travel.state.step).toBe('destinations');
+    expect(travel.select(NEIGHBOR_STATION_ACCESS.stationId)).toBe(true);
+    travel.back(); travel.cancel();
+    expect(travel.isOpen).toBe(false);
     game.action();
     expect(travel.select(NEIGHBOR_STATION_ACCESS.stationId)).toBe(true);
-    expect(travel.confirm()).toMatchObject({ ok: true });
+    expect(travel.issue()).not.toBeNull();
+    travel.back();
+    game.player = positionAt(STATION_ACCESS.boarding);
+    expect(game.serialize()).toEqual(before);
+    expect(events).toEqual([]);
+
+    // のりばで乗る。取り消せるのは乗る前まで。位置が変わるのは到着の1回だけ。
+    game.action();
+    expect(travel.state.step).toBe('board');
+    travel.back();
+    expect(game.serialize()).toEqual(before);
+    game.action();
+    expect(travel.startRide()).not.toBeNull();
+    expect(travel.startRide()).toBeNull();
+    expect(game.serialize()).toEqual(before);
+    expect(travel.commitArrival()).toMatchObject({ ok: true });
+    expect(travel.commitArrival()).toEqual({ ok: false, reason: 'not-riding' });
     expect(game.player).toEqual(positionAt(NEIGHBOR_STATION_ACCESS.arrival));
     expect(events).toEqual([{ type: 'area-enter', areaId: NEIGHBOR_STATION_ACCESS.arrival.areaId }]);
     expect(new Game(world, { save: arrivalSave }).serialize()).toEqual(game.serialize());

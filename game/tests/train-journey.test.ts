@@ -38,14 +38,23 @@ it('walks from home to the real station, takes both trains and walks back after 
   walk(game, LANDMARKS.stationFront);
   walk(game, STATION_ACCESS.outdoorEntrance);
   expect(game.player.areaId).toBe(STATION_ACCESS.areaId);
+  // 改札で行き先を選んできっぷを受け取り、ホームののりばで乗る。
+  walk(game, { x: 16, y: 13 });
+  game.update(1 / 120, { dir: 'up', run: false });
+  expect(game.facingInteraction()?.id).toBe('station-ticket');
+  game.action();
+  expect(travel.isOpen).toBe(true);
+  expect(travel.select(NEIGHBOR_STATION_ACCESS.stationId)).toBe(true);
+  expect(travel.issue()).toMatchObject({ direction: 'down' });
+  travel.back();
   walk(game, STATION_ACCESS.boarding);
   game.update(1 / 120, { dir: STATION_ACCESS.boarding.facing, run: false });
   expect(game.facingInteraction()?.id).toBe(STATION_ACCESS.interaction.id);
   game.action();
-  expect(travel.isOpen).toBe(true);
-  expect(travel.select(NEIGHBOR_STATION_ACCESS.stationId)).toBe(true);
+  expect(travel.state.step).toBe('board');
+  expect(travel.startRide()).toMatchObject({ destinationId: NEIGHBOR_STATION_ACCESS.stationId });
   expect(game.player.areaId).toBe(STATION_ACCESS.areaId);
-  expect(travel.confirm()).toMatchObject({ ok: true });
+  expect(travel.commitArrival()).toMatchObject({ ok: true });
   expect(game.player.areaId).toBe(NEIGHBOR_STATION_ACCESS.arrival.areaId);
 
   walk(game, { x: 9, y: 11 });
@@ -60,8 +69,13 @@ it('walks from home to the real station, takes both trains and walks back after 
   walk(game, NEIGHBOR_STATION_ACCESS.boarding);
   game.update(1 / 120, { dir: NEIGHBOR_STATION_ACCESS.boarding.facing, run: false });
   game.action();
+  // 隣町の駅は改札の操作対象がまだ無く、のりばの看板が改札を兼ねる（暫定）。
   expect(travel.select(STATION_ACCESS.stationId)).toBe(true);
-  expect(travel.confirm()).toMatchObject({ ok: true });
+  expect(travel.issue()).toMatchObject({ direction: 'up' });
+  travel.back();
+  game.action();
+  expect(travel.startRide()).toMatchObject({ destinationId: STATION_ACCESS.stationId });
+  expect(travel.commitArrival()).toMatchObject({ ok: true });
   expect(game.player.areaId).toBe(STATION_ACCESS.areaId);
   walk(game, { x: 17, y: 17 });
   expect(game.player.areaId).toBe('town-main');
