@@ -1,7 +1,7 @@
 import './style.css';
 import { DEFAULT_APPEARANCE } from '../core/appearance';
 import { feetAtTile } from '../core/coords';
-import type { EditorDocument, EditorObject } from '../editor/types';
+import type { EditorDocument, EditorObject, EditorInteraction } from '../editor/types';
 import { canonicalJSON } from '../editor/schema';
 import { Controls, DIRECTION_KEYS } from '../input/controls';
 import { Game } from '../session/game';
@@ -13,11 +13,15 @@ import { staleLayouts } from '../world/layouts';
 import { HOME_AREA, WorldEditorModel } from './model';
 import { hitItem } from './hit-test';
 import { surfaceModule } from './surface-catalog';
+import { npcEvents } from './npc';
 
 const $ = <T extends HTMLElement = HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 const workspace = $('#workspace'), scene = $<HTMLCanvasElement>('#scene'), overlay = $<HTMLCanvasElement>('#overlay');
 const renderer = new Renderer(scene), model = new WorldEditorModel(buildWorld()), controls = new Controls();
 let world = model.runtime(), activeArea = HOME_AREA, selected: string | undefined, game: Game | undefined;
+let selectedNpc: string | undefined, npcDraft=false;
+let npcDrag: { npc: EditorInteraction; offsetX: number; offsetY: number } | undefined;
+let npcGhost: { npc: EditorInteraction; document: EditorDocument; valid: boolean } | undefined;
 let ghost: { object: EditorObject; adding: boolean; document: EditorDocument; valid: boolean } | undefined;
 let placement: EditorObject | undefined, surface: string | undefined, paint: EditorDocument | undefined;
 let drag: { object: EditorObject; adding: boolean; offsetX: number; offsetY: number } | undefined;
@@ -30,7 +34,7 @@ const stale=staleLayouts(AREA_FACTORIES.map(create=>create()));
 const savedCameras = new Map<string, RenderCamera>();
 const categories: Record<string,string> = { seat:'いす・ソファ', table:'つくえ', bed:'ベッド', storage:'たな・収納', kitchen:'台所・家電', shop:'みせの什器', decor:'かざり・植物', wall:'窓・壁かけ' };
 const status = (text: string) => { $('#status').textContent = text; };
-const editing = () => !saveBusy && !game && activeArea === HOME_AREA;
+const editing = () => !saveBusy && !npcDraft && !game && activeArea === HOME_AREA;
 function local(e: { clientX: number; clientY: number }) { const r = workspace.getBoundingClientRect(); return { x:e.clientX-r.left,y:e.clientY-r.top }; }
 function areaPoint(e: { clientX: number; clientY: number }) { const p = local(e); return renderer.screenToArea(p.x,p.y); }
 function toScreen(x: number, y: number) {
@@ -38,11 +42,13 @@ function toScreen(x: number, y: number) {
   return { x:(x-origin.x)/(unit.x-origin.x), y:(y-origin.y)/(unit.y-origin.y) };
 }
 function inside(e: { clientX: number; clientY: number }) { const p=local(e);return p.x>=0&&p.y>=0&&p.x<workspace.clientWidth&&p.y<workspace.clientHeight; }
-function refresh() { world=model.runtime();ghost=undefined;paint=undefined;update(); }
+function refresh() { world=model.runtime();ghost=undefined;npcGhost=undefined;paint=undefined;update(); }
 function attempt(fn: () => void) { try { fn(); refresh(); status(''); } catch(error) { status((error as Error).message); update(); } }
 function update() {
   const o = selected ? (ghost?.object.id===selected?ghost.object:model.object(selected)) : undefined;
-  $('#properties').hidden=!o||!!game||activeArea!==HOME_AREA;
+  const npc=selectedNpc?(npcGhost?.npc.id===selectedNpc?npcGhost.npc:model.npc(selectedNpc)):undefined;
+  $('#properties').hidden=(!o&&!npc)||!!game||activeArea!==HOME_AREA;
+  $('#npc-properties').hidden=!npc;
   if (o) {
     $('#object-name').textContent = furnitureById(o.catalogId ?? '')?.name ?? ({desk:'学習づくえ',lowtable:'ローテーブル',sofa:'ソファ'}[o.kind] ?? o.kind);
     $('#object-position').textContent=`位置 ${o.x}, ${o.y}　足元 ${o.w}×${o.h}　向き ${o.facing ?? 'down'}`;
@@ -53,21 +59,35 @@ function update() {
     $<HTMLButtonElement>('#rotate').disabled=!editing()||!o.catalogId;
     $<HTMLButtonElement>('#duplicate').disabled=!editing()||!o.catalogId||!!placement;
   }
+  if(npc){
+    $('#object-name').textContent=npc.name;$('#object-position').textContent=`位置 ${npc.x}, ${npc.y}　足元 1×1`;
+    $('#object-id').textContent=`ID ${npc.id}（変更できません）`;$('#object-json').textContent=canonicalJSON(npc);
+    const reason=model.npcProtectedReason(npc.id);$('#protection').textContent=reason;
+    $<HTMLButtonElement>('#delete').disabled=!editing()||!!reason;$<HTMLButtonElement>('#rotate').disabled=!editing();$<HTMLButtonElement>('#duplicate').disabled=true;
+    if(!npcDraft){$<HTMLInputElement>('#npc-name').value=npc.name;$<HTMLSelectElement>('#npc-facing').value=npc.facing??'down';
+      $<HTMLTextAreaElement>('#npc-lines').value=npc.lines.join('\n');}
+    $<HTMLInputElement>('#npc-sprite').value=npc.sprite??'';
+    $<HTMLInputElement>('#npc-event-key').value=npc.eventKey;
+    for(const field of document.querySelectorAll<HTMLInputElement|HTMLTextAreaElement|HTMLSelectElement>('#npc-properties input,#npc-properties textarea,#npc-properties select'))field.disabled=saveBusy||!!game||activeArea!==HOME_AREA;
+    for(const button of ['#npc-apply','#npc-revert'])$<HTMLButtonElement>(button).disabled=!npcDraft||saveBusy||!!game;
+    const events=npcEvents(npc);$('#npc-event-note').textContent=events.length?`この人には条件つきのイベントの会話が${events.length}件あります。条件を満たすとそちらが出ます。ここで編集するのは、ふだんの会話です。`:'';
+    $('#npc-events').replaceChildren();for(const event of events){const li=document.createElement('li');li.textContent=event.title;$('#npc-events').append(li);}
+  }
   $<HTMLButtonElement>('#undo').disabled=!editing()||!model.session.canUndo;
   $<HTMLButtonElement>('#redo').disabled=!editing()||!model.session.canRedo;
   $<HTMLButtonElement>('#save').disabled=!editing()||!canSave||!model.dirty;
-  $('#dirty').textContent=`未保存 ${model.dirty}`;$('#zoom').textContent=`${camera.zoom*100}%`;
+  $('#dirty').textContent=`未保存 ${model.dirty+Number(npcDraft)}`;$('#zoom').textContent=`${camera.zoom*100}%`;
   $('#location').textContent=activeArea===HOME_AREA?'じぶんのいえ':'まち（表示のみ）';
   $('#outside').textContent=activeArea===HOME_AREA?'← まちへ':'へやを開く';
-  $<HTMLButtonElement>('#outside').disabled=saveBusy;
-  $<HTMLButtonElement>('#play').disabled=saveBusy;
+  $<HTMLButtonElement>('#outside').disabled=saveBusy||npcDraft;
+  $<HTMLButtonElement>('#play').disabled=saveBusy||npcDraft;
   $('#play').textContent=game?'編集に戻る':'▶ 歩いて確かめる';
   $('#catalog').hidden=!!game;$('#play-controls').hidden=!game;
   $('#stop-placement').hidden=!placement&&!surface;
 }
-function cancelGesture() { placement=undefined;drag=undefined;pan=undefined;paint=undefined;ghost=undefined;world=model.runtime();update(); }
+function cancelGesture() { placement=undefined;drag=undefined;npcDrag=undefined;npcGhost=undefined;pan=undefined;paint=undefined;ghost=undefined;world=model.runtime();update(); }
 function openArea(id: string) {
-  savedCameras.set(activeArea,{...camera});cancelGesture();activeArea=id;selected=undefined;
+  savedCameras.set(activeArea,{...camera});cancelGesture();activeArea=id;selected=undefined;selectedNpc=undefined;
   Object.assign(camera,savedCameras.get(id) ?? (id===HOME_AREA?{centerX:128,centerY:96,zoom:3}:{centerX:35*16,centerY:31*16,zoom:3}));
   status(id===HOME_AREA?'':'この段階では、まちは表示のみです。家をダブルクリックすると部屋へ入れます');update();workspace.focus();
 }
@@ -76,8 +96,12 @@ function preview(object: EditorObject, adding: boolean) {
   ghost={object,adding,document:candidate,valid:!errors.length};world=model.runtime(candidate);
   status(errors[0]??'離すと配置できます');update();
 }
+function previewNpc(npc: EditorInteraction){
+  const candidate=model.npcCandidate(npc),errors=model.issues(candidate);
+  npcGhost={npc,document:candidate,valid:!errors.length};world=model.runtime(candidate);status(errors[0]??'離すと配置できます');update();
+}
 function startPlacement(object: EditorObject) {
-  cancelGesture();surface=undefined;placement=object;selected=object.id;
+  cancelGesture();surface=undefined;placement=object;selected=object.id;selectedNpc=undefined;
   const area=world.areas.get(HOME_AREA)!;
   for(let y=1;y<area.height-1;y++) for(let x=1;x<area.width-1;x++) {
     const candidate={...object,x,y};if(!model.issues(model.candidate(candidate,true)).length){placement=candidate;preview(candidate,true);return;}
@@ -125,16 +149,16 @@ function brush(e: PointerEvent) {
   else{world=model.runtime(paint);status('離すと塗った範囲を確定します');}
 }
 workspace.addEventListener('pointerdown',e=>{
-  if((e.target as HTMLElement).closest('aside,button,details,#walk-dialog')||game)return;
-  if(ghost&&!placement){ghost=undefined;world=model.runtime();}
+  if((e.target as HTMLElement).closest('aside,button,details,#walk-dialog')||game||npcDraft)return;
+  if((ghost&&!placement)||npcGhost){ghost=undefined;npcGhost=undefined;world=model.runtime();}
   workspace.focus();pointers.set(e.pointerId,local(e));workspace.setPointerCapture(e.pointerId);
   if(pointers.size===2){cancelGesture();const [a,b]=[...pointers.values()],mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2},anchor=renderer.screenToArea(mid.x,mid.y);pinch={distance:Math.hypot(a.x-b.x,a.y-b.y),zoom:camera.zoom,x:anchor.x,y:anchor.y};return;}
   if(editing()&&surface){paint=model.document;brush(e);return;}
   const point=areaPoint(e),hit=hitItem(world.areas.get(activeArea)!,point.x,point.y);
   if(editing()&&placement){placement={...placement,x:Math.floor(point.x/16),y:Math.floor(point.y/16)};drag={object:placement,adding:true,offsetX:0,offsetY:0};preview(placement,true);return;}
-  if(editing()&&hit?.table==='objects'&&!space&&e.button!==1){selected=hit.id;const o=model.object(hit.id)!;drag={object:o,adding:false,offsetX:Math.floor(point.x/16)-o.x,offsetY:Math.floor(point.y/16)-o.y};update();return;}
-  if(hit?.table==='interactions'){selected=undefined;status('人物と会話の内容は、この段階では変更しません');}
-  else selected=undefined;
+  if(editing()&&hit?.table==='objects'&&!space&&e.button!==1){selected=hit.id;selectedNpc=undefined;const o=model.object(hit.id)!;drag={object:o,adding:false,offsetX:Math.floor(point.x/16)-o.x,offsetY:Math.floor(point.y/16)-o.y};update();return;}
+  if(editing()&&hit?.table==='interactions'&&!space&&e.button!==1){selected=undefined;selectedNpc=hit.id;const npc=model.npc(hit.id)!;npcDrag={npc,offsetX:Math.floor(point.x/16)-npc.x,offsetY:Math.floor(point.y/16)-npc.y};update();return;}
+  selected=undefined;selectedNpc=undefined;
   pan={x:e.clientX,y:e.clientY,cx:camera.centerX,cy:camera.centerY};update();
 });
 window.addEventListener('pointermove',e=>{
@@ -145,14 +169,16 @@ window.addEventListener('pointermove',e=>{
     camera.centerY=pinch.y-((a.y+b.y)/2-workspace.clientHeight/2)*dpr/camera.zoom;update();return;}
   if(paint){brush(e);return;}
   if(pan){const scale=camera.zoom/(window.devicePixelRatio||1);camera.centerX=pan.cx-(e.clientX-pan.x)/scale;camera.centerY=pan.cy-(e.clientY-pan.y)/scale;return;}
+  if(npcDrag&&inside(e)){const p=areaPoint(e);previewNpc({...npcDrag.npc,x:Math.floor(p.x/16)-npcDrag.offsetX,y:Math.floor(p.y/16)-npcDrag.offsetY});return;}
   if(drag&&inside(e)){const p=areaPoint(e);preview({...drag.object,x:Math.floor(p.x/16)-drag.offsetX,y:Math.floor(p.y/16)-drag.offsetY},drag.adding);}
 });
 window.addEventListener('pointerup',e=>{
   pointers.delete(e.pointerId);
   if(pinch){if(pointers.size<2)pinch=undefined;return;}
   if(paint){const candidate=paint;paint=undefined;attempt(()=>model.commit(candidate));}
+  else if(npcDrag&&npcGhost&&inside(e)){if(npcGhost.valid){const candidate=npcGhost.document;attempt(()=>model.commit(candidate));}else{world=model.runtime();npcGhost=undefined;update();}}
   else if(drag&&ghost&&inside(e)){if(ghost.valid){const candidate=ghost.document;placement=undefined;attempt(()=>model.commit(candidate));}else{placement=undefined;world=model.runtime();ghost=undefined;update();}}
-  drag=undefined;pan=undefined;
+  drag=undefined;npcDrag=undefined;pan=undefined;
 });
 window.addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);pinch=undefined;cancelGesture();controls.clear();});
 workspace.addEventListener('dblclick',e=>{if(activeArea!=='town-main'||game)return;const p=areaPoint(e),hit=hitItem(world.areas.get(activeArea)!,p.x,p.y);if(hit&&world.areas.get(activeArea)!.objects.find(o=>o.id===hit.id)?.facilityId==='home-family')openArea(HOME_AREA);});
@@ -161,6 +187,7 @@ $('#outside').onclick=()=>{if(!game)openArea(activeArea===HOME_AREA?'town-main':
 $('#zoom-in').onclick=()=>setZoom(camera.zoom+1);$('#zoom-out').onclick=()=>setZoom(camera.zoom-1);
 $('#undo').onclick=()=>{cancelGesture();attempt(()=>model.session.undo());};$('#redo').onclick=()=>{cancelGesture();attempt(()=>model.session.redo());};
 $('#rotate').onclick=()=>{
+  if(selectedNpc){attempt(()=>model.rotateNpc(selectedNpc!));return;}
   const o=placement??(selected?model.object(selected):undefined);if(!o?.catalogId)return;
   const facing=nextFacing(o.catalogId,o.facing),variant=furnitureVariant(o.catalogId,facing)!;
   const rotated={...o,facing,w:variant.w,h:variant.h};
@@ -169,6 +196,19 @@ $('#rotate').onclick=()=>{
 };
 $('#duplicate').onclick=()=>{if(selected)try{startPlacement(model.duplicate(selected));}catch(error){status((error as Error).message);}};
 $('#delete').onclick=()=>{if(selected)attempt(()=>{model.remove(selected!);selected=undefined;});};
+for(const selector of ['#npc-name','#npc-facing','#npc-lines'])$(selector).addEventListener(selector==='#npc-facing'?'change':'input',()=>{
+  if(saveBusy||game||!selectedNpc)return;npcDraft=true;status('「変更を反映」で入力を確定します');update();
+});
+$('#npc-apply').onclick=()=>{
+  if(saveBusy||game||!selectedNpc||!npcDraft)return;
+  attempt(()=>{model.updateNpc(selectedNpc!,{name:$<HTMLInputElement>('#npc-name').value,
+    facing:$<HTMLSelectElement>('#npc-facing').value as EditorInteraction['facing'],
+    lines:$<HTMLTextAreaElement>('#npc-lines').value.replace(/\r\n?/g,'\n').split('\n')});npcDraft=false;});
+};
+$('#npc-revert').onclick=()=>{npcDraft=false;refresh();status('入力を取り消しました');};
+$('#npc-properties').addEventListener('keydown',e=>{
+  if(e.code==='Escape'&&npcDraft){e.preventDefault();e.stopPropagation();$('#npc-revert').click();}
+});
 $('#play').onclick=()=>{
   controls.clear();cancelGesture();
   if(game){game=undefined;refresh();}
@@ -186,7 +226,7 @@ window.addEventListener('keydown',e=>{
   if(game){if(e.code==='Escape'){$('#play').click();e.preventDefault();return;}if((e.target as HTMLElement).closest('button'))return;
     if(DIRECTION_KEYS[e.code]){controls.press(e.code,DIRECTION_KEYS[e.code]);e.preventDefault();}else if(e.code.startsWith('Shift'))controls.pressRun(e.code);
     else if(['KeyZ','Space','Enter'].includes(e.code)&&!e.repeat){controls.clear();game.action();e.preventDefault();}return;}
-  if(e.code==='Escape'){surface=undefined;selected=undefined;cancelGesture();status('');return;}
+  if(e.code==='Escape'){surface=undefined;selected=undefined;selectedNpc=undefined;npcDraft=false;cancelGesture();status('');return;}
   if(!editing()||(e.target as HTMLElement).closest('button,summary'))return;
   if((e.ctrlKey||e.metaKey)&&e.code==='KeyZ'){e.preventDefault();(e.shiftKey?$('#redo'):$('#undo')).click();}
   else if((e.ctrlKey||e.metaKey)&&e.code==='KeyY'){e.preventDefault();$('#redo').click();}
@@ -243,6 +283,8 @@ function overlays() {
   if(layers.has('ids')){c.font='11px system-ui';for(const item of [...area.interactions,...area.def.portals.map(p=>({id:p.id,...p.from}))]){const p=toScreen(item.x*16,item.y*16);c.fillStyle='#20303be6';c.fillRect(p.x,p.y-14,c.measureText(item.id).width+8,16);c.fillStyle='#ffe5a0';c.fillText(item.id,p.x+4,p.y-2);}}
   const o=ghost?.object??(selected?model.object(selected):undefined);
   if(o&&activeArea===HOME_AREA){box(o.x,o.y,o.w,o.h,ghost?(ghost.valid?'#3bc87866':'#e15e5266'):'#ffffff18');const p=toScreen(o.x*16,o.y*16),q=toScreen((o.x+o.w)*16,(o.y+o.h)*16);c.strokeStyle=ghost?(ghost.valid?'#6bff9c':'#ff857b'):'#fff';c.lineWidth=2;c.setLineDash([5,3]);c.strokeRect(p.x,p.y,q.x-p.x,q.y-p.y);c.setLineDash([]);}
+  const npc=npcGhost?.npc??(selectedNpc?model.npc(selectedNpc):undefined);
+  if(npc&&activeArea===HOME_AREA){box(npc.x,npc.y,1,1,npcGhost?(npcGhost.valid?'#3bc87866':'#e15e5266'):'#ffffff18');const p=toScreen(npc.x*16,npc.y*16),q=toScreen((npc.x+1)*16,(npc.y+1)*16);c.strokeStyle=npcGhost?(npcGhost.valid?'#6bff9c':'#ff857b'):'#fff';c.lineWidth=2;c.setLineDash([5,3]);c.strokeRect(p.x,p.y,q.x-p.x,q.y-p.y);c.setLineDash([]);}
 }
 function resize(){renderer.resize(workspace.clientWidth,workspace.clientHeight,window.devicePixelRatio||1);overlay.width=scene.width;overlay.height=scene.height;overlay.style.width=scene.style.width;overlay.style.height=scene.style.height;}
 new ResizeObserver(resize).observe(workspace);resize();

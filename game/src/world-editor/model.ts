@@ -1,4 +1,4 @@
-import { EditorSession, diffDocuments, parseDocument, validateDocument, type EditorDocument, type EditorObject } from '../editor';
+import { EditorSession, diffDocuments, parseDocument, validateDocument, type EditorDocument, type EditorObject, type EditorInteraction } from '../editor';
 import { assembleEditorWorld } from '../editor/runtime';
 import type { EditorValidationContext } from '../editor/types';
 import type { World } from '../world/runtime';
@@ -7,6 +7,7 @@ import { assertHomeWorldEdit as assertInteriorEdit } from './policy';
 import { worldDocument } from './document';
 import { withDerived } from '../editor/changes';
 import { trustedContext } from './trusted-context';
+import { isPlacedNpc } from './npc';
 
 export const HOME_AREA = 'home-family-interior';
 export class WorldEditorModel {
@@ -23,6 +24,24 @@ export class WorldEditorModel {
   get document() { return this.session.document; }
   get dirty() { return this.session.exportChanges().operations.length; }
   object(id: string, document = this.document) { return document.objects.find(o => o.id === id && o.areaId === HOME_AREA); }
+  npc(id: string, document = this.document) { return document.interactions.find(i => i.id === id && i.areaId === HOME_AREA && i.kind === 'npc'); }
+  npcProtectedReason(id: string) {
+    const npc=this.npc(id);return npc&&!isPlacedNpc(npc)?'ゲームの出来事につながっている人物なので、消せません':'';
+  }
+  npcCandidate(npc: EditorInteraction): EditorDocument {
+    const next=this.document,index=next.interactions.findIndex(i=>i.id===npc.id);
+    if(index<0)throw new Error('人物を選んでください');
+    next.interactions[index]=structuredClone(npc);return withDerived(next,this.context);
+  }
+  updateNpc(id: string, patch: Partial<Pick<EditorInteraction,'x'|'y'|'facing'|'name'|'lines'|'sprite'>>) {
+    const npc=this.npc(id);if(!npc)throw new Error('人物を選んでください');
+    this.commit(this.npcCandidate({...npc,...structuredClone(patch)}));
+  }
+  rotateNpc(id: string) {
+    const npc=this.npc(id);if(!npc)throw new Error('人物を選んでください');
+    const directions=['down','left','up','right'] as const;
+    this.updateNpc(id,{facing:directions[(directions.indexOf(npc.facing??'down')+1)%directions.length]});
+  }
   protectedReason(id: string) {
     const links = this.initial.interactions.filter(i => i.objectId === id);
     return links.length ? `「${links.map(i => i.name).join('・')}」が結び付いているので、消せません` : '';

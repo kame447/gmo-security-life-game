@@ -1,6 +1,7 @@
 import type { EditorDocument } from '../editor/types';
 import { equal } from '../world/layouts/codec';
 import { furnitureById } from '../render/furniture/catalog';
+import { npcIssue } from './npc';
 
 const reject = (message: string): never => { throw new Error(message); };
 const fixed = (a: unknown, b: unknown, message: string) => { if (!equal(a,b)) reject(message); };
@@ -34,7 +35,13 @@ export function assertInteriorEdit(before: EditorDocument, after: EditorDocument
   fixed(previous.map(i=>i.id).sort(),current.map(i=>i.id).sort(),'人物と調べる場所は追加・削除できません');
   for (const i of previous) {
     const j = current.find(j => j.id === i.id)!;
-    if (!i.objectId) fixed(i,j,'人物と会話は変更できません');
+    if (i.kind === 'npc') {
+      const { x: _, y: __, facing: ___, sprite: ____, name: _____, lines: ______, ...meta } = i;
+      const { x: a, y: b, facing: c, sprite: d, name: e, lines: f, ...changed } = j;
+      fixed(meta,changed,'元の人物のID・イベントキー・足元は変更できません');
+      const problem=npcIssue(j,after);if(problem)reject(problem);
+    }
+    else if (!i.objectId) fixed(i,j,'調べる場所の内容は変更できません');
     else {
       const { x: _, y: __, w: ___, h: ____, ...meta } = i;
       const { x: a, y: b, w: c, h: d, ...changed } = j;
