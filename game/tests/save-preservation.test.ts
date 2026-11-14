@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_APPEARANCE } from '../src/core/appearance';
 import { LifeState } from '../src/events/life-state';
 import { Game } from '../src/session/game';
-import { parseSave } from '../src/state/save';
+import { parseSave, preserveSaveExtensions } from '../src/state/save';
 import { PHONE_BUDGET_PROTOTYPE } from '../src/phone/budget-config';
 import { buildWorld } from '../src/world';
 
@@ -58,6 +58,17 @@ describe('v1 save preservation at the shared codec', () => {
     parsed.assets.layout.bag[0] = null;
     expect(saved.life.history[0].eventId).toBe('sample.tablet-ad');
     expect(saved.assets.layout.bag[0]).toBe('pencil');
+  });
+
+  it('retains nested layout metadata when an inventory-aware caller emits normalized layout', () => {
+    const saved = seed();
+    const previous = { ...saved, assets: { ...saved.assets, layout: { ...saved.assets.layout,
+      futureLayout: { v: 7, mode: 'preserve-me' } } } };
+    const current = { ...parseSave(saved, world)!, assets: { ...saved.assets,
+      layout: { v: 1, bag: [null, 'pencil'], hotbar: [null], selectedHotbar: 0 } } };
+    const result = preserveSaveExtensions(previous, current);
+    expect(result).toEqual({ ...current, assets: { ...current.assets, layout: { ...current.assets.layout,
+      futureLayout: { v: 7, mode: 'preserve-me' } } } });
   });
 
   it.each([undefined, NaN, Infinity, new Map([['progress', 1]]), new Set([1]), new Date(), () => 1])

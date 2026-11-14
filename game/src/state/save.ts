@@ -34,12 +34,13 @@ export interface SaveData {
 const FACINGS: readonly unknown[] = ['up', 'down', 'left', 'right'];
 
 type FieldShape = { [key: string]: FieldShape | null };
+const ASSET_FIELDS: FieldShape = { moneyYen: null, items: null };
 // Known optional fields must be removed when their codec omits them (e.g. invalid
 // clock metadata). Unknown object members remain opaque JSON, including `life`.
 const SAVE_FIELDS: FieldShape = {
   v: null, variantId: null, areaId: null, x: null, y: null, facing: null,
   appearance: Object.fromEntries(APPEARANCE_FIELDS.map(field => [field, null])),
-  assets: { moneyYen: null, items: null },
+  assets: ASSET_FIELDS,
   phone: { v: null, owned: null,
     dataBudget: { v: null, remainingMb: null, capacityMb: null, savedAtEpochMs: null, activeAtSave: null },
     chat: { v: null, contacts: null, threads: null } },
@@ -69,7 +70,13 @@ export function preserveSaveExtensions(previous: unknown, current: SaveData,
   options?: SaveValidationOptions): SaveData {
   checkSaveTree(previous, true);
   checkSaveTree(current);
-  return copySaveJson(retainFields(previous, current, SAVE_FIELDS), options) as SaveData;
+  // Older builds transport layout opaquely; inventory-aware builds normalize its
+  // owned fields while still preserving metadata introduced by a newer caller.
+  const fields = saveRecord(current.assets) && Object.hasOwn(current.assets, 'layout')
+    ? { ...SAVE_FIELDS, assets: { ...ASSET_FIELDS,
+      layout: { v: null, bag: null, hotbar: null, selectedHotbar: null } } }
+    : SAVE_FIELDS;
+  return copySaveJson(retainFields(previous, current, fields), options) as SaveData;
 }
 
 export function createSave(world: World, player: PlayerPosition, appearance: PlayerAppearance,
