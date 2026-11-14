@@ -65,7 +65,9 @@ describe.each(all)('$c.id one-way egress', a => {
 
   it.each([false, true])('lets direct Game movement exit north and south through a closed bar (run=%s)', run => {
     for (const dir of ['up', 'down'] as const) {
-      clearCrossingClock(); advanceCrossingClock(closingAt(a));
+      const closed = closingAt(a) + 0.8;
+      expect(crossingState(a.area, a.c, closed).phase).toBe('closed');
+      clearCrossingClock(); advanceCrossingClock(closed);
       const game = new Game(world), c = a.c;
       const start = dir === 'up' ? c.top + 4 : c.bottom - 4;
       const end = dir === 'up' ? c.northWaitY - 2 : c.southWaitY + 2;
@@ -73,7 +75,7 @@ describe.each(all)('$c.id one-way egress', a => {
       game.update(Math.abs(end - start) / (run ? RUN_SPEED : WALK_SPEED), { dir, run });
       expect(game.player.y).toBeCloseTo(end);
       expect(crossingContains(c, game.player.x, game.player.y)).toBe(false);
-      safe(a, game.player, closingAt(a));
+      safe(a, game.player, closed);
       const before = game.player.y;
       game.update(0.2, { dir: dir === 'up' ? 'down' : 'up', run });
       expect(dir === 'up' ? game.player.y <= c.northWaitY : game.player.y >= c.southWaitY).toBe(true);
@@ -82,8 +84,9 @@ describe.each(all)('$c.id one-way egress', a => {
   });
 
   it.each([false, true])('honors the actual exit input and its walk/run speed in the frame clock (run=%s)', run => {
-    for (const dir of ['up', 'down'] as const) {
-      clearCrossingClock(); const t = closingAt(a); advanceCrossingClock(t - 0.01);
+    for (const delay of [0, 0.8]) for (const dir of ['up', 'down'] as const) {
+      clearCrossingClock(); const t = closingAt(a) + delay; advanceCrossingClock(t - 0.01);
+      expect(crossingState(a.area, a.c, t).phase).toBe(delay ? 'closed' : 'closing');
       const game = new Game(world), c = a.c, speed = run ? RUN_SPEED : WALK_SPEED;
       game.player = { areaId: a.area.def.id, x: (c.left + c.right) / 2,
         y: dir === 'up' ? c.top + 4 : c.bottom - 4, facing: 'left' };

@@ -59,27 +59,38 @@ describe.each(towns)('%s crossing schedule', areaId => {
   });
 
   it('closes before every train arrives and stays closed until its tail clears, across cycle boundaries', () => {
-    const trains = new TownTrainService(), seen = new Set<string>();
-    for (let n = 0; n <= period * 3 * 100; n++) {
-      const t = n / 100;
-      for (const c of getCrossings(area)) {
+    const trains = new TownTrainService(), seen = new Set<string>(), crossings = getCrossings(area);
+    const failures: { t: number; crossing: string; property: string; direction?: string }[] = [];
+    const record = (t: number, crossing: string, property: string, direction?: string) => {
+      if (failures.length < 10) failures.push({ t, crossing, property, direction });
+    };
+    const lastSample = Math.floor(period * 3 * 100);
+    let samples = 0;
+    // Keep every 10ms sample across all three cycles. Reuse the two frame queries per instant and
+    // collect only failures: creating Vitest matcher stacks at every point made parallel runs time out.
+    for (let n = 0; n <= lastSample; n++) {
+      const t = n / 100, current = trains.frames(area, t);
+      const ahead = trains.frames(area, t + CROSSING_PROTOTYPE.warningSeconds - 0.02);
+      samples++;
+      for (const c of crossings) {
         const state = crossingState(area, c, t);
-        expect(state.armDown).toBeGreaterThanOrEqual(0); expect(state.armDown).toBeLessThanOrEqual(1);
-        expect(crossingState(area, c, t + period).phase).toBe(state.phase);
-        for (const train of trains.frames(area, t)) {
+        if (!(state.armDown >= 0 && state.armDown <= 1)) record(t, c.id, `armDown outside [0,1]: ${state.armDown}`);
+        if (crossingState(area, c, t + period).phase !== state.phase) record(t, c.id, 'phase differs one period later');
+        for (const train of current) {
           if (train.x + train.length <= c.left || train.x >= c.right) continue;
           seen.add(`${c.id}:${train.direction}`);
-          expect(state.blocked, `${c.id} ${train.direction} t=${t}`).toBe(true);
-          expect(state.armDown, `${c.id} t=${t}`).toBe(1);
+          if (state.blocked !== true) record(t, c.id, 'open while occupied', train.direction);
+          if (state.armDown !== 1) record(t, c.id, 'bar not fully down while occupied', train.direction);
         }
         // The leading end of either direction reaches the crossing during the next warning interval.
-        const ahead = trains.frames(area, t + CROSSING_PROTOTYPE.warningSeconds - 0.02);
         for (const train of ahead) if (train.x + train.length > c.left && train.x < c.right) {
-          expect(state.blocked, `warning ${c.id} ${train.direction} t=${t}`).toBe(true);
+          if (state.blocked !== true) record(t, c.id, 'open during approach warning', train.direction);
         }
       }
     }
-    expect(seen.size).toBe(getCrossings(area).length * 2);
+    expect(samples).toBe(lastSample + 1);
+    expect(failures).toEqual([]);
+    expect(seen.size).toBe(crossings.length * 2);
   });
 
   it('has visible lowering and raising, opens between trains, and never opens for one line while the other approaches', () => {
