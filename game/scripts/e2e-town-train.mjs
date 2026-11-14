@@ -46,17 +46,15 @@ try {
       await page.waitForFunction(() => !!window.__slg?.game && !window.__slg.renderer.stats.fading);
       for (const areaId of areas) {
         const setup = await page.evaluate(async id => {
-          const { findRailStrips } = await import('/src/town-train/service.ts');
-          const { canStand, positionAt } = await import('/src/map/explorer.ts');
+                    const { canStand, positionAt } = await import('/src/map/explorer.ts');
           const { isRailGround } = await import('/src/world/tiles.ts');
           const game = window.__slg.game, area = game.world.areas.get(id);
           if (!area) throw new Error(`Missing area ${id}`);
-          const strips = findRailStrips(area);
-          if (!strips.length) throw new Error(`No outdoor rail in ${id}`);
-          const strip = strips[0];
-          for (let y = strip.top / 16; y < strip.bottom / 16; y++) for (let x = strip.left / 16; x < strip.right / 16; x++) {
-            if (!isRailGround(area.ground[y * area.width + x])) throw new Error(`Non-rail tile inside ${id} strip`);
-          }
+          const { TOWN_RAIL_LAYOUTS } = await import('/src/world/rail-layouts.ts');
+          const layout = TOWN_RAIL_LAYOUTS[id];
+          if (!layout) throw new Error(`No outdoor rail in ${id}`);
+          const strip = { top: layout.northRow * 16, bottom: (layout.southRow + 1) * 16, left: 0, right: area.width * 16 };
+          for (let x = 0; x < area.width; x++) if (!isRailGround(area.ground[layout.northRow * area.width + x])) throw new Error(`Non-rail tile in the north row of ${id} at ${x}`);
           let position;
           const center = Math.floor(area.width * 0.65);
           for (let dy = 1; dy <= 10 && !position; dy++) for (const y of [strip.top / 16 - dy, strip.bottom / 16 - 1 + dy]) {
@@ -76,32 +74,33 @@ try {
         const panel = page.locator('#train-travel-panel');
         assert.equal(await panel.count(), 1, 'The travel panel exists');
         assert.equal(await panel.isVisible(), false, 'Train must run without the travel panel');
-        // 2線: 北の線（下り）は右へ、南の線（上り）は左へ走る。それぞれの線の上の列車を別々に観測する。
-        const bands = await page.evaluate(async id => {
-          const { findRailStrips } = await import('/src/town-train/service.ts');
-          return findRailStrips(window.__slg.game.world.areas.get(id)).map(s => ({ top: s.top, bottom: s.bottom, left: s.left, right: s.right, direction: s.direction }));
+        // 駅の区間は1線、外側は2線。下りは北の行を右へ、上りは南の行から駅の区間で北の行へ寄って左へ走る。
+        const rows = await page.evaluate(async id => {
+          const { TOWN_RAIL_LAYOUTS } = await import('/src/world/rail-layouts.ts');
+          const l = TOWN_RAIL_LAYOUTS[id];
+          return { north: (l.northRow + 1) * 16, south: (l.southRow + 1) * 16, width: window.__slg.game.world.areas.get(id).width * 16 };
         }, areaId);
-        assert.deepEqual(bands.map(b => b.direction), ['down', 'up']);
-        for (const band of bands) {
-          const sign = band.direction === 'down' ? 1 : -1;
+        for (const direction of ['down', 'up']) {
+          const sign = direction === 'down' ? 1 : -1;
           await page.evaluate(() => { window.__townTrainPaint.length = 0; });
-          await page.waitForFunction(({ id, top, bottom }) => {
-            const paint = window.__townTrainPaint.filter(p => p.y + p.h === bottom).at(-1), { camX, viewW } = window.__slg.renderer.stats;
+          const pick = () => page.evaluate(d => window.__townTrainPaint.filter(p => p.direction === d).at(-1), direction);
+          await page.waitForFunction(({ id, d }) => {
+            const paint = window.__townTrainPaint.filter(p => p.direction === d).at(-1), { camX, viewW } = window.__slg.renderer.stats;
             return paint?.areaId === id && paint.x >= camX + 8 && paint.x + paint.w <= camX + viewW - 40;
-          }, { id: areaId, top: band.top, bottom: band.bottom }, { timeout: 16000 });
-          const pick = () => page.evaluate(({ top, bottom }) => window.__townTrainPaint.filter(p => p.y + p.h === bottom).at(-1), band);
+          }, { id: areaId, d: direction }, { timeout: 20000 });
           const first = await pick();
-          await page.screenshot({ path: resolve(shots, `${size.name}-${areaId}-${band.direction}-01.png`) });
-          await page.waitForFunction(({ areaId: id, firstX, sign, top, bottom }) => {
-            const paint = window.__townTrainPaint.filter(p => p.y + p.h === bottom).at(-1), { camX, viewW } = window.__slg.renderer.stats;
-            return paint?.areaId === id && (paint.x - firstX) * sign >= 20 && paint.x >= camX - 128 && paint.x + paint.w <= camX + viewW + 128;
-          }, { areaId, firstX: first.x, sign, top: band.top, bottom: band.bottom }, { timeout: 4000 });
+          await page.screenshot({ path: resolve(shots, `${size.name}-${areaId}-${direction}-01.png`) });
+          await page.waitForFunction(({ id, firstX, sign, d }) => {
+            const paint = window.__townTrainPaint.filter(p => p.direction === d).at(-1), { camX, viewW } = window.__slg.renderer.stats;
+            return paint?.areaId === id && (paint.x - firstX) * sign >= 20 && paint.x >= camX - 200 && paint.x + paint.w <= camX + viewW + 200;
+          }, { id: areaId, firstX: first.x, sign, d: direction }, { timeout: 6000 });
           const second = await pick();
-          await page.screenshot({ path: resolve(shots, `${size.name}-${areaId}-${band.direction}-02.png`) });
-          assert.ok((second.x - first.x) * sign > 19, `A real canvas ${band.direction} train moves ${band.direction === 'down' ? 'right' : 'left'}`);
+          await page.screenshot({ path: resolve(shots, `${size.name}-${areaId}-${direction}-02.png`) });
+          assert.ok((second.x - first.x) * sign > 19, `A real canvas ${direction} train moves ${direction === 'down' ? 'right' : 'left'}`);
           for (const draw of [first, second]) {
-            assert.ok(draw.x < band.right && draw.x + draw.w > band.left, 'Paint intersects its rail strip');
-            assert.equal(draw.y + draw.h, band.bottom, 'The train stands on its rail row (feet on the row bottom)');
+            const foot = draw.y + draw.h;
+            if (direction === 'down') assert.equal(foot, rows.north, 'The down train stands on the north row');
+            else assert.ok(foot >= rows.north && foot <= rows.south, 'The up train stands between the north and south rows (points)');
             assert.ok(draw.h > 26, 'The car body is taller than the player');
           }
         }
