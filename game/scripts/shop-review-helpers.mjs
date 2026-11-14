@@ -97,6 +97,20 @@ export async function assertFits(page) {
     assert.ok(hit.width >= 44 && hit.height >= 44, `Touch target is at least 44px: ${JSON.stringify(hit)}`);
     assert.equal(hit.onTop, true, `Button center and corners remain exposed: ${JSON.stringify(hit)}`);
   }
+  // The clerk and the player stay visible above the panel (feet point, from the renderer camera).
+  const actors = await page.evaluate(async () => {
+    const { feetAtTile } = await import('/src/core/coords.ts');
+    const game = window.__slg.game, stats = window.__slg.renderer.stats, view = document.querySelector('#view').getBoundingClientRect();
+    const scale = view.width / (stats.viewW * stats.zoom);
+    const at = feet => ({ x: view.x + (feet.x - stats.camX) * stats.zoom * scale, y: view.y + (feet.y - stats.camY) * stats.zoom * scale });
+    const clerk = game.facingInteraction(), tile = game.world.areas.get(game.player.areaId).interactions.find(item => item.eventKey === clerk?.eventKey);
+    return { player: at(game.player), clerk: tile && at(feetAtTile(tile.x, tile.y)) };
+  });
+  for (const [who, point] of Object.entries(actors)) {
+    if (!point) continue;
+    const covered = point.x >= result.panel.x && point.x <= result.panel.right && point.y >= result.panel.y && point.y <= result.panel.bottom;
+    assert.equal(covered, false, `The ${who} is not hidden behind the panel: ${JSON.stringify({ point, panel: result.panel })}`);
+  }
   // Implementation guards for this compact revision, not user-approved size specifications.
   const area = result.panel.width * result.panel.height / (result.width * result.height);
   assert.ok(area <= (result.phase === 'catalog' ? .60 : .75), `The room remains visible: ${JSON.stringify({ area, panel: result.panel })}`);
