@@ -1,10 +1,13 @@
 import { INVENTORY_PROTOTYPE } from '../data/inventory-config';
 import type { ItemStack } from './assets';
+import { copySaveJson } from './save-json';
 
 export type InventorySection = 'bag' | 'hotbar';
 export interface SlotAddress { section: InventorySection; index: number }
 /** Each owned stack occurs exactly once across both parts. Quantities live in assets.items only. */
 export interface InventoryLayoutSave {
+  /** Additional v1 members are opaque JSON, detached from live inventory state. */
+  [key: string]: unknown;
   v: 1;
   bag: (string | null)[];
   hotbar: (string | null)[];
@@ -45,8 +48,9 @@ export function normalizeInventoryLayout(raw: unknown, items: readonly ItemStack
     bag[index] = item.itemId; placed.add(item.itemId);
   }
   const selection = valid ? source.selectedHotbar : undefined;
-  return { v: 1, bag, hotbar, selectedHotbar: typeof selection === 'number' && Number.isInteger(selection) &&
-    selection >= 0 && selection < hotbar.length ? selection : 0 };
+  return copySaveJson<InventoryLayoutSave>({ ...(source?.v === 1 ? source : {}),
+    v: 1, bag, hotbar, selectedHotbar: typeof selection === 'number' && Number.isInteger(selection) &&
+      selection >= 0 && selection < hotbar.length ? selection : 0 });
 }
 
 export function validSlot(layout: InventoryLayoutSave, address: SlotAddress): boolean {
@@ -58,7 +62,7 @@ export function moveInventoryStack(layout: InventoryLayoutSave, from: SlotAddres
   { ok: true; layout: InventoryLayoutSave } | Exclude<InventoryResult, { ok: true }> {
   if (!validSlot(layout, from) || !validSlot(layout, to)) return { ok: false, reason: 'invalid-slot' };
   if (!layout[from.section][from.index]) return { ok: false, reason: 'empty-slot' };
-  const next = { ...layout, bag: [...layout.bag], hotbar: [...layout.hotbar] };
+  const next = copySaveJson(layout);
   const itemId = next[from.section][from.index];
   next[from.section][from.index] = next[to.section][to.index];
   next[to.section][to.index] = itemId;

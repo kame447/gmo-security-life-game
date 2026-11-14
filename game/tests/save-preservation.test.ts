@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_APPEARANCE } from '../src/core/appearance';
+import { INVENTORY_PROTOTYPE } from '../src/data/inventory-config';
 import { LifeState } from '../src/events/life-state';
 import { Game } from '../src/session/game';
 import { parseSave } from '../src/state/save';
@@ -15,7 +16,9 @@ life.record('sample.park-play', null);
 function seed() {
   return { ...new Game(world).serialize(), appearance: { ...DEFAULT_APPEARANCE, hairColor: 'black' as const },
     assets: { moneyYen: 2480, items: [{ itemId: 'pencil', quantity: 3 }],
-      layout: { v: 1, bag: ['pencil', null], hotbar: [null], selectedHotbar: 0 } },
+      layout: { v: 1,
+        bag: Array.from({ length: INVENTORY_PROTOTYPE.columns * INVENTORY_PROTOTYPE.bagRows }, (_, i) => i === 0 ? 'pencil' : null),
+        hotbar: Array<null>(INVENTORY_PROTOTYPE.hotbarSlots).fill(null), selectedHotbar: 0 } },
     phone: { v: 1, owned: false, dataBudget: { v: 1, remainingMb: 123.75, capacityMb: 5000 },
       chat: { v: 1, contacts: [{ id: 'family', name: '家族', icon: 'person' }], threads: [{ id: 'family', contactId: 'family',
         messages: [{ id: 'event-1', from: 'family', text: 'またね', atMs: 5, read: false }],
@@ -30,6 +33,15 @@ describe('v1 save preservation at the shared codec', () => {
     expect(restored).toEqual(saved);
     expect(JSON.parse(JSON.stringify(restored))).toEqual(saved);
     expect(parseSave(restored, world)).toEqual(saved);
+  });
+
+  it('pads short legacy slot arrays while preserving every other saved field and the input bytes', () => {
+    const expected = seed();
+    const legacy = { ...expected, assets: { ...expected.assets,
+      layout: { ...expected.assets.layout, bag: ['pencil', null], hotbar: [null] } } };
+    const original = JSON.stringify(legacy);
+    expect(parseSave(legacy, world)).toEqual(expected);
+    expect(JSON.stringify(legacy)).toBe(original);
   });
 
   it('repairs only damaged known fields and never mutates the original', () => {

@@ -5,7 +5,7 @@ import { bagReviewOptions } from './app/bag-review';
 import { clerkEvents } from './app/clerk-events';
 import { prepareShopReview } from './app/shop-review';
 import type { MapEventSink } from './core/types';
-import { loadSave, writeSave } from './app/save-store';
+import { LocalSaveSession } from './app/local-save-session';
 import { LifeEventDirector } from './events/director';
 import { CHILDHOOD_SAMPLE_EVENTS } from './events/samples/childhood';
 import { applyBagReviewFixture } from './data/bag-review-fixture';
@@ -21,6 +21,7 @@ import { UiController } from './ui/controller';
 import { $ } from './ui/dom';
 import { Hud } from './ui/hud';
 import { LifeEventPanel } from './ui/life-event-panel';
+import { LocalSavePanel } from './ui/local-save-panel';
 import { Smartphone } from './ui/smartphone';
 import { ShopPanel } from './ui/shop-panel';
 import { buildWorld } from './world';
@@ -32,7 +33,8 @@ const review = bagReviewOptions(window.location.search);
 const shopReview = review.temporary && new URLSearchParams(window.location.search).get('shopReview') === '1';
 let shopEvents: MapEventSink | undefined;
 const phoneOptions = { initialPhoneOwned: PHONE_INITIAL_OWNED, phoneDataConfig: PHONE_BUDGET_PROTOTYPE };
-const game = new Game(world, { ...phoneOptions, save: review.temporary ? undefined : loadSave(world, phoneOptions), sink: {
+const localSave = new LocalSaveSession(world, { readOptions: phoneOptions, disabled: review.temporary });
+const game = new Game(world, { ...phoneOptions, save: localSave.initialSave, sink: {
   onMapEvent: event => shopEvents?.onMapEvent(event) ?? lifeEvents.onMapEvent(event),
 } });
 if (shopReview) prepareShopReview(game);
@@ -43,14 +45,14 @@ const renderer = new Renderer(canvas);
 const controls = new Controls();
 const frames = new FrameRecorder();
 
-function save() {
-  if (review.temporary) return;
+function saveSnapshot() {
   const data = game.serialize();
   // A draft is visible immediately, but autosave must preserve the last confirmed appearance.
   const confirmed = avatar.confirmedAppearance;
   if (confirmed) data.appearance = confirmed;
-  writeSave(data);
+  return data;
 }
+function save() { if (!review.temporary) localSave.save(saveSnapshot()); }
 
 const avatar = new AvatarPanel(game, commit => {
   controls.clear();
@@ -69,6 +71,16 @@ const phone = new Smartphone(game.phone, $<HTMLElement>('#stage'), () => { contr
   () => ({ remainingMb: game.phone.remainingDataMb, capacityMb: game.phone.dataCapacityMb }));
 ui.registerPanel({ id: 'phone', panel: phone, open: () => phone.open(), button: phone.button,
   shortcut: 'KeyP', canOpen: () => phone.isAvailable });
+if (!review.temporary) {
+  const savePanel = new LocalSavePanel(localSave, $<HTMLElement>('#stage'), {
+    snapshot: saveSnapshot,
+    newGame: () => new Game(world, phoneOptions).serialize(),
+    reload: () => window.location.reload(),
+    onClose: () => { controls.clear(); ui.update(); ui.focusMap(); },
+  });
+  ui.registerPanel({ id: 'save', panel: savePanel, open: () => savePanel.open(), button: savePanel.button });
+  $<HTMLButtonElement>('#btn-reset').textContent = 'スタート地点へ';
+}
 game.phone.onChange(() => { save(); ui.update(); });
 const shop = new ShopPanel(game.assets, () => { controls.clear(); ui.focusMap(); }, save);
 ui.registerPanel({ id: 'shop', panel: shop });

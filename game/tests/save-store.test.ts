@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createSaveStore, loadSave, saveStatus, writeSave } from '../src/app/save-store';
+import { INVENTORY_PROTOTYPE } from '../src/data/inventory-config';
 import { Game } from '../src/session/game';
 import { buildWorld } from '../src/world';
 
@@ -121,7 +122,9 @@ describe('old save protection', () => {
 
   it('retains life, layout and future fields through the unchanged Game.serialize path', () => {
     const saved = { ...fresh(), life: { v: 7, history: ['event-1'] },
-      assets: { moneyYen: 900, items: [], layout: { v: 1, bag: [null], hotbar: [null], selectedHotbar: 0 } },
+      assets: { moneyYen: 900, items: [], layout: { v: 1,
+        bag: Array<null>(INVENTORY_PROTOTYPE.columns * INVENTORY_PROTOTYPE.bagRows).fill(null),
+        hotbar: Array<null>(INVENTORY_PROTOTYPE.hotbarSlots).fill(null), selectedHotbar: 0 } },
       future: { value: [1, false, null] } };
     const s = setup(saved);
     const game = new Game(world, { save: s.store.loadSave(world) });

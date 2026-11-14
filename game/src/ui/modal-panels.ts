@@ -1,5 +1,5 @@
 /** Shared input contract for the existing appearance panel and future modal panels. */
-export type ModalPanelId = 'avatar' | 'inventory' | 'shop' | 'phone';
+export type ModalPanelId = 'avatar' | 'inventory' | 'shop' | 'phone' | 'save';
 export type UiMode = 'explore' | 'dialog' | ModalPanelId;
 
 export interface ModalPanel {

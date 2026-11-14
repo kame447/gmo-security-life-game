@@ -1,0 +1,40 @@
+#local-save-overlay {
+  position: absolute; inset: 0; z-index: 30; display: grid; place-items: center;
+  background: rgb(19 22 27 / 58%); padding: max(16px, env(safe-area-inset-top)) 16px;
+  box-sizing: border-box;
+}
+#local-save-overlay[hidden], #local-save-panel [hidden], #local-save-indicator[hidden] { display: none !important; }
+#local-save-panel {
+  width: min(340px, 100%); max-height: 100%; overflow: auto; box-sizing: border-box;
+  padding: 22px; background: #252d35; border: 3px solid #f0e5c9; border-radius: 10px;
+  box-shadow: 0 6px 0 #151a20, 0 12px 32px #0006; text-align: center;
+}
+#local-save-title { margin: 0 0 18px; font-size: 21px; color: #f6e7bd; letter-spacing: .08em; }
+#local-save-menu { display: grid; gap: 10px; }
+#local-save-panel button {
+  display: block; width: 100%; min-height: 44px; padding: 10px 14px; box-sizing: border-box;
+  border: 2px solid #a8b7b2; border-radius: 6px; background: #35444b; color: #fff4de;
+  font: inherit; font-size: 15px; cursor: pointer; box-shadow: 0 3px 0 #182127;
+}
+#local-save-panel button:focus-visible { outline: 3px solid #f5c75b; outline-offset: 3px; }
+#local-save-panel button:hover { background: #42575b; }
+#local-save-panel button:disabled { opacity: .45; cursor: default; }
+#local-save-write, #local-save-confirm { background: #f0d791 !important; border-color: #fff0c9 !important; color: #30343b !important; font-weight: 700 !important; }
+#local-save-new { margin-top: 5px; }
+#local-save-back { margin-top: 18px; border-color: transparent !important; background: transparent !important; box-shadow: none !important; color: #d3d2c6 !important; }
+#local-save-question { margin: 4px 0 22px; font-size: 15px; line-height: 1.8; }
+#local-save-status { margin: 17px 0 0; font-size: 13px; line-height: 1.6; color: #badbb8; }
+#local-save-status[data-state="error"] { color: #ffc7b0; }
+#local-save-indicator {
+  position: absolute; right: 12px; top: 58px; z-index: 4; max-width: calc(100% - 24px);
+  box-sizing: border-box; padding: 7px 10px; border: 1px solid #efbfa3; border-radius: 5px;
+  background: #402f2c; color: #ffdfcc; font-size: 12px; pointer-events: none;
+}
+@media (max-height: 430px) {
+  #local-save-panel { width: min(430px, 100%); padding: 14px 22px; }
+  #local-save-title { margin-bottom: 10px; font-size: 18px; }
+  #local-save-menu { grid-template-columns: 1fr 1fr; gap: 8px; }
+  #local-save-write { grid-column: 1 / -1; }
+  #local-save-new { margin-top: 0; }
+  #local-save-back { margin-top: 10px; }
+}
