@@ -1,0 +1,27 @@
+/* 人生イベントの選択肢。会話欄（#dialog）の右上に重ね、同じ .panel の見た目に合わせる。 */
+#life-choice {
+  position: absolute; z-index: 1;
+  right: max(14px, calc(50% - 320px)); bottom: 112px;
+  min-width: 180px; max-width: min(360px, calc(100% - 28px));
+  box-sizing: border-box; padding: 8px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+#life-choice [role="group"] { display: flex; flex-direction: column; gap: 4px; }
+.life-choice-option {
+  font: inherit; font-size: 16px; line-height: 1.4; text-align: left; color: #fff; cursor: pointer;
+  background: transparent; border: 2px solid transparent; border-radius: 5px; padding: 6px 10px 6px 26px; position: relative;
+}
+.life-choice-option[aria-current="true"] { border-color: #ffe08a; background: rgba(255, 224, 138, 0.12); }
+.life-choice-option[aria-current="true"]::before { content: "▶"; position: absolute; left: 8px; color: #ffe08a; font-size: 12px; top: 50%; transform: translateY(-50%); }
+.life-choice-option:focus-visible { outline: 2px solid #ffe08a; outline-offset: 1px; }
+.life-choice-help { font-size: 11px; opacity: 0.8; padding: 0 4px; }
+/* 選択中は「会話を進める」表示を隠す（決定は選択肢で行う）。 */
+#stage.life-choosing #dialog .next { visibility: hidden; }
+#stage.life-choosing #dialog { cursor: default; }
+/* 選択肢は直接タップするので、重なって読みにくくなるタッチ操作のボタンを隠す。 */
+#stage.life-choosing #touch { visibility: hidden; }
+@media (max-width: 620px) {
+  #life-choice { right: 14px; left: 14px; max-width: none; bottom: 116px; }
+  .life-choice-option { padding-top: 9px; padding-bottom: 9px; }
+  .life-choice-help { display: none; }
+}
