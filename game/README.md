@@ -1,5 +1,17 @@
 # 幼少期マップ探索プロトタイプ
 
+## 所持金とバッグ（Issue #20）
+
+「もちもの」または I でバッグを開きます。探索中の下の枠は、数字キーかクリック／タップで選びます。バッグの画面と操作は2026-11-14の実画面レビューで合格しました。初期の所持金、確認用のサンプル、枠の数は暫定です。仕様と未決定事項は [所持金とバッグ](../docs/features/inventory.md) に記載しています。
+
+URL に `?review=1` を付けると、既存セーブを読まず、保存欄へ書き込まない一時セッションで、確認用のサンプル（所持金と10品）を使います。実ブラウザの確認・撮影・録画は、開発サーバーを起動したうえで次のコマンドで行います。撮影と録画はヘッドレスで、出力先は `SLG_SHOTS`・`SLG_VIDEOS` だけです。
+
+```sh
+SLG_URL=http://127.0.0.1:5173 node scripts/e2e-bag-inventory.mjs
+SLG_URL=http://127.0.0.1:5173 SLG_SHOTS=/tmp/bag-shots node scripts/shots-bag-inventory.mjs
+SLG_URL=http://127.0.0.1:5173 SLG_VIDEOS=/tmp/bag-videos node scripts/video-bag-inventory.mjs
+```
+
 [Issue #7](https://github.com/kame447/gmo-security-life-game/issues/7) の探索基盤を確認するブラウザ用プロトタイプです。TypeScript・Vite・Canvas 2D 標準APIを使います。数値や技術構成は [判断記録 0003](../docs/decisions/0003-map-prototype-canvas2d.md) の提案／要検証であり、本採用の決定ではありません。
 
 ## 現在の扱い（2026-11-12）

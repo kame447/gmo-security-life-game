@@ -1,0 +1,87 @@
+.grid-bag-launch, .grid-bag-overlay { -webkit-tap-highlight-color: transparent; }
+body.grid-bag-open { touch-action: auto; }
+.grid-bag-overlay {
+  position: absolute; inset: 0; z-index: 4; display: grid; place-items: center;
+  padding: 24px; box-sizing: border-box; overflow: auto; background: rgb(20 31 33 / 72%);
+  color: #304347; touch-action: manipulation;
+}
+.grid-bag-overlay * { box-sizing: border-box; }
+.grid-bag {
+  width: min(720px, 100%); max-height: 100%; overflow: auto;
+  border: 3px solid #293e42; background: #e8e5d1; box-shadow: 0 0 0 3px #c5cfb9, 6px 6px 0 3px #17292c;
+  font-family: ui-monospace, "Hiragino Kaku Gothic ProN", "Yu Gothic", monospace; font-size: 16px; line-height: 1.5;
+}
+.grid-bag button { font: inherit; cursor: pointer; border-radius: 0; color: inherit; }
+.grid-bag button:focus-visible { outline: 3px solid #ae6534; outline-offset: 3px; z-index: 1; }
+.grid-bag canvas { image-rendering: pixelated; width: 48px; height: 48px; flex: none; }
+.grid-bag-header {
+  display: flex; align-items: center; gap: 18px; padding: 14px 18px; background: #3e5e60; color: #f5efd9;
+  border-bottom: 3px solid #293e42;
+}
+.grid-bag h1 { margin: 0; display: flex; align-items: center; gap: 10px; font-size: 22px; letter-spacing: .08em; }
+.grid-bag h1 canvas { width: 32px; height: 32px; }
+.grid-bag-wallet { display: flex; align-items: center; gap: 7px; margin-left: auto; white-space: nowrap; }
+.grid-bag-wallet canvas { width: 24px; height: 24px; display: block; }
+.grid-bag-wallet strong { font-size: 23px; font-variant-numeric: tabular-nums; letter-spacing: .03em; }
+.grid-bag-wallet small { font-size: 13px; }
+.grid-bag .grid-bag-close {
+  flex: none; width: 42px; height: 42px; padding: 0; background: #d8dfc8; color: #304347;
+  border: 2px solid #243b3e; box-shadow: inset -2px -2px #adbba9, inset 2px 2px #f4f4df; font-size: 29px; line-height: 1;
+}
+.grid-bag-tabs { display: flex; gap: 8px; padding: 18px 22px 0; }
+.grid-bag-tabs button {
+  display: flex; align-items: center; justify-content: center; gap: 16px; min-width: 132px; min-height: 44px;
+  padding: 7px 18px; background: #d5d8c5; border: 2px solid #acb7a8; font-weight: 700;
+}
+.grid-bag-tabs button[aria-pressed="true"] { background: #faf6e3; border-color: #4f7472; box-shadow: inset 0 -4px #4f7472; }
+.grid-bag-tabs span { font-size: 13px; font-weight: 600; color: #566b64; }
+.grid-bag-body { display: grid; grid-template-columns: minmax(0, 1fr) 216px; gap: 22px; padding: 22px; align-items: stretch; }
+.grid-bag-items { position: relative; min-width: 0; }
+.grid-bag-slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.grid-bag-slot {
+  position: relative; display: grid; place-items: center; min-width: 0; aspect-ratio: 1;
+  background: #f8f3dc; border: 2px solid #bac1ad; box-shadow: inset 2px 2px #fffcec, inset -2px -2px #ddd9be;
+}
+.grid-bag-slot[aria-pressed="true"] { border-color: #3e6666; background: #e4e7cd; box-shadow: inset 0 0 0 2px #5e8580; }
+.grid-bag-slot[aria-pressed="true"]::before {
+  content: ''; position: absolute; left: -4px; top: -4px; width: 10px; height: 10px; border-left: 3px solid #2e5559; border-top: 3px solid #2e5559;
+}
+.grid-bag-slot-empty { background: #dce0ca; border-color: #c2c9b4; box-shadow: inset 2px 2px #d0d6c0; }
+.grid-bag-count {
+  position: absolute; right: 6px; bottom: 1px; font-size: 15px; font-weight: 800;
+  line-height: 1.4; color: #304347; text-shadow: 1px 1px #fffbe6; font-variant-numeric: tabular-nums;
+}
+.grid-bag-empty {
+  position: absolute; inset: 0; display: grid; place-items: center; margin: 0; font-size: 23px; color: #63776a; pointer-events: none;
+}
+.grid-bag-detail { display: flex; flex-direction: column; align-items: center; padding: 18px 18px 14px; background: #f9f5e2; border: 2px solid #bdc4b0; }
+.grid-bag-detail-icon { display: grid; place-items: center; width: 112px; height: 108px; margin-bottom: 12px; background: #e7e9d3; }
+.grid-bag-detail-icon canvas { width: 80px; height: 80px; }
+.grid-bag-detail-text { width: 100%; }
+.grid-bag-detail h2 { margin: 0 0 7px; font-size: 19px; letter-spacing: .04em; }
+.grid-bag-detail-count { display: block; font-size: 16px; font-variant-numeric: tabular-nums; color: #3e6666; }
+.grid-bag-detail p { margin: 13px 0 0; padding-top: 12px; border-top: 1px solid #d5d8bf; font-size: 14px; line-height: 1.8; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .grid-bag-overlay { padding: 14px; }
+  .grid-bag { width: 100%; }
+  .grid-bag-header { padding: 11px 12px; gap: 9px; }
+  .grid-bag h1 { gap: 6px; font-size: 18px; letter-spacing: 0; }
+  .grid-bag h1 canvas { width: 24px; height: 24px; }
+  .grid-bag-wallet { gap: 4px; }
+  .grid-bag-wallet canvas { width: 20px; height: 20px; }
+  .grid-bag-wallet strong { font-size: 19px; letter-spacing: 0; }
+  .grid-bag-wallet small { font-size: 12px; }
+  .grid-bag .grid-bag-close { width: 44px; height: 44px; font-size: 26px; }
+  .grid-bag-tabs { padding: 14px 14px 0; gap: 8px; }
+  .grid-bag-tabs button { flex: 1; min-width: 0; min-height: 46px; }
+  .grid-bag-body { display: flex; flex-direction: column; gap: 16px; padding: 16px 14px; }
+  .grid-bag-slots { gap: 6px; }
+  .grid-bag-slot canvas { width: 48px; height: 48px; }
+  .grid-bag-count { right: 5px; font-size: 14px; }
+  .grid-bag-detail { flex-direction: row; align-items: flex-start; gap: 14px; padding: 14px; }
+  .grid-bag-detail-icon { flex: none; width: 72px; height: 80px; margin: 0; }
+  .grid-bag-detail-icon canvas { width: 64px; height: 64px; }
+  .grid-bag-detail h2 { font-size: 17px; margin-bottom: 2px; }
+  .grid-bag-detail-count { font-size: 15px; }
+  .grid-bag-detail p { margin-top: 7px; padding-top: 7px; font-size: 13px; line-height: 1.6; }
+}
