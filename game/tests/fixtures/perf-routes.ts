@@ -2,7 +2,7 @@
  * 性能計測（scripts/perf.mjs）とテストで使う、屋外の固定経路。
  * Fixed outdoor waypoints for real-input performance measurement, never timing claims.
  */
-import { LANDMARKS } from '../../src/world/landmarks';
+import { LANDMARKS } from '../../src/world';
 
 export const PERF_ROUTES: Record<string, { name: string; points: { x: number; y: number }[] }> = {
   straightRoad: { name: 'かんせんどうろのちょくせん', points: [{ x: 12, y: 39 }, { x: 78, y: 39 }] },

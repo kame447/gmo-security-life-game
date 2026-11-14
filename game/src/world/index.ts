@@ -2,13 +2,14 @@
  * ワールドの組み立て口。エリア定義の登録、年代差分の適用、実行時索引への変換を行う。
  * 経路探索・検証・座標の目印は個別モジュールにあり、ここから再公開する。
  */
-import type { AreaDef, VariantDef } from '../core/types';
+import type { AreaDef, SpawnPoint, VariantDef } from '../core/types';
 import { createClassroom, createHome, createKonbini } from './interiors';
-import { START } from './landmarks';
+import { START as GENERATED_START } from './landmarks';
+import { resolveLandmarks } from './landmark-resolve';
+import { applyAreaLayout } from './layouts';
 import { toRuntime, type AreaRuntime, type World } from './runtime';
 import { createTown, FACILITIES } from './town';
 
-export { LANDMARKS, START } from './landmarks';
 export { districtAt, isSolidTile, type AreaRuntime, type World } from './runtime';
 export { findPath } from './path';
 export { validateWorld } from './validate';
@@ -21,6 +22,10 @@ export const CHILDHOOD_VARIANT: VariantDef = {
 
 /** 読み込むエリアの一覧。新しいエリアはここに定義関数を追加する。 */
 export const AREA_FACTORIES: readonly (() => AreaDef)[] = [createTown, createHome, createClassroom, createKonbini];
+
+/** 生成用の定数とは分け、配置を適用した出口から公開用の目印と開始位置を導く。 */
+export const LANDMARKS = resolveLandmarks(AREA_FACTORIES.map(create => applyAreaLayout(create())));
+export const START: SpawnPoint = { ...GENERATED_START, ...LANDMARKS.homeFront };
 
 /** 年代差分で無効化された出入口・調査対象を除き、追加分を足した定義を返す。 */
 function applyVariant(base: AreaDef, variant: VariantDef, isClosed: (facilityId: string) => boolean): AreaDef {
@@ -42,4 +47,3 @@ export function buildWorld(variant: VariantDef = CHILDHOOD_VARIANT): World {
   }
   return { areas, facilities, start: { ...START }, variant };
 }
-import { applyAreaLayout } from './layouts';
