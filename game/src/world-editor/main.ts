@@ -47,8 +47,8 @@ function inside(e: { clientX: number; clientY: number }) { const p=local(e);retu
 function refresh() { world=model.runtime();ghost=undefined;npcGhost=undefined;paint=undefined;update(); }
 function attempt(fn: () => void) { try { fn(); refresh(); status(''); } catch(error) { status((error as Error).message); update(); } }
 function update() {
-  const o = selected ? (ghost?.object.id===selected?ghost.object:model.object(selected)) : undefined;
-  const npc=selectedNpc?(npcGhost?.npc.id===selectedNpc?npcGhost.npc:model.npc(selectedNpc)):undefined;
+  const o = selected ? (ghost?.object.id===selected?ghost.object:model.object(selected,undefined,activeArea)) : undefined;
+  const npc=selectedNpc?(npcGhost?.npc.id===selectedNpc?npcGhost.npc:model.npc(selectedNpc,undefined,activeArea)):undefined;
   $('#properties').hidden=(!o&&!npc)||!!game||activeArea!==HOME_AREA;
   $('#npc-properties').hidden=!npc;
   if (o) {
@@ -64,7 +64,7 @@ function update() {
   if(npc){
     $('#object-name').textContent=npc.name;$('#object-position').textContent=`位置 ${npc.x}, ${npc.y}　足元 1×1`;
     $('#object-id').textContent=`ID ${npc.id}（変更できません）`;$('#object-json').textContent=canonicalJSON(npc);
-    const reason=model.npcProtectedReason(npc.id);$('#protection').textContent=reason;
+    const reason=model.npcProtectedReason(npc.id,activeArea);$('#protection').textContent=reason;
     $<HTMLButtonElement>('#delete').disabled=!editing()||!!reason||!!npcPlacement;$<HTMLButtonElement>('#rotate').disabled=!editing();$<HTMLButtonElement>('#duplicate').disabled=true;
     if(!npcDraft){$<HTMLInputElement>('#npc-name').value=npc.name;$<HTMLSelectElement>('#npc-facing').value=npc.facing??'down';
       $<HTMLTextAreaElement>('#npc-lines').value=npc.lines.join('\n');$<HTMLInputElement>('#npc-sprite').value=npc.sprite??'';}
@@ -104,7 +104,7 @@ function previewNpc(npc: EditorInteraction, adding = false){
 }
 function startNpcPlacement(npc: EditorInteraction){
   cancelGesture();surface=undefined;npcPlacement=npc;selected=undefined;selectedNpc=npc.id;
-  const area=world.areas.get(HOME_AREA)!;
+  const area=world.areas.get(activeArea)!;
   for(let y=1;y<area.height-1;y++)for(let x=1;x<area.width-1;x++){
     const candidate={...npc,x,y};if(!model.issues(model.npcCandidate(candidate,true)).length){npcPlacement=candidate;previewNpc(candidate,true);return;}
   }
@@ -112,7 +112,7 @@ function startNpcPlacement(npc: EditorInteraction){
 }
 function startPlacement(object: EditorObject) {
   cancelGesture();surface=undefined;placement=object;selected=object.id;selectedNpc=undefined;
-  const area=world.areas.get(HOME_AREA)!;
+  const area=world.areas.get(activeArea)!;
   for(let y=1;y<area.height-1;y++) for(let x=1;x<area.width-1;x++) {
     const candidate={...object,x,y};if(!model.issues(model.candidate(candidate,true)).length){placement=candidate;preview(candidate,true);return;}
   }
@@ -138,7 +138,7 @@ function catalogue() {
     button.append(catalogTab==='furniture'?furnitureThumbnail(entry.id):catalogTab==='people'?personThumbnail(entry.id,'down',48):surfaceModule!.surfaceThumbnail(entry.id));
     const name=document.createElement('span');name.textContent=entry.name;button.append(name);list.append(button);
     const choose=()=>{if(!editing())return;if(catalogTab==='surface'){cancelGesture();surface=entry.id;status('塗る場所をドラッグしてください');update();}
-      else if(catalogTab==='people')startNpcPlacement(model.createNpc(entry.id));else startPlacement(model.create(entry.id));};
+      else if(catalogTab==='people')startNpcPlacement(model.createNpc(entry.id,activeArea));else startPlacement(model.create(entry.id,activeArea));};
     button.addEventListener('pointerdown',e=>{e.preventDefault();choose();if(!editing())return;if(npcPlacement)npcDrag={npc:npcPlacement,adding:true,offsetX:0,offsetY:0};
       else if(placement)drag={object:placement,adding:true,offsetX:Math.floor(placement.w/2),offsetY:Math.floor(placement.h/2)};});
     button.addEventListener('click',e=>{if(e.detail===0)choose();});
@@ -153,7 +153,7 @@ $('#surface-tab').onclick=()=>{if(npcDraft)return;catalogTab='surface';cancelGes
 $('#people-tab').onclick=()=>{if(npcDraft)return;catalogTab='people';surface=undefined;cancelGesture();catalogue();};
 $('#stop-placement').onclick=()=>{surface=undefined;cancelGesture();status('');};
 function brush(e: PointerEvent) {
-  if(!paint||!surface)return;const p=areaPoint(e),x=Math.floor(p.x/16),y=Math.floor(p.y/16),area=paint.areas.find(a=>a.id===HOME_AREA)!;
+  if(!paint||!surface)return;const p=areaPoint(e),x=Math.floor(p.x/16),y=Math.floor(p.y/16),area=paint.areas.find(a=>a.id===activeArea)!;
   if(x<0||y<0||x>=area.width||y>=area.height)return;
   const id=y*area.width+x;
   const previous=area.surfaces?structuredClone(area.surfaces):undefined;
@@ -173,8 +173,8 @@ workspace.addEventListener('pointerdown',e=>{
   const point=areaPoint(e),hit=hitItem(world.areas.get(activeArea)!,point.x,point.y);
   if(editing()&&placement){placement={...placement,x:Math.floor(point.x/16),y:Math.floor(point.y/16)};drag={object:placement,adding:true,offsetX:0,offsetY:0};preview(placement,true);return;}
   if(editing()&&npcPlacement){npcPlacement={...npcPlacement,x:Math.floor(point.x/16),y:Math.floor(point.y/16)};npcDrag={npc:npcPlacement,adding:true,offsetX:0,offsetY:0};previewNpc(npcPlacement,true);return;}
-  if(editing()&&hit?.table==='objects'&&!space&&e.button!==1){selected=hit.id;selectedNpc=undefined;const o=model.object(hit.id)!;drag={object:o,adding:false,offsetX:Math.floor(point.x/16)-o.x,offsetY:Math.floor(point.y/16)-o.y};update();return;}
-  if(editing()&&hit?.table==='interactions'&&!space&&e.button!==1){selected=undefined;selectedNpc=hit.id;const npc=model.npc(hit.id)!;npcDrag={npc,adding:false,offsetX:Math.floor(point.x/16)-npc.x,offsetY:Math.floor(point.y/16)-npc.y};update();return;}
+  if(editing()&&hit?.table==='objects'&&!space&&e.button!==1){selected=hit.id;selectedNpc=undefined;const o=model.object(hit.id,undefined,activeArea)!;drag={object:o,adding:false,offsetX:Math.floor(point.x/16)-o.x,offsetY:Math.floor(point.y/16)-o.y};update();return;}
+  if(editing()&&hit?.table==='interactions'&&!space&&e.button!==1){selected=undefined;selectedNpc=hit.id;const npc=model.npc(hit.id,undefined,activeArea)!;npcDrag={npc,adding:false,offsetX:Math.floor(point.x/16)-npc.x,offsetY:Math.floor(point.y/16)-npc.y};update();return;}
   selected=undefined;selectedNpc=undefined;
   pan={x:e.clientX,y:e.clientY,cx:camera.centerX,cy:camera.centerY};update();
 });
@@ -206,15 +206,15 @@ $('#undo').onclick=()=>{cancelGesture();attempt(()=>model.session.undo());};$('#
 $('#rotate').onclick=()=>{
   if(selectedNpc){if(npcPlacement){const directions=['down','left','up','right'] as const;
       npcPlacement={...npcPlacement,facing:directions[(directions.indexOf(npcPlacement.facing??'down')+1)%4]};previewNpc(npcPlacement,true);}
-    else attempt(()=>model.rotateNpc(selectedNpc!));return;}
-  const o=placement??(selected?model.object(selected):undefined);if(!o?.catalogId)return;
+    else attempt(()=>model.rotateNpc(selectedNpc!,activeArea));return;}
+  const o=placement??(selected?model.object(selected,undefined,activeArea):undefined);if(!o?.catalogId)return;
   const facing=nextFacing(o.catalogId,o.facing),variant=furnitureVariant(o.catalogId,facing)!;
   const rotated={...o,facing,w:variant.w,h:variant.h};
   if(placement){placement=rotated;if(drag)drag.object=rotated;preview(rotated,true);}
   else {const candidate=model.candidate(rotated);if(model.issues(candidate).length)preview(rotated,false);else attempt(()=>model.commit(candidate));}
 };
-$('#duplicate').onclick=()=>{if(selected)try{startPlacement(model.duplicate(selected));}catch(error){status((error as Error).message);}};
-$('#delete').onclick=()=>{if(selectedNpc)attempt(()=>{model.removeNpc(selectedNpc!);selectedNpc=undefined;});else if(selected)attempt(()=>{model.remove(selected!);selected=undefined;});};
+$('#duplicate').onclick=()=>{if(selected)try{startPlacement(model.duplicate(selected,activeArea));}catch(error){status((error as Error).message);}};
+$('#delete').onclick=()=>{if(selectedNpc)attempt(()=>{model.removeNpc(selectedNpc!,activeArea);selectedNpc=undefined;});else if(selected)attempt(()=>{model.remove(selected!,activeArea);selected=undefined;});};
 for(const person of EDITABLE_PEOPLE){
   const button=document.createElement('button');button.type='button';button.dataset.npcSprite=person.id;button.title=person.name;button.setAttribute('aria-label',person.name);
   button.append(personThumbnail(person.id,'down',48));
@@ -229,7 +229,7 @@ $('#npc-apply').onclick=()=>{
   attempt(()=>{model.updateNpc(selectedNpc!,{name:$<HTMLInputElement>('#npc-name').value,
     facing:$<HTMLSelectElement>('#npc-facing').value as EditorInteraction['facing'],
     sprite:$<HTMLInputElement>('#npc-sprite').value,
-    lines:$<HTMLTextAreaElement>('#npc-lines').value.replace(/\r\n?/g,'\n').split('\n')});npcDraft=false;});
+    lines:$<HTMLTextAreaElement>('#npc-lines').value.replace(/\r\n?/g,'\n').split('\n')},activeArea);npcDraft=false;});
 };
 $('#npc-revert').onclick=()=>{npcDraft=false;refresh();status('入力を取り消しました');};
 $('#npc-properties').addEventListener('keydown',e=>{
@@ -309,9 +309,9 @@ function overlays() {
   }
   if(layers.has('grid')){c.strokeStyle='#e4f3ec33';c.lineWidth=1;for(let x=0;x<=area.width;x++){const a=toScreen(x*16,0),b=toScreen(x*16,area.height*16);c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();}for(let y=0;y<=area.height;y++){const a=toScreen(0,y*16),b=toScreen(area.width*16,y*16);c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();}}
   if(layers.has('ids')){c.font='11px system-ui';for(const item of [...area.interactions,...area.def.portals.map(p=>({id:p.id,...p.from}))]){const p=toScreen(item.x*16,item.y*16);c.fillStyle='#20303be6';c.fillRect(p.x,p.y-14,c.measureText(item.id).width+8,16);c.fillStyle='#ffe5a0';c.fillText(item.id,p.x+4,p.y-2);}}
-  const o=ghost?.object??(selected?model.object(selected):undefined);
+  const o=ghost?.object??(selected?model.object(selected,undefined,activeArea):undefined);
   if(o&&activeArea===HOME_AREA){box(o.x,o.y,o.w,o.h,ghost?(ghost.valid?'#3bc87866':'#e15e5266'):'#ffffff18');const p=toScreen(o.x*16,o.y*16),q=toScreen((o.x+o.w)*16,(o.y+o.h)*16);c.strokeStyle=ghost?(ghost.valid?'#6bff9c':'#ff857b'):'#fff';c.lineWidth=2;c.setLineDash([5,3]);c.strokeRect(p.x,p.y,q.x-p.x,q.y-p.y);c.setLineDash([]);}
-  const npc=npcGhost?.npc??(selectedNpc?model.npc(selectedNpc):undefined);
+  const npc=npcGhost?.npc??(selectedNpc?model.npc(selectedNpc,undefined,activeArea):undefined);
   if(npc&&activeArea===HOME_AREA){box(npc.x,npc.y,1,1,npcGhost?(npcGhost.valid?'#3bc87866':'#e15e5266'):'#ffffff18');const p=toScreen(npc.x*16,npc.y*16),q=toScreen((npc.x+1)*16,(npc.y+1)*16);c.strokeStyle=npcGhost?(npcGhost.valid?'#6bff9c':'#ff857b'):'#fff';c.lineWidth=2;c.setLineDash([5,3]);c.strokeRect(p.x,p.y,q.x-p.x,q.y-p.y);c.setLineDash([]);}
 }
 function resize(){renderer.resize(workspace.clientWidth,workspace.clientHeight,window.devicePixelRatio||1);overlay.width=scene.width;overlay.height=scene.height;overlay.style.width=scene.style.width;overlay.style.height=scene.style.height;}

@@ -23,10 +23,10 @@ export class WorldEditorModel {
   }
   get document() { return this.session.document; }
   get dirty() { return this.session.exportChanges().operations.length; }
-  object(id: string, document = this.document) { return document.objects.find(o => o.id === id && o.areaId === HOME_AREA); }
-  npc(id: string, document = this.document) { return document.interactions.find(i => i.id === id && i.areaId === HOME_AREA && i.kind === 'npc'); }
-  npcProtectedReason(id: string) {
-    const npc=this.npc(id);return npc&&!isPlacedNpc(npc)?'ゲームの出来事につながっている人物なので、消せません':'';
+  object(id: string, document = this.document, areaId = HOME_AREA) { return document.objects.find(o => o.id === id && o.areaId === areaId); }
+  npc(id: string, document = this.document, areaId = HOME_AREA) { return document.interactions.find(i => i.id === id && i.areaId === areaId && i.kind === 'npc'); }
+  npcProtectedReason(id: string, areaId = HOME_AREA) {
+    const npc=this.npc(id,undefined,areaId);return npc&&!isPlacedNpc(npc)?'ゲームの出来事につながっている人物なので、消せません':'';
   }
   npcCandidate(npc: EditorInteraction, adding = false): EditorDocument {
     const next=this.document,index=next.interactions.findIndex(i=>i.id===npc.id);
@@ -34,27 +34,27 @@ export class WorldEditorModel {
     else{if(index<0)throw new Error('人物を選んでください');next.interactions[index]=structuredClone(npc);}
     return withDerived(next,this.context);
   }
-  createNpc(sprite: string): EditorInteraction {
+  createNpc(sprite: string, areaId = HOME_AREA): EditorInteraction {
     const entry=editablePerson(sprite);if(!entry)throw new Error('人のカタログにある見た目を選んでください');
-    let n=1,id=`${HOME_AREA}-npc-${n}`;
-    while(this.used.has(id))id=`${HOME_AREA}-npc-${++n}`;
+    let n=1,id=`${areaId}-npc-${n}`;
+    while(this.used.has(id))id=`${areaId}-npc-${++n}`;
     this.used.add(id);
-    return{id,areaId:HOME_AREA,kind:'npc',sprite,name:entry.name,x:1,y:1,facing:'down',solid:true,
+    return{id,areaId,kind:'npc',sprite,name:entry.name,x:1,y:1,facing:'down',solid:true,
       eventKey:npcEventKey(id),lines:['こんにちは。']};
   }
-  removeNpc(id: string) {
-    const reason=this.npcProtectedReason(id);if(reason)throw new Error(reason);
-    if(!this.npc(id))throw new Error('人物を選んでください');
+  removeNpc(id: string, areaId = HOME_AREA) {
+    const reason=this.npcProtectedReason(id,areaId);if(reason)throw new Error(reason);
+    if(!this.npc(id,undefined,areaId))throw new Error('人物を選んでください');
     const next=this.document;next.interactions=next.interactions.filter(npc=>npc.id!==id);this.commit(next);
   }
-  updateNpc(id: string, patch: Partial<Pick<EditorInteraction,'x'|'y'|'facing'|'name'|'lines'|'sprite'>>) {
-    const npc=this.npc(id);if(!npc)throw new Error('人物を選んでください');
+  updateNpc(id: string, patch: Partial<Pick<EditorInteraction,'x'|'y'|'facing'|'name'|'lines'|'sprite'>>, areaId = HOME_AREA) {
+    const npc=this.npc(id,undefined,areaId);if(!npc)throw new Error('人物を選んでください');
     this.commit(this.npcCandidate({...npc,...structuredClone(patch)}));
   }
-  rotateNpc(id: string) {
-    const npc=this.npc(id);if(!npc)throw new Error('人物を選んでください');
+  rotateNpc(id: string, areaId = HOME_AREA) {
+    const npc=this.npc(id,undefined,areaId);if(!npc)throw new Error('人物を選んでください');
     const directions=['down','left','up','right'] as const;
-    this.updateNpc(id,{facing:directions[(directions.indexOf(npc.facing??'down')+1)%directions.length]});
+    this.updateNpc(id,{facing:directions[(directions.indexOf(npc.facing??'down')+1)%directions.length]},areaId);
   }
   protectedReason(id: string) {
     const links = this.initial.interactions.filter(i => i.objectId === id);
@@ -90,39 +90,39 @@ export class WorldEditorModel {
     const changes = diffDocuments(this.document,candidate,this.context);
     this.session.commit(changes.operations);
   }
-  move(id: string, x: number, y: number) {
-    const object = this.object(id); if (!object) throw new Error('家具を選んでください');
+  move(id: string, x: number, y: number, areaId = HOME_AREA) {
+    const object = this.object(id,undefined,areaId); if (!object) throw new Error('家具を選んでください');
     this.commit(this.candidate({ ...object, x, y }));
   }
-  rotate(id: string) {
-    const o = this.object(id); if (!o?.catalogId) throw new Error('この家具の回転用の絵は、まだカタログにありません');
+  rotate(id: string, areaId = HOME_AREA) {
+    const o = this.object(id,undefined,areaId); if (!o?.catalogId) throw new Error('この家具の回転用の絵は、まだカタログにありません');
     const facing = nextFacing(o.catalogId,o.facing), variant = furnitureVariant(o.catalogId,facing)!;
     this.commit(this.candidate({ ...o, facing, w: variant.w, h: variant.h }));
   }
-  remove(id: string) {
+  remove(id: string, areaId = HOME_AREA) {
     const reason = this.protectedReason(id); if (reason) throw new Error(reason);
-    if (!this.object(id)) throw new Error('家具を選んでください');
+    if (!this.object(id,undefined,areaId)) throw new Error('家具を選んでください');
     const next = this.document; next.objects = next.objects.filter(o => o.id !== id); this.commit(next);
   }
-  create(catalogId: string): EditorObject {
+  create(catalogId: string, areaId = HOME_AREA): EditorObject {
     const entry = furnitureById(catalogId), variant = furnitureVariant(catalogId);
     if (!entry || !variant) throw new Error('カタログにない家具です');
-    let n = 1, id = `${HOME_AREA}-${catalogId}-${n}`;
-    while (this.used.has(id)) id = `${HOME_AREA}-${catalogId}-${++n}`;
+    let n = 1, id = `${areaId}-${catalogId}-${n}`;
+    while (this.used.has(id)) id = `${areaId}-${catalogId}-${++n}`;
     this.used.add(id);
-    return { id, areaId: HOME_AREA, kind: catalogId, catalogId, facing: variant.facing, x: 1, y: 1,
+    return { id, areaId, kind: catalogId, catalogId, facing: variant.facing, x: 1, y: 1,
       w: variant.w, h: variant.h, solid: entry.solid, layer: entry.layer };
   }
-  duplicate(id: string) {
-    const o = this.object(id); if (!o?.catalogId) throw new Error('この家具はカタログ移行後に複製できます');
-    return { ...o, kind: o.catalogId, id: this.create(o.catalogId).id };
+  duplicate(id: string, areaId = HOME_AREA) {
+    const o = this.object(id,undefined,areaId); if (!o?.catalogId) throw new Error('この家具はカタログ移行後に複製できます');
+    return { ...o, kind: o.catalogId, id: this.create(o.catalogId,areaId).id };
   }
-  runtime(document = this.document) {
+  runtime(document = this.document, editedAreaIds: readonly string[] = [HOME_AREA]) {
     const edited=assembleEditorWorld(document),source=this.context.baselineWorld;
     // Normalization orders authoring tables by ID. Preserve untouched game arrays,
     // including tied sprite depths, in their original order for the actual view.
     return { ...edited,areas:new Map([...source.areas].map(([id,area])=>[id,
-      id===HOME_AREA?edited.areas.get(id)!:structuredClone(area)])),facilities:structuredClone(source.facilities) };
+      editedAreaIds.includes(id)?edited.areas.get(id)!:structuredClone(area)])),facilities:structuredClone(source.facilities) };
   }
   markSaved() { this.session = new EditorSession(this.document, { context: this.context }); }
 }

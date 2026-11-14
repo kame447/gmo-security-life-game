@@ -1,0 +1,41 @@
+import {describe,expect,it} from 'vitest';
+import {buildWorld} from '../src/world';
+import {HOME_AREA,WorldEditorModel} from '../src/world-editor/model';
+
+const sofa='home-family-interior-sofa-1-9';
+describe('エリア引数と従来の自宅操作の互換',()=>{
+  it('引数なしと明示した自宅で、家具の移動・複製・削除・履歴が全文一致する',()=>{
+    const legacy=new WorldEditorModel(buildWorld()),explicit=new WorldEditorModel(buildWorld());
+    legacy.move(sofa,2,9);explicit.move(sofa,2,9,HOME_AREA);
+    expect(explicit.duplicate(sofa,HOME_AREA)).toEqual(legacy.duplicate(sofa));
+    legacy.remove(sofa);explicit.remove(sofa,HOME_AREA);expect(explicit.document).toEqual(legacy.document);
+    legacy.session.undo();explicit.session.undo();expect(explicit.document).toEqual(legacy.document);
+    expect(explicit.create('chair-wood',HOME_AREA)).toEqual(legacy.create('chair-wood'));
+  });
+  it('引数なしと明示した自宅で、人物の編集・回転・ID・削除が全文一致する',()=>{
+    const legacy=new WorldEditorModel(buildWorld()),explicit=new WorldEditorModel(buildWorld());
+    legacy.updateNpc('home-mother',{y:6});explicit.updateNpc('home-mother',{y:6},HOME_AREA);
+    legacy.rotateNpc('home-mother');explicit.rotateNpc('home-mother',HOME_AREA);
+    expect(explicit.npc('home-mother',undefined,HOME_AREA)).toEqual(legacy.npc('home-mother'));
+    expect(explicit.npcProtectedReason('home-mother',HOME_AREA)).toBe(legacy.npcProtectedReason('home-mother'));
+    const a={...legacy.createNpc('friend'),x:4,y:7},b={...explicit.createNpc('friend',HOME_AREA),x:4,y:7};expect(a).toEqual(b);
+    legacy.commit(legacy.npcCandidate(a,true));explicit.commit(explicit.npcCandidate(b,true));
+    legacy.removeNpc(a.id);explicit.removeNpc(b.id,HOME_AREA);expect(explicit.document).toEqual(legacy.document);
+  });
+  it('別エリアの参照とID発行を明示できるが、未登録の町編集は依然として拒否する',()=>{
+    const model=new WorldEditorModel(buildWorld()),initial=model.document;
+    const object=initial.objects.find(o=>o.areaId==='town-main')!,npc=initial.interactions.find(i=>i.areaId==='town-main'&&i.kind==='npc')!;
+    expect(model.object(object.id)).toBeUndefined();expect(model.npc(npc.id)).toBeUndefined();
+    expect(model.object(object.id,undefined,'town-main')).toEqual(object);expect(model.npc(npc.id,undefined,'town-main')).toEqual(npc);
+    const created=model.createNpc('friend','town-main');expect(created).toMatchObject({id:'town-main-npc-1',areaId:'town-main',eventKey:'npc.town-main-npc-1'});
+    expect(()=>model.commit(model.npcCandidate({...created,x:35,y:33},true))).toThrow('このエリア');expect(model.document).toEqual(initial);
+  });
+  it('runtimeの既定は従来の自宅投影で、指定したエリアだけ候補へ切り替える',()=>{
+    const model=new WorldEditorModel(buildWorld()),candidate=model.document,source=model.context.baselineWorld;
+    const npc=candidate.interactions.find(i=>i.areaId==='town-main'&&i.kind==='npc')!;npc.name='候補の表示名';
+    expect(model.runtime(candidate)).toEqual(model.runtime(candidate,[HOME_AREA]));
+    expect(model.runtime(candidate).areas.get('town-main')).toEqual(source.areas.get('town-main'));
+    const preview=model.runtime(candidate,['town-main']);expect(preview.areas.get('town-main')!.interactions.find(i=>i.id===npc.id)!.name).toBe('候補の表示名');
+    expect(preview.areas.get(HOME_AREA)).toEqual(source.areas.get(HOME_AREA));expect(model.document).toEqual(model.initial);
+  });
+});
