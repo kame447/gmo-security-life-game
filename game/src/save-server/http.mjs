@@ -96,12 +96,51 @@ export function createSaveHttpServer({ service, verifyToken, maxBodyBytes, healt
     };
     void handle().catch(error => reply(error instanceof BodyError ? error.response : failure(503, 'UNAVAILABLE')));
   });
-  server.on('clientError', (error, socket) => {
+  const rejectSocket = (socket, status) => {
     if (!socket.writable) return;
-    const status = error.code === 'HPE_HEADER_OVERFLOW' ? 431 : 400;
     const body = JSON.stringify({ error: { code: 'INVALID_REQUEST' } });
     socket.end(`HTTP/1.1 ${status} ${status === 431 ? 'Request Header Fields Too Large' : 'Bad Request'}\r\n` +
       `Connection: close\r\nCache-Control: no-store\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);
+  };
+  server.on('clientError', (error, socket) => rejectSocket(socket, error.code === 'HPE_HEADER_OVERFLOW' ? 431 : 400));
+  // Node stops its headersTimeout checks once server.close() starts, so connections that have not
+  // delivered complete headers would hold shutdown open. Track them and apply the same budget here.
+  const waiting = new Map(); // socket -> time since which no complete request header block was received
+  const finished = socket => { waiting.delete(socket); };
+  server.on('connection', socket => {
+    waiting.set(socket, Date.now());
+    socket.once('close', () => finished(socket));
   });
+  const inFlight = new WeakMap();
+  server.on('request', (request, response) => {
+    const socket = request.socket;
+    waiting.delete(socket);
+    inFlight.set(socket, (inFlight.get(socket) ?? 0) + 1);
+    response.once('close', () => {
+      const left = inFlight.get(socket) - 1; inFlight.set(socket, left);
+      // Back on keep-alive: the next request, if any, is timed from here.
+      if (left === 0 && !socket.destroyed) waiting.set(socket, Date.now());
+    });
+  });
+  const close = server.close.bind(server);
+  server.close = callback => {
+    const draining = server.listening;
+    const result = close(callback);
+    if (!draining) return result;
+    const drain = setInterval(() => {
+      server.closeIdleConnections();
+      const now = Date.now();
+      for (const [socket, since] of waiting) {
+        if (now - since < RECEIVE_TIMEOUT_MS) continue;
+        waiting.delete(socket);
+        rejectSocket(socket, 400);
+        // A peer that never reads the 400 must not hold shutdown either.
+        setTimeout(() => socket.destroy(), 1000).unref();
+      }
+    }, 250);
+    drain.unref();
+    server.once('close', () => clearInterval(drain));
+    return result;
+  };
   return server;
 }

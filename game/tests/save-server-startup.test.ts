@@ -35,6 +35,11 @@ const { request: httpRequest } = await vi.importActual<{ request(url: string, op
   method: string; headers: Record<string, string>;
 }, response: (value: { statusCode: number; headers: Record<string, string | undefined>;
   on(event: string, callback: (value: unknown) => void): unknown }) => void): PartialRequest }>('node:http');
+interface RawSocket {
+  write(chunk: string): unknown; destroy(): unknown; destroyed: boolean;
+  on(event: string, callback: (value: { toString(encoding: 'latin1'): string }) => void): unknown;
+}
+const { connect: rawConnect } = await vi.importActual<{ connect(port: number, host: string): RawSocket }>('node:net');
 const keys = signer();
 const environment = () => ({ SAVE_API_HOST: '127.0.0.1', SAVE_API_PORT: '0', SAVE_API_TABLE_NAME: 'local-save-test',
   AWS_REGION: 'ap-northeast-1', COGNITO_ISSUER: 'https://cognito-idp.ap-northeast-1.amazonaws.com/ap-northeast-1_TestPool',
@@ -206,6 +211,35 @@ describe('injected startup and graceful lifecycle', () => {
       expect(s.close).toHaveBeenCalledTimes(1); expect(s.events.count()).toBe(0); expect(read).not.toHaveBeenCalled();
     } finally { if (timer) clearTimeout(timer); partial.destroy(); }
   }, 10000);
+  describe.each([
+    ['immediately after connecting', [] as string[]],
+    ['a partial request line', ['GET /api/sav']],
+    ['partial headers', ['GET /api/saves/auto HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Pending: ']],
+    ['a keep-alive connection waiting for its next request', ['GET /api/health HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n', 'WAIT']],
+    ['the middle of the next request on a keep-alive connection', ['GET /api/health HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n', 'WAIT',
+      'GET /api/saves/auto HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Pending: ']],
+  ])('stopping with an unfinished receive: %s', (_name, steps) => {
+    it.each(['SIGTERM', 'SIGINT'])('finishes %s within the existing receive deadline', async signal => {
+      const s = await local();
+      const socket = rawConnect(s.handle.address.port, '127.0.0.1');
+      let text = ''; let healthy!: () => void;
+      const responded = new Promise<void>(resolve => { healthy = resolve; });
+      socket.on('data', value => { text += value.toString('latin1'); if (text.includes('"ok":true')) healthy(); });
+      socket.on('error', () => undefined);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        for (const step of steps) {
+          if (step === 'WAIT') await responded; else socket.write(step);
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+        s.events.emit(signal); s.events.emit(signal === 'SIGTERM' ? 'SIGINT' : 'SIGTERM');
+        const result = await Promise.race([s.handle.closed.then(() => 'closed'),
+          new Promise(resolve => { timer = setTimeout(() => resolve('HUNG'), 7300); })]);
+        expect(result).toBe('closed');
+        expect(s.close).toHaveBeenCalledTimes(1); expect(s.events.count()).toBe(0);
+      } finally { if (timer) clearTimeout(timer); socket.destroy(); }
+    }, 10000);
+  });
   it('does not apply a body receive deadline to a complete PUT waiting on storage during shutdown', async () => {
     const memory = new MemorySaveStorage(); let entered!: () => void; let release!: () => void;
     const active = new Promise<void>(resolve => { entered = resolve; });
