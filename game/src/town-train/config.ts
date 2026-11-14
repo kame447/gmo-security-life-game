@@ -1,3 +1,5 @@
+import { TRAIN_HEIGHT_PX, TRAIN_LENGTH_PX } from './car';
+
 /** These are prototype presentation values, not an agreed timetable. */
 export interface TownTrainConfig {
   readonly intervalSeconds: number;
@@ -9,8 +11,8 @@ export interface TownTrainConfig {
 export const TOWN_TRAIN_PROTOTYPE: Readonly<TownTrainConfig> = Object.freeze({
   intervalSeconds: 10,
   speedPixelsPerSecond: 96,
-  lengthPixels: 128,
-  heightPixels: 16,
+  lengthPixels: TRAIN_LENGTH_PX,
+  heightPixels: TRAIN_HEIGHT_PX,
 });
 
 export function validateTrainConfig(config: Readonly<TownTrainConfig>): void {

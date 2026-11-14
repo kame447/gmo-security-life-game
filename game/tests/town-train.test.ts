@@ -93,19 +93,22 @@ describe('town train prototype', () => {
     expect(() => new TownTrainService({ ...TOWN_TRAIN_PROTOTYPE, intervalSeconds: 0.1 })).toThrow();
   });
 
-  it('clips partially entering and leaving trains to the rail rectangle', () => {
-    const town = buildWorld().areas.get('town-main')!, frame = new TownTrainService().frames(town, 0.5)[0];
+  it('clips partially entering and leaving trains to the rail rectangle horizontally', () => {
+    const town = buildWorld().areas.get('town-main')!, service = new TownTrainService();
+    const frame = service.frames(town, 0.5).find(f => f.heading === 'right')!;
     expect(frame.x).toBeLessThan(frame.strip.left);
-    const calls: string[] = [];
-    const ctx = {
-      save: () => calls.push('save'), beginPath: () => calls.push('beginPath'),
-      rect: (...args: number[]) => calls.push(`rect:${args.join(',')}`), clip: () => calls.push('clip'),
-      fillRect: vi.fn(() => calls.push('paint')), restore: () => calls.push('restore'), fillStyle: '',
-    } as unknown as CanvasRenderingContext2D;
+    const draws: number[][] = [];
+    const ctx = { drawImage: (_image: unknown, ...args: number[]) => draws.push(args) } as unknown as CanvasRenderingContext2D;
+    vi.stubGlobal('document', { createElement: () => ({ width: 0, height: 0, getContext: () => new Proxy({}, { get: () => () => undefined, set: () => true }) }) });
     drawTrainFrame(ctx, frame);
-    expect(calls.slice(0, 4)).toEqual(['save', 'beginPath', `rect:${frame.strip.left},${frame.strip.top},${frame.strip.right - frame.strip.left},${frame.strip.bottom - frame.strip.top}`, 'clip']);
-    expect(calls.at(-1)).toBe('restore');
-    expect(calls.indexOf('paint')).toBeGreaterThan(calls.indexOf('clip'));
+    vi.unstubAllGlobals();
+    expect(draws).toHaveLength(1);
+    const [sx, sy, sw, sh, dx, dy, dw, dh] = draws[0];
+    // 切り出しは線路の左端から。はみ出す部分は描かない。足元は線路の行の下端。
+    expect(dx).toBe(frame.strip.left);
+    expect(sx).toBeGreaterThan(0);
+    expect(sw).toBe(dw); expect(sh).toBe(dh); expect(sy).toBe(0);
+    expect(dy + dh).toBe(frame.strip.bottom);
   });
 
   it('leaves collision, player position, save data and life stage unchanged', () => {

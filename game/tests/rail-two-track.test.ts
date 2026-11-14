@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { TRAIN_LENGTH_PX } from '../src/town-train/car';
 import { TownTrainService, findRailStrips } from '../src/town-train/service';
 import { buildWorld, getStationFlow, isSolidTile, validateWorld } from '../src/world';
 import { MAIN_STATION_LAYOUT } from '../src/world/landmarks';
@@ -43,7 +44,9 @@ describe('two-track railway (up and down lines)', () => {
     expect(findRailStrips(area).map(s => [s.top / 16, s.direction])).toEqual([[layout.trackY, 'down'], [layout.trackY + 1, 'up']]);
     for (let t = 0; t < 20; t += 0.5) for (const f of service.frames(area, t)) {
       expect(f.heading).toBe(headingOf(f.direction));
-      expect(f.y).toBeGreaterThanOrEqual(f.strip.top); expect(f.y + f.height).toBeLessThanOrEqual(f.strip.bottom);
+      // 足元が線路の行の下端に揃い、車体は上へはみ出す。
+      expect(f.y + f.height).toBe(f.strip.bottom);
+      expect(f.length).toBe(TRAIN_LENGTH_PX);
     }
     const a = service.frames(area, 3), b = service.frames(area, 3.25);
     for (const direction of ['down', 'up'] as const) {

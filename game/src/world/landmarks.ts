@@ -34,7 +34,8 @@ export const STATION_ACCESS = {
   exitPortalId: 'station-exit',
   outdoorEntrance: MAIN_STATION_LAYOUT.entrance,
   entry: { areaId: 'station-main-interior', x: 17, y: 16, facing: 'up' },
-  boarding: MAIN_DOWN.boardTile,
+  // 従来の「のりばの案内の前」。案内は歩く列を避けて横にあるため、案内の真南の tile を指す。
+  boarding: { areaId: 'station-main-interior', x: MAIN_DOWN.sign.x, y: MAIN_DOWN.sign.y + 1, facing: 'up' },
   arrival: getStationFlow('station').alight,
   interaction: { id: MAIN_DOWN.sign.interactionId, x: MAIN_DOWN.sign.x, y: MAIN_DOWN.sign.y, eventKey: MAIN_DOWN.sign.eventKey },
 } as const;
