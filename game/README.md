@@ -1,18 +1,16 @@
 # 幼少期マップ探索プロトタイプ
 
-## バッグの比較用試作（Issue #20・未採用）
+## 所持金とバッグ（Issue #20）
 
-`npm run dev -- --port 5181 --strictPort` で起動し、[1層グリッド](http://127.0.0.1:5181/?bag=grid&review=1) と [クイック枠付きグリッド](http://127.0.0.1:5181/?bag=hotbar&review=1) を比較できます。「もちもの」または I で開きます。両案は同じ暫定サンプルを使い、`review=1` では通常のセーブを読み書きしません。URLから `review=1` を外すと通常の保存・復帰を使います。採用は利用者レビュー待ちで、PRは作成していません。
+「もちもの」または I でバッグを開きます。探索中の下の枠は、数字キーかクリック／タップで選びます。バッグの画面と操作は2026-11-14の実画面レビューで合格しました。初期の所持金、確認用のサンプル、枠の数は暫定です。仕様と未決定事項は [所持金とバッグ](../docs/features/inventory.md) に記載しています。
 
-操作と未決定事項は [所持金とバッグ](../docs/features/inventory.md) に記載しています。開発サーバーに対する確認・比較撮影は次のコマンドです。撮影はヘッドレスで、出力先は `SLG_SHOTS` のみです。
+URL に `?review=1` を付けると、既存セーブを読まず、保存欄へ書き込まない一時セッションで、確認用のサンプル（所持金と10品）を使います。実ブラウザの確認・撮影・録画は、開発サーバーを起動したうえで次のコマンドで行います。撮影と録画はヘッドレスで、出力先は `SLG_SHOTS`・`SLG_VIDEOS` だけです。
 
 ```sh
-SLG_URL=http://127.0.0.1:5181 node scripts/e2e-inventory.mjs
-SLG_URL=http://127.0.0.1:5181 node scripts/e2e-bag-hotbar.mjs
-SLG_URL=http://127.0.0.1:5181 SLG_SHOTS=/private/tmp/slg-audit/ui-review/bag-candidates node scripts/shots-inventory.mjs
+SLG_URL=http://127.0.0.1:5173 node scripts/e2e-bag-inventory.mjs
+SLG_URL=http://127.0.0.1:5173 SLG_SHOTS=/tmp/bag-shots node scripts/shots-bag-inventory.mjs
+SLG_URL=http://127.0.0.1:5173 SLG_VIDEOS=/tmp/bag-videos node scripts/video-bag-inventory.mjs
 ```
-
-`01ab701` に対し、親がsandbox外でBの7項目、Aの5項目、既存探索、小画面メニュー2項目を実行し、すべて成功しました。両候補の比較画像32枚を `/private/tmp/slg-audit/ui-review/bag-candidates/01ab701/` に保存しています。利用者のUI採用判断は未了です。
 
 [Issue #7](https://github.com/kame447/gmo-security-life-game/issues/7) の探索基盤を確認するブラウザ用プロトタイプです。TypeScript・Vite・Canvas 2D 標準APIを使います。数値や技術構成は [判断記録 0003](../docs/decisions/0003-map-prototype-canvas2d.md) の提案／要検証であり、本採用の決定ではありません。
 
