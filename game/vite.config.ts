@@ -7,7 +7,7 @@ export default defineConfig({
   preview: { host: '127.0.0.1', port: 4173, open: false },
   build: {
     target: 'es2022', sourcemap: false,
-    rollupOptions: { input: { game: 'index.html', editor: 'editor.html', editorPreview: 'editor-preview.html' } },
+    rollupOptions: { input: { game: 'index.html', editor: 'editor.html', editorPreview: 'editor-preview.html', openingPreview: 'opening-preview.html' } },
   },
   test: { environment: 'node', include: ['tests/**/*.test.ts'] },
 });

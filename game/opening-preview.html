@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>オープニング候補 プレビュー</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #0d0a0e; overscroll-behavior: none; }
+      body { display: flex; flex-direction: column; color: #fff;
+             font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; }
+      .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+      [hidden] { display: none !important; }
+      button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+      :focus-visible { outline: 3px solid #ffe08a; outline-offset: 2px; }
+
+      /* 確認専用の切り替え欄。ゲーム画面の一部ではない。 */
+      #pv { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 10px; background: #242a31;
+            border-bottom: 2px solid #3a424c; font-size: 13px; padding-top: max(6px, env(safe-area-inset-top)); }
+      #pv-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+      #pv button { background: #3a424c; border: 2px solid transparent; border-radius: 6px; padding: 6px 10px; min-height: 36px; }
+      #pv button[aria-pressed="true"] { background: #f4ecdc; color: #242a31; font-weight: bold; }
+      #pv label { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; }
+      #pv-status, #pv-art { color: #ffe08a; flex-basis: 100%; min-height: 1.2em; font-size: 12px; }
+      #pv-art { color: #b9c2cc; min-height: 0; }
+
+      #opening { position: relative; flex: 1; min-height: 0; overflow: hidden; --px: 2;
+                 -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+      #opening-view { position: absolute; image-rendering: pixelated; image-rendering: crisp-edges; }
+      .panel { background: rgba(27, 25, 34, 0.86); border: 2px solid #f4ecdc; border-radius: 8px; }
+      #opening-skip { position: absolute; right: max(10px, env(safe-area-inset-right)); top: 10px; padding: 8px 14px;
+                      min-width: 44px; min-height: 44px; font-size: 14px; }
+      #opening-menu { position: absolute; left: 50%; transform: translateX(-50%);
+                      bottom: max(calc(var(--px) * 10px), env(safe-area-inset-bottom)); width: min(calc(var(--px) * 150px), calc(100% - 24px));
+                      box-sizing: border-box; padding: 8px; }
+      #opening-menu [data-items] { display: grid; gap: 6px; }
+      #opening-menu button { display: block; width: 100%; min-height: 44px; padding: 6px 10px; font-size: clamp(16px, calc(var(--px) * 7px), 26px);
+                             background: transparent; border: 2px solid transparent; border-radius: 6px; text-align: center; }
+      #opening-menu button.selected:not(:disabled) { border-color: #ffe08a; background: rgba(255, 224, 138, 0.14); }
+      #opening-menu button.selected:not(:disabled)::before { content: "▶ "; color: #ffe08a; }
+      #opening-menu button:disabled { color: #8c8794; cursor: default; }
+      #opening-hint { margin: 6px 0 0; text-align: center; font-size: 12px; color: #e8e0cc; }
+      @media (pointer: coarse), (max-height: 440px) { #opening-hint { display: none; } }
+      @media (prefers-reduced-motion: no-preference) {
+        #opening-menu:not([hidden]) { animation: menu-in 0.25s ease-out; }
+        @keyframes menu-in { from { opacity: 0; } to { opacity: 1; } }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="pv" role="group" aria-label="プレビューの切り替え（確認専用）">
+      <div id="pv-tabs"></div>
+      <button id="pv-replay" type="button">もう一度再生</button>
+      <label><input id="pv-save" type="checkbox" /> 保存データあり</label>
+      <label><input id="pv-motion" type="checkbox" /> 動きを減らす</label>
+      <div id="pv-status" role="status" aria-live="polite"></div>
+      <div id="pv-art"></div>
+    </div>
+    <main id="opening">
+      <h1 class="sr-only">回避！人生の落とし穴</h1>
+      <canvas id="opening-view" role="img" aria-label="オープニング"></canvas>
+      <button id="opening-skip" class="panel" type="button">スキップ</button>
+      <nav id="opening-menu" class="panel" aria-label="タイトルメニュー" hidden>
+        <div data-items></div>
+        <p id="opening-hint">↑↓：えらぶ　Z / Space：けってい</p>
+      </nav>
+    </main>
+    <script type="module" src="/src/opening/preview.ts"></script>
+  </body>
+</html>
