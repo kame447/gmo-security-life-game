@@ -33,11 +33,51 @@ if (process.argv.includes('--check-fixture')) {
 
 const browser = await launchBrowser();
 const results = [];
+const hitChecks = [];
+async function checkMenu(h, size) {
+  const p = h.page;
+  const measured = await p.evaluate(() => {
+    const box = element => {
+      const r = element.getBoundingClientRect();
+      return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+    };
+    const mini = document.querySelector('#minimap-button');
+    const targets = [...document.querySelectorAll('#menu button'), mini].map(element => {
+      const rect = box(element);
+      const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      return { id: element.id, rect, hit: hit?.closest('button')?.id };
+    });
+    return { targets, hud: box(document.querySelector('#hud')), minimap: box(mini) };
+  });
+  const intersects = (a, b) => a.x < b.right && a.right > b.x && a.y < b.bottom && a.bottom > b.y;
+  assert.equal(measured.targets.length, 7, 'six menu controls and the minimap');
+  for (const target of measured.targets) {
+    assert.equal(target.hit, target.id, `${size.name}: ${target.id} must receive its center tap`);
+    const r = target.rect;
+    assert.ok(r.x >= 0 && r.y >= 0 && r.right <= size.viewport.width + 1 && r.bottom <= size.viewport.height + 1);
+    assert.equal(intersects(r, measured.hud), false, `${target.id} must avoid the location label`);
+    if (target.id !== 'minimap-button') assert.equal(intersects(r, measured.minimap), false, `${target.id} must avoid the minimap`);
+  }
+  const initial = await p.evaluate(() => ({ ...window.__slg.game.player }));
+  await p.evaluate(() => {
+    const game = window.__slg.game;
+    game.player = { ...game.player, facing: game.player.facing === 'up' ? 'down' : 'up' };
+  });
+  await click(p, '#btn-reset', size.mobile);
+  assert.deepEqual(await p.evaluate(() => ({ ...window.__slg.game.player })), initial);
+  await click(p, '#minimap-button', size.mobile);
+  await p.locator('#full-map-overlay').waitFor({ state: 'visible' });
+  await click(p, '#full-map-close', size.mobile);
+  await p.locator('#full-map-overlay').waitFor({ state: 'hidden' });
+  hitChecks.push({ size: size.name, viewport: size.viewport, ...measured, resetWorks: true, minimapTapWorks: true });
+  console.log(`PASS menu/minimap hit targets and real reset/map taps: ${size.name}`);
+}
 try {
   for (const size of sizes.filter(value => value.name !== 'landscape')) {
     const dir = join(output, size.name); await mkdir(dir, { recursive: true });
     const h = await session(browser, size, { temporary: false, seed });
     const p = h.page;
+    await checkMenu(h, size);
     const shot = name => p.screenshot({ path: join(dir, `${name}.png`) });
     const activate = selector => click(p, selector, size.mobile);
     const styles = () => p.evaluate(() => Object.fromEntries(
@@ -74,11 +114,13 @@ try {
     const confirm = await assertHidden();
     assert.equal(confirm['local-save-menu'].display, 'none');
     assert.equal(confirm['local-save-confirm'].hidden, false);
+    assert.equal(await p.locator('#local-save-status').isVisible(), false, 'old save success must not appear inside confirmation');
     await shot('04-continue');
     await p.keyboard.press('Escape');
     await activate('#local-save-new');
     await assertHidden();
     assert.match(await p.locator('#local-save-question').textContent(), /上書き/);
+    assert.equal(await p.locator('#local-save-status').isVisible(), false);
     await shot('05-new-game');
     await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
     assert.equal((await styles())['local-save-overlay'].display, 'none');
@@ -103,6 +145,14 @@ try {
       movedLayoutPreserved: true, errors: h.issues, captures: 6 });
     console.log(`PASS local save visibility, keyboard, modal guards and moved layout: ${size.name}`);
   }
+  for (const width of [320, 360]) {
+    const size = { name: `mobile-${width}`, viewport: { width, height: 844 }, mobile: true };
+    const h = await session(browser, size, { temporary: false, seed });
+    await checkMenu(h, size);
+    await h.page.screenshot({ path: join(output, `menu-${width}.png`) });
+    await h.close();
+  }
   await writeFile(join(output, 'summary.json'), `${JSON.stringify(results, null, 2)}\n`);
-  console.log('SUMMARY local save display 2/2 PASS; captured 12 images');
+  await writeFile(join(output, 'menu-hit-checks.json'), `${JSON.stringify(hitChecks, null, 2)}\n`);
+  console.log('SUMMARY local save display 2/2 PASS; menu hit checks 4/4 PASS; captured 14 images');
 } finally { await browser.close(); }

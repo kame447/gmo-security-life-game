@@ -3,6 +3,7 @@ import { createSaveStore } from '../src/app/save-store';
 import { Game } from '../src/session/game';
 import { PlayerAssets } from '../src/state/assets';
 import { moveInventoryStack, normalizeInventoryLayout } from '../src/state/inventory';
+import { parseSave } from '../src/state/save';
 import { buildWorld } from '../src/world';
 
 const items = [{ itemId: 'notebook', quantity: 1 }, { itemId: 'pencil', quantity: 3 }];
@@ -71,5 +72,20 @@ describe('v1 inventory layout extensions in the combined save preview', () => {
     expect(new Game(world, { ...clocks, save: next.loadSave(world) }).serialize()).toEqual(snapshot);
     expect(snapshot.assets?.moneyYen).toBe(2480);
     expect(snapshot.assets?.items).toEqual(items);
+  });
+
+  it('protects a corrupt JSON checkpoint with non-finite extension data instead of throwing during normalization', () => {
+    const world = buildWorld();
+    const saved = new Game(world).serialize();
+    const raw = { ...saved, assets: { moneyYen: 2480, items, layout: { ...layout(), futureLayout: Infinity } } };
+    // JSON permits an exponent whose parsed value overflows to Infinity.
+    const text = JSON.stringify(raw).replace('"futureLayout":null', '"futureLayout":1e999');
+    const storage = { getItem: () => text, setItem: () => { throw new Error('No overwrite allowed'); } };
+    expect(() => parseSave(JSON.parse(text), world)).not.toThrow();
+    expect(parseSave(JSON.parse(text), world)).toBeNull();
+    const store = createSaveStore({ storage: () => storage });
+    expect(store.loadSave(world)).toBeUndefined();
+    expect(store.saveStatus()).toMatchObject({ failed: true, reason: 'protected-save' });
+    expect(storage.getItem()).toBe(text);
   });
 });

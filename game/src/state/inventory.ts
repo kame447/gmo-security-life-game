@@ -1,6 +1,6 @@
 import { INVENTORY_PROTOTYPE } from '../data/inventory-config';
 import type { ItemStack } from './assets';
-import { copySaveJson } from './save-json';
+import { copySaveJson, SaveValidationError } from './save-json';
 
 export type InventorySection = 'bag' | 'hotbar';
 export interface SlotAddress { section: InventorySection; index: number }
@@ -48,9 +48,16 @@ export function normalizeInventoryLayout(raw: unknown, items: readonly ItemStack
     bag[index] = item.itemId; placed.add(item.itemId);
   }
   const selection = valid ? source.selectedHotbar : undefined;
-  return copySaveJson<InventoryLayoutSave>({ ...(source?.v === 1 ? source : {}),
-    v: 1, bag, hotbar, selectedHotbar: typeof selection === 'number' && Number.isInteger(selection) &&
-      selection >= 0 && selection < hotbar.length ? selection : 0 });
+  const normalized: InventoryLayoutSave = { v: 1, bag, hotbar,
+    selectedHotbar: typeof selection === 'number' && Number.isInteger(selection) &&
+      selection >= 0 && selection < hotbar.length ? selection : 0 };
+  try { return copySaveJson({ ...(source?.v === 1 ? source : {}), ...normalized }); }
+  catch (error) {
+    if (!(error instanceof SaveValidationError)) throw error;
+    // Keep owned-field repair total. The save codec still validates the original
+    // extensions and protects a checkpoint containing invalid JSON values.
+    return normalized;
+  }
 }
 
 export function validSlot(layout: InventoryLayoutSave, address: SlotAddress): boolean {
