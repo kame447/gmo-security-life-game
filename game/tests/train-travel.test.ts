@@ -20,7 +20,7 @@ const destination: RailwayStation = { id: neighbor.stationId, name: neighbor.nam
 /** 試験用の出発駅は、となりまちの構内を複製し、改札も同じ位置に持つ。 */
 const FLOWS: readonly StationFlow[] = [
   { stationId: origin.id, gate: { areaId: origin.boarding.areaId, interactionId: nGate.interactionId, eventKey: nGate.eventKey, tile: nGate.tile, w: nGate.w },
-    platforms: neighborFlow.platforms },
+    platforms: neighborFlow.platforms, alight: { ...neighborFlow.alight, areaId: origin.boarding.areaId } },
   neighborFlow,
 ];
 const south = { x: nGate.tile.x, y: nGate.tile.y + 1 };

@@ -4,8 +4,8 @@ import { positionAt } from '../src/map/explorer';
 import { Game } from '../src/session/game';
 import { directionBetween, headingOf } from '../src/travel/direction';
 import { TRAIN_NETWORK } from '../src/travel/network';
-import { REDUCED_TIMING, RIDE_TIMING, RideDirector } from '../src/travel/ride';
-import { geometryOf, sceneState } from '../src/travel/scene';
+import { alightPlan, boardPlan, exitFrame, exitPath, pathLength, RideScript, TIMING } from '../src/travel/choreo';
+import { trainStopX, TRAIN_LENGTH_PX } from '../src/town-train/station-scene';
 import { TrainTravelSession } from '../src/travel/session';
 import { buildWorld, getStationFlow, STATION_ACCESS } from '../src/world';
 import { NEIGHBOR_STATION_ACCESS } from '../src/world/towns/neighbor';
@@ -51,7 +51,8 @@ describe('gate: one decision, no confirmations', () => {
 
   it('leaves platform signs to the ordinary conversation', () => {
     const down = flow.platforms.find(p => p.direction === 'down')!;
-    const { game, travel } = station({ ...down.boardTile });
+    const front = { areaId: STATION_ACCESS.areaId, x: down.sign.x, y: down.sign.y + (down.sign.facing === 'up' ? 1 : -1), facing: down.sign.facing };
+    const { game, travel } = station(front);
     expect(travel.begin(event(game))).toBe(false);
     expect(travel.isOpen).toBe(false);
   });
@@ -120,69 +121,96 @@ describe('direction', () => {
   });
 });
 
-describe('ride director', () => {
-  const run = (timing = RIDE_TIMING, commit = () => true, step = 16) => {
-    const phases: string[] = [], commits: string[] = [], done: boolean[] = [];
-    const d = new RideDirector('right', () => { commits.push(d.snapshot.phase); return commit(); }, ok => done.push(ok), timing);
-    for (let i = 0; i < 20000 && !done.length; i++) { d.advance(step); const phase = d.snapshot.phase; if (phases.at(-1) !== phase) phases.push(phase); }
-    return { phases, commits, done };
+describe('ride choreography on the station map', () => {
+  const mainFlow = getStationFlow(STATION_ACCESS.stationId), neighborFlow = getStationFlow(NEIGHBOR);
+  const widthOf = (areaId: string) => (buildWorld().areas.get(areaId)?.width ?? 36) * 16;
+  const feetStart = (dy = 1) => ({ x: flow.gate.tile.x * 16 + 8, y: (flow.gate.tile.y + dy) * 16 + 14 });
+  const script = (direction: 'up' | 'down', reduced = false) => {
+    const p = mainFlow.platforms.find(item => item.direction === direction)!, q = neighborFlow.platforms.find(item => item.direction === direction)!;
+    return { p, q, s: new RideScript(boardPlan(feetStart(), p, 36 * 16), alightPlan(q, neighborFlow.alight, 32 * 16), reduced) };
   };
+  const frames = (s: RideScript, step = 16) => { const out = []; for (let t = 0; t < s.commitTime + 20000; t += step) { const f = s.sample(t); out.push({ t, f }); if (f.stage === 'done') break; } return out; };
 
-  it('plays walk-in, door, depart, arrive and alight in order with no darkening phase', () => {
-    const { phases, done } = run();
-    expect(phases).toEqual(['walk-in', 'door-close', 'depart', 'arrive', 'door-open', 'walk-out', 'settle', 'done']);
-    expect(phases.join()).not.toMatch(/fade|black/);
-    expect(done).toEqual([true]);
-  });
-
-  it('commits once, after the departing train is gone and before the arriving train enters', () => {
-    const commits: string[] = [];
-    const seen: string[] = [];
-    const d = new RideDirector('right', () => { commits.push(d.snapshot.phase); seen.push(...phasesSoFar); return true; }, () => {});
-    const phasesSoFar: string[] = [];
-    for (let i = 0; i < 600; i++) { d.advance(16); const p = d.snapshot.phase; if (phasesSoFar.at(-1) !== p) phasesSoFar.push(p); }
-    expect(commits).toHaveLength(1);
-    expect(seen).toContain('depart');
-    expect(seen).not.toContain('arrive');
-  });
-
-  it('cannot skip or double the commit with a huge or repeated time step', () => {
-    for (const step of [1, 16, 250, 1e9]) expect(run(RIDE_TIMING, () => true, step).commits).toHaveLength(1);
-  });
-
-  it('ends at once without an arrival scene when the commit is refused', () => {
-    const { phases, done } = run(RIDE_TIMING, () => false);
-    expect(phases).toEqual(['walk-in', 'door-close', 'depart', 'done']);
-    expect(done).toEqual([false]);
-  });
-
-  it('shows only the arrived state, briefly, with reduced motion', () => {
-    const commits: number[] = [], phases: string[] = [], done: boolean[] = [];
-    const d = new RideDirector('right', () => { commits.push(1); return true; }, ok => done.push(ok), REDUCED_TIMING);
-    for (let i = 0; i < 200 && !done.length; i++) { phases.push(d.snapshot.phase); d.advance(16); }
-    expect(phases[0]).toBe('settle');
-    expect(commits).toHaveLength(1);
-    expect(done).toEqual([true]);
-  });
-});
-
-describe('scene', () => {
-  const snap = (phase: 'depart' | 'arrive', progress: number, heading: 'left' | 'right' = 'right') => sceneState({ phase, progress, heading }, geometryOf('down'));
-  it('moves the departing car out along the heading and the arriving car in from the opposite side', () => {
-    expect(snap('depart', 0).trainOffset).toBe(0);
-    expect(snap('depart', 1).trainOffset).toBeGreaterThan(300);
-    expect(snap('arrive', 0).trainOffset).toBeLessThan(-300);
-    expect(Math.abs(snap('arrive', 1).trainOffset)).toBe(0);
-    expect(snap('depart', 1, 'left').trainOffset).toBeLessThan(-300);
-  });
-
-  it('fills the whole view with floor, track and walls, never a blank border', () => {
+  it('walks the player from the gate to the door of the right platform, boards, and leaves with the train fully out', () => {
     for (const direction of ['down', 'up'] as const) {
-      const g = geometryOf(direction, 30, 20);
-      expect(g.layout).toHaveLength(20);
-      expect(g.layout.every(tile => tile !== 0)).toBe(true);
-      expect(g.trackRow).toBeGreaterThan(0);
-      expect(g.trackRow).toBeLessThan(19);
+      const { p, s } = script(direction);
+      const list = frames(s), first = list[0].f, board = boardPlan(feetStart(), p, 36 * 16);
+      expect(first.actor).toMatchObject({ x: feetStart().x, y: feetStart().y, visible: true });
+      expect(first.train!.x).toBe(board.entryX);
+      expect(list.some(({ f }) => f.stage === 'origin' && f.actor && !f.actor.visible)).toBe(true);
+      const last = s.sample(s.commitTime - 0.001);
+      expect(last.stage).toBe('origin');
+      expect(Math.abs(last.train!.x - board.exitX)).toBeLessThan(0.5);
+      // 乗り込んだ主人公は、列車が動き出す前にドアの位置で見えなくなる
+      const hidden = list.find(({ f }) => f.stage === 'origin' && f.actor && !f.actor.visible)!;
+      expect(hidden.f.train!.x).toBe(trainStopX(p));
     }
+  });
+
+  it('commits once between the departing and the arriving train, with no darkening in any frame', () => {
+    const { s } = script('down'), list = frames(s);
+    const stages = list.map(({ f }) => f.stage);
+    expect(stages.indexOf('destination')).toBeGreaterThan(stages.lastIndexOf('origin'));
+    expect(new Set(stages)).toEqual(new Set(['origin', 'destination', 'done']));
+    for (const { f } of list) expect(Object.keys(f)).not.toContain('fade');
+    expect(list.at(-1)!.f.stage).toBe('done');
+  });
+
+  it('keeps the alighting actor continuous and ends exactly on the real alight position and facing', () => {
+    const { s } = script('down'), list = frames(s), spot = neighborFlow.alight;
+    const firstControl = list.find(({ f }) => f.control && f.actor)?.f ?? list.find(({ f }) => f.control)!.f;
+    expect(firstControl.stage).toBe('destination');
+    const before = list.filter(({ f }) => f.stage === 'destination' && f.actor && f.actor.visible).at(-1)!.f.actor!;
+    expect(before).toMatchObject({ x: spot.x * 16 + 8, y: spot.y * 16 + 14, facing: spot.facing, walking: false });
+    // 操作が戻った後も、列車だけが続けて出ていく
+    const tail = list.filter(({ f }) => f.control && f.stage === 'destination');
+    expect(tail.length).toBeGreaterThan(10);
+    expect(tail.every(({ f }) => f.actor === null)).toBe(true);
+    expect(tail.at(-1)!.f.train!.x).toBeGreaterThan(tail[0].f.train!.x - 1);
+  });
+
+  it('moves every step of the actor along walkable ground (no solid tile except the gate being crossed)', () => {
+    const world = buildWorld();
+    const w = world.areas.get(STATION_ACCESS.areaId)!;
+    for (const direction of ['down', 'up'] as const) {
+      const { s } = script(direction);
+      for (const { f } of frames(s).filter(({ f }) => f.stage === 'origin' && f.actor?.visible)) {
+        const tx = Math.floor(f.actor!.x / 16), ty = Math.floor((f.actor!.y - 4) / 16);
+        const crossing = tx >= flow.gate.tile.x && tx < flow.gate.tile.x + 2 && ty === flow.gate.tile.y;
+        const door = mainFlow.platforms.find(p => p.direction === direction)!.door;
+        if (!crossing && !(tx === door.x && ty === door.y)) expect(w.solid[ty * w.width + tx], `${direction} (${tx},${ty})`).toBe(0);
+      }
+    }
+    const n = world.areas.get(NEIGHBOR_STATION_ACCESS.arrival.areaId);
+    void n;
+  });
+
+  it('puts the train on the track row and sizes it against the player and the platform', () => {
+    for (const direction of ['down', 'up'] as const) {
+      const { p, s } = script(direction);
+      const door = s.sample(TIMING.trainIn + 5).train!;
+      expect(door.x).toBe(trainStopX(p));
+      expect(p.track.y).toBe(p.door.y);
+      expect(TRAIN_LENGTH_PX).toBeGreaterThan(18 * 6);
+      expect(widthOf(STATION_ACCESS.areaId)).toBeGreaterThan(TRAIN_LENGTH_PX * 2);
+    }
+  });
+
+  it('is short with reduced motion: commits immediately, shows the arrived state, then clears', () => {
+    const { s } = script('down', true), list = frames(s);
+    expect(s.commitTime).toBe(0);
+    expect(list[0].f).toMatchObject({ stage: 'destination', control: false });
+    expect(list[0].f.train!.doorOpen).toBe(1);
+    expect(list.at(-1)!.f).toMatchObject({ stage: 'done', control: true });
+    expect(list.at(-1)!.t).toBeLessThan(900);
+  });
+
+  it('walks out through the gate in under a second without leaving the gate column', () => {
+    const path = exitPath({ x: flow.gate.tile.x * 16 + 8, y: (flow.gate.tile.y - 1) * 16 + 14 }, flow.gate.tile.y);
+    expect(pathLength(path)).toBe(32);
+    expect(exitFrame(path, 0).done).toBe(false);
+    const end = exitFrame(path, 600);
+    expect(end.done).toBe(true);
+    expect(end.actor).toMatchObject({ x: flow.gate.tile.x * 16 + 8, y: (flow.gate.tile.y + 1) * 16 + 14, facing: 'down' });
   });
 });

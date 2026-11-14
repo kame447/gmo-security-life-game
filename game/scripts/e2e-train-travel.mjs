@@ -90,12 +90,12 @@ const rec = (name, size) => VIDEO ? { recordVideo: { dir: resolve(VIDEO, name), 
 const act = (page, touch) => touch ? page.locator('#touch [data-act]').tap() : page.keyboard.press('KeyZ');
 const click = (page, selector, touch) => touch ? page.locator(selector).tap() : page.locator(selector).click();
 const panel = page => page.locator('#train-travel-panel');
-const phase = page => page.evaluate(() => document.querySelector('#train-travel-panel')?.dataset.ridePhase ?? null);
-const waitPhase = (page, name, timeout = 20000) => page.waitForFunction(n => document.querySelector('#train-travel-panel')?.dataset.ridePhase === n, name, { timeout, polling: 'raf' });
+const phase = page => page.evaluate(() => document.querySelector('#train-travel-panel')?.dataset.rideStage ?? null);
+const waitPhase = (page, name, timeout = 20000) => page.waitForFunction(n => document.querySelector('#train-travel-panel')?.dataset.rideStage === n, name, { timeout, polling: 'raf' });
 const watchPhases = page => page.evaluate(() => {
   window.__phases = [];
-  new MutationObserver(() => { const p = document.querySelector('#train-travel-panel').dataset.ridePhase; if (p && window.__phases.at(-1) !== p) window.__phases.push(p); })
-    .observe(document.querySelector('#train-travel-panel'), { attributes: true, attributeFilter: ['data-ride-phase'] });
+  new MutationObserver(() => { const p = document.querySelector('#train-travel-panel').dataset.rideStage; if (p && window.__phases.at(-1) !== p) window.__phases.push(p); })
+    .observe(document.querySelector('#train-travel-panel'), { attributes: true, attributeFilter: ['data-ride-stage'] });
 });
 const setPlayer = (page, point) => page.evaluate(async point => {
   const { positionAt } = await import('/src/map/explorer.ts'); window.__slg.game.player = positionAt(point);
@@ -109,42 +109,51 @@ async function decide(page, destinationId, touch, prefix) {
   if (prefix) await shot(page, `${prefix}-destinations`);
   await click(page, `[data-action="select"][data-station-id="${destinationId}"]`, touch);
 }
-/** 演出中の画面の暗さを毎フレーム測る（場面の canvas の、ほぼ黒い画素の割合の最大値）。 */
-const watchDarkness = page => page.evaluate(() => {
-  window.__dark = 0; window.__darkFrames = 0;
+/** 演出中、毎フレーム: 実際のゲーム画面(#view)の暗さ・フェードの有無・マップ上の列車の位置・主人公の見え方を記録する。 */
+const watchRide = page => page.evaluate(() => {
+  window.__log = [];
   const probe = document.createElement('canvas'), pc = probe.getContext('2d', { willReadFrequently: true });
+  probe.width = 64; probe.height = 36;
   const loop = () => {
-    const scene = document.querySelector('#train-travel-panel .train-travel-scene');
-    const root = document.querySelector('#train-travel-panel');
-    if (scene) {
-      probe.width = 64; probe.height = 36; pc.drawImage(scene, 0, 0, 64, 36);
-      const data = pc.getImageData(0, 0, 64, 36).data; let dark = 0;
-      for (let i = 0; i < data.length; i += 4) if (data[i] < 24 && data[i + 1] < 24 && data[i + 2] < 24) dark++;
-      window.__dark = Math.max(window.__dark, dark / (64 * 36)); window.__darkFrames++;
-      const bg = getComputedStyle(root).backgroundColor; if (!/rgba\(0, 0, 0, 0\)|transparent/.test(bg)) window.__darkBackground = bg;
-    }
+    const view = document.querySelector('#view'), root = document.querySelector('#train-travel-panel');
+    pc.drawImage(view, 0, 0, 64, 36);
+    const data = pc.getImageData(0, 0, 64, 36).data; let dark = 0;
+    for (let i = 0; i < data.length; i += 4) if (data[i] < 24 && data[i + 1] < 24 && data[i + 2] < 24) dark++;
+    const stats = window.__slg.renderer.stats, g = window.__slg.game;
+    window.__log.push({ stage: root.dataset.rideStage ?? null, dark: dark / (64 * 36), fading: !!stats.fading,
+      trains: stats.trains.map(t => ({ ...t })), area: g.area.def.id, player: { x: g.player.x, y: g.player.y }, camX: stats.camX, camY: stats.camY });
     requestAnimationFrame(loop);
   };
   loop();
 });
 async function ride(page, touch, prefix, hooks = {}) {
-  await watchPhases(page); await watchDarkness(page);
+  await watchPhases(page); await watchRide(page);
   const before = await player(page);
+  const stage = name => page.waitForFunction(n => document.querySelector('#train-travel-panel')?.dataset.rideStage === n, name, { timeout: 25000, polling: 'raf' });
   if (!hooks.reduced) {
-    await waitPhase(page, 'walk-in'); await page.waitForTimeout(500); if (prefix) await shot(page, `${prefix}-ride-walk-in`);
-    await waitPhase(page, 'door-close'); if (prefix) await shot(page, `${prefix}-ride-door-close`);
-    await waitPhase(page, 'depart'); await page.waitForTimeout(600); if (prefix) await shot(page, `${prefix}-ride-depart`);
-    assert.deepEqual(await player(page), before, 'position is unchanged while departing');
+    await page.waitForFunction(() => window.__slg.renderer.stats.trains.length > 0, null, { timeout: 5000, polling: 'raf' });
+    await page.waitForTimeout(900); if (prefix) await shot(page, `${prefix}-ride-1-train-arrives-actor-walks`);
+    await page.waitForTimeout(1600); if (prefix) await shot(page, `${prefix}-ride-2-walking-to-door`);
+    assert.deepEqual(await player(page), before, 'the real player stays at the gate while the actor walks');
     if (hooks.during) await hooks.during(before);
-    await waitPhase(page, 'arrive'); await page.waitForTimeout(700); if (prefix) await shot(page, `${prefix}-ride-arrive`);
-    await waitPhase(page, 'walk-out'); await page.waitForTimeout(450); if (prefix) await shot(page, `${prefix}-ride-walk-out`);
-  } else await waitPhase(page, 'settle');
+    await page.waitForFunction(() => window.__slg.renderer.stats.trains.some(t => t.doorOpen === 0) && window.__log.some(l => l.trains.some(t => t.doorOpen > 0.9)), null, { timeout: 25000, polling: 'raf' });
+    await stage('destination');
+    await page.waitForTimeout(1300); if (prefix) await shot(page, `${prefix}-ride-3-arrival-train-at-neighbor`);
+    await page.waitForTimeout(1000); if (prefix) await shot(page, `${prefix}-ride-4-alighting`);
+  }
   await panel(page).waitFor({ state: 'hidden', timeout: 20000 });
-  const stats = await page.evaluate(() => ({ phases: window.__phases, dark: window.__dark, frames: window.__darkFrames, bg: window.__darkBackground ?? null }));
-  assert.ok(stats.frames > 5, 'darkness was sampled');
-  assert.ok(stats.dark < 0.05, `no dark screen during the ride: ${stats.dark}`);
-  assert.equal(stats.bg, null, 'no dark overlay behind the scene');
-  return stats.phases;
+  await page.waitForFunction(() => window.__log.at(-1).trains.length === 0 || window.__log.filter(l => l.stage === 'done').length > 0, null, { timeout: 15000, polling: 'raf' });
+  await page.waitForTimeout(400);
+  const log = await page.evaluate(() => window.__log);
+  assert.ok(log.length > 30, 'frames were sampled');
+  assert.ok(log.every(l => !l.fading), 'the renderer never starts an area fade during the ride');
+  // 構内の外側が黒い（縦長の画面では部屋が画面より小さい）のは通常の描画。演出がそれ以上に暗くしないことを確かめる。
+  const darkMax = Math.max(...log.map(l => l.dark)), baseline = Math.max(log[0].dark, log.at(-1).dark);
+  assert.ok(darkMax <= baseline + 0.12, `no darker than the plain map (${baseline}): ${darkMax}`);
+  for (let i = 1; i < log.length; i++) assert.ok(Math.abs(log[i].dark - log[i - 1].dark) < 0.4, `no flash at frame ${i}: ${log[i - 1].dark} -> ${log[i].dark}`);
+  const trainFrames = log.filter(l => l.trains.length);
+  assert.ok(trainFrames.length > 20, 'a train was drawn on the map');
+  return { phases: await page.evaluate(() => window.__phases), log };
 }
 const tileOf = p => ({ x: Math.floor(p.x / 16), y: Math.floor((p.y - 4) / 16) });
 const setPlayerTo = (page, point) => page.evaluate(async point => {
@@ -176,7 +185,8 @@ try {
     assert.deepEqual(await page.evaluate(() => window.__slg.game.serialize()), before);
   });
   await check('the platform sign is an ordinary conversation, not a menu', async () => {
-    await setPlayerTo(page, { ...flows.main.platforms.find(p => p.direction === 'down').boardTile }); await frame(page);
+    const sign = flows.main.platforms.find(p => p.direction === 'down').sign;
+    await setPlayerTo(page, { areaId: access.areaId, x: sign.x, y: sign.y + 1, facing: 'up' }); await frame(page);
     await face(page, 'up');
     await act(page, false); await frame(page);
     assert.equal(await panel(page).isVisible(), false);
@@ -190,14 +200,14 @@ try {
     await watchPhases(page);
     await decide(page, neighbor.stationId, false, 'desktop-03');
     assert.equal(await panel(page).locator('button').count(), 0, 'no further confirmation appears');
-    const phases = await ride(page, false, 'desktop-04', { during: async before => {
+    const { phases } = await ride(page, false, 'desktop-04', { during: async before => {
       for (let i = 0; i < 20; i++) await page.keyboard.press('KeyZ');
       await page.keyboard.press('Escape');
       await page.keyboard.down('ArrowUp'); await page.waitForTimeout(150); await page.keyboard.up('ArrowUp');
       assert.deepEqual(await player(page), before);
-      assert.equal(await panel(page).isVisible(), true);
+      assert.equal(await page.evaluate(() => document.querySelector('#stage').classList.contains('travel-open')), true);
     } });
-    assert.deepEqual(phases, ['walk-in', 'door-close', 'depart', 'arrive', 'door-open', 'walk-out', 'settle', 'done']);
+    assert.deepEqual(phases, ['origin', 'destination', 'done']);
     await waitArea(page, neighbor.arrival.areaId); await waitSavedArea(page, neighbor.arrival.areaId);
     assert.deepEqual(tileOf(await player(page)), { x: neighbor.arrival.x, y: neighbor.arrival.y });
     assert.deepEqual(await page.evaluate(() => window.__slg.game.appearance), appearanceBefore);
@@ -220,7 +230,7 @@ try {
     await walkTo(page, entrance); await waitArea(page, neighbor.boarding.areaId);
     await walkTo(page, nSouth); await face(page, 'up');
     await decide(page, access.stationId, false, 'desktop-07-neighbor-gate');
-    const phases = await ride(page, false, 'desktop-08');
+    const { phases } = await ride(page, false, 'desktop-08');
     assert.equal(phases.at(-1), 'done');
     await waitArea(page, access.arrival.areaId); await waitSavedArea(page, access.arrival.areaId);
     assert.deepEqual(tileOf(await player(page)), { x: access.arrival.x, y: access.arrival.y });
@@ -237,7 +247,8 @@ try {
         const rest = () => page.evaluate(() => JSON.stringify({ ...window.__slg.game.serialize(), x: 0, y: 0, areaId: '', facing: '' }));
         const money = await rest();
         await decide(page, neighbor.stationId, false);
-        await waitPhase(page, stopAt); await page.waitForTimeout(500);
+        if (stopAt === 'depart') { await waitPhase(page, 'origin'); await page.waitForTimeout(4300); } else await waitPhase(page, 'destination');
+        await page.waitForTimeout(300);
         await page.reload(); await ready(page);
         const after = await player(page);
         if (stopAt === 'depart') { assert.equal(after.areaId, access.areaId); assert.deepEqual(tileOf(after), mainSouth); }
@@ -251,8 +262,8 @@ try {
     try {
       await watchPhases(page);
       await decide(page, neighbor.stationId, false);
-      const phases = await ride(page, false, null, { reduced: true });
-      assert.deepEqual(phases, ['settle', 'done']);
+      const { phases } = await ride(page, false, null, { reduced: true });
+      assert.deepEqual(phases, ['destination', 'done']);
       await waitArea(page, neighbor.arrival.areaId);
     } finally { await context.close(); }
   });
@@ -263,7 +274,7 @@ try {
       try {
         await shot(page, `${size.name}-01-gate`);
         await decide(page, neighbor.stationId, true, `${size.name}-02`);
-        const phases = await ride(page, true, `${size.name}-03`);
+        const { phases } = await ride(page, true, `${size.name}-03`);
         assert.equal(phases.at(-1), 'done');
         await waitArea(page, neighbor.arrival.areaId); await waitSavedArea(page, neighbor.arrival.areaId);
         await shot(page, `${size.name}-04-arrived`);

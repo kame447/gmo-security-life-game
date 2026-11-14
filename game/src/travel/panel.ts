@@ -2,8 +2,8 @@ import type { MapEvent } from '../core/types';
 import { TILE } from '../core/coords';
 import type { Game } from '../session/game';
 import type { RailwayNetwork } from '../world/railway';
-import { RIDE_TIMING, REDUCED_TIMING, RideDirector } from './ride';
-import { drawRideScene, geometryOf } from './scene';
+import { alightPlan, boardPlan, exitFrame, exitPath, RideScript, type Frame } from './choreo';
+import { stationScene } from '../town-train/station-scene';
 import { TrainTravelSession, type RideRequest, type TravelArrival, type TravelResult } from './session';
 import './panel.css';
 
@@ -26,6 +26,7 @@ export class TrainTravelPanel {
   private readonly session: TrainTravelSession;
   private readonly root = element('div', 'train-travel-overlay');
   private frame = 0;
+  private afterglow = 0;
   private result: TravelResult | undefined;
 
   constructor(private readonly game: Game, railway: RailwayNetwork, private readonly stage: HTMLElement, private readonly hooks: TrainTravelPanelHooks) {
@@ -40,8 +41,8 @@ export class TrainTravelPanel {
   /** Gameのinteract通知から呼ぶ。改札の操作だけが対象で、成功時のみ既定会話を抑止する。 */
   tryOpen(event: MapEvent): boolean {
     if (!this.hooks.canOpen() || !this.session.begin(event)) return false;
-    // 出場は一覧も確認も出さず、操作1回で通る。通知の最中に動かさないよう、直後に実行する。
-    if (this.session.state.step === 'exit') { queueMicrotask(() => { this.session.passExit(); }); return true; }
+    // 出場は一覧も確認も出さず、操作1回で、主人公が改札を歩いて通る。
+    if (this.session.state.step === 'exit') { this.hooks.onOpen(); this.walkThroughGate(); return true; }
     this.root.hidden = false;
     this.stage.classList.add('travel-open');
     this.render();
@@ -98,53 +99,90 @@ export class TrainTravelPanel {
     cancelAnimationFrame(this.frame);
     this.root.hidden = true;
     this.root.replaceChildren();
-    this.root.classList.remove('train-travel-riding');
-    delete this.root.dataset.ridePhase;
     this.stage.classList.remove('travel-open');
     this.hooks.onClose(result);
   }
 
-  /** 行き先を決めた直後に、確認なしで乗車の演出を始める。 */
+  /** 行き先を決めた直後に、確認なしで乗車の演出（マップの上の列車と歩く主人公）を始める。 */
   private choose(id: string): void {
     const ride = this.session.choose(id);
     if (!ride) { this.finish(); return; }
     this.play(ride);
   }
 
+  private areaWidth(areaId: string): number { return (this.game.world.areas.get(areaId)?.width ?? 0) * TILE; }
+
+  private static prefersReducedMotion(): boolean {
+    return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  /** 実際の主人公は改札の前に置いたまま、描画だけを stationScene の代役と列車に差し替える。 */
+  private show(areaId: string, frame: Frame): void {
+    stationScene.set(areaId, { trains: frame.train ? [{ direction: this.direction, x: frame.train.x, doorOpen: frame.train.doorOpen }] : [],
+      ...(frame.actor ? { actor: frame.actor } : {}) });
+  }
+  private direction: 'up' | 'down' = 'down';
+
   private play(ride: RideRequest): void {
-    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const canvas = element('canvas', 'train-travel-scene');
-    canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', 'でんしゃに のって いどうちゅう');
-    const c = canvas.getContext('2d');
-    this.root.classList.add('train-travel-riding');
-    this.root.replaceChildren(canvas);
-    let geometry = geometryOf(ride.direction);
-    const fit = () => {
-      const w = this.stage.clientWidth || 640, h = this.stage.clientHeight || 480;
-      const zoom = Math.max(1, Math.round(w / (26 * TILE)));
-      const cols = Math.ceil(w / zoom / TILE) + 1, rows = Math.ceil(h / zoom / TILE) + 1;
-      canvas.width = cols * TILE; canvas.height = rows * TILE;
-      canvas.style.width = `${cols * TILE * zoom}px`; canvas.style.height = `${rows * TILE * zoom}px`;
-      geometry = geometryOf(ride.direction, cols, rows);
-    };
-    fit();
-    window.addEventListener('resize', fit);
-    const director = new RideDirector(ride.heading, () => {
-      this.result = this.session.commitArrival();
-      return this.result.ok;
-    }, () => {
-      window.removeEventListener('resize', fit);
+    cancelAnimationFrame(this.afterglow);
+    this.direction = ride.direction;
+    this.root.hidden = true;
+    this.root.replaceChildren();
+    this.stage.classList.add('travel-open');
+    stationScene.setFadeSuppressed(true);
+    const player = this.game.player;
+    const board = boardPlan({ x: player.x, y: player.y }, ride.boardPlatform, this.areaWidth(ride.originAreaId));
+    const alight = alightPlan(ride.alightPlatform, ride.alight, this.areaWidth(ride.destinationAreaId));
+    const script = new RideScript(board, alight, TrainTravelPanel.prefersReducedMotion());
+    let t = 0, last = performance.now(), committed = false, released = false;
+    const area = { origin: ride.originAreaId, destination: ride.destinationAreaId };
+    const abort = () => {
+      stationScene.reset();
       this.finish(this.result);
-    }, reduced ? REDUCED_TIMING : RIDE_TIMING);
-    let last = performance.now();
+    };
     const tick = (now: number) => {
-      director.advance(now - last); last = now;
-      const snapshot = director.snapshot;
-      this.root.dataset.ridePhase = snapshot.phase;
-      if (c && snapshot.phase !== 'done') {
-        drawRideScene(c, this.game.appearance, snapshot, geometry, ride.direction, now);
-        this.frame = requestAnimationFrame(tick);
+      t += Math.min(100, Math.max(0, now - last)); last = now;
+      let frame = script.sample(t);
+      if (frame.stage !== 'origin' && !committed) {
+        // 出発した列車が画面の外にいる瞬間に、位置を1回だけ確定する（黒いフェードは止めてある）。
+        committed = true;
+        stationScene.set(area.origin, null);
+        this.result = this.session.commitArrival();
+        if (!this.result.ok) { abort(); return; }
+        frame = script.sample(t);
       }
+      this.root.dataset.rideStage = frame.stage;
+      if (frame.stage === 'done') { stationScene.set(area.destination, null); }
+      else this.show(frame.stage === 'origin' ? area.origin : area.destination, frame);
+      if (frame.control && !released) {
+        released = true;
+        stationScene.setFadeSuppressed(false);
+        this.finish(this.result);
+      }
+      if (frame.stage !== 'done') {
+        const next = requestAnimationFrame(tick);
+        // 操作が戻ったあとも、列車だけが自然に出ていくまで描き続ける。
+        if (released) this.afterglow = next; else this.frame = next;
+      }
+    };
+    this.frame = requestAnimationFrame(tick);
+  }
+
+  /** 改札を出る: 主人公の代役が改札を歩いて通り、着いたら実際の位置を確定して描画を戻す。 */
+  private walkThroughGate(): void {
+    const player = this.game.player, areaId = player.areaId;
+    const path = exitPath({ x: player.x, y: player.y }, this.session.exitRow);
+    stationScene.setFadeSuppressed(true);
+    let t = 0, last = performance.now();
+    const reduced = TrainTravelPanel.prefersReducedMotion();
+    const tick = (now: number) => {
+      t += Math.min(100, Math.max(0, now - last)); last = now;
+      const { actor, done } = exitFrame(path, reduced ? 1e6 : t);
+      if (!done) { stationScene.set(areaId, { trains: [], actor }); this.frame = requestAnimationFrame(tick); return; }
+      this.session.passExit();
+      stationScene.set(areaId, null);
+      stationScene.setFadeSuppressed(false);
+      this.hooks.onClose();
     };
     this.frame = requestAnimationFrame(tick);
   }

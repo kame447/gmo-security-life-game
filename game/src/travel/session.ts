@@ -6,7 +6,7 @@ import { RailwayNetwork, type RailwayStation } from '../world/railway';
 import { directionBetween, type Direction, type Heading } from './direction';
 import { TravelMenu, type TravelMenuState } from './menu';
 import { TRAVEL_LINES } from './network';
-import { readStationFlows, type StationFlow } from './stations';
+import { readStationFlows, type StationFlow, type StationPlatform } from './stations';
 
 /** 改札で決めた1回の乗車。きっぷは持たず、決定の直後に演出が始まる。 */
 export interface RideRequest {
@@ -15,6 +15,12 @@ export interface RideRequest {
   readonly direction: Direction;
   /** 発車して出ていく向き。 */
   readonly heading: Heading;
+  /** 出発駅の乗るホーム、到着駅の降りるホーム（同じ方向）、到着駅の下車位置。数値は getStationFlow が持つ。 */
+  readonly boardPlatform: StationPlatform;
+  readonly alightPlatform: StationPlatform;
+  readonly alight: StationFlow['alight'];
+  readonly originAreaId: string;
+  readonly destinationAreaId: string;
 }
 
 export type TravelResult =
@@ -36,6 +42,7 @@ export class TrainTravelSession {
   private readonly menu = new TravelMenu();
   private mode: Mode = 'closed';
   private ride: RideRequest | null = null;
+  private exitGateY = 0;
 
   constructor(private readonly game: Pick<Game, 'player' | 'world' | 'dialog' | 'facingInteraction'>,
     private readonly railway: RailwayNetwork, private readonly arrive?: TravelArrival,
@@ -43,6 +50,8 @@ export class TrainTravelSession {
 
   get isOpen(): boolean { return this.mode !== 'closed'; }
   get isRiding(): boolean { return this.mode === 'riding'; }
+  /** 出場の動きが通る改札の行。 */
+  get exitRow(): number { return this.exitGateY; }
 
   get state(): TravelView {
     if (this.mode === 'menu') return this.menu.state;
@@ -77,7 +86,7 @@ export class TrainTravelSession {
       if (!origin || !gate || !side || event.areaId !== gate.areaId || event.interactionId !== gate.interactionId ||
           event.eventKey !== gate.eventKey || !this.facing(gate.areaId, gate.interactionId, gate.eventKey)) continue;
       if (side === 'south') return this.openMenu(origin);
-      this.mode = 'exit';
+      this.mode = 'exit'; this.exitGateY = gate.tile.y;
       return true;
     }
     return false;
@@ -90,8 +99,11 @@ export class TrainTravelSession {
     const flow = this.flows.find(item => item.stationId === journey.originId), gate = flow?.gate;
     const direction = directionBetween(this.lineOrder, journey.originId, journey.destinationId) ?? 'down';
     const platform = flow?.platforms.find(item => item.direction === direction) ?? flow?.platforms[0];
-    if (!gate || !platform || this.gateSide(gate) !== 'south') { this.mode = 'closed'; return null; }
-    this.ride = { originId: journey.originId, destinationId: journey.destinationId, direction, heading: platform.heading };
+    const toFlow = this.flows.find(item => item.stationId === journey.destinationId);
+    const alightPlatform = toFlow?.platforms.find(item => item.direction === direction) ?? toFlow?.platforms[0];
+    if (!gate || !platform || !toFlow || !alightPlatform || this.gateSide(gate) !== 'south') { this.mode = 'closed'; return null; }
+    this.ride = { originId: journey.originId, destinationId: journey.destinationId, direction, heading: platform.heading,
+      boardPlatform: platform, alightPlatform, alight: toFlow.alight, originAreaId: gate.areaId, destinationAreaId: toFlow.gate.areaId };
     this.mode = 'riding';
     return { ...this.ride };
   }
