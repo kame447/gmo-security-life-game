@@ -2,13 +2,15 @@ import type { World } from '../world/runtime';
 import { areaLayout } from '../world/layouts';
 import { initialLayout, type AreaLayout } from '../world/layouts/codec';
 import type { EditorDocument } from '../editor/types';
+import { EDITABLE_PEOPLE } from './npc';
 
 /** Trusted application snapshot. Rendering reference projections are never save data. */
 export function worldDocument(world: World): EditorDocument {
   const layouts = new Map([...world.areas].map(([id, a]) => [id, areaLayout(id) ?? initialLayout(a.def, 'AreaFactory')]));
   return { schemaVersion: 1, id: 'world-layout-editor', tileSize: 16,
     start: { ...world.start }, variant: structuredClone(world.variant),
-    catalogs: { sprites: [...new Set([...world.areas.values()].flatMap(a => a.interactions.flatMap(i => i.sprite ? [i.sprite] : [])))].sort(),
+    catalogs: { sprites: [...new Set([...EDITABLE_PEOPLE.map(person => person.id),
+      ...[...world.areas.values()].flatMap(a => a.interactions.flatMap(i => i.sprite ? [i.sprite] : []))])].sort(),
       eventKeys: [...new Set([...world.areas.values()].flatMap(a => a.interactions.map(i => i.eventKey)))].sort() },
     areas: [...world.areas.values()].map(({ def: a }) => ({ id: a.id, name: a.name, kind: a.kind, width: a.width, height: a.height,
       ground: Array.from(a.ground), ...(a.districts ? { districts: structuredClone(a.districts) } : {}),

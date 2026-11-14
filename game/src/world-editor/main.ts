@@ -8,20 +8,22 @@ import { Game } from '../session/game';
 import { Renderer, type RenderCamera } from '../render/renderer';
 import { FURNITURE, furnitureById, furnitureVariant, nextFacing } from '../render/furniture/catalog';
 import { furnitureThumbnail } from '../render/furniture/sprites';
+import { personThumbnail } from '../render/people/thumbnails';
 import { AREA_FACTORIES, buildWorld, isSolidTile } from '../world';
 import { staleLayouts } from '../world/layouts';
 import { HOME_AREA, WorldEditorModel } from './model';
 import { hitItem } from './hit-test';
 import { surfaceModule } from './surface-catalog';
-import { npcEvents } from './npc';
+import { EDITABLE_PEOPLE, npcEvents } from './npc';
 
 const $ = <T extends HTMLElement = HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 const workspace = $('#workspace'), scene = $<HTMLCanvasElement>('#scene'), overlay = $<HTMLCanvasElement>('#overlay');
 const renderer = new Renderer(scene), model = new WorldEditorModel(buildWorld()), controls = new Controls();
 let world = model.runtime(), activeArea = HOME_AREA, selected: string | undefined, game: Game | undefined;
 let selectedNpc: string | undefined, npcDraft=false;
-let npcDrag: { npc: EditorInteraction; offsetX: number; offsetY: number } | undefined;
-let npcGhost: { npc: EditorInteraction; document: EditorDocument; valid: boolean } | undefined;
+let npcPlacement: EditorInteraction | undefined;
+let npcDrag: { npc: EditorInteraction; adding: boolean; offsetX: number; offsetY: number } | undefined;
+let npcGhost: { npc: EditorInteraction; adding: boolean; document: EditorDocument; valid: boolean } | undefined;
 let ghost: { object: EditorObject; adding: boolean; document: EditorDocument; valid: boolean } | undefined;
 let placement: EditorObject | undefined, surface: string | undefined, paint: EditorDocument | undefined;
 let drag: { object: EditorObject; adding: boolean; offsetX: number; offsetY: number } | undefined;
@@ -63,12 +65,12 @@ function update() {
     $('#object-name').textContent=npc.name;$('#object-position').textContent=`位置 ${npc.x}, ${npc.y}　足元 1×1`;
     $('#object-id').textContent=`ID ${npc.id}（変更できません）`;$('#object-json').textContent=canonicalJSON(npc);
     const reason=model.npcProtectedReason(npc.id);$('#protection').textContent=reason;
-    $<HTMLButtonElement>('#delete').disabled=!editing()||!!reason;$<HTMLButtonElement>('#rotate').disabled=!editing();$<HTMLButtonElement>('#duplicate').disabled=true;
+    $<HTMLButtonElement>('#delete').disabled=!editing()||!!reason||!!npcPlacement;$<HTMLButtonElement>('#rotate').disabled=!editing();$<HTMLButtonElement>('#duplicate').disabled=true;
     if(!npcDraft){$<HTMLInputElement>('#npc-name').value=npc.name;$<HTMLSelectElement>('#npc-facing').value=npc.facing??'down';
-      $<HTMLTextAreaElement>('#npc-lines').value=npc.lines.join('\n');}
-    $<HTMLInputElement>('#npc-sprite').value=npc.sprite??'';
+      $<HTMLTextAreaElement>('#npc-lines').value=npc.lines.join('\n');$<HTMLInputElement>('#npc-sprite').value=npc.sprite??'';}
     $<HTMLInputElement>('#npc-event-key').value=npc.eventKey;
-    for(const field of document.querySelectorAll<HTMLInputElement|HTMLTextAreaElement|HTMLSelectElement>('#npc-properties input,#npc-properties textarea,#npc-properties select'))field.disabled=saveBusy||!!game||activeArea!==HOME_AREA;
+    for(const field of document.querySelectorAll<HTMLInputElement|HTMLTextAreaElement|HTMLSelectElement>('#npc-properties input,#npc-properties textarea,#npc-properties select'))field.disabled=saveBusy||!!game||!!npcPlacement||activeArea!==HOME_AREA;
+    for(const button of document.querySelectorAll<HTMLButtonElement>('[data-npc-sprite]')){button.disabled=saveBusy||!!game||!!npcPlacement;button.setAttribute('aria-pressed',String(button.dataset.npcSprite===$<HTMLInputElement>('#npc-sprite').value));}
     for(const button of ['#npc-apply','#npc-revert'])$<HTMLButtonElement>(button).disabled=!npcDraft||saveBusy||!!game;
     const events=npcEvents(npc);$('#npc-event-note').textContent=events.length?`この人には条件つきのイベントの会話が${events.length}件あります。条件を満たすとそちらが出ます。ここで編集するのは、ふだんの会話です。`:'';
     $('#npc-events').replaceChildren();for(const event of events){const li=document.createElement('li');li.textContent=event.title;$('#npc-events').append(li);}
@@ -83,9 +85,9 @@ function update() {
   $<HTMLButtonElement>('#play').disabled=saveBusy||npcDraft;
   $('#play').textContent=game?'編集に戻る':'▶ 歩いて確かめる';
   $('#catalog').hidden=!!game;$('#play-controls').hidden=!game;
-  $('#stop-placement').hidden=!placement&&!surface;
+  $('#stop-placement').hidden=!placement&&!npcPlacement&&!surface;
 }
-function cancelGesture() { placement=undefined;drag=undefined;npcDrag=undefined;npcGhost=undefined;pan=undefined;paint=undefined;ghost=undefined;world=model.runtime();update(); }
+function cancelGesture() { placement=undefined;npcPlacement=undefined;drag=undefined;npcDrag=undefined;npcGhost=undefined;pan=undefined;paint=undefined;ghost=undefined;world=model.runtime();update(); }
 function openArea(id: string) {
   savedCameras.set(activeArea,{...camera});cancelGesture();activeArea=id;selected=undefined;selectedNpc=undefined;
   Object.assign(camera,savedCameras.get(id) ?? (id===HOME_AREA?{centerX:128,centerY:96,zoom:3}:{centerX:35*16,centerY:31*16,zoom:3}));
@@ -96,9 +98,17 @@ function preview(object: EditorObject, adding: boolean) {
   ghost={object,adding,document:candidate,valid:!errors.length};world=model.runtime(candidate);
   status(errors[0]??'離すと配置できます');update();
 }
-function previewNpc(npc: EditorInteraction){
-  const candidate=model.npcCandidate(npc),errors=model.issues(candidate);
-  npcGhost={npc,document:candidate,valid:!errors.length};world=model.runtime(candidate);status(errors[0]??'離すと配置できます');update();
+function previewNpc(npc: EditorInteraction, adding = false){
+  const candidate=model.npcCandidate(npc,adding),errors=model.issues(candidate);
+  npcGhost={npc,adding,document:candidate,valid:!errors.length};world=model.runtime(candidate);status(errors[0]??'離すと配置できます');update();
+}
+function startNpcPlacement(npc: EditorInteraction){
+  cancelGesture();surface=undefined;npcPlacement=npc;selected=undefined;selectedNpc=npc.id;
+  const area=world.areas.get(HOME_AREA)!;
+  for(let y=1;y<area.height-1;y++)for(let x=1;x<area.width-1;x++){
+    const candidate={...npc,x,y};if(!model.issues(model.npcCandidate(candidate,true)).length){npcPlacement=candidate;previewNpc(candidate,true);return;}
+  }
+  previewNpc(npc,true);
 }
 function startPlacement(object: EditorObject) {
   cancelGesture();surface=undefined;placement=object;selected=object.id;selectedNpc=undefined;
@@ -119,22 +129,27 @@ function catalogue() {
   const list=$('#catalog-items');list.replaceChildren();
   $('#furniture-tab').setAttribute('aria-pressed',String(catalogTab==='furniture'));
   $('#surface-tab').setAttribute('aria-pressed',String(catalogTab==='surface'));
+  $('#people-tab').setAttribute('aria-pressed',String(catalogTab==='people'));
   $('#category').hidden=catalogTab!=='furniture';
-  const entries=catalogTab==='furniture'?FURNITURE.filter(o=>$<HTMLSelectElement>('#category').value==='all'||o.category===$<HTMLSelectElement>('#category').value):(surfaceModule?.SURFACES??[]);
+  const entries=catalogTab==='furniture'?FURNITURE.filter(o=>$<HTMLSelectElement>('#category').value==='all'||o.category===$<HTMLSelectElement>('#category').value):catalogTab==='people'?EDITABLE_PEOPLE:(surfaceModule?.SURFACES??[]);
   for(const entry of entries) {
-    const button=document.createElement('button');button.type='button';button.dataset.catalogId=entry.id;
-    button.append(catalogTab==='furniture'?furnitureThumbnail(entry.id):surfaceModule!.surfaceThumbnail(entry.id));
+    const button=document.createElement('button');button.type='button';
+    if(catalogTab==='people')button.dataset.personId=entry.id;else button.dataset.catalogId=entry.id;
+    button.append(catalogTab==='furniture'?furnitureThumbnail(entry.id):catalogTab==='people'?personThumbnail(entry.id,'down',48):surfaceModule!.surfaceThumbnail(entry.id));
     const name=document.createElement('span');name.textContent=entry.name;button.append(name);list.append(button);
-    const choose=()=>{if(!editing())return;if(catalogTab==='surface'){cancelGesture();surface=entry.id;status('塗る場所をドラッグしてください');update();}else startPlacement(model.create(entry.id));};
-    button.addEventListener('pointerdown',e=>{e.preventDefault();choose();if(placement)drag={object:placement,adding:true,offsetX:Math.floor(placement.w/2),offsetY:Math.floor(placement.h/2)};});
+    const choose=()=>{if(!editing())return;if(catalogTab==='surface'){cancelGesture();surface=entry.id;status('塗る場所をドラッグしてください');update();}
+      else if(catalogTab==='people')startNpcPlacement(model.createNpc(entry.id));else startPlacement(model.create(entry.id));};
+    button.addEventListener('pointerdown',e=>{e.preventDefault();choose();if(!editing())return;if(npcPlacement)npcDrag={npc:npcPlacement,adding:true,offsetX:0,offsetY:0};
+      else if(placement)drag={object:placement,adding:true,offsetX:Math.floor(placement.w/2),offsetY:Math.floor(placement.h/2)};});
     button.addEventListener('click',e=>{if(e.detail===0)choose();});
   }
   if(!entries.length){const p=document.createElement('p');p.textContent='このカタログは準備中です';list.append(p);}
 }
 for(const [category,name] of Object.entries(categories)){if(!FURNITURE.some(f=>f.category===category))continue;const o=document.createElement('option');o.value=category;o.textContent=name;$('#category').append(o);}
 $('#category').addEventListener('change',catalogue);
-$('#furniture-tab').onclick=()=>{catalogTab='furniture';surface=undefined;cancelGesture();catalogue();};
-$('#surface-tab').onclick=()=>{catalogTab='surface';cancelGesture();catalogue();};
+$('#furniture-tab').onclick=()=>{if(saveBusy||npcDraft)return;catalogTab='furniture';surface=undefined;cancelGesture();catalogue();};
+$('#surface-tab').onclick=()=>{if(saveBusy||npcDraft)return;catalogTab='surface';cancelGesture();catalogue();};
+$('#people-tab').onclick=()=>{if(saveBusy||npcDraft)return;catalogTab='people';surface=undefined;cancelGesture();catalogue();};
 $('#stop-placement').onclick=()=>{surface=undefined;cancelGesture();status('');};
 function brush(e: PointerEvent) {
   if(!paint||!surface)return;const p=areaPoint(e),x=Math.floor(p.x/16),y=Math.floor(p.y/16),area=paint.areas.find(a=>a.id===HOME_AREA)!;
@@ -150,14 +165,15 @@ function brush(e: PointerEvent) {
 }
 workspace.addEventListener('pointerdown',e=>{
   if((e.target as HTMLElement).closest('aside,button,details,#walk-dialog')||game||npcDraft)return;
-  if((ghost&&!placement)||npcGhost){ghost=undefined;npcGhost=undefined;world=model.runtime();}
+  if((ghost&&!placement)||(npcGhost&&!npcPlacement)){ghost=undefined;npcGhost=undefined;world=model.runtime();}
   workspace.focus();pointers.set(e.pointerId,local(e));workspace.setPointerCapture(e.pointerId);
   if(pointers.size===2){cancelGesture();const [a,b]=[...pointers.values()],mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2},anchor=renderer.screenToArea(mid.x,mid.y);pinch={distance:Math.hypot(a.x-b.x,a.y-b.y),zoom:camera.zoom,x:anchor.x,y:anchor.y};return;}
   if(editing()&&surface){paint=model.document;brush(e);return;}
   const point=areaPoint(e),hit=hitItem(world.areas.get(activeArea)!,point.x,point.y);
   if(editing()&&placement){placement={...placement,x:Math.floor(point.x/16),y:Math.floor(point.y/16)};drag={object:placement,adding:true,offsetX:0,offsetY:0};preview(placement,true);return;}
+  if(editing()&&npcPlacement){npcPlacement={...npcPlacement,x:Math.floor(point.x/16),y:Math.floor(point.y/16)};npcDrag={npc:npcPlacement,adding:true,offsetX:0,offsetY:0};previewNpc(npcPlacement,true);return;}
   if(editing()&&hit?.table==='objects'&&!space&&e.button!==1){selected=hit.id;selectedNpc=undefined;const o=model.object(hit.id)!;drag={object:o,adding:false,offsetX:Math.floor(point.x/16)-o.x,offsetY:Math.floor(point.y/16)-o.y};update();return;}
-  if(editing()&&hit?.table==='interactions'&&!space&&e.button!==1){selected=undefined;selectedNpc=hit.id;const npc=model.npc(hit.id)!;npcDrag={npc,offsetX:Math.floor(point.x/16)-npc.x,offsetY:Math.floor(point.y/16)-npc.y};update();return;}
+  if(editing()&&hit?.table==='interactions'&&!space&&e.button!==1){selected=undefined;selectedNpc=hit.id;const npc=model.npc(hit.id)!;npcDrag={npc,adding:false,offsetX:Math.floor(point.x/16)-npc.x,offsetY:Math.floor(point.y/16)-npc.y};update();return;}
   selected=undefined;selectedNpc=undefined;
   pan={x:e.clientX,y:e.clientY,cx:camera.centerX,cy:camera.centerY};update();
 });
@@ -169,14 +185,14 @@ window.addEventListener('pointermove',e=>{
     camera.centerY=pinch.y-((a.y+b.y)/2-workspace.clientHeight/2)*dpr/camera.zoom;update();return;}
   if(paint){brush(e);return;}
   if(pan){const scale=camera.zoom/(window.devicePixelRatio||1);camera.centerX=pan.cx-(e.clientX-pan.x)/scale;camera.centerY=pan.cy-(e.clientY-pan.y)/scale;return;}
-  if(npcDrag&&inside(e)){const p=areaPoint(e);previewNpc({...npcDrag.npc,x:Math.floor(p.x/16)-npcDrag.offsetX,y:Math.floor(p.y/16)-npcDrag.offsetY});return;}
+  if(npcDrag&&inside(e)){const p=areaPoint(e);previewNpc({...npcDrag.npc,x:Math.floor(p.x/16)-npcDrag.offsetX,y:Math.floor(p.y/16)-npcDrag.offsetY},npcDrag.adding);return;}
   if(drag&&inside(e)){const p=areaPoint(e);preview({...drag.object,x:Math.floor(p.x/16)-drag.offsetX,y:Math.floor(p.y/16)-drag.offsetY},drag.adding);}
 });
 window.addEventListener('pointerup',e=>{
   pointers.delete(e.pointerId);
   if(pinch){if(pointers.size<2)pinch=undefined;return;}
   if(paint){const candidate=paint;paint=undefined;attempt(()=>model.commit(candidate));}
-  else if(npcDrag&&npcGhost&&inside(e)){if(npcGhost.valid){const candidate=npcGhost.document;attempt(()=>model.commit(candidate));}else{world=model.runtime();npcGhost=undefined;update();}}
+  else if(npcDrag&&npcGhost&&inside(e)){npcPlacement=undefined;if(npcGhost.valid){const candidate=npcGhost.document;attempt(()=>model.commit(candidate));}else{world=model.runtime();npcGhost=undefined;update();}}
   else if(drag&&ghost&&inside(e)){if(ghost.valid){const candidate=ghost.document;placement=undefined;attempt(()=>model.commit(candidate));}else{placement=undefined;world=model.runtime();ghost=undefined;update();}}
   drag=undefined;npcDrag=undefined;pan=undefined;
 });
@@ -187,7 +203,9 @@ $('#outside').onclick=()=>{if(!game)openArea(activeArea===HOME_AREA?'town-main':
 $('#zoom-in').onclick=()=>setZoom(camera.zoom+1);$('#zoom-out').onclick=()=>setZoom(camera.zoom-1);
 $('#undo').onclick=()=>{cancelGesture();attempt(()=>model.session.undo());};$('#redo').onclick=()=>{cancelGesture();attempt(()=>model.session.redo());};
 $('#rotate').onclick=()=>{
-  if(selectedNpc){attempt(()=>model.rotateNpc(selectedNpc!));return;}
+  if(selectedNpc){if(npcPlacement){const directions=['down','left','up','right'] as const;
+      npcPlacement={...npcPlacement,facing:directions[(directions.indexOf(npcPlacement.facing??'down')+1)%4]};previewNpc(npcPlacement,true);}
+    else attempt(()=>model.rotateNpc(selectedNpc!));return;}
   const o=placement??(selected?model.object(selected):undefined);if(!o?.catalogId)return;
   const facing=nextFacing(o.catalogId,o.facing),variant=furnitureVariant(o.catalogId,facing)!;
   const rotated={...o,facing,w:variant.w,h:variant.h};
@@ -195,7 +213,13 @@ $('#rotate').onclick=()=>{
   else {const candidate=model.candidate(rotated);if(model.issues(candidate).length)preview(rotated,false);else attempt(()=>model.commit(candidate));}
 };
 $('#duplicate').onclick=()=>{if(selected)try{startPlacement(model.duplicate(selected));}catch(error){status((error as Error).message);}};
-$('#delete').onclick=()=>{if(selected)attempt(()=>{model.remove(selected!);selected=undefined;});};
+$('#delete').onclick=()=>{if(selectedNpc)attempt(()=>{model.removeNpc(selectedNpc!);selectedNpc=undefined;});else if(selected)attempt(()=>{model.remove(selected!);selected=undefined;});};
+for(const person of EDITABLE_PEOPLE){
+  const button=document.createElement('button');button.type='button';button.dataset.npcSprite=person.id;button.title=person.name;button.setAttribute('aria-label',person.name);
+  button.append(personThumbnail(person.id,'down',48));
+  button.onclick=()=>{if(saveBusy||game||npcPlacement||!selectedNpc)return;$<HTMLInputElement>('#npc-sprite').value=person.id;npcDraft=true;update();};
+  $('#npc-sprites').append(button);
+}
 for(const selector of ['#npc-name','#npc-facing','#npc-lines'])$(selector).addEventListener(selector==='#npc-facing'?'change':'input',()=>{
   if(saveBusy||game||!selectedNpc)return;npcDraft=true;status('「変更を反映」で入力を確定します');update();
 });
@@ -203,6 +227,7 @@ $('#npc-apply').onclick=()=>{
   if(saveBusy||game||!selectedNpc||!npcDraft)return;
   attempt(()=>{model.updateNpc(selectedNpc!,{name:$<HTMLInputElement>('#npc-name').value,
     facing:$<HTMLSelectElement>('#npc-facing').value as EditorInteraction['facing'],
+    sprite:$<HTMLInputElement>('#npc-sprite').value,
     lines:$<HTMLTextAreaElement>('#npc-lines').value.replace(/\r\n?/g,'\n').split('\n')});npcDraft=false;});
 };
 $('#npc-revert').onclick=()=>{npcDraft=false;refresh();status('入力を取り消しました');};
@@ -299,5 +324,5 @@ function frame(now:number){accumulator+=Math.min(.25,(now-previous)/1000);previo
   $('#walk-dialog').hidden=!game?.dialog;if(game?.dialog){$('#walk-dialog strong').textContent=game.dialog.speaker;$('#walk-dialog p').textContent=game.dialog.lines[game.dialog.index];}
   requestAnimationFrame(frame);
 }
-Object.defineProperty(window,'__worldEditor',{value:{model,renderer,camera,toScreen,get game(){return game;},get activeArea(){return activeArea;},get ghost(){return ghost;}}});
+Object.defineProperty(window,'__worldEditor',{value:{model,renderer,camera,toScreen,get game(){return game;},get activeArea(){return activeArea;},get ghost(){return ghost;},get npcGhost(){return npcGhost;}}});
 catalogue();update();requestAnimationFrame(frame);

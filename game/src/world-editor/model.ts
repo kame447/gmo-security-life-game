@@ -7,7 +7,7 @@ import { assertHomeWorldEdit as assertInteriorEdit } from './policy';
 import { worldDocument } from './document';
 import { withDerived } from '../editor/changes';
 import { trustedContext } from './trusted-context';
-import { isPlacedNpc } from './npc';
+import { editablePerson, isPlacedNpc, npcEventKey } from './npc';
 
 export const HOME_AREA = 'home-family-interior';
 export class WorldEditorModel {
@@ -28,10 +28,24 @@ export class WorldEditorModel {
   npcProtectedReason(id: string) {
     const npc=this.npc(id);return npc&&!isPlacedNpc(npc)?'ゲームの出来事につながっている人物なので、消せません':'';
   }
-  npcCandidate(npc: EditorInteraction): EditorDocument {
+  npcCandidate(npc: EditorInteraction, adding = false): EditorDocument {
     const next=this.document,index=next.interactions.findIndex(i=>i.id===npc.id);
-    if(index<0)throw new Error('人物を選んでください');
-    next.interactions[index]=structuredClone(npc);return withDerived(next,this.context);
+    if(adding)next.interactions.push(structuredClone(npc));
+    else{if(index<0)throw new Error('人物を選んでください');next.interactions[index]=structuredClone(npc);}
+    return withDerived(next,this.context);
+  }
+  createNpc(sprite: string): EditorInteraction {
+    const entry=editablePerson(sprite);if(!entry)throw new Error('人のカタログにある見た目を選んでください');
+    let n=1,id=`${HOME_AREA}-npc-${n}`;
+    while(this.used.has(id))id=`${HOME_AREA}-npc-${++n}`;
+    this.used.add(id);
+    return{id,areaId:HOME_AREA,kind:'npc',sprite,name:entry.name,x:1,y:1,facing:'down',solid:true,
+      eventKey:npcEventKey(id),lines:['こんにちは。']};
+  }
+  removeNpc(id: string) {
+    const reason=this.npcProtectedReason(id);if(reason)throw new Error(reason);
+    if(!this.npc(id))throw new Error('人物を選んでください');
+    const next=this.document;next.interactions=next.interactions.filter(npc=>npc.id!==id);this.commit(next);
   }
   updateNpc(id: string, patch: Partial<Pick<EditorInteraction,'x'|'y'|'facing'|'name'|'lines'|'sprite'>>) {
     const npc=this.npc(id);if(!npc)throw new Error('人物を選んでください');
@@ -61,7 +75,7 @@ export class WorldEditorModel {
   }
   issues(candidate: EditorDocument): string[] {
     let derived: EditorDocument;
-    try { derived=withDerived(candidate,this.context);assertInteriorEdit(this.initial,derived,HOME_AREA); }
+    try { derived=withDerived(candidate,this.context);assertInteriorEdit(this.initial,derived,HOME_AREA,this.context); }
     catch (error) { return [(error as Error).message]; }
     return validateDocument(derived,this.context).map(issue => {
       if (issue.code === 'arrival') return '出入口の到着位置をふさぐことはできません';

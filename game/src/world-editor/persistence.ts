@@ -18,7 +18,7 @@ export function prepareSave(raw: unknown, world: World) {
   const context = trustedContext(world);
   const current = parseDocument(worldDocument(world),context);
   const preview = previewChangeSet(current,request.changes,context);
-  assertInteriorEdit(current,preview.document,HOME_AREA);
+  assertInteriorEdit(current,preview.document,HOME_AREA,context);
   const problems = validateWorld(assembleEditorWorld(preview.document));
   if (problems.length) throw new Error(problems.join('\n'));
   const source = areaLayout(HOME_AREA);

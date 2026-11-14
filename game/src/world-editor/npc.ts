@@ -1,7 +1,10 @@
 import type { EditorDocument, EditorInteraction } from '../editor/types';
 import { CHILDHOOD_SAMPLE_EVENTS } from '../events/samples/childhood';
 import { isSolidGround } from '../world/tiles';
+import { PEOPLE } from '../render/people/catalog';
 
+export const EDITABLE_PEOPLE = Object.freeze(PEOPLE.filter(person => person.id !== 'player'));
+export const editablePerson = (id: string) => EDITABLE_PEOPLE.find(person => person.id === id);
 export const npcEventKey = (id: string) => `npc.${id}`;
 export const isPlacedNpc = (npc: EditorInteraction) => npc.kind === 'npc' && npc.eventKey === npcEventKey(npc.id);
 export const npcEvents = (npc: EditorInteraction) => CHILDHOOD_SAMPLE_EVENTS.filter(event => event.trigger.eventKey === npc.eventKey);
@@ -10,7 +13,7 @@ export const npcEvents = (npc: EditorInteraction) => CHILDHOOD_SAMPLE_EVENTS.fil
 export function npcIssue(npc: EditorInteraction, document: EditorDocument): string | undefined {
   if (npc.kind !== 'npc' || !npc.solid || (npc.w ?? 1) !== 1 || (npc.h ?? 1) !== 1 || npc.objectId)
     return '人は通れない1×1の足元で置きます';
-  if (!npc.sprite || npc.sprite === 'player' || !document.catalogs.sprites.includes(npc.sprite))
+  if (!npc.sprite || !editablePerson(npc.sprite) || !document.catalogs.sprites.includes(npc.sprite))
     return '人のカタログにある見た目を選んでください';
   if (!npc.name.trim() || !npc.lines.length || npc.lines.some(line => !line.trim())) return '名前と会話は空にできません';
   const area = document.areas.find(area => area.id === npc.areaId);

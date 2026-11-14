@@ -1,18 +1,22 @@
-import type { EditorDocument } from '../editor/types';
+import type { EditorDocument, EditorValidationContext } from '../editor/types';
+import { withDerived } from '../editor/changes';
 import { equal } from '../world/layouts/codec';
 import { furnitureById } from '../render/furniture/catalog';
-import { npcIssue } from './npc';
+import { isPlacedNpc, npcIssue } from './npc';
 
 const reject = (message: string): never => { throw new Error(message); };
 const fixed = (a: unknown, b: unknown, message: string) => { if (!equal(a,b)) reject(message); };
 
 /** Keep the existing whole-world guard until the shared world policy is integrated. */
-export function assertHomeWorldEdit(before: EditorDocument, after: EditorDocument, areaId: string): void {
+export function assertHomeWorldEdit(before: EditorDocument, after: EditorDocument, areaId: string, context?: EditorValidationContext): void {
   fixed(before.facilities,after.facilities,'施設は変更できません');
   fixed(before.portals,after.portals,'出入口は変更できません');
   fixed(before.start,after.start,'開始位置は変更できません');
   fixed(before.variant,after.variant,'年代の設定は変更できません');
-  fixed(before.catalogs,after.catalogs,'会話の参照は変更できません');
+  fixed(before.catalogs.sprites,after.catalogs.sprites,'見た目の参照は変更できません');
+  if(context?.derived?.placedNpcEventKeys){
+    for(const document of [before,after])fixed(document.catalogs.eventKeys,withDerived(document,context).catalogs.eventKeys,'会話の参照が人物と一致しません');
+  }else fixed(before.catalogs.eventKeys,after.catalogs.eventKeys,'会話の参照は変更できません');
   for (const area of before.areas) {
     const candidate = after.areas.find(a => a.id === area.id);
     if (!candidate) reject('エリアは削除できません');
@@ -32,24 +36,28 @@ export function assertInteriorEdit(before: EditorDocument, after: EditorDocument
   const localDoors=(document:EditorDocument)=>document.portals.filter(p=>p.areaId===areaId).map(({to:_,...p})=>p);
   fixed(localDoors(before),localDoors(after),'部屋の出入口は変更できません');
   const previous=before.interactions.filter(i=>i.areaId===areaId),current=after.interactions.filter(i=>i.areaId===areaId);
-  fixed(previous.map(i=>i.id).sort(),current.map(i=>i.id).sort(),'人物と調べる場所は追加・削除できません');
   for (const i of previous) {
-    const j = current.find(j => j.id === i.id)!;
+    const j = current.find(j => j.id === i.id);
+    if(!j){if(isPlacedNpc(i))continue;reject('元の人物と調べる場所は削除できません');}
     if (i.kind === 'npc') {
       const { x: _, y: __, facing: ___, sprite: ____, name: _____, lines: ______, ...meta } = i;
-      const { x: a, y: b, facing: c, sprite: d, name: e, lines: f, ...changed } = j;
+      const { x: a, y: b, facing: c, sprite: d, name: e, lines: f, ...changed } = j!;
       fixed(meta,changed,'元の人物のID・イベントキー・足元は変更できません');
-      const problem=npcIssue(j,after);if(problem)reject(problem);
+      const problem=npcIssue(j!,after);if(problem)reject(problem);
     }
     else if (!i.objectId) fixed(i,j,'調べる場所の内容は変更できません');
     else {
       const { x: _, y: __, w: ___, h: ____, ...meta } = i;
-      const { x: a, y: b, w: c, h: d, ...changed } = j;
+      const { x: a, y: b, w: c, h: d, ...changed } = j!;
       fixed(meta,changed,'調べる場所の結び付きと内容は変更できません');
       const object = after.objects.find(o => o.id === i.objectId);
       if (!object || a !== object.x || b !== object.y || (c ?? 1) !== object.w || (d ?? 1) !== object.h)
         reject(`「${i.name}」が結び付いた家具は消せません`);
     }
+  }
+  for(const npc of current.filter(i=>!previous.some(original=>original.id===i.id))){
+    if(!isPlacedNpc(npc)||!new RegExp(`^${areaId}-npc-[1-9][0-9]*$`).test(npc.id))reject('新しい人物の識別子が不正です');
+    const problem=npcIssue(npc,after);if(problem)reject(problem);
   }
   for (const o of after.objects.filter(o => o.areaId === areaId)) {
     for (const p of after.portals) {

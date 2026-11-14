@@ -40,4 +40,20 @@ describe('NPCの編集と自宅配置JSONの往復',()=>{
       expect(model.document).toEqual(baseDocument);
     }
   });
+  it('追加→保存→開き直し→削除→次回保存でキーを残さず、再開後も置いた人だけを消せる',()=>{
+    const world=buildWorld(),model=new WorldEditorModel(world),npc={...model.createNpc('grandma'),x:4,y:7};
+    model.commit(model.npcCandidate(npc,true));model.updateNpc(npc.id,{name:'保存した人',lines:['保存して開き直す会話'],facing:'left'});
+    const saved=JSON.parse(prepareSave({areaId:HOME_AREA,changes:model.session.exportChanges()},world).text) as AreaLayout;
+    const resumed=reopen(saved,world),baseline=resumed.runtime(resumed.initial);
+    expect(resumed.document).toEqual(model.document);expect(resumed.npcProtectedReason(npc.id)).toBe('');
+    expect(resumed.npcProtectedReason('home-mother')).toContain('消せません');
+    resumed.removeNpc(npc.id);expect(resumed.document.catalogs.eventKeys).not.toContain(npc.eventKey);
+    resumed.session.undo();expect(resumed.npc(npc.id)).toEqual(model.npc(npc.id));
+    resumed.session.redo();expect(resumed.npc(npc.id)).toBeUndefined();
+    const deleted=JSON.parse(prepareSave({areaId:HOME_AREA,changes:resumed.session.exportChanges()},baseline).text) as AreaLayout;
+    const again=reopen(deleted,baseline);expect(again.document).toEqual(resumed.document);
+    expect(again.document.catalogs.eventKeys).not.toContain(npc.eventKey);
+    again.updateNpc('home-mother',{lines:['次の保存も一致します']});
+    expect(()=>prepareSave({areaId:HOME_AREA,changes:again.session.exportChanges()},again.runtime(again.initial))).not.toThrow();
+  });
 });
