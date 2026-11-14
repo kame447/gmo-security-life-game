@@ -12,6 +12,8 @@
 
 [ゲームのコードを責務ごとのモジュールに分ける](0004-game-module-structure.md)
 
+[ゲーム内スマートフォンの状態と画面（候補／要検証）](0006-phone-foundation.md)
+
 [GUIの編集結果を限定したJSON差分として扱う（独立サンプルでのプロトタイプ）](0007-editor-data-boundary.md)
 
 [生成マップの編集結果を永続化する方式の検討（未採用）](0009-map-editor-persistence-options.md)

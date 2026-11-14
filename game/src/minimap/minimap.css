@@ -18,6 +18,5 @@
   background: #243034; border-radius: 3px; }
 @media (max-width: 640px) {
   #stage #hud { max-width: calc(100% - 44px); }
-  #stage #menu { top: 42px; max-width: calc(100% - 20px); flex-wrap: wrap; justify-content: flex-end; }
   #minimap-button { top: 80px; width: 128px; }
 }

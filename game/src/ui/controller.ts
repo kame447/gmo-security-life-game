@@ -1,48 +1,84 @@
 /**
  * UI のモード管理と入力の振り分け。
- * どの画面が前面にあるか（探索／会話／外見パネル）を1か所で判定し、キー・タッチ・ボタンをその担当へ渡す。
- * 選択肢・メニューなどの新しい画面はここにモードを足して扱う。
+ * どの画面が前面にあるかを1か所で判定し、キー・タッチ・ボタンをその担当へ渡す。
  */
 import type { Facing } from '../core/coords';
 import { ACTION_KEYS, Controls, DIRECTION_KEYS, RUN_KEYS } from '../input/controls';
 import type { InputState } from '../map/explorer';
 import type { Minimap } from '../minimap/view';
 import type { Game } from '../session/game';
-import type { AvatarPanel } from './avatar-panel';
 import { $ } from './dom';
+import { ModalPanels, type ModalPanelHost, type ModalPanelId, type ModalPanelRegistration, type UiMode as PanelUiMode } from './modal-panels';
 
-export type UiMode = 'explore' | 'dialog' | 'avatar' | 'map';
+export type UiMode = PanelUiMode | 'map';
 
 const TOUCH_LABELS: Record<Facing, string> = { up: 'うえ', down: 'した', left: 'ひだり', right: 'みぎ' };
 const NO_INPUT: InputState = { dir: null, run: false };
 
-export class UiController {
+export class UiController implements ModalPanelHost {
   private readonly touch = $<HTMLElement>('#touch');
   private readonly touchToggle = $<HTMLButtonElement>('#btn-touch');
+  private readonly stage = $<HTMLElement>('#stage');
+  private readonly menu = $<HTMLElement>('#menu');
+  private readonly panels: ModalPanels;
+  private previousPanel?: ModalPanelId;
 
   constructor(
     private readonly game: Game,
     private readonly controls: Controls,
-    private readonly avatar: AvatarPanel,
     private readonly canvas: HTMLCanvasElement,
-    private readonly minimap: Minimap,
-  ) {}
+    private readonly minimap?: Minimap,
+  ) {
+    this.panels = new ModalPanels(() => !!this.game.dialog, () => this.controls.clear());
+  }
 
-  get mode(): UiMode {
-    if (this.minimap.isOpen) return 'map';
-    if (this.avatar.isOpen) return 'avatar';
-    if (this.game.dialog) return 'dialog';
-    return 'explore';
+  get mode(): UiMode { return this.minimap?.isOpen ? 'map' : this.panels.mode; }
+
+  registerPanel(registration: ModalPanelRegistration): void {
+    if (registration.button && registration.button.parentElement !== this.menu) {
+      throw new Error('A modal launch button must be a direct child of #menu');
+    }
+    const shortcut = registration.shortcut;
+    if (shortcut && (DIRECTION_KEYS[shortcut] || ACTION_KEYS.has(shortcut) || RUN_KEYS.has(shortcut))) {
+      throw new Error(`Shortcut conflicts with game controls: ${shortcut}`);
+    }
+    this.panels.register(registration);
+    if (registration.button) {
+      registration.button.dataset.modalTrigger = 'true';
+      registration.button.addEventListener('click', () => { this.openPanel(registration.id); });
+    }
+    this.update();
+  }
+
+  openPanel(id: ModalPanelId, openOverride?: () => void): boolean {
+    if (this.minimap?.isOpen) return false;
+    try { return this.panels.open(id, openOverride); }
+    finally { this.update(); }
+  }
+
+  /** Call after panel state changes and each frame for dialog/availability changes. */
+  update(): void {
+    const active = this.panels.active;
+    this.stage.classList.toggle('modal-open', !!active);
+    for (const entry of this.panels.registrations) {
+      if (entry.button) entry.button.disabled = !!this.minimap?.isOpen || !this.panels.canOpen(entry.id);
+    }
+    if (this.previousPanel && !active) {
+      this.controls.clear();
+      this.focusMap();
+    }
+    this.previousPanel = active?.id;
   }
 
   /** Movement input for this frame. Held keys survive a dialog; the session itself pauses movement then. */
   movementInput(): InputState {
-    return this.mode === 'avatar' || this.mode === 'map' ? NO_INPUT : this.controls.state();
+    return this.panels.active || this.minimap?.isOpen ? NO_INPUT : this.controls.state();
   }
 
   /** Decide / talk / advance: shared by keys, the dialog box and the touch A button. */
   primaryAction(): void {
-    if (this.mode !== 'avatar' && this.mode !== 'map') this.game.action();
+    if (!this.panels.active && !this.minimap?.isOpen) this.game.action();
+    this.update();
   }
 
   focusMap(): void { this.canvas.focus({ preventScroll: true }); }
@@ -54,25 +90,33 @@ export class UiController {
     document.addEventListener('focusin', event => { if (event.target !== this.canvas) this.controls.clear(); });
     this.canvas.addEventListener('pointerdown', () => this.focusMap());
 
-    $<HTMLButtonElement>('#btn-avatar').addEventListener('click', () => {
-      if (this.mode !== 'explore') return;
-      this.controls.clear();
-      this.avatar.open();
-    });
     $<HTMLButtonElement>('#btn-reset').addEventListener('click', () => {
-      if (this.mode === 'map') return;
+      if (this.panels.active || this.minimap?.isOpen) return;
       this.controls.clear();
       handlers.onReset();
       this.focusMap();
     });
     this.bindTouch();
+    this.update();
   }
 
   private onKeyDown(event: KeyboardEvent): void {
-    if (this.mode === 'map') { this.minimap.handleKey(event); return; }
-    if (this.mode === 'avatar') { this.avatar.handleKey(event); return; }
+    if (this.minimap?.isOpen) { this.minimap.handleKey(event); return; }
+    if (this.panels.active) {
+      try { this.panels.dispatchKey(event); }
+      finally { this.update(); }
+      return;
+    }
     // Let buttons retain their ordinary Enter/Space behavior.
     if (event.target instanceof HTMLElement && event.target.closest('button, input, textarea, select')) return;
+    const shortcut = this.panels.byShortcut(event.code);
+    if (shortcut) {
+      if (this.panels.canOpen(shortcut.id)) {
+        event.preventDefault();
+        if (!event.repeat) this.openPanel(shortcut.id);
+      }
+      return;
+    }
     const dir = DIRECTION_KEYS[event.code];
     if (dir) {
       event.preventDefault();
@@ -81,7 +125,7 @@ export class UiController {
       this.controls.pressRun(event.code);
     } else if (ACTION_KEYS.has(event.code)) {
       event.preventDefault();
-      if (!event.repeat) this.game.action();
+      if (!event.repeat) this.primaryAction();
     }
   }
 
@@ -95,7 +139,7 @@ export class UiController {
   private bindTouch(): void {
     this.setTouch(matchMedia('(pointer: coarse)').matches);
     this.touchToggle.addEventListener('click', () => {
-      if (this.mode === 'map') return;
+      if (this.panels.active || this.minimap?.isOpen) return;
       this.setTouch(!this.touch.classList.contains('on'));
       this.focusMap();
     });
@@ -103,8 +147,8 @@ export class UiController {
       const direction = button.dataset.dir as Facing | undefined;
       button.setAttribute('aria-label', direction ? TOUCH_LABELS[direction] : 'しらべる・はなす');
       button.addEventListener('pointerdown', event => {
+        if (this.panels.active || this.minimap?.isOpen) return;
         event.preventDefault();
-        if (this.mode === 'map') return;
         this.focusMap();
         button.setPointerCapture(event.pointerId);
         if (direction) this.controls.press(`pointer-${event.pointerId}`, direction);
