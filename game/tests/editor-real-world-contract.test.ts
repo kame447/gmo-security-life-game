@@ -6,9 +6,9 @@ import { T } from '../src/world/tiles.ts';
 import { referenceScene } from '../src/editor-ui/map/reference.ts';
 import { mapMoveOperations } from '../src/editor-ui/map/operations.ts';
 import {
-  applyChangeSet, buildEditorWorld, createChangeSet, diffDocuments, loadChangeSet, loadDocument, parseChangeSet, parseDocument,
+  applyChangeSet, buildEditorWorld, createChangeSet, diffDocuments, EditorSession, EditorValidationError, loadChangeSet, loadDocument, parseChangeSet, parseDocument,
   previewChangeSet, serializeChangeSet, serializeDocument, validateDocument,
-  type EditorDocument, type EditorValidationContext,
+  type EditorDocument, type EditorSessionOptions, type EditorValidationContext,
 } from '../src/editor/index.ts';
 import { assembleEditorWorld } from '../src/editor/runtime.ts';
 
@@ -36,6 +36,84 @@ const enter = (document: EditorDocument) => document.portals.find(p => p.id === 
 const exit = (document: EditorDocument) => document.portals.find(p => p.id === 'home-exit')!;
 
 describe('trusted real-world editor contract', () => {
+  it('keeps the trusted context through a real home edit, undo, redo, export and preview', () => {
+    const { document, context } = setup();
+    const strictIssues = validateDocument(document);
+    expect(strictIssues).toHaveLength(4);
+    expect(strictIssues.every(issue => issue.code === 'overlap')).toBe(true);
+    expect(() => new EditorSession(document)).toThrow(EditorValidationError);
+    expect(() => new EditorSession(document, { context, historyLimit: 0 })).toThrow(RangeError);
+    const options: EditorSessionOptions = { context, historyLimit: 1 };
+    const session = new EditorSession(document, options), baseline = session.document;
+    const plant = baseline.objects.find(o => o.id === 'home-family-interior-plant-14-9')!;
+    const edited = session.commit([{ type: 'move', table: 'objects', id: plant.id, before: plant, after: { ...plant, x: 13 } }]);
+    expect(edited.objects.find(o => o.id === plant.id)!.x).toBe(13);
+    expect(session.undo()).toEqual(baseline);
+    expect(session.canRedo).toBe(true);
+    expect(session.redo()).toEqual(edited);
+    const changes = session.exportChanges();
+    expect(changes.operations.map(op => op.id)).toEqual([plant.id]);
+    expect(() => previewChangeSet(baseline, changes)).toThrow(EditorValidationError);
+    expect(previewChangeSet(baseline, changes, context).document).toEqual(edited);
+    const bytes = serializeChangeSet(changes, context);
+    expect(JSON.parse(bytes)).not.toHaveProperty('context');
+    expect(applyChangeSet(baseline, loadChangeSet(bytes, context), context)).toEqual(edited);
+
+    const movedPlant = session.document.objects.find(o => o.id === plant.id)!;
+    session.commit([{ type: 'move', table: 'objects', id: plant.id, before: movedPlant, after: { ...movedPlant, x: 12 } }]);
+    expect(session.undo()).toEqual(edited);
+    expect(session.canUndo).toBe(false);
+  });
+
+  it('rejects a newly overlapping edit and preserves history with a trusted context', () => {
+    const { document, context } = setup(), session = new EditorSession(document, { context });
+    const plant = session.document.objects.find(o => o.id === 'home-family-interior-plant-14-9')!;
+    session.commit([{ type: 'move', table: 'objects', id: plant.id, before: plant, after: { ...plant, x: 13 } }]);
+    session.undo();
+    const before = session.document, tree = before.objects.find(o => o.id === 'town-tree-120-17')!;
+    const movedIntoOverlap = clone(before);
+    movedIntoOverlap.objects.find(o => o.id === tree.id)!.x = 92;
+    expect(codes(movedIntoOverlap, context)).toContain('overlap');
+    expect(() => session.commit([{ type: 'move', table: 'objects', id: tree.id, before: tree, after: { ...tree, x: 92 } }])).toThrow(EditorValidationError);
+    const intruder = { ...tree, id: 'intruder' };
+    expect(() => session.commit([{ type: 'add', table: 'objects', id: intruder.id, after: intruder }])).toThrow(EditorValidationError);
+    expect(session.document).toEqual(before);
+    expect(session.canRedo).toBe(true);
+    const forged = clone(before); forged.objects.push(intruder);
+    expect(() => new EditorSession(forged, { context })).toThrow(EditorValidationError);
+    expect(() => parseChangeSet({ schemaVersion: 1, documentId: forged.id, baseDocument: forged, operations: [] }, context)).toThrow(EditorValidationError);
+    expect(session.redo().objects.find(o => o.id === plant.id)!.x).toBe(13);
+  });
+
+  it('keeps the original trusted World snapshot when caller-owned data later changes', () => {
+    const { document, context } = setup(), session = new EditorSession(document, { context });
+    const sourceTree = context.baselineWorld.areas.get('town-main')!.def.objects.find(o => o.id === 'town-tree-120-17')!;
+    sourceTree.x++;
+    expect(validateDocument(document, context).some(issue => issue.code === 'overlap')).toBe(true);
+    expect(session.commit([])).toEqual(session.document);
+    expect(session.exportChanges().operations).toEqual([]);
+  });
+
+  it('keeps explicitly supplied rail links through commit and export', () => {
+    const document = clone(sample) as unknown as EditorDocument;
+    document.portals = [];
+    const baselineWorld = assembleEditorWorld(document);
+    document.variant = clone(baselineWorld.variant);
+    const link = { from: { areaId: 'demo-outdoor', x: 1, y: 4 }, to: { areaId: 'demo-room', x: 1, y: 1 } };
+    const context: EditorValidationContext = { baselineWorld, railLinks: [link] };
+    expect(validateDocument(document, { baselineWorld })).toContainEqual(expect.objectContaining({ path: 'areas.demo-room', code: 'unreachable' }));
+    expect(validateDocument(document, context)).toEqual([]);
+    const originalContext = clone(context);
+    const session = new EditorSession(document, { context }), tree = session.document.objects.find(o => o.id === 'demo-tree')!;
+    link.to.x = 0;
+    expect(validateDocument(document, context).some(issue => issue.code === 'arrival')).toBe(true);
+    const edited = session.commit([{ type: 'move', table: 'objects', id: tree.id, before: tree, after: { ...tree, x: 3 } }]);
+    const changes = session.exportChanges();
+    expect(applyChangeSet(document, changes, originalContext)).toEqual(edited);
+    expect(() => applyChangeSet(document, changes, { baselineWorld })).toThrow(EditorValidationError);
+    expect(changes.baseDocument).not.toHaveProperty('railLinks');
+  });
+
   it('preserves numeric style, facility kind, source districts and variant through document and runtime', () => {
     const { world, document, context } = setup();
     expect(validateDocument(document).length).toBeGreaterThan(0);
