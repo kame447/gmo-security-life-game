@@ -6,7 +6,7 @@ import { RailwayNetwork, type RailwayStation } from '../world/railway';
 import { directionBetween, type Direction, type Heading } from './direction';
 import { TravelMenu, type TravelMenuState } from './menu';
 import { TRAVEL_LINES } from './network';
-import { readStationFlows, type StationFlow, type StationPlatform } from './stations';
+import { insideOf, outsideOf, readStationFlows, type StationFlow, type StationPlatform } from './stations';
 
 /** 改札で決めた1回の乗車。きっぷは持たず、決定の直後に演出が始まる。 */
 export interface RideRequest {
@@ -18,7 +18,10 @@ export interface RideRequest {
   /** 出発駅の乗るホーム、到着駅の降りるホーム（同じ方向）、到着駅の下車位置。数値は getStationFlow が持つ。 */
   readonly boardPlatform: StationPlatform;
   readonly alightPlatform: StationPlatform;
-  readonly alight: StationFlow['alight'];
+  /** 出発駅・到着駅の改札の内側（ホーム側の前）と、到着駅の改札の外（到着の確定の位置）。 */
+  readonly originInside: { readonly x: number; readonly y: number };
+  readonly destinationInside: { readonly x: number; readonly y: number };
+  readonly outside: ReturnType<typeof outsideOf>;
   readonly originAreaId: string;
   readonly destinationAreaId: string;
 }
@@ -103,7 +106,7 @@ export class TrainTravelSession {
     const alightPlatform = toFlow?.platforms.find(item => item.direction === direction) ?? toFlow?.platforms[0];
     if (!gate || !platform || !toFlow || !alightPlatform || this.gateSide(gate) !== 'south') { this.mode = 'closed'; return null; }
     this.ride = { originId: journey.originId, destinationId: journey.destinationId, direction, heading: platform.heading,
-      boardPlatform: platform, alightPlatform, alight: toFlow.alight, originAreaId: gate.areaId, destinationAreaId: toFlow.gate.areaId };
+      boardPlatform: platform, alightPlatform, originInside: insideOf(flow!), destinationInside: insideOf(toFlow), outside: outsideOf(toFlow), originAreaId: gate.areaId, destinationAreaId: toFlow.gate.areaId };
     this.mode = 'riding';
     return { ...this.ride };
   }

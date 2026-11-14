@@ -5,9 +5,10 @@ import { Game } from '../src/session/game';
 import { directionBetween, headingOf } from '../src/travel/direction';
 import { TRAIN_NETWORK } from '../src/travel/network';
 import { alightPlan, boardPlan, exitFrame, exitPath, pathLength, RideScript, TIMING } from '../src/travel/choreo';
+import { insideOf, outsideOf } from '../src/travel/stations';
 import { trainStopX, TRAIN_LENGTH_PX } from '../src/town-train/station-scene';
 import { TrainTravelSession } from '../src/travel/session';
-import { buildWorld, getStationFlow, STATION_ACCESS } from '../src/world';
+import { buildWorld, findPath, getStationFlow, STATION_ACCESS } from '../src/world';
 import { NEIGHBOR_STATION_ACCESS } from '../src/world/towns/neighbor';
 
 const flow = getStationFlow(STATION_ACCESS.stationId);
@@ -127,7 +128,7 @@ describe('train switch between stations', () => {
   const build = (direction: 'up' | 'down') => {
     const p = mainFlow.platforms.find(item => item.direction === direction)!, q = neighborFlow.platforms.find(item => item.direction === direction)!;
     const start = { x: flow.gate.tile.x * 16 + 8, y: (flow.gate.tile.y + 1) * 16 + 14 };
-    return new RideScript(boardPlan(start, p, 36 * 16, VIEW), alightPlan(q, neighborFlow.alight, 32 * 16, VIEW));
+    return new RideScript(boardPlan(start, p, 36 * 16, VIEW), alightPlan(q, outsideOf(neighborFlow), 32 * 16, VIEW));
   };
 
   it('moves the switch to the view edge: the train leaves, and the next one enters, from just outside the view', () => {
@@ -135,7 +136,7 @@ describe('train switch between stations', () => {
       const p = mainFlow.platforms.find(item => item.direction === direction)!;
       const board = boardPlan({ x: 280, y: 200 }, p, 36 * 16, VIEW), room = boardPlan({ x: 280, y: 200 }, p, 36 * 16);
       expect(Math.abs(board.exitX - board.stopX)).toBeLessThanOrEqual(Math.abs(room.exitX - room.stopX));
-      const alight = alightPlan(neighborFlow.platforms.find(item => item.direction === direction)!, neighborFlow.alight, 32 * 16, VIEW);
+      const alight = alightPlan(neighborFlow.platforms.find(item => item.direction === direction)!, outsideOf(neighborFlow), 32 * 16, VIEW);
       expect(Math.abs(alight.entryX - alight.stopX)).toBeLessThanOrEqual(VIEW / 2 + TRAIN_LENGTH_PX + 40 + 100);
     }
   });
@@ -176,7 +177,7 @@ describe('ride choreography on the station map', () => {
   const feetStart = (dy = 1) => ({ x: flow.gate.tile.x * 16 + 8, y: (flow.gate.tile.y + dy) * 16 + 14 });
   const script = (direction: 'up' | 'down', reduced = false) => {
     const p = mainFlow.platforms.find(item => item.direction === direction)!, q = neighborFlow.platforms.find(item => item.direction === direction)!;
-    return { p, q, s: new RideScript(boardPlan(feetStart(), p, 36 * 16), alightPlan(q, neighborFlow.alight, 32 * 16), reduced) };
+    return { p, q, s: new RideScript(boardPlan(feetStart(), p, 36 * 16), alightPlan(q, outsideOf(neighborFlow), 32 * 16), reduced) };
   };
   const frames = (s: RideScript, step = 16) => { const out = []; for (let t = 0; t < s.commitTime + 20000; t += step) { const f = s.sample(t); out.push({ t, f }); if (f.stage === 'done') break; } return out; };
 
@@ -205,8 +206,8 @@ describe('ride choreography on the station map', () => {
     expect(list.at(-1)!.f.stage).toBe('done');
   });
 
-  it('keeps the alighting actor continuous and ends exactly on the real alight position and facing', () => {
-    const { s } = script('down'), list = frames(s), spot = neighborFlow.alight;
+  it('walks the alighting actor out through the gate and ends exactly on the real outside position and facing', () => {
+    const { s } = script('down'), list = frames(s), spot = outsideOf(neighborFlow);
     const firstControl = list.find(({ f }) => f.control && f.actor)?.f ?? list.find(({ f }) => f.control)!.f;
     expect(firstControl.stage).toBe('destination');
     const before = list.filter(({ f }) => f.stage === 'destination' && f.actor && f.actor.visible).at(-1)!.f.actor!;
@@ -232,6 +233,27 @@ describe('ride choreography on the station map', () => {
     }
     const n = world.areas.get(NEIGHBOR_STATION_ACCESS.arrival.areaId);
     void n;
+  });
+
+  it('walks out of both stations over floor only, crossing nothing but the gate, to the outside spot', () => {
+    const world = buildWorld();
+    for (const flowOf of [mainFlow, neighborFlow]) {
+      const area = world.areas.get(flowOf.gate.areaId);
+      if (!area) continue;
+      for (const direction of ['down', 'up'] as const) {
+        const p = flowOf.platforms.find(item => item.direction === direction)!, inside = insideOf(flowOf), outside = outsideOf(flowOf);
+        const route = findPath(area, p.doorFront, inside);
+        expect(route, `${flowOf.stationId} ${direction}`).not.toBeNull();
+        const plan = alightPlan(p, outside, area.width * 16, area.width * 16, route!);
+        const end = plan.path[plan.path.length - 1];
+        expect(end).toEqual({ x: outside.x * 16 + 8, y: outside.y * 16 + 14 });
+        for (const pt of plan.path) {
+          const tx = Math.floor(pt.x / 16), ty = Math.floor((pt.y - 4) / 16);
+          const gate = tx >= flowOf.gate.tile.x && tx < flowOf.gate.tile.x + 2 && ty === flowOf.gate.tile.y;
+          if (!gate) expect(area.solid[ty * area.width + tx], `${flowOf.stationId} ${direction} (${tx},${ty})`).toBe(0);
+        }
+      }
+    }
   });
 
   it('puts the train on the track row and sizes it against the player and the platform', () => {

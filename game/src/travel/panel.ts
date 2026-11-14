@@ -3,6 +3,7 @@ import { TILE } from '../core/coords';
 import type { Game } from '../session/game';
 import type { RailwayNetwork } from '../world/railway';
 import { alightPlan, boardPlan, exitFrame, exitPath, RideScript, type Frame } from './choreo';
+import { findPath } from '../world';
 import { stationScene } from '../town-train/station-scene';
 import { TrainTravelSession, type RideRequest, type TravelArrival, type TravelResult } from './session';
 import './panel.css';
@@ -137,8 +138,15 @@ export class TrainTravelPanel {
     this.stage.classList.add('travel-open');
     stationScene.setFadeSuppressed(true);
     const player = this.game.player;
-    const board = boardPlan({ x: player.x, y: player.y }, ride.boardPlatform, this.areaWidth(ride.originAreaId), TrainTravelPanel.viewWidth());
-    const alight = alightPlan(ride.alightPlatform, ride.alight, this.areaWidth(ride.destinationAreaId), TrainTravelPanel.viewWidth());
+    // 歩く経路は、ホームの床だけを通る最短経路（改札を通る区間は別に足す）。見つからなければ直線の経路にする。
+    const route = (areaId: string, from: { x: number; y: number }, to: { x: number; y: number }) => {
+      const area = this.game.world.areas.get(areaId);
+      return area ? findPath(area, from, to) ?? undefined : undefined;
+    };
+    const board = boardPlan({ x: player.x, y: player.y }, ride.boardPlatform, this.areaWidth(ride.originAreaId), TrainTravelPanel.viewWidth(),
+      ride.originInside, route(ride.originAreaId, ride.originInside, ride.boardPlatform.doorFront));
+    const alight = alightPlan(ride.alightPlatform, ride.outside, this.areaWidth(ride.destinationAreaId), TrainTravelPanel.viewWidth(),
+      route(ride.destinationAreaId, ride.alightPlatform.doorFront, ride.destinationInside));
     const script = new RideScript(board, alight, TrainTravelPanel.prefersReducedMotion());
     let t = 0, last = performance.now(), committed = false, released = false;
     const area = { origin: ride.originAreaId, destination: ride.destinationAreaId };

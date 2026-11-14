@@ -5,7 +5,8 @@ import { Game } from '../src/session/game';
 import type { SaveData } from '../src/state/save';
 import { TRAIN_NETWORK } from '../src/travel/network';
 import { TrainTravelSession } from '../src/travel/session';
-import { buildWorld, STATION_ACCESS } from '../src/world';
+import { outsideOf } from '../src/travel/stations';
+import { buildWorld, getStationFlow, STATION_ACCESS } from '../src/world';
 import { NEIGHBOR_STATION_ACCESS } from '../src/world/towns/neighbor';
 
 describe('train area-change integration', () => {
@@ -65,7 +66,7 @@ describe('train area-change integration', () => {
     expect(events).toEqual([]);
     expect(travel.commitArrival()).toMatchObject({ ok: true });
     expect(travel.commitArrival()).toEqual({ ok: false, reason: 'not-riding' });
-    expect(game.player).toEqual(positionAt(NEIGHBOR_STATION_ACCESS.arrival));
+    expect(game.player).toEqual(positionAt(outsideOf(getStationFlow(NEIGHBOR_STATION_ACCESS.stationId))));
     expect(events).toEqual([{ type: 'area-enter', areaId: NEIGHBOR_STATION_ACCESS.arrival.areaId }]);
     expect(new Game(world, { save: arrivalSave }).serialize()).toEqual(game.serialize());
     expect(arrivalSave?.appearance).toEqual(before.appearance);

@@ -142,7 +142,7 @@ async function ride(page, touch, prefix, hooks = {}) {
     await page.waitForTimeout(1000); if (prefix) await shot(page, `${prefix}-ride-4-alighting`);
   }
   await panel(page).waitFor({ state: 'hidden', timeout: 20000 });
-  await page.waitForFunction(() => window.__log.at(-1).trains.length === 0 || window.__log.filter(l => l.stage === 'done').length > 0, null, { timeout: 15000, polling: 'raf' });
+  await page.waitForFunction(() => window.__phases.includes('done'), null, { timeout: 20000, polling: 'raf' });
   await page.waitForTimeout(400);
   const log = await page.evaluate(() => window.__log);
   assert.ok(log.length > 30, 'frames were sampled');
@@ -221,31 +221,36 @@ try {
     } });
     assert.deepEqual(phases, ['origin', 'destination', 'done']);
     await waitArea(page, neighbor.arrival.areaId); await waitSavedArea(page, neighbor.arrival.areaId);
-    assert.deepEqual(tileOf(await player(page)), { x: neighbor.arrival.x, y: neighbor.arrival.y });
+    assert.deepEqual(tileOf(await player(page)), nSouth, 'control returns outside the gate, with no further operation');
+    assert.equal((await player(page)).facing, 'down');
     assert.deepEqual(await page.evaluate(() => window.__slg.game.appearance), appearanceBefore);
     assert.notDeepEqual(before, await player(page));
     await shot(page, 'desktop-05-arrived-control-returned');
   });
-  await check('exit through the gate from the platform side in one operation (no list), then explore', async () => {
-    await walkTo(page, nNorth); await face(page, 'down');
-    await act(page, false);
-    await page.waitForFunction(s => Math.floor((window.__slg.game.player.y - 4) / 16) === s, nSouth.y, { timeout: 5000 });
+  await check('after alighting, the player is already outside the gate and can walk straight out and explore', async () => {
     assert.equal(await panel(page).isVisible(), false);
-    await shot(page, 'desktop-05b-exited-gate');
     const exit = await page.evaluate(() => window.__slg.game.area.def.portals.find(portal => portal.id === 'neighbor-station-exit')?.from);
     await walkTo(page, exit); await waitArea(page, 'town-neighbor');
     await shot(page, 'desktop-06-neighbor-explore');
     await walkTo(page, { x: 43, y: 12 });
   });
-  await check('return trip: neighbor gate, one decision, up line', async () => {
+  await check('legacy: a player left on the platform side (old save) exits the gate in one operation, no list', async () => {
     const entrance = await page.evaluate(() => window.__slg.game.area.def.portals.find(portal => portal.id === 'neighbor-station-enter')?.from);
     await walkTo(page, entrance); await waitArea(page, neighbor.boarding.areaId);
+    await setPlayerTo(page, { areaId: neighbor.boarding.areaId, ...nNorth, facing: 'down' }); await frame(page);
+    await face(page, 'down');
+    await act(page, false);
+    await page.waitForFunction(s => Math.floor((window.__slg.game.player.y - 4) / 16) === s, nSouth.y, { timeout: 5000 });
+    assert.equal(await panel(page).isVisible(), false);
+    await shot(page, 'desktop-05b-exited-gate-legacy');
+  });
+  await check('return trip: neighbor gate, one decision, up line', async () => {
     await walkTo(page, nSouth); await face(page, 'up');
     await decide(page, access.stationId, false, 'desktop-07-neighbor-gate');
     const { phases } = await ride(page, false, 'desktop-08');
     assert.equal(phases.at(-1), 'done');
     await waitArea(page, access.arrival.areaId); await waitSavedArea(page, access.arrival.areaId);
-    assert.deepEqual(tileOf(await player(page)), { x: access.arrival.x, y: access.arrival.y });
+    assert.deepEqual(tileOf(await player(page)), mainSouth, 'back outside the home station gate');
   });
   await desktop.context.close();
 
@@ -264,7 +269,7 @@ try {
         await page.reload(); await ready(page);
         const after = await player(page);
         if (stopAt === 'depart') { assert.equal(after.areaId, access.areaId); assert.deepEqual(tileOf(after), mainSouth); }
-        else assert.equal(after.areaId, neighbor.arrival.areaId);
+        else { assert.equal(after.areaId, neighbor.arrival.areaId); assert.deepEqual(tileOf(after), nSouth); }
         assert.equal(await rest(), money, 'nothing but the position changed');
       } finally { await context.close(); }
     }

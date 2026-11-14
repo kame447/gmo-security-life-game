@@ -4,6 +4,7 @@ import { positionAt } from '../src/map/explorer';
 import { Game } from '../src/session/game';
 import { TRAIN_NETWORK } from '../src/travel/network';
 import { TrainTravelSession } from '../src/travel/session';
+import { outsideOf } from '../src/travel/stations';
 import { buildWorld, getStationFlow, validateWorld } from '../src/world';
 import { STATION_ACCESS } from '../src/world/landmarks';
 import { toRuntime } from '../src/world/runtime';
@@ -39,7 +40,7 @@ describe('train network with the #35 station and neighboring-area fixture', () =
     expect(outbound.begin(facingEvent(game))).toBe(true);
     expect(outbound.choose(NEIGHBOR_STATION_ACCESS.stationId)).toMatchObject({ direction: 'down' });
     expect(outbound.commitArrival()).toMatchObject({ ok: true });
-    expect(game.player).toEqual(positionAt(NEIGHBOR_STATION_ACCESS.arrival));
+    expect(game.player).toEqual(positionAt(outsideOf(getStationFlow(NEIGHBOR_STATION_ACCESS.stationId))));
     const restored = new Game(world, { save: game.serialize() });
     expect(restored.player).toEqual(game.player);
     expect(restored.appearance).toEqual(appearance);
@@ -50,7 +51,7 @@ describe('train network with the #35 station and neighboring-area fixture', () =
     expect(returning.begin(facingEvent(restored))).toBe(true);
     expect(returning.choose(STATION_ACCESS.stationId)).toMatchObject({ direction: 'up' });
     expect(returning.commitArrival()).toMatchObject({ ok: true });
-    expect(restored.player).toEqual(positionAt(STATION_ACCESS.arrival));
+    expect(restored.player).toEqual(positionAt(outsideOf(getStationFlow(STATION_ACCESS.stationId))));
     expect(restored.appearance).toEqual(appearance);
   });
 });

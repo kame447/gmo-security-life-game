@@ -1,5 +1,5 @@
 import { TILE, type Facing } from '../core/coords';
-import type { StationFlow, StationPlatform } from './stations';
+import type { StationPlatform } from './stations';
 import { trainEntryX, trainExitX, trainStopX, TRAIN_LENGTH_PX } from '../town-train/station-scene';
 
 /** 乗車演出の振り付け（描画なし）。時刻 t（ミリ秒）から、列車・主人公の代役・位置の確定の瞬間を決める純粋な関数。画面を暗くする量は無い。 */
@@ -82,22 +82,25 @@ export function viewEdges(platform: StationPlatform, areaWidthPx: number, viewWi
   return { exitX: Math.max(exitRoom, center - half - TRAIN_LENGTH_PX - 2), entryX: Math.min(entryRoom, center + half + 2) };
 }
 
-/** 改札の南の足元 → 改札の列を上がって乗車位置の行へ → 乗車位置 → ドアの前（doorFront）。 */
-export function boardPlan(start: Pt, platform: StationPlatform, areaWidthPx: number, viewWidthPx = areaWidthPx): BoardPlan {
-  const edges = viewEdges(platform, areaWidthPx, viewWidthPx);
-  const column = Math.floor(start.x / TILE), b = platform.boardTile, f = platform.doorFront;
-  const path = compact([start, feet(column, b.y), feet(b.x, b.y), feet(f.x, f.y)]);
+export interface Tile { readonly x: number; readonly y: number }
+
+/** 改札の南の足元 → 改札を通る → 改札の内側 → ホームの経路（改札の内側からドアの前まで）→ ドアの前。 */
+export function boardPlan(start: Pt, platform: StationPlatform, areaWidthPx: number, viewWidthPx = areaWidthPx, inside?: Tile, route?: readonly Tile[]): BoardPlan {
+  const edges = viewEdges(platform, areaWidthPx, viewWidthPx), column = Math.floor(start.x / TILE), b = platform.boardTile, f = platform.doorFront;
+  const tiles = route ?? [{ x: column, y: b.y }, { x: b.x, y: b.y }, { x: f.x, y: f.y }];
+  const through = inside ? [feet(inside.x, inside.y + 1), feet(inside.x, inside.y)] : [];
+  const path = compact([start, ...through, ...tiles.map(t => feet(t.x, t.y)), feet(f.x, f.y)]);
   return { path, doorFacing: facingOf(feet(f.x, f.y), feet(platform.door.x, platform.door.y)), door: feet(platform.door.x, platform.door.y),
     entryX: edges.entryX, stopX: trainStopX(platform), exitX: edges.exitX };
 }
 
-/** ドアの前 → 乗車位置の行 → 下車位置の列 → 下車位置。 */
-export function alightPlan(platform: StationPlatform, alight: StationFlow['alight'], areaWidthPx: number, viewWidthPx = areaWidthPx): AlightPlan {
-  const edges = viewEdges(platform, areaWidthPx, viewWidthPx);
-  const b = platform.boardTile, f = platform.doorFront;
+/** ドアの前 → 改札の内側（経路）→ 改札を通る → 改札の外（操作を戻す位置と向き）。 */
+export function alightPlan(platform: StationPlatform, outside: { x: number; y: number; facing: Facing }, areaWidthPx: number, viewWidthPx = areaWidthPx, route?: readonly Tile[]): AlightPlan {
+  const edges = viewEdges(platform, areaWidthPx, viewWidthPx), b = platform.boardTile, f = platform.doorFront;
+  const tiles = route ?? [{ x: f.x, y: f.y }, { x: b.x, y: b.y }, { x: outside.x, y: b.y }, { x: outside.x, y: outside.y - 2 }];
   return { door: feet(platform.door.x, platform.door.y), doorFacing: facingOf(feet(platform.door.x, platform.door.y), feet(f.x, f.y)),
-    path: compact([feet(f.x, f.y), feet(b.x, b.y), feet(alight.x, b.y), feet(alight.x, alight.y)]),
-    alightFacing: alight.facing, entryX: edges.entryX, stopX: trainStopX(platform), exitX: edges.exitX };
+    path: compact([feet(f.x, f.y), ...tiles.map(t => feet(t.x, t.y)), feet(outside.x, outside.y - 1), feet(outside.x, outside.y)]),
+    alightFacing: outside.facing, entryX: edges.entryX, stopX: trainStopX(platform), exitX: edges.exitX };
 }
 
 /** 乗車から到着・下車まで。動きを減らす設定では、到着した状態を短く見せるだけ。 */
