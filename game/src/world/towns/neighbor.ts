@@ -4,8 +4,8 @@ import { isRoad, T } from '../tiles';
 /** Provisional geometry, shared by the outdoor station, entrance and tests. */
 export const NEIGHBOR_STATION_LAYOUT = {
   townHeight: 52,
-  trackY: 36,
-  trackRows: 4,
+  trackY: 38,
+  trackRows: 2,
   building: { x: 18, y: 40, w: 12, h: 5 },
   entrance: { x: 24, y: 44 },
   front: { x: 24, y: 45 },

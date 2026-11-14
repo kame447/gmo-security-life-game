@@ -3,8 +3,8 @@ import type { SpawnPoint } from '../core/types';
 /** Provisional geometry; keep entrance, front and track connected when the map changes. */
 export const MAIN_STATION_LAYOUT = {
   townHeight: 96,
-  trackY: 80,
-  trackRows: 4,
+  trackY: 82,
+  trackRows: 2,
   building: { x: 12, y: 84, w: 33, h: 5 },
   entrance: { x: 28, y: 88 },
   front: { x: 28, y: 89 },
