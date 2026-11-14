@@ -95,7 +95,8 @@ async function talk() {
   await page.keyboard.press('KeyZ');
   if (interaction.eventKey === 'shopping.konbini.clerk') {
     await page.locator('#shop-panel[data-phase="catalog"]').waitFor({ state: 'visible' });
-    assert.equal(await page.locator('#shop-line').innerText(), await page.evaluate(() => window.__slg.game.facingInteraction().lines[0]));
+    // The bar greets with the clerk's first sentence only.
+    assert.equal(await page.locator('#shop-line').innerText(), await page.evaluate(() => window.__slg.game.facingInteraction().lines[0].match(/^[^。！？]*[。！？]?/)[0]));
     const duringShop = await state();
     await hold('ArrowDown', 180);
     assert.deepEqual(await state(), duringShop, 'Clerk conversation blocks movement');

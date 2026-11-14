@@ -49,8 +49,12 @@ export async function openClerk(page, touch = false) {
   assert.equal(await page.locator('#dialog').isVisible(), false);
   assert.equal(await page.locator('#shop-start, #shop-next, #shop-quit, #shop-review, #shop-close').count(), 0, 'No initial buy/advance screen or extra buttons');
   assert.equal(await page.locator('.shop-product.is-selected').evaluate(row => row === row.parentElement.firstElementChild), true, 'The cursor starts on the first product');
-  for (const selector of ['#shop-conversation', '#shop-line', '#shop-products', '#shop-description', '#shop-icon svg', '#shop-money']) {
+  for (const selector of ['#shop-conversation', '#shop-line', '#shop-products', '#shop-money']) {
     assert.equal(await page.locator(selector).isVisible(), true, `${selector} is immediately visible`);
+  }
+  // The clerk's greeting stands alone first; the description takes the bar after the cursor moves or the greeting time passes.
+  for (const selector of ['#shop-description', '#shop-icon', '#shop-result', '#shop-checkout']) {
+    assert.equal(await page.locator(selector).isVisible(), false, `${selector} does not share the bar with the greeting`);
   }
 }
 export async function tabTo(page, id) {
@@ -83,11 +87,11 @@ export async function assertFits(page) {
       const r = element.getBoundingClientRect();
       const points = [[r.x + r.width / 2, r.y + r.height / 2], [r.x + 4, r.y + 4], [r.right - 4, r.y + 4],
         [r.x + 4, r.bottom - 4], [r.right - 4, r.bottom - 4]];
-      return { id: element.id || element.textContent, width: r.width, height: r.height,
+      return { id: element.id || element.textContent, width: r.width, height: r.height, row: element.classList.contains('shop-product'),
         onTop: points.every(([x, y]) => { const top = document.elementFromPoint(x, y); return top === element || element.contains(top); }) };
     });
     return { width: innerWidth, height: innerHeight, phase: root.dataset.phase, panel: box(root), items, regions, hits, room, unit,
-      stage: box(root.querySelector('.shop-stage')), fontPx: parseFloat(getComputedStyle(root).fontSize),
+      stage: box(root.querySelector('.shop-stage')), touch: navigator.maxTouchPoints > 0, fontPx: parseFloat(getComputedStyle(root).fontSize),
       overflow: document.documentElement.scrollWidth > innerWidth };
   });
   assert.equal(result.overflow, false);
@@ -100,7 +104,7 @@ export async function assertFits(page) {
   if (roomy) {
     assert.ok(Math.abs(stage.x - room.x) <= 1 && Math.abs(stage.y - room.y) <= 1 && Math.abs(stage.width - room.width) <= 1 && Math.abs(stage.height - room.height) <= 1,
       `The layout frame is the drawn room: ${JSON.stringify({ room, stage })}`);
-    assert.ok(Math.abs(result.fontPx - result.unit * 8) < .01, `Type follows the game pixel scale: ${JSON.stringify({ font: result.fontPx, unit: result.unit })}`);
+    assert.ok(Math.abs(result.fontPx - Math.max(13, result.unit * 7)) < .01, `Type follows the game pixel scale: ${JSON.stringify({ font: result.fontPx, unit: result.unit })}`);
   } else assert.ok(stage.width <= 392 + 1 && stage.height <= 380 + 1, `A small room only grows the frame to its minimum: ${JSON.stringify(stage)}`);
   for (const item of [...result.regions, ...result.items]) {
     assert.ok(item.x >= 0 && item.y >= 0 && item.right <= result.width + 1 && item.bottom <= result.height + 1,
@@ -112,7 +116,8 @@ export async function assertFits(page) {
       `Wallet/product list/bar do not overlap: ${JSON.stringify({ a, b })}`);
   }
   for (const hit of result.hits) {
-    assert.ok(hit.width >= 44 && hit.height >= 44, `Touch target is at least 44px: ${JSON.stringify(hit)}`);
+    // Touch screens keep every target at 44px; with a mouse only the list rows are drawn tighter.
+    assert.ok(hit.width >= 44 && (hit.height >= 44 || (!result.touch && hit.row && hit.height >= 24)), `Touch target is at least 44px: ${JSON.stringify(hit)}`);
     assert.equal(hit.onTop, true, `Button center and corners remain exposed: ${JSON.stringify(hit)}`);
   }
   // The clerk and the player stay visible beside the three boxes (feet and head points, from the renderer camera).

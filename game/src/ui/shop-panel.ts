@@ -9,10 +9,13 @@ import './shop-panel.css';
 
 const yen = (amount: number) => `${amount.toLocaleString('ja-JP')}円`;
 const ACTION = new Set(['KeyZ', 'Enter', 'Space']);
+/** How long the clerk's greeting keeps the bar when the cursor is not moved. */
+const GREETING_MS = 2000;
 
 /**
  * Three separate boxes inside the drawn room: the wallet (top corner), the product list (the other side) and one bar
- * (bottom) that carries the clerk's words, the description of the product under the cursor, and the purchase check.
+ * (bottom) that carries, one at a time, the clerk's words, the description of the product under the cursor, or the
+ * purchase check.
  * The boxes follow the room's rectangle on screen and its pixel scale, and the list takes the side away from the player.
  */
 export class ShopPanel {
@@ -22,8 +25,9 @@ export class ShopPanel {
   private flow?: ClerkFlow;
   /** The cursor rests on the last row, which leaves the shop. */
   private onExit = false;
-  /** The greeting stays in the bar until the cursor first moves. */
+  /** The greeting keeps the bar until the cursor first moves, a product is decided or GREETING_MS passes. */
   private greeted = false;
+  private greetingTimer = 0;
   /** Whether the pressed row already had the cursor when the pointer went down. */
   private pressedCursorRow = false;
   private layoutKey = '';
@@ -95,6 +99,10 @@ export class ShopPanel {
     this.pointerOrigin.reset();
     this.flow = ClerkFlow.openShop(context.catalog, context.greeting, this.assets);
     this.onExit = false; this.greeted = true;
+    window.clearTimeout(this.greetingTimer);
+    this.greetingTimer = window.setTimeout(() => { if (this.isOpen && this.greeted) { this.endGreeting(); this.render(); } }, GREETING_MS);
+    // Rows are drawn tighter for a mouse; touch screens keep 44px rows.
+    this.root.classList.toggle('is-touch', navigator.maxTouchPoints > 0 || matchMedia('(any-pointer: coarse)').matches);
     this.text('.shop-speaker', context.greeting.speaker);
     this.el('#shop-products').replaceChildren(); this.rows.length = 0;
     const addRow = (action: string, name: string, price: string, index?: number) => {
@@ -141,7 +149,7 @@ export class ShopPanel {
     };
     const across = fit(room.x, room.w, view.x + edge, view.right - edge, 392);
     // A narrow column needs more height: the purchase check wraps onto more lines there.
-    const down = fit(room.y, room.h, view.y + edge, view.bottom - edge, across.length < 420 ? 380 : 320);
+    const down = fit(room.y, room.h, view.y + edge, view.bottom - edge, across.length < 420 ? 330 : 320);
     const scale = Math.max(unit, Math.min(1.75, across.length / 224));
     const mirrored = playerX > across.start + across.length / 2;
     const key = [across.start, across.length, down.start, down.length, scale, mirrored].map(value => Math.round(Number(value) * 100)).join();
@@ -152,22 +160,27 @@ export class ShopPanel {
     stage.width = `${Math.round(across.length)}px`; stage.height = `${Math.round(down.length)}px`;
     this.root.style.setProperty('--shop-unit', `${scale}px`);
     this.root.style.setProperty('--shop-line', `${Math.max(2, Math.round(scale))}px`);
-    this.root.style.setProperty('--shop-bar', `${Math.round(down.length * .28)}px`);
+    this.root.style.setProperty('--shop-bar', `${Math.round(down.length * .22)}px`);
     this.root.classList.toggle('is-mirrored', mirrored);
+    if (this.flow?.phase !== 'confirm') this.rows[this.cursor]?.scrollIntoView?.({ block: 'nearest' });
     this.markBelow();
   }
 
   /** A small mark at the bottom of the list while more rows continue below. */
   private markBelow(): void {
     const list = this.el('#shop-products');
+    // Room for the mark is kept only when the rows do not fit the box.
+    this.el('.shop-list').classList.toggle('is-long', list.scrollHeight - list.clientHeight > 1);
     this.el('#shop-below').hidden = list.scrollHeight - list.scrollTop - list.clientHeight <= 1;
   }
 
   close(): void {
     if (!this.isOpen) return;
-    this.pointerOrigin.reset();
+    this.pointerOrigin.reset(); this.endGreeting();
     this.flow?.close(); this.root.hidden = true; this.onClose();
   }
+
+  private endGreeting(): void { this.greeted = false; window.clearTimeout(this.greetingTimer); }
 
   handleKey(event: KeyboardEvent): void {
     if (!this.isOpen || !this.flow) return;
@@ -213,7 +226,7 @@ export class ShopPanel {
       if (flow.phase === 'receipt') flow.browseAgain();
       if (action === 'product') this.cursorTo(index!);
       else if (action === 'move') this.cursorTo((this.cursor + index! + this.rows.length) % this.rows.length);
-      else if (action === 'review' && !this.onExit) { this.greeted = false; flow.reviewPurchase(); }
+      else if (action === 'review' && !this.onExit) { this.endGreeting(); flow.reviewPurchase(); }
       else if (action === 'back' && flow.phase === 'confirm') flow.back();
       else if (action === 'confirm' && !this.button('#shop-confirm').disabled) flow.confirmPurchase();
       else if (action === 'more' && !this.button('#shop-more').disabled) flow.setBuyQuantity(flow.buyQuantity + 1);
@@ -227,7 +240,7 @@ export class ShopPanel {
   private cursorTo(row: number): void {
     const flow = this.flow!;
     if (flow.phase !== 'catalog' || row === this.cursor) return;
-    this.greeted = false;
+    this.endGreeting();
     this.onExit = row === this.rows.length - 1;
     if (!this.onExit) flow.selectOffer(row);
   }
@@ -250,7 +263,12 @@ export class ShopPanel {
       row.disabled = confirming;
     });
     const item = this.onExit ? undefined : flow.offer && getItemDefinition(flow.offer.itemId);
+    // The bar carries one thing at a time: the clerk's words, the product under the cursor, or the purchase check.
+    const greeting = this.greeted && flow.phase === 'catalog', speaking = greeting || receipt;
     this.el('#shop-icon').replaceChildren(...(item ? [itemIcon(item.id)] : []));
+    this.el('#shop-icon').hidden = speaking || !item;
+    this.el('#shop-conversation').classList.toggle('is-plain', speaking || !item);
+    this.el('#shop-description').hidden = speaking;
     this.text('#shop-item-name', item?.name ?? '');
     this.text('#shop-description', item?.description ?? '');
     this.text('#shop-owned', `所持 ${flow.quantity}個`);
@@ -267,11 +285,10 @@ export class ShopPanel {
     this.button('#shop-more').disabled = !item || flow.buyQuantity >= Math.min(99, item.maxQuantity - flow.quantity);
     this.button('#shop-confirm').classList.toggle('is-cursor', flow.choiceIndex === 0);
     this.button('#shop-back').classList.toggle('is-cursor', flow.choiceIndex === 1);
-    // The bar speaks for the clerk right after the talk and right after a purchase; otherwise it describes the product.
-    const greeting = this.greeted && !receipt;
-    this.text('#shop-line', flow.greeting.lines[0] ?? '');
+    // Only the clerk's short first sentence is used as the greeting.
+    this.text('#shop-line', (flow.greeting.lines[0] ?? '').match(/^[^。！？]*[。！？]?/)![0]);
     this.el('#shop-line').hidden = !greeting; this.el('#shop-result').hidden = !receipt;
-    this.el('.shop-speaker').hidden = !greeting && !receipt;
+    this.el('.shop-speaker').hidden = !speaking;
     if (flow.result) {
       const result = flow.result;
       this.text('#shop-result', result.ok ? `${item?.name ?? ''}を${result.boughtQuantity}個、どうぞ。` :

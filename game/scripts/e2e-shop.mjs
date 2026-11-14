@@ -16,18 +16,19 @@ try {
       if (!crossSaveSeed) crossSaveSeed = await page.evaluate(() => window.__slg.game.serialize());
       await openClerk(page);
       const greeting = await page.evaluate(() => window.__slg.game.facingInteraction());
-      assert.equal(await page.locator('#shop-line').innerText(), greeting.lines[0]);
+      const hello = await page.locator('#shop-line').innerText();
+      assert.ok(hello.length > 0 && hello.length <= 12 && greeting.lines[0].startsWith(hello), `The greeting is the clerk's short first sentence: ${hello}`);
       assert.equal(await page.locator('#shop-conversation .shop-speaker').innerText(), greeting.name);
       assert.equal(await page.locator('.shop-product.is-selected .shop-product-name').innerText(), '水');
-      const firstDescription = await page.locator('#shop-description').innerText();
-      assert.ok(firstDescription.length > 0, 'The bar describes the product under the cursor');
+      const firstDescription = await page.locator('#shop-description').textContent();
       const initialBox = await assertFits(page);
       await page.keyboard.down('ArrowDown'); await page.waitForTimeout(150); await page.keyboard.up('ArrowDown');
       for (const key of ['KeyI', 'KeyP', 'KeyC']) await page.keyboard.press(key);
       assert.deepEqual(await position(page), still); assert.deepEqual(await assets(page), initial);
       assert.equal(await page.locator('#avatar-panel').isVisible(), false);
       assert.equal(await page.locator('.shop-product.is-selected .shop-product-name').innerText(), 'ノート');
-      assert.notEqual(await page.locator('#shop-description').innerText(), firstDescription, 'Moving the cursor switches the bar');
+      const moved = await page.locator('#shop-description').innerText();
+      assert.ok(moved.length > 0 && moved !== firstDescription, 'Moving the cursor switches the bar to that product');
       assert.equal(await page.locator('#shop-line').isVisible(), false, 'The greeting gives way to the description');
       assert.equal(await phase(page), 'catalog', 'Moving the cursor never opens the purchase check');
       await page.keyboard.press('Enter'); assert.equal(await phase(page), 'confirm');
@@ -192,7 +193,62 @@ try {
     assert.deepEqual(await assets(page), before); clean(errors, network);
     pass('a list longer than its box scrolls with the cursor and shows the mark only while rows continue below');
   } finally { await longContext.close(); }
-  console.log(`SUMMARY ${passed}/18 PASS`);
+  // The bar: greeting alone first, then the description after the cursor moves or the greeting time passes.
+  // Time is moved with the page's virtual clock, never by waiting.
+  const timedContext = await browser.newContext({ viewport: { width: 1280, height: 800 }, acceptDownloads: false, serviceWorkers: 'block' });
+  try {
+    const network = await restrictNetwork(timedContext), page = await timedContext.newPage(), errors = observe(page);
+    await page.clock.install();
+    await page.goto(shopUrl()); await ready(page); await seed(page);
+    const bar = () => page.evaluate(() => {
+      const text = selector => { const element = document.querySelector(selector); return element.getClientRects().length > 0 ? element.textContent : ''; };
+      return { phase: document.querySelector('#shop-panel').dataset.phase, speaker: text('#shop-conversation .shop-speaker'), line: text('#shop-line'),
+        result: text('#shop-result'), description: text('#shop-description'), icon: document.querySelector('#shop-icon').getClientRects().length > 0,
+        checkout: document.querySelector('#shop-checkout').getClientRects().length > 0, cursor: document.querySelector('.shop-product.is-selected .shop-product-name').textContent };
+    });
+    const onlyGreeting = async label => { const now = await bar();
+      assert.ok(now.line && now.speaker && !now.description && !now.result && !now.icon && !now.checkout, `${label}: the greeting stands alone ${JSON.stringify(now)}`); };
+    const onlyDescription = async (label, name) => { const now = await bar();
+      assert.ok(now.cursor === name && now.description && now.icon && !now.line && !now.speaker && !now.result && !now.checkout, `${label}: only the description of ${name} ${JSON.stringify(now)}`); };
+
+    await openClerk(page); await onlyGreeting('right after the talk');
+    await page.clock.fastForward(1500); await onlyGreeting('before the greeting time');
+    await page.clock.fastForward(600); await onlyDescription('after the greeting time', '水');
+    await page.keyboard.press('ArrowDown'); await onlyDescription('cursor after the switch', 'ノート');
+    pass('bar: greeting alone, then the first product after the greeting time, then follows the cursor');
+
+    await closeShop(page); await openClerk(page); await onlyGreeting('reopened');
+    await page.keyboard.press('ArrowDown'); await onlyDescription('cursor before the greeting time', 'ノート');
+    await page.clock.fastForward(2500); await onlyDescription('the greeting time passes after an early move', 'ノート');
+    pass('bar: an early cursor move switches at once and the timer does not switch again');
+
+    await closeShop(page); await openClerk(page); await page.keyboard.press('Enter');
+    await page.clock.fastForward(2500);
+    let now = await bar(); assert.ok(now.phase === 'confirm' && now.checkout && !now.line && !now.description && !now.result, `The timer leaves the purchase check alone ${JSON.stringify(now)}`);
+    await page.keyboard.press('Enter'); await page.clock.fastForward(2500);
+    now = await bar(); assert.ok(now.phase === 'receipt' && now.result && now.speaker && !now.line && !now.description && !now.icon && !now.checkout, `The clerk's reply stands alone ${JSON.stringify(now)}`);
+    await page.keyboard.press('Enter'); await onlyDescription('after acknowledging the reply', '水');
+    pass('bar: the timer never overwrites the purchase check or the reply; the reply and description do not mix');
+
+    await closeShop(page); await openClerk(page); await page.clock.fastForward(1000);
+    await closeShop(page); await openClerk(page); await page.clock.fastForward(1500);
+    await onlyGreeting('reopened while the earlier timer would be due');
+    await page.clock.fastForward(600); await onlyDescription('its own greeting time', '水');
+    pass('bar: every visit starts from the greeting with a fresh timer');
+
+    await closeShop(page); await openClerk(page); await closeShop(page); await page.clock.fastForward(3000);
+    assert.equal(await page.locator('#shop-panel').isVisible(), false); assert.deepEqual(errors, []);
+    pass('bar: no timer is left after closing');
+
+    await openClerk(page); await page.keyboard.press('ArrowUp');
+    const empty = async label => { const now = await bar();
+      assert.ok(now.cursor === '店を出る' && !now.line && !now.speaker && !now.description && !now.result && !now.icon && !now.checkout, `${label}: the bar is empty on the leaving row ${JSON.stringify(now)}`); };
+    await empty('cursor on the leaving row'); await page.clock.fastForward(2500); await empty('after the greeting time');
+    await page.keyboard.press('ArrowDown'); await onlyDescription('back on a product', '水');
+    clean(errors, network);
+    pass('bar: the leaving row shows nothing, before and after the greeting time');
+  } finally { await timedContext.close(); }
+  console.log(`SUMMARY ${passed}/24 PASS`);
 } catch (error) {
-  console.error('FAIL', error); console.error(`SUMMARY ${passed}/18 PASS; FAILED`); process.exitCode = 1;
+  console.error('FAIL', error); console.error(`SUMMARY ${passed}/24 PASS; FAILED`); process.exitCode = 1;
 } finally { await browser.close(); }
