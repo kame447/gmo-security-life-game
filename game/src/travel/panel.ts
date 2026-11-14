@@ -166,6 +166,8 @@ export class TrainTravelPanel {
         frame = script.sample(t);
       }
       this.root.dataset.rideStage = frame.stage;
+      // 演出の時計（ミリ秒）。E2E が、実時間の揺れに左右されずに切り替えの前後を測るために読む。
+      this.root.dataset.rideT = String(Math.round(t));
       if (frame.stage === 'done') { stationScene.set(area.destination, null); }
       else this.show(frame.stage === 'origin' ? area.origin : area.destination, frame);
       if (frame.control && !released) {
