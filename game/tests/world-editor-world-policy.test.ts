@@ -17,11 +17,11 @@ function moveShop(document: EditorDocument) {
 }
 
 describe('ワールド全体の編集方針', () => {
-  it('登録は自宅だけで、旧wrapperからモデルを替えても他エリアの変更を拒否する', () => {
-    expect(Object.keys(AREA_EDIT_POLICIES)).toEqual([HOME_AREA]);
+  it('自宅とまちを登録し、未登録の教室の変更は拒否する', () => {
+    expect(Object.keys(AREA_EDIT_POLICIES)).toEqual([HOME_AREA, 'town-main']);
     expect(Object.isFrozen(AREA_EDIT_POLICIES)).toBe(true);
     const model = new WorldEditorModel(buildWorld()), after = model.document;
-    after.objects.find(o => o.areaId === 'town-main')!.x++;
+    after.objects.find(o => o.areaId === 'school-classroom-interior')!.x++;
     expect(() => model.commit(after)).toThrow('このエリア');
     expect(model.dirty).toBe(0);
   });
@@ -31,7 +31,12 @@ describe('ワールド全体の編集方針', () => {
     moveShop(after);
     expect(() => assertWorldEdit(before, after, context, testPolicies)).not.toThrow();
     expect(changedAreaIds(before, after)).toEqual([HOME_AREA, 'shop-konbini-interior', 'town-main']);
-    expect(() => assertWorldEdit(before, after, context)).toThrow('town-main');
+    expect(() => assertWorldEdit(before, after, context)).not.toThrow();
+  });
+  it('まちを登録しても、戻り先だけの移動は拒否する', () => {
+    const { before, after, context } = fixture();
+    after.portals.find(p => p.id === 'konbini-exit')!.to.x--;
+    expect(() => assertWorldEdit(before, after, context)).toThrow();
   });
   it('建物と同量の戻り先だけは未登録の部屋でも許し、家具変更は許さない', () => {
     const { before, after, context } = fixture(); moveShop(after);

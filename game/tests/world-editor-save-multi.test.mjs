@@ -122,10 +122,26 @@ if (process.argv[2] === '--fault') {
         await assert.rejects(applyLayout(root, plan.payload), /Source data changed/);
       });
     }
-    it('公開保存APIは自宅の旧hintに互換だが、町のtest方針やファイル一覧を受け取らない', async () => {
+    it('公開保存APIでまちの2ファイルを保存し、新しいloaderで文書全文が一致する', async () => {
+      const root = await copy(true), plan = plans.two;
+      const result = await applyLayout(root, plan.payload);
+      assert.equal(result.saved, true); assert.equal(result.targets.length, 2);
+      for (const file of plan.prepared.files) assert.equal(await readFile(path.join(root, file.relativePath), 'utf8'), file.text);
+      await modules(root, ({ buildWorld, WorldEditorModel, validateWorld }) => {
+        const world = buildWorld(); assert.deepEqual(validateWorld(world), []);
+        assert.deepEqual(new WorldEditorModel(world).document, plan.expected);
+      });
+    });
+    it('公開保存APIは未登録の教室と余計な欄を拒否し、自宅の旧hintに互換である', async () => {
       const root = await copy(true), beforeBytes = await jsonBytes(root);
-      await assert.rejects(applyLayout(root, plans.three.payload), /このエリア/);
+      const forbidden = await modules(root, ({ buildWorld, WorldEditorModel, diffDocuments }) => {
+        const model = new WorldEditorModel(buildWorld()), next = model.document;
+        next.interactions.find(i => i.id === 'school-teacher').name += '変更';
+        return { changes: diffDocuments(model.initial, next, model.context) };
+      });
+      await assert.rejects(applyLayout(root, forbidden), /このエリア/);
       await assert.rejects(applyLayout(root, { ...plans.home.payload, files: plans.three.prepared.files }), /欄/);
+      await assert.rejects(applyLayout(root, { ...plans.home.payload, policies: { 'town-main': true } }), /欄/);
       await clean(root, beforeBytes);
       const payload = { areaId: HOME, ...plans.home.payload }, preview = await previewLayout(root, payload);
       assert.equal(preview.target, `${DIRECTORY}/${HOME}.json`);
