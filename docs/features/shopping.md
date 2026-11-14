@@ -63,16 +63,16 @@ cd game
 npm ci --cache /private/tmp/slg-npm-cache
 npm run build
 npm test
-npm run dev -- --host 127.0.0.1 --port 5182 --strictPort
+npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
 ブラウザはheadlessでsandbox外の実行担当へ依頼する。
 
 ```sh
-SLG_URL=http://127.0.0.1:5182 node scripts/e2e-shop.mjs
-SLG_URL=http://127.0.0.1:5182 node scripts/e2e.mjs
-SLG_URL=http://127.0.0.1:5182 SLG_SHOTS=/private/tmp/slg-audit/ui-review/shop-ui/HEAD node scripts/shots-shop.mjs
-SLG_URL=http://127.0.0.1:5182 SLG_VIDEOS=/private/tmp/slg-audit/ui-review/shop-ui/video node scripts/video-shop.mjs
+SLG_URL=http://127.0.0.1:5173 node scripts/e2e-shop.mjs
+SLG_URL=http://127.0.0.1:5173 node scripts/e2e.mjs
+SLG_URL=http://127.0.0.1:5173 SLG_SHOTS=/private/tmp/slg-audit/ui-review/shop-ui/HEAD node scripts/shots-shop.mjs
+SLG_URL=http://127.0.0.1:5173 SLG_VIDEOS=/private/tmp/slg-audit/ui-review/shop-ui/video node scripts/video-shop.mjs
 ```
 
 専用E2EはPC・390px縦・844px横で、1回の会話開始直後からの選択、カーソル移動で説明が切り替わること、3つの箱の非重複と店員・主人公が隠れないこと、ボタンの中心と四隅の到達性、キーボードとタッチ、取消、原子取引、連打、移動停止と復帰、不足・上限、即時保存と復帰を扱う。通常の購入・定期保存・実pagehide後の資産/phone/chat/位置/外見と、レビュー時の保存隔離も照合する。帯の切り替え（挨拶だけ、2秒後、2秒より前のカーソル移動、確認中と購入後、開き直し、閉じたあと、「店を出る」の行）は、ブラウザの仮想の時計で時間を進めて確かめる。時計で進む返信待ち時間の保持は単体テストで扱い、ブラウザの保存比較には返信待ちがない完了済み会話を使う。
