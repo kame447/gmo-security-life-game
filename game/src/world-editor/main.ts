@@ -23,14 +23,14 @@ let placement: EditorObject | undefined, surface: string | undefined, paint: Edi
 let drag: { object: EditorObject; adding: boolean; offsetX: number; offsetY: number } | undefined;
 let pan: { x: number; y: number; cx: number; cy: number } | undefined;
 let pinch: { distance: number; zoom: number; x: number; y: number } | undefined;
-let space = false, canSave = false, catalogTab = 'furniture';
+let space = false, canSave = false, saveBusy = false, catalogTab = 'furniture';
 const pointers = new Map<number, { x: number; y: number }>();
 const camera: RenderCamera = { centerX: 128, centerY: 96, zoom: 3 };
 const stale=staleLayouts(AREA_FACTORIES.map(create=>create()));
 const savedCameras = new Map<string, RenderCamera>();
 const categories: Record<string,string> = { seat:'いす・ソファ', table:'つくえ', bed:'ベッド', storage:'たな・収納', kitchen:'台所・家電', shop:'みせの什器', decor:'かざり・植物', wall:'窓・壁かけ' };
 const status = (text: string) => { $('#status').textContent = text; };
-const editing = () => !game && activeArea === HOME_AREA;
+const editing = () => !saveBusy && !game && activeArea === HOME_AREA;
 function local(e: { clientX: number; clientY: number }) { const r = workspace.getBoundingClientRect(); return { x:e.clientX-r.left,y:e.clientY-r.top }; }
 function areaPoint(e: { clientX: number; clientY: number }) { const p = local(e); return renderer.screenToArea(p.x,p.y); }
 function toScreen(x: number, y: number) {
@@ -49,9 +49,9 @@ function update() {
     $('#object-id').textContent=`ID ${o.id}（変更できません）`;
     $('#object-json').textContent=canonicalJSON(o);
     const reason=model.protectedReason(o.id);$('#protection').textContent=reason;
-    $<HTMLButtonElement>('#delete').disabled=!!reason||!!placement;
-    $<HTMLButtonElement>('#rotate').disabled=!o.catalogId;
-    $<HTMLButtonElement>('#duplicate').disabled=!o.catalogId||!!placement;
+    $<HTMLButtonElement>('#delete').disabled=!editing()||!!reason||!!placement;
+    $<HTMLButtonElement>('#rotate').disabled=!editing()||!o.catalogId;
+    $<HTMLButtonElement>('#duplicate').disabled=!editing()||!o.catalogId||!!placement;
   }
   $<HTMLButtonElement>('#undo').disabled=!editing()||!model.session.canUndo;
   $<HTMLButtonElement>('#redo').disabled=!editing()||!model.session.canRedo;
@@ -59,6 +59,8 @@ function update() {
   $('#dirty').textContent=`未保存 ${model.dirty}`;$('#zoom').textContent=`${camera.zoom*100}%`;
   $('#location').textContent=activeArea===HOME_AREA?'じぶんのいえ':'まち（表示のみ）';
   $('#outside').textContent=activeArea===HOME_AREA?'← まちへ':'へやを開く';
+  $<HTMLButtonElement>('#outside').disabled=saveBusy;
+  $<HTMLButtonElement>('#play').disabled=saveBusy;
   $('#play').textContent=game?'編集に戻る':'▶ 歩いて確かめる';
   $('#catalog').hidden=!!game;$('#play-controls').hidden=!game;
   $('#stop-placement').hidden=!placement&&!surface;
@@ -197,22 +199,32 @@ window.addEventListener('keyup',e=>{controls.release(e.code);if(e.code==='Space'
 window.addEventListener('blur',()=>{controls.clear();space=false;});document.addEventListener('visibilitychange',()=>controls.clear());
 
 let savePayload: unknown;
+let writing = false;
+const saveDialog=$<HTMLDialogElement>('#save-confirm');
 const requestSave=async(route:string,payload:unknown)=>{
   const r=await fetch(`/__world-editor/${route}`,{method:'POST',headers:{'Content-Type':'application/json','X-World-Editor':'1'},body:JSON.stringify(payload)});
   const result=await r.json();if(!r.ok)throw new Error(result.error??'保存できませんでした');return result;
 };
 $('#save').onclick=async()=>{
+  if(!editing()||!canSave||!model.dirty)return;
+  saveBusy=true;
   try{cancelGesture();savePayload={areaId:HOME_AREA,changes:model.session.exportChanges()};
     const preview=await requestSave('preview',savePayload);$('#save-target').textContent=preview.target;$('#changes').replaceChildren();
     for(const change of preview.summary){const li=document.createElement('li');li.textContent=`${({add:'追加',delete:'削除',move:'移動',update:'変更'} as Record<string,string>)[change.type]} ${change.id}`;$('#changes').append(li);}
-    $('#save-error').textContent='';$<HTMLDialogElement>('#save-confirm').showModal();
-  }catch(error){status((error as Error).message);}
+    $('#save-error').textContent='';saveDialog.showModal();
+  }catch(error){saveBusy=false;savePayload=undefined;update();status((error as Error).message);}
 };
-$('#save-cancel').onclick=()=>$<HTMLDialogElement>('#save-confirm').close();
+saveDialog.addEventListener('cancel',e=>{if(writing)e.preventDefault();});
+saveDialog.addEventListener('close',()=>{if(!writing){saveBusy=false;savePayload=undefined;update();}});
+$('#save-cancel').onclick=()=>{if(!writing)saveDialog.close();};
 $('#save-download').onclick=()=>{const url=URL.createObjectURL(new Blob([canonicalJSON(savePayload)],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='home-layout-changes.json';link.click();URL.revokeObjectURL(url);};
-$('#save-commit').onclick=async()=>{const button=$<HTMLButtonElement>('#save-commit');button.disabled=true;
-  try{await requestSave('save',savePayload);model.markSaved();$<HTMLDialogElement>('#save-confirm').close();status('配置を保存しました');update();}
-  catch(error){$('#save-error').textContent=(error as Error).message;}finally{button.disabled=false;}
+$('#save-commit').onclick=async()=>{
+  if(writing||!saveBusy||!saveDialog.open||!savePayload)return;
+  const button=$<HTMLButtonElement>('#save-commit'),cancel=$<HTMLButtonElement>('#save-cancel');
+  writing=true;button.disabled=true;cancel.disabled=true;
+  try{await requestSave('save',savePayload);model.markSaved();saveDialog.close();status('配置を保存しました');}
+  catch(error){$('#save-error').textContent=(error as Error).message;}
+  finally{writing=false;saveBusy=saveDialog.open;button.disabled=false;cancel.disabled=false;update();}
 };
 void fetch('/__world-editor/status').then(r=>r.json()).then(r=>{canSave=!!r.enabled&&!stale.length&&!matchMedia('(max-width:700px)').matches&&navigator.maxTouchPoints===0;update();if(stale.length)status('生成元が変わっています。配置の移行を確認するまで保存できません');else if(!canSave)status('スマホでは編集と試し歩きまで使えます。保存はPCで行います');}).catch(()=>{status('この起動方法ではファイルへ保存できません');});
 
