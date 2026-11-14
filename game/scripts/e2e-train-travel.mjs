@@ -132,8 +132,8 @@ async function ride(page, touch, prefix, hooks = {}) {
   const stage = name => page.waitForFunction(n => document.querySelector('#train-travel-panel')?.dataset.rideStage === n, name, { timeout: 25000, polling: 'raf' });
   if (!hooks.reduced) {
     await page.waitForFunction(() => window.__slg.renderer.stats.trains.length > 0, null, { timeout: 5000, polling: 'raf' });
-    await page.waitForTimeout(900); if (prefix) await shot(page, `${prefix}-ride-1-train-arrives-actor-walks`);
-    await page.waitForTimeout(1600); if (prefix) await shot(page, `${prefix}-ride-2-walking-to-door`);
+    await page.waitForTimeout(500); if (prefix) await shot(page, `${prefix}-ride-1-train-arrives-actor-walks`);
+    await page.waitForTimeout(800); if (prefix) await shot(page, `${prefix}-ride-2-walking-to-door`);
     assert.deepEqual(await player(page), before, 'the real player stays at the gate while the actor walks');
     if (hooks.during) await hooks.during(before);
     await page.waitForFunction(() => window.__slg.renderer.stats.trains.some(t => t.doorOpen === 0) && window.__log.some(l => l.trains.some(t => t.doorOpen > 0.9)), null, { timeout: 25000, polling: 'raf' });
