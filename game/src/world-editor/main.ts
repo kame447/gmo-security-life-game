@@ -207,6 +207,7 @@ $('#npc-apply').onclick=()=>{
 };
 $('#npc-revert').onclick=()=>{npcDraft=false;refresh();status('入力を取り消しました');};
 $('#npc-properties').addEventListener('keydown',e=>{
+  if(e.isComposing||e.keyCode===229)return;
   if(e.code==='Escape'&&npcDraft){e.preventDefault();e.stopPropagation();$('#npc-revert').click();}
 });
 $('#play').onclick=()=>{
@@ -222,6 +223,7 @@ for(const button of document.querySelectorAll<HTMLButtonElement>('[data-directio
   button.onpointerup=button.onpointercancel=e=>{controls.release(`touch-${e.pointerId}`);};
 }
 window.addEventListener('keydown',e=>{
+  if(e.isComposing||e.keyCode===229)return;
   if($<HTMLDialogElement>('#save-confirm').open||((e.target as HTMLElement).closest('input,select,textarea')))return;
   if(game){if(e.code==='Escape'){$('#play').click();e.preventDefault();return;}if((e.target as HTMLElement).closest('button'))return;
     if(DIRECTION_KEYS[e.code]){controls.press(e.code,DIRECTION_KEYS[e.code]);e.preventDefault();}else if(e.code.startsWith('Shift'))controls.pressRun(e.code);
