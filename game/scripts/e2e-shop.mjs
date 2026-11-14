@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { assets, assertFits, closeShop, observe, openClerk, phase, position, ready, restrictNetwork, seed, shopUrl, tabTo, VIEWPORTS } from './shop-review-helpers.mjs';
+import { afterPointer, assets, assertFits, closeShop, observe, openClerk, phase, position, ready, restrictNetwork, seed, shopUrl, tabTo, VIEWPORTS } from './shop-review-helpers.mjs';
 
 const browser = await chromium.launch({ headless: true });
 let passed = 0, crossSaveSeed;
@@ -98,6 +98,8 @@ try {
       await page.locator('#shop-panel').waitFor({ state: 'hidden' });
       assert.deepEqual(await position(page), touchPosition);
       assert.equal(await page.locator('#view').evaluate(element => document.activeElement === element), true);
+      // The shared controller drops held input on the frame after a panel closes; press after that frame.
+      await afterPointer(page);
       await page.keyboard.down('ArrowLeft');
       try { await page.waitForFunction(x => window.__slg.game.player.x < x - 2, touchPosition.x); }
       finally { await page.keyboard.up('ArrowLeft'); }
