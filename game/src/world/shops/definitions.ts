@@ -48,7 +48,7 @@ export const SHOP_INTERIORS: readonly ShopInteriorDefinition[] = [
       { id: 'vegetables', kind: 'greengrocer-produce-stand', style: 'greens', x: 1, y: 4, w: 3, h: 2, name: 'やさいのきばこ', line: 'あおい キャベツに トマト、にんじんが きばこに ぎっしり！' },
       { id: 'baskets', kind: 'greengrocer-basket-rack', x: 1, y: 7, w: 3, h: 1, name: 'かごのやさい', line: 'まるい キャベツや トマト、きゅうりが かごに ならんでいる。' },
       { id: 'crates', kind: 'greengrocer-produce-stand', style: 'roots', x: 12, y: 4, w: 3, h: 2, name: 'こんさいのきばこ', line: 'ふとい だいこんと にんじんが 山もりに つまれている。' },
-      { id: 'fruit', kind: 'greengrocer-fruit-table', x: 12, y: 7, w: 3, h: 2, name: 'くだもののだい', line: 'あかい りんご、あまい みかん、バナナも かごいっぱい！' },
+      { id: 'fruit', kind: 'greengrocer-fruit-table', x: 12, y: 6, w: 3, h: 2, name: 'くだもののだい', line: 'あかい りんご、あまい みかん、バナナも かごいっぱい！' },
       { id: 'counter', kind: 'greengrocer-counter', x: 10, y: 2, w: 2, h: 1 },
     ],
   },
