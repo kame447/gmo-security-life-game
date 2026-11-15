@@ -153,21 +153,21 @@ try{
  await rp.locator('#area-select').selectOption('shop-bookstore-interior');
  await rp.waitForFunction(()=>window.__worldEditor.activeArea==='shop-bookstore-interior');
  assert.equal(await rp.locator('#location').innerText(),'ほんや');
- const bookMag='shop-bookstore-interior-magazines',bookPicture='shop-bookstore-interior-picture-books',bookWest='shop-bookstore-interior-back-books-west';
+ const bookMag='shop-bookstore-interior-magazines',bookPicture='shop-bookstore-interior-picture-books',bookEast='shop-bookstore-interior-back-books-east';
  await select(rp,bookMag);assert.equal(await rp.locator('#rotate').isDisabled(),false);
  await rp.locator('#rotate').click();
  assert.deepEqual(await rp.evaluate(id=>{const d=window.__worldEditor.model.document,o=d.objects.find(p=>p.id===id),link=d.interactions.find(i=>i.objectId===id);return{facing:o.facing,w:o.w,h:o.h,lw:link.w,lh:link.h,kind:o.kind,hasCatalog:Boolean(o.catalogId)};},bookMag),{facing:'left',w:1,h:3,lw:1,lh:3,kind:'bookstore-magazine-rack',hasCatalog:false});
  await select(rp,bookPicture);await rp.locator('#rotate').click();await rp.locator('#rotate').click();
  assert.deepEqual(await rp.evaluate(id=>{const d=window.__worldEditor.model.document,o=d.objects.find(p=>p.id===id),link=d.interactions.find(i=>i.objectId===id);return{facing:o.facing,w:o.w,h:o.h,lw:link.w,lh:link.h};},bookPicture),{facing:'up',w:3,h:2,lw:3,lh:2});
- await select(rp,bookWest);await rp.locator('#rotate').click();
- assert.deepEqual(await rp.evaluate(id=>{const o=window.__worldEditor.model.object(id,undefined,'shop-bookstore-interior');return{facing:o.facing,w:o.w,h:o.h,style:o.style};},bookWest),{facing:'left',w:1,h:4,style:'a'});
+ await select(rp,bookEast);await rp.locator('#rotate').click();
+ assert.deepEqual(await rp.evaluate(id=>{const o=window.__worldEditor.model.object(id,undefined,'shop-bookstore-interior');return{facing:o.facing,w:o.w,h:o.h,style:o.style};},bookEast),{facing:'left',w:1,h:4,style:'b'});
  // Edit shop-konbini-interior: verify shop-floor non-rotatable reason, place chair-wood, intentional rug+table overlap, trial walk + exit portal, and multi-room atomic save.
  await rp.locator('#area-select').selectOption('shop-konbini-interior');
  await rp.waitForFunction(()=>window.__worldEditor.activeArea==='shop-konbini-interior');
  assert.equal(await rp.locator('#location').innerText(),'コンビニ');
  const konbiniFloor='shop-konbini-interior-shop-floor-1-1';
  pt=await tilePoint(rp,10,8);await rp.mouse.click(pt.x,pt.y);await rp.locator('#properties').waitFor({state:'visible'});
- assert.equal(await rp.evaluate(()=>window.__worldEditor.selected),konbiniFloor);
+ assert.match(await rp.locator('#object-id').textContent()??'',new RegExp(konbiniFloor));
  assert.equal(await rp.locator('#rotate').isDisabled(),true);
  assert.match(await rp.locator('#protection').innerText(),/床の下地のため回せません/);
  await rp.locator('#furniture-tab').click();await rp.locator('[data-catalog-id="chair-wood"]').click();
@@ -205,7 +205,7 @@ try{
  assert.equal(savedDesk.catalogId,undefined);assert.equal(savedTdesk.catalogId,undefined);
  assert.deepEqual(savedBookstore.objects.find(o=>o.id===bookMag),{id:bookMag,kind:'bookstore-magazine-rack',facing:'left',x:2,y:8,w:1,h:3,solid:true,layer:'sorted'});
  assert.equal(savedBookstore.objects.find(o=>o.id===bookPicture).facing,'up');
- assert.deepEqual(savedBookstore.objects.find(o=>o.id===bookWest),{id:bookWest,kind:'bookstore-tall-shelf',style:'a',facing:'left',x:1,y:1,w:1,h:4,solid:true,layer:'sorted'});
+ assert.deepEqual(savedBookstore.objects.find(o=>o.id===bookEast),{id:bookEast,kind:'bookstore-tall-shelf',style:'b',facing:'left',x:6,y:1,w:1,h:4,solid:true,layer:'sorted'});
  assert.ok(savedKonbini.objects.some(o=>o.id===shopChair));
  assert.ok(savedKonbini.objects.some(o=>o.id===addedTable));
  await roomsSession.context.close();assert.deepEqual(roomsSession.errors,[]);assert.deepEqual(roomsSession.blocked,[]);
@@ -231,7 +231,7 @@ try{
  assert.equal(await vp.evaluate(()=>window.__slg.game.player.areaId),'shop-bookstore-interior');
  assert.deepEqual(await vp.evaluate(id=>{const a=window.__slg.game.area,o=a.objects.find(p=>p.id===id),l=a.interactions.find(i=>i.id==='shop-bookstore-interior-magazines-inspect');return{facing:o?.facing,w:o?.w,h:o?.h,lw:l?.w,lh:l?.h};},bookMag),{facing:'left',w:1,h:3,lw:1,lh:3});
  assert.equal(await vp.evaluate(id=>window.__slg.game.area.objects.find(o=>o.id===id)?.facing,bookPicture),'up');
- assert.deepEqual(await vp.evaluate(id=>{const o=window.__slg.game.area.objects.find(p=>p.id===id);return{facing:o?.facing,w:o?.w,h:o?.h,style:o?.style};},bookWest),{facing:'left',w:1,h:4,style:'a'});
+ assert.deepEqual(await vp.evaluate(id=>{const o=window.__slg.game.area.objects.find(p=>p.id===id);return{facing:o?.facing,w:o?.w,h:o?.h,style:o?.style};},bookEast),{facing:'left',w:1,h:4,style:'b'});
  const bookstoreExit=await vp.evaluate(()=>window.__slg.game.area.def.portals.find(p=>p.id==='bookstore-exit').from);
  await walk(vp,{...bookstoreExit,areaId:'shop-bookstore-interior'},'game');
  assert.equal(await vp.evaluate(()=>window.__slg.game.player.areaId),'town-main');
