@@ -1,13 +1,17 @@
-/** Original procedural pixel art. The player follows the reference PNGs via player-sprite.ts; no image IO. */
+/** Procedural pixel art with optional school furniture PNGs. */
 import type { ObjectDef } from '../core/types';
 import { TILE, hash2, type Facing } from '../core/coords';
 import { DEFAULT_APPEARANCE, normalizeAppearance, appearanceKey, type PlayerAppearance } from '../core/appearance';
 import { makeCanvas, R, type C2D } from './draw';
 import { buildingRepresentativeColor } from './building-colors';
 import { drawPlayer, PLAYER_H, PLAYER_W } from './player-sprite';
+import { furnitureAsset, FURNITURE_URLS } from './furniture-images/catalog';
+import { FurnitureImageLoader } from './furniture-images/loader';
+import { paintFurnitureImage } from './furniture-images/paint';
 
 export interface Sprite { canvas: HTMLCanvasElement; ox: number; oy: number }
 const objects = new Map<string, Sprite>();
+const furnitureImages = new FurnitureImageLoader();
 const people = new Map<string, Sprite>();
 // LRU by whole appearance, each retaining at most four directions × three frames.
 const avatars = new Map<string, Map<string, Sprite>>();
@@ -338,7 +342,9 @@ function prop(c: C2D, o: ObjectDef, w: number, h: number): void {
 }
 
 export function objectSprite(o: ObjectDef): Sprite {
-  const key = JSON.stringify([o.kind, o.w, o.h, o.style ?? '']);
+  const candidate = furnitureAsset(o);
+  const asset = candidate?.file.startsWith('school/') ? candidate : undefined;
+  const key = JSON.stringify([o.kind, o.w, o.h, o.style ?? '', asset?.id ?? '']);
   const cached = objects.get(key); if (cached) return cached;
   const tree = o.kind === 'tree', lamp = o.kind === 'lamp';
   const w = o.w * TILE, h = o.h * TILE;
@@ -346,7 +352,13 @@ export function objectSprite(o: ObjectDef): Sprite {
   if (buildingRepresentativeColor(o)) building(c, o, w, h);
   else prop(c, o, w, lamp ? h + 20 : h);
   const sprite = { canvas, ox: tree ? -9 : 0, oy: tree ? -24 : lamp ? -20 : 0 };
-  objects.set(key, sprite); return sprite;
+  objects.set(key, sprite);
+  if (asset) {
+    void furnitureImages.load(asset, FURNITURE_URLS).then(result => {
+      paintFurnitureImage(canvas, result);
+    }).catch(() => { /* Keep procedural artwork on unexpected load/paint failures. */ });
+  }
+  return sprite;
 }
 
 interface Costume { hair: string; coat: string; pants: string; skin: string; adult?: boolean; hat?: string }
