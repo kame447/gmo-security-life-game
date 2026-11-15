@@ -105,7 +105,7 @@ export function drawCabinetSide(
   drawGoods?: (ctx: C2D, innerX: number, innerW: number, y1: number, y2: number) => void,
 ): void {
   const h = totalH - yTop - 1;
-  const sideW = Math.max(6, Math.floor((w - 4) * 0.45));
+  const sideW = Math.max(5, Math.floor((w - 4) * 0.36));
   const openW = w - sideW - 3;
   floorShadow(c, 1, totalH - 2, w - 2, 2);
   box(c, 0, yTop, w, h, frame);

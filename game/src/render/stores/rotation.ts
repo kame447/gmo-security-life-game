@@ -33,7 +33,28 @@ export const STORE_FLOOR_BASE_RULE: RotationRule = Object.freeze({
  * Rotation rules for Bookstore, Candy Shop, and Pharmacy fixtures (`fixtures-retail.ts`).
  * A kind is added here only after all permitted directional artwork is complete.
  */
-export const RETAIL_STORE_ROTATION_ENTRIES: readonly (readonly [string, RotationRule])[] = [];
+export const RETAIL_STORE_ROTATION_ENTRIES: readonly (readonly [string, RotationRule])[] = [
+  // Bookstore
+  ['bookstore-counter', STORE_ROTATE_ALL_RULE],
+  ['bookstore-tall-shelf', STORE_ROTATE_ALL_RULE],
+  ['bookstore-picture-shelf', STORE_ROTATE_ALL_RULE],
+  ['bookstore-flat-table', STORE_ROTATE_ALL_RULE],
+  ['bookstore-magazine-rack', STORE_ROTATE_ALL_RULE],
+  // Candy shop
+  ['candy-counter', STORE_ROTATE_ALL_RULE],
+  ['candy-box-rack', STORE_ROTATE_ALL_RULE],
+  ['candy-jar-stand', STORE_ROTATE_ALL_RULE],
+  ['candy-hanging-rack', STORE_SIDE_AND_FRONT_RULE],
+  ['candy-low-bins', STORE_ROTATE_ALL_RULE],
+  ['candy-bench', STORE_ROTATE_ALL_RULE],
+  // Pharmacy
+  ['pharmacy-counter', STORE_ROTATE_ALL_RULE],
+  ['pharmacy-med-shelf', STORE_ROTATE_ALL_RULE],
+  ['pharmacy-care-shelf', STORE_ROTATE_ALL_RULE],
+  ['pharmacy-low-care', STORE_ROTATE_ALL_RULE],
+  ['pharmacy-daily-shelf', STORE_ROTATE_ALL_RULE],
+  ['pharmacy-bench', STORE_ROTATE_ALL_RULE],
+];
 
 /**
  * Rotation rules for Bakery, Greengrocer, Cafe, Konbini fixtures and `shop-rug` (`fixtures-food.ts`).
