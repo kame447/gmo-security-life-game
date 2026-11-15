@@ -61,11 +61,14 @@ export function assertInteriorEdit(before: EditorDocument, after: EditorDocument
     const problem=npcIssue(npc,after);if(problem)reject(problem);
   }
   for (const o of after.objects.filter(o => o.areaId === areaId)) {
-    for (const p of after.portals) {
-      if (p.areaId === areaId && o.x < p.from.x + (p.from.w ?? 1) && o.x + o.w > p.from.x &&
-          o.y <= p.from.y && o.y + o.h > p.from.y) reject('出入口のマスには置けません');
-      if (p.to.areaId === areaId && p.to.x >= o.x && p.to.x < o.x + o.w && p.to.y >= o.y && p.to.y < o.y + o.h)
-        reject('出入口の到着位置には置けません');
+    const blocksPortal = !(o.solid === false && o.layer === 'decal') || after.interactions.some(i => i.objectId === o.id);
+    if (blocksPortal) {
+      for (const p of after.portals) {
+        if (p.areaId === areaId && o.x < p.from.x + (p.from.w ?? 1) && o.x + o.w > p.from.x &&
+            o.y <= p.from.y && o.y + o.h > p.from.y) reject('出入口のマスには置けません');
+        if (p.to.areaId === areaId && p.to.x >= o.x && p.to.x < o.x + o.w && p.to.y >= o.y && p.to.y < o.y + o.h)
+          reject('出入口の到着位置には置けません');
+      }
     }
     const original = before.objects.find(p => p.id === o.id);
     if (original) {
