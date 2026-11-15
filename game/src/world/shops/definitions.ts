@@ -1,3 +1,4 @@
+import type { Facing } from '../../core/coords';
 import type { ObjectDef } from '../../core/types';
 import { T } from '../tiles';
 
@@ -18,7 +19,14 @@ export interface ShopInteriorDefinition {
   readonly floor: number;
   readonly doorX: number;
   readonly outdoorDoor: { readonly x: number; readonly y: number };
-  readonly clerk: { readonly name: string; readonly sprite: string; readonly x: number; readonly y: number; readonly line: string };
+  readonly clerk: {
+    readonly name: string;
+    readonly sprite: string;
+    readonly x: number;
+    readonly y: number;
+    readonly facing?: Facing;
+    readonly line: string;
+  };
   readonly furnishings: readonly ShopFurnishing[];
 }
 
@@ -31,71 +39,74 @@ export const SHOP_INTERIORS: readonly ShopInteriorDefinition[] = [
   {
     id: 'greengrocer', name: 'やおや', width: 16, height: 12, floor: T.FLOOR_CLASS, doorX: 7,
     outdoorDoor: { x: 33, y: 52 },
-    clerk: { name: 'やおやさん', sprite: 'shopkeeper', x: 11, y: 3, line: 'いらっしゃい。きょうは キャベツも みかんも とれたてだよ！' },
+    clerk: { name: 'やおやさん', sprite: 'shopkeeper', x: 12, y: 2, facing: 'down', line: 'いらっしゃい。きょうは キャベツも みかんも とれたてだよ！' },
     furnishings: [
-      { id: 'cooler', kind: 'greengrocer-chill-case', x: 1, y: 1, w: 3, h: 1, name: 'れいぞうケース', line: 'みずみずしい はものや だいこんが ひえている。' },
-      { id: 'back-roots', kind: 'greengrocer-produce-stand', style: 'roots', x: 5, y: 1, w: 3, h: 1 },
-      { id: 'vegetables', kind: 'greengrocer-produce-stand', style: 'greens', x: 2, y: 4, w: 3, h: 1, name: 'やさいのきばこ', line: 'あおい キャベツに トマト、にんじんが きばこに ぎっしり！' },
-      { id: 'baskets', kind: 'greengrocer-basket-rack', x: 6, y: 4, w: 3, h: 1, name: 'かごのやさい', line: 'むらさきの なすや きゅうりが かごに ならんでいる。' },
-      { id: 'fruit', kind: 'greengrocer-fruit-table', x: 2, y: 7, w: 3, h: 1, name: 'くだもののだい', line: 'あかい りんご、あまい みかん、バナナも かごいっぱい！' },
-      { id: 'crates', kind: 'greengrocer-produce-stand', style: 'roots', x: 11, y: 7, w: 3, h: 1, name: 'こんさいのきばこ', line: 'ふとい だいこんと にんじんが 山もりに つまれている。' },
-      { id: 'counter', kind: 'greengrocer-counter', x: 10, y: 2, w: 3, h: 1 },
+      { id: 'entry-rug', kind: 'shop-rug', style: 'greengrocer', x: 6, y: 9, w: 4, h: 1, solid: false, layer: 'decal' },
+      { id: 'cooler', kind: 'greengrocer-chill-case', x: 1, y: 1, w: 3, h: 1, name: 'れいぞうケース', line: 'みずみずしい キャベツや だいこんが ひえている。' },
+      { id: 'back-roots', kind: 'greengrocer-produce-stand', style: 'roots', x: 5, y: 1, w: 4, h: 1 },
+      { id: 'vegetables', kind: 'greengrocer-produce-stand', style: 'greens', x: 2, y: 4, w: 3, h: 2, name: 'やさいのきばこ', line: 'あおい キャベツに トマト、にんじんが きばこに ぎっしり！' },
+      { id: 'fruit', kind: 'greengrocer-fruit-table', x: 7, y: 4, w: 3, h: 2, name: 'くだもののだい', line: 'あかい りんご、あまい みかん、バナナも かごいっぱい！' },
+      { id: 'baskets', kind: 'greengrocer-basket-rack', x: 2, y: 8, w: 3, h: 1, name: 'かごのやさい', line: 'まるい キャベツや トマト、きゅうりが かごに ならんでいる。' },
+      { id: 'crates', kind: 'greengrocer-produce-stand', style: 'roots', x: 11, y: 7, w: 3, h: 2, name: 'こんさいのきばこ', line: 'ふとい だいこんと にんじんが 山もりに つまれている。' },
+      { id: 'counter', kind: 'greengrocer-counter', x: 10, y: 2, w: 2, h: 1 },
       { id: 'plant', kind: 'plant', x: 14, y: 9, w: 1, h: 1 },
     ],
   },
   {
     id: 'bookstore', name: 'ほんや', width: 18, height: 12, floor: T.FLOOR_WOOD, doorX: 8,
     outdoorDoor: { x: 40, y: 52 },
-    clerk: { name: 'ほんやさん', sprite: 'clerk', x: 13, y: 3, line: 'いらっしゃいませ。お探しの ほんが あれば こえを かけてくださいね。' },
+    clerk: { name: 'ほんやさん', sprite: 'clerk', x: 14, y: 2, facing: 'down', line: 'いらっしゃいませ。お探しの ほんが あれば こえを かけてくださいね。' },
     furnishings: [
+      { id: 'entry-rug', kind: 'shop-rug', style: 'bookstore', x: 7, y: 9, w: 4, h: 1, solid: false, layer: 'decal' },
       { id: 'back-books-west', kind: 'bookstore-tall-shelf', style: 'a', x: 1, y: 1, w: 4, h: 1 },
       { id: 'back-books-east', kind: 'bookstore-tall-shelf', style: 'b', x: 6, y: 1, w: 4, h: 1 },
-      { id: 'stories', kind: 'bookstore-tall-shelf', style: 'c', x: 2, y: 4, w: 3, h: 1, name: 'しょうせつのたな', line: 'いろとりどりの せびょうしが ぎっしり ならんだ ほんだな。' },
+      { id: 'picture-books', kind: 'bookstore-picture-shelf', x: 2, y: 4, w: 3, h: 2, name: 'えほんのたな', line: 'たのしい えの ひょうしが みえるように えほんが ならんでいる。' },
       { id: 'flat-novels', kind: 'bookstore-flat-table', style: 'novels', x: 7, y: 4, w: 3, h: 2, name: 'ひらづみのだい', line: 'おすすめPOPといっしょに わだいの ほんが ひらづみに されている。' },
-      { id: 'picture-books', kind: 'bookstore-picture-shelf', x: 12, y: 5, w: 3, h: 1, name: 'えほんのたな', line: 'たのしい えの ひょうしが みえるように えほんが ならんでいる。' },
-      { id: 'magazines', kind: 'bookstore-magazine-rack', x: 2, y: 7, w: 3, h: 1, name: 'ざっしのたな', line: 'しゅうかんしや しゅみの ざっしが みやすく ならんでいる。' },
-      { id: 'comics-table', kind: 'bookstore-flat-table', style: 'comics', x: 12, y: 8, w: 3, h: 1, name: 'しんかんのだい', line: 'しんかんの まんがや ぶんこぼんが きれいに つまれている。' },
-      { id: 'counter', kind: 'bookstore-counter', x: 12, y: 2, w: 3, h: 1 },
+      { id: 'comics-table', kind: 'bookstore-flat-table', style: 'comics', x: 12, y: 5, w: 3, h: 2, name: 'しんかんのだい', line: 'しんかんの まんがや ぶんこぼんが きれいに つまれている。' },
+      { id: 'magazines', kind: 'bookstore-magazine-rack', x: 2, y: 8, w: 3, h: 1, name: 'ざっしのたな', line: 'しゅうかんしや しゅみの ざっしが みやすく ならんでいる。' },
+      { id: 'counter', kind: 'bookstore-counter', x: 12, y: 2, w: 2, h: 1 },
       { id: 'plant', kind: 'plant', x: 16, y: 9, w: 1, h: 1 },
     ],
   },
   {
     id: 'candy', name: 'だがしや', width: 14, height: 10, floor: T.FLOOR_WOOD, doorX: 6,
     outdoorDoor: { x: 47, y: 52 },
-    clerk: { name: 'おっちゃん', sprite: 'shopkeeper', x: 10, y: 3, line: 'いらっしゃい。こぜにを にぎって ゆっくり えらんでいきな。' },
+    clerk: { name: 'おっちゃん', sprite: 'shopkeeper', x: 11, y: 2, facing: 'down', line: 'いらっしゃい。こぜにを にぎって ゆっくり えらんでいきな。' },
     furnishings: [
+      { id: 'entry-rug', kind: 'shop-rug', style: 'candy', x: 5, y: 7, w: 4, h: 1, solid: false, layer: 'decal' },
       { id: 'jar-stand', kind: 'candy-jar-stand', x: 1, y: 1, w: 3, h: 1, name: 'あめだまのびん', line: 'とうめいな ガラスびんに カラフルな あめ玉が ぎっしり！' },
       { id: 'hanging-rack', kind: 'candy-hanging-rack', x: 5, y: 1, w: 3, h: 1, name: 'あてくじとキャンディ', line: 'つりさげおかしと あてくじ、ペロペロキャンディが ならんでいる。' },
-      { id: 'sweets', kind: 'candy-box-rack', x: 1, y: 4, w: 3, h: 1, name: 'だがしのはこだな', line: '１０えんや ３０えんの おかしが 木ばこごとに ならんでいる。' },
-      { id: 'snacks', kind: 'candy-low-bins', x: 5, y: 5, w: 3, h: 1, name: 'ひくめのおやつばこ', line: 'こどもの 目線に あわせた はこに スナックや ラムネが いっぱい！' },
-      { id: 'counter', kind: 'candy-counter', x: 9, y: 2, w: 3, h: 1 },
-      { id: 'bench', kind: 'candy-bench', x: 1, y: 7, w: 3, h: 1 },
-      { id: 'window', kind: 'window', x: 2, y: 0, w: 2, h: 1, solid: false },
+      { id: 'sweets', kind: 'candy-box-rack', x: 1, y: 4, w: 3, h: 2, name: 'だがしのはこだな', line: '１０えんや ３０えんの おかしや ラムネが きばこに ならんでいる。' },
+      { id: 'snacks', kind: 'candy-low-bins', x: 9, y: 5, w: 3, h: 2, name: 'ひくめのおやつばこ', line: '大きな ペロペロキャンディや ラムネ、スナックが てにとれる！' },
+      { id: 'counter', kind: 'candy-counter', x: 9, y: 2, w: 2, h: 1 },
     ],
   },
   {
     id: 'bakery', name: 'パンや', width: 16, height: 12, floor: T.FLOOR_WOOD, doorX: 7,
     outdoorDoor: { x: 61, y: 52 },
-    clerk: { name: 'パンやさん', sprite: 'clerk', x: 11, y: 3, line: 'いらっしゃいませ。ちょうど クロワッサンが やきあがったところだよ！' },
+    clerk: { name: 'パンやさん', sprite: 'clerk', x: 12, y: 2, facing: 'down', line: 'いらっしゃいませ。ちょうど クロワッサンが やきあがったところだよ！' },
     furnishings: [
+      { id: 'entry-rug', kind: 'shop-rug', style: 'bakery', x: 6, y: 9, w: 4, h: 1, solid: false, layer: 'decal' },
       { id: 'oven', kind: 'bakery-oven', x: 1, y: 1, w: 3, h: 1, name: 'レンガのパンがま', line: 'あたたかい レンガのかまの なかで パンが こんがり やけている。' },
-      { id: 'loaves', kind: 'bakery-bread-rack', style: 'loaves', x: 5, y: 1, w: 3, h: 1, name: 'しょくパンのたな', line: 'やまがた しょくパンと フランスパンから こうばしい におい！' },
-      { id: 'bread', kind: 'bakery-pastry-table', x: 2, y: 4, w: 3, h: 1, name: 'やきたてパンのだい', line: 'クロワッサンに メロンパン、あんパンが トレーに ならんでいる！' },
-      { id: 'small-bread', kind: 'bakery-bread-rack', style: 'pastries', x: 6, y: 5, w: 3, h: 1, name: 'かしパンのたな', line: 'こんがり やけた クロワッサンと メロンパンが ならんでいる。' },
-      { id: 'showcase', kind: 'bakery-showcase', x: 11, y: 6, w: 3, h: 1, name: 'サンドとケーキのケース', line: 'ガラスケースに たまごサンドや イチゴのケーキが ひえている。' },
-      { id: 'tray-stand', kind: 'bakery-tray-stand', x: 4, y: 8, w: 2, h: 1, name: 'トレーとトング', line: 'トレーと トングを もって すきな パンを えらべるよ。' },
-      { id: 'counter', kind: 'bakery-counter', x: 10, y: 2, w: 3, h: 1 },
-      { id: 'plant', kind: 'cafe-plant', x: 13, y: 9, w: 1, h: 1 },
+      { id: 'loaves', kind: 'bakery-bread-rack', style: 'loaves', x: 5, y: 1, w: 4, h: 1, name: 'しょくパンのたな', line: 'やまがた しょくパンと フランスパンから こうばしい におい！' },
+      { id: 'bread', kind: 'bakery-pastry-table', x: 2, y: 4, w: 3, h: 2, name: 'やきたてパンのだい', line: 'クロワッサンに メロンパン、あんパンが トレーに ならんでいる！' },
+      { id: 'showcase', kind: 'bakery-showcase', x: 7, y: 4, w: 3, h: 2, name: 'サンドとケーキのケース', line: 'ガラスケースに たまごサンドや イチゴのケーキが ひえている。' },
+      { id: 'small-bread', kind: 'bakery-pastry-table', style: 'baguettes', x: 11, y: 6, w: 3, h: 2, name: 'バゲットのかご', line: 'パリッと やけた フランスパンと やまがたパンが ならんでいる。' },
+      { id: 'tray-stand', kind: 'bakery-tray-stand', x: 2, y: 8, w: 2, h: 1, name: 'トレーとトング', line: 'トレーと トングを もって すきな パンを えらべるよ。' },
+      { id: 'counter', kind: 'bakery-counter', x: 10, y: 2, w: 2, h: 1 },
+      { id: 'plant', kind: 'cafe-plant', x: 14, y: 9, w: 1, h: 1 },
     ],
   },
   {
     id: 'cafe', name: 'きっさてん', width: 18, height: 14, floor: T.FLOOR_WOOD, doorX: 8,
     outdoorDoor: { x: 68, y: 52 },
-    clerk: { name: 'てんいんさん', sprite: 'clerk', x: 13, y: 3, line: 'いらっしゃいませ。ひきたての コーヒーと ケーキを どうぞ。' },
+    clerk: { name: 'てんいんさん', sprite: 'clerk', x: 14, y: 2, facing: 'down', line: 'いらっしゃいませ。ひきたての コーヒーと ケーキを どうぞ。' },
     furnishings: [
+      { id: 'entry-rug', kind: 'shop-rug', style: 'cafe', x: 7, y: 11, w: 4, h: 1, solid: false, layer: 'decal' },
+      { id: 'lounge-rug', kind: 'shop-rug', style: 'cafe', x: 12, y: 8, w: 3, h: 2, solid: false, layer: 'decal' },
       { id: 'brew-bar', kind: 'cafe-brew-bar', x: 1, y: 1, w: 4, h: 1, name: 'コーヒーカウンター', line: 'エスプレッソマシンと サイフォンが コーヒーの いい かおりを たてている。' },
       { id: 'cake-case', kind: 'cafe-cake-case', x: 6, y: 1, w: 3, h: 1, name: 'スイーツのケース', line: 'ショートケーキと プリンが ならぶ ガラスの ショーケース。' },
-      { id: 'counter', kind: 'cafe-counter', x: 12, y: 2, w: 3, h: 1 },
+      { id: 'counter', kind: 'cafe-counter', x: 12, y: 2, w: 2, h: 1 },
       { id: 'chair-nw-l', kind: 'cafe-chair', style: 'right', x: 2, y: 4, w: 1, h: 1 },
       { id: 'table-north-west', kind: 'cafe-table', style: 'coffee-cake', x: 3, y: 4, w: 2, h: 1, name: 'コーヒーとケーキのせき', line: 'あたたかい コーヒーと イチゴのケーキが おかれた まどぎわの テーブル。' },
       { id: 'chair-nw-r', kind: 'cafe-chair', style: 'left', x: 5, y: 4, w: 1, h: 1 },
@@ -117,15 +128,17 @@ export const SHOP_INTERIORS: readonly ShopInteriorDefinition[] = [
   {
     id: 'pharmacy', name: 'くすりや', width: 16, height: 12, floor: T.FLOOR_CLASS, doorX: 7,
     outdoorDoor: { x: 75, y: 52 },
-    clerk: { name: 'くすりやさん', sprite: 'clerk', x: 11, y: 3, line: 'いらっしゃいませ。おくすりの そうだんでも お気軽に どうぞ。' },
+    clerk: { name: 'くすりやさん', sprite: 'clerk', x: 12, y: 2, facing: 'down', line: 'いらっしゃいませ。おくすりの そうだんでも お気軽に どうぞ。' },
     furnishings: [
+      { id: 'entry-rug', kind: 'shop-rug', style: 'pharmacy', x: 6, y: 9, w: 4, h: 1, solid: false, layer: 'decal' },
+      { id: 'wait-mat', kind: 'shop-rug', style: 'pharmacy', x: 10, y: 3, w: 2, h: 1, solid: false, layer: 'decal' },
       { id: 'back-meds', kind: 'pharmacy-med-shelf', x: 1, y: 1, w: 4, h: 1 },
       { id: 'care-corner', kind: 'pharmacy-care-shelf', x: 6, y: 1, w: 3, h: 1 },
-      { id: 'daily-goods', kind: 'pharmacy-daily-shelf', x: 2, y: 4, w: 3, h: 1, name: 'にちようひんのたな', line: 'ティッシュの ５はこパックや トイレットペーパー、せっけんが ならんでいる。' },
-      { id: 'first-aid', kind: 'pharmacy-care-shelf', x: 6, y: 5, w: 3, h: 1, name: 'えいせいひんのたな', line: 'きゅうきゅうばこや しょうどくえき、ばんそうこうが そろっている。' },
-      { id: 'medicine', kind: 'pharmacy-med-shelf', x: 2, y: 7, w: 3, h: 1, name: 'くすりのたな', line: 'かぜぐすりや シロップびん、じょうざいシートが きれいに わかれている。' },
+      { id: 'medicine', kind: 'pharmacy-med-shelf', x: 2, y: 4, w: 3, h: 2, name: 'くすりのたな', line: 'かぜぐすりや シロップびん、じょうざいシートが きれいに わかれている。' },
+      { id: 'daily-goods', kind: 'pharmacy-daily-shelf', x: 7, y: 4, w: 3, h: 2, name: 'にちようひんのたな', line: 'ティッシュの ５はこパックや トイレットペーパー、せっけんが ならんでいる。' },
+      { id: 'first-aid', kind: 'pharmacy-low-care', x: 2, y: 8, w: 3, h: 1, name: 'えいせいひんのたな', line: 'きゅうきゅうばこや しょうどくえき、ばんそうこうが そろっている。' },
       { id: 'waiting-bench', kind: 'pharmacy-bench', x: 11, y: 8, w: 2, h: 1 },
-      { id: 'counter', kind: 'pharmacy-counter', x: 10, y: 2, w: 3, h: 1 },
+      { id: 'counter', kind: 'pharmacy-counter', x: 10, y: 2, w: 2, h: 1 },
       { id: 'plant', kind: 'plant', x: 14, y: 9, w: 1, h: 1 },
     ],
   },

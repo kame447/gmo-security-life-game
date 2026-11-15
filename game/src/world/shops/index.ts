@@ -31,7 +31,7 @@ export function createShopInterior(shop: ShopInteriorDefinition): AreaDef {
     })),
     interactions: [
       { id: `${shop.id}-indoor-clerk`, kind: 'npc', name: shop.clerk.name,
-        x: shop.clerk.x, y: shop.clerk.y, sprite: shop.clerk.sprite, facing: 'down', solid: true,
+        x: shop.clerk.x, y: shop.clerk.y, sprite: shop.clerk.sprite, facing: shop.clerk.facing ?? 'down', solid: true,
         eventKey: `shopping.${shop.id}.clerk`, lines: [shop.clerk.line] },
       ...shop.furnishings.flatMap(item => item.name && item.line ? [{
         id: `${id}-${item.id}-inspect`, kind: 'object' as const, name: item.name,

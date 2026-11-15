@@ -70,12 +70,12 @@ export function shelfCabinet(
   const h = totalH - yTop - 1;
   floorShadow(c, 1, totalH - 2, w - 2, 2);
   box(c, 0, yTop, w, h, frame);
-  R(c, back, 2, yTop + 2, w - 4, h - 5);
-  const midY = yTop + Math.floor((h - 4) / 2) + 1;
+  R(c, back, 2, yTop + 2, w - 4, h - 4);
+  const midY = yTop + Math.floor((h - 3) / 2);
   R(c, ledge, 1, midY, w - 2, 2);
   R(c, INK, 2, midY + 2, w - 4, 1);
-  R(c, ledge, 1, yTop + h - 4, w - 2, 2);
-  return { innerX: 2, innerW: w - 4, tier1Y: midY, tier2Y: yTop + h - 4 };
+  R(c, ledge, 1, yTop + h - 3, w - 2, 2);
+  return { innerX: 2, innerW: w - 4, tier1Y: midY, tier2Y: yTop + h - 3 };
 }
 
 /** Sloped open-top crate or basket tray with wood slats. */
@@ -95,7 +95,7 @@ export function wovenBasket(c: C2D, x: number, y: number, w: number, h: number):
   }
 }
 
-/** Shop checkout counter base with cash register & apron stripe. */
+/** Shop checkout counter base with cash register & apron stripe (draws into totalH = h + 6). */
 export function shopCounter(
   c: C2D,
   w: number,
@@ -106,17 +106,17 @@ export function shopCounter(
   regX: number,
   regCol = '#5a636d',
 ): void {
-  const totalH = h + 4;
+  const totalH = h + 6;
   floorShadow(c, 1, totalH - 2, w - 2, 2);
-  box(c, 0, 4, w, h - 1, frontCol);
-  R(c, topCol, 1, 5, w - 2, 7);
-  R(c, '#ffffff', 2, 5, w - 4, 1);
-  R(c, stripeCol, 1, 13, w - 2, 3);
+  box(c, 0, 5, w, totalH - 6, frontCol);
+  R(c, topCol, 1, 6, w - 2, 6);
+  R(c, '#ffffff', 2, 6, w - 4, 1);
   R(c, INK, 1, 12, w - 2, 1);
+  R(c, stripeCol, 1, 13, w - 2, totalH - 15);
   // Register sitting on counter top
-  box(c, regX, 0, 10, 9, regCol);
-  R(c, '#9fb6c2', regX + 2, 1, 6, 3);
-  R(c, '#d7e2e7', regX + 2, 5, 6, 2);
+  box(c, regX, 0, 10, 10, regCol);
+  R(c, '#9fb6c2', regX + 2, 1, 6, 4);
+  R(c, '#d7e2e7', regX + 2, 6, 6, 2);
 }
 
 /** Small paper price tag or POP accent card. */
@@ -133,9 +133,27 @@ export function glassSheen(c: C2D, x: number, y: number, w: number, h: number): 
   if (w > 18) R(c, GLASS_HI, x + w - 6, y + 3, 1, Math.max(2, h - 6));
 }
 
-/** Vertical bottle icon (for chiller / wine / syrup / shampoo). */
+/** Contoured PET / syrup bottle icon (5x11 anchored bottom-left at x, y). */
 export function drawBottle(c: C2D, x: number, y: number, body: string, cap: string, label = WHITE): void {
-  R(c, cap, x + 1, y - 7, 1, 2);
-  R(c, body, x, y - 5, 3, 5);
-  R(c, label, x, y - 4, 3, 2);
+  R(c, INK, x + 1, y - 11, 3, 2);
+  R(c, cap, x + 2, y - 11, 1, 1);
+  R(c, INK, x, y - 9, 5, 9);
+  R(c, body, x + 1, y - 8, 3, 7);
+  R(c, label, x + 1, y - 6, 3, 3);
+  R(c, '#ffffff', x + 1, y - 8, 1, 5);
+}
+
+/** Decorative non-solid floor runner / mat decal for visual shop floor zoning. */
+export function shopRug(c: C2D, w: number, h: number, base: string, border: string, trim: string): void {
+  R(c, border, 1, 1, w - 2, h - 2);
+  R(c, base, 3, 3, w - 6, h - 6);
+  if (h >= 12) {
+    R(c, trim, 4, 4, w - 8, 1);
+    R(c, trim, 4, h - 5, w - 8, 1);
+  }
+  if (w >= 24 && h >= 14) {
+    for (let x = 6; x <= w - 8; x += 6) {
+      R(c, border, x, 6, 2, h - 12);
+    }
+  }
 }
