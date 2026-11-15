@@ -118,10 +118,20 @@ try{
  const roomsSession=await session({width:1280,height:800}),rp=roomsSession.page;await ready(rp);
  const areaValues=await rp.locator('#area-select option').evaluateAll(opts=>opts.map(o=>o.value));
  assert.deepEqual(areaValues.filter(v=>v!=='town-main'),['home-family-interior','school-classroom-interior','shop-konbini-interior']);
- // Edit school-classroom-interior: place & 4-dir rotate chair-wood, move unlinked student desk, paint floor.
+ // Edit school-classroom-interior: place & 4-dir rotate chair-wood, check wall item lock reason, rotate legacy sdesk & tdesk, paint floor.
  await rp.locator('#area-select').selectOption('school-classroom-interior');
  await rp.waitForFunction(()=>window.__worldEditor.activeArea==='school-classroom-interior');
  assert.equal(await rp.locator('#location').innerText(),'きょうしつ');
+ const classDesk='school-classroom-interior-sdesk-2-8',classTdesk='school-classroom-interior-tdesk-8-2';
+ await select(rp,'school-classroom-interior-blackboard-5-0');
+ assert.equal(await rp.locator('#rotate').isDisabled(),true);
+ assert.match(await rp.locator('#protection').innerText(),/壁に掛ける物は奥の壁向きだけのため回せません/);
+ await select(rp,'school-classroom-interior-window-2-0');
+ assert.equal(await rp.locator('#rotate').isDisabled(),true);
+ assert.match(await rp.locator('#protection').innerText(),/壁に掛ける物は奥の壁向きだけのため回せません/);
+ await select(rp,classTdesk);assert.equal(await rp.locator('#rotate').isDisabled(),false);
+ await rp.locator('#rotate').click();
+ assert.deepEqual(await rp.evaluate(id=>{const o=window.__worldEditor.model.object(id,undefined,'school-classroom-interior');return{facing:o.facing,w:o.w,h:o.h,kind:o.kind,hasCatalog:Boolean(o.catalogId)};},classTdesk),{facing:'left',w:1,h:2,kind:'tdesk',hasCatalog:false});
  await rp.locator('[data-catalog-id="chair-wood"]').click();
  const classChair=await rp.evaluate(()=>window.__worldEditor.ghost.object.id);
  let pt=await tilePoint(rp,3,9);await rp.mouse.click(pt.x,pt.y);
@@ -129,14 +139,28 @@ try{
  for(let i=0;i<4;i++){await rp.locator('#rotate').click();chairFacings.push(await rp.evaluate(id=>window.__worldEditor.model.object(id,undefined,'school-classroom-interior').facing,classChair));}
  assert.deepEqual(chairFacings,['down','left','up','right','down']);
  await rp.locator('#rotate').click();await rp.locator('#rotate').click();
- await move(rp,'school-classroom-interior-sdesk-2-8',3,8);
+ await select(rp,classDesk);assert.equal(await rp.locator('#rotate').isDisabled(),false);
+ const deskCycle=[await rp.evaluate(id=>window.__worldEditor.model.object(id,undefined,'school-classroom-interior').facing??'down',classDesk)];
+ for(let i=0;i<4;i++){await rp.locator('#rotate').click();deskCycle.push(await rp.evaluate(id=>window.__worldEditor.model.object(id,undefined,'school-classroom-interior').facing,classDesk));}
+ assert.deepEqual(deskCycle,['down','left','up','right','down']);
+ await rp.locator('#rotate').click();await rp.locator('#rotate').click();
+ await move(rp,classDesk,3,8);
+ assert.equal(await rp.evaluate(id=>window.__worldEditor.model.object(id,undefined,'school-classroom-interior').facing,classDesk),'up');
  await rp.locator('#surface-tab').click();await rp.locator('[data-catalog-id="floor-wood-dark"]').click();
  pt=await tilePoint(rp,6,9);await rp.mouse.click(pt.x,pt.y);await rp.locator('#stop-placement').click();
- await rp.screenshot({path:path.join(output,'desktop-classroom-edited.png')});pass('classroom edits: chair 4-dir rotation, desk move, surface paint');
- // Edit shop-konbini-interior: place chair-wood, intentional rug+table overlap, trial walk + exit portal, and multi-room atomic save.
+ await rp.screenshot({path:path.join(output,'desktop-classroom-edited.png')});pass('classroom edits: chair + legacy sdesk/tdesk rotation, wall item reason, surface paint');
+ // Edit shop-konbini-interior: rotate legacy shelves/cooler + linked interaction sync, place chair-wood, intentional rug+table overlap, trial walk + exit portal, and multi-room atomic save.
  await rp.locator('#area-select').selectOption('shop-konbini-interior');
  await rp.waitForFunction(()=>window.__worldEditor.activeArea==='shop-konbini-interior');
  assert.equal(await rp.locator('#location').innerText(),'コンビニ');
+ const shopShelf='shop-konbini-interior-shopshelf-2-4',shopBackShelf='shop-konbini-interior-shopshelf-6-4',shopCooler='shop-konbini-interior-cooler-1-1';
+ await select(rp,shopShelf);assert.equal(await rp.locator('#rotate').isDisabled(),false);
+ await rp.locator('#rotate').click();
+ assert.deepEqual(await rp.evaluate(id=>{const d=window.__worldEditor.model.document,o=d.objects.find(p=>p.id===id),link=d.interactions.find(i=>i.objectId===id);return{facing:o.facing,w:o.w,h:o.h,lw:link.w,lh:link.h,kind:o.kind,hasCatalog:Boolean(o.catalogId)};},shopShelf),{facing:'left',w:1,h:2,lw:1,lh:2,kind:'shopshelf',hasCatalog:false});
+ await select(rp,shopBackShelf);await rp.locator('#rotate').click();await rp.locator('#rotate').click();
+ assert.deepEqual(await rp.evaluate(id=>{const o=window.__worldEditor.model.object(id,undefined,'shop-konbini-interior');return{facing:o.facing,w:o.w,h:o.h};},shopBackShelf),{facing:'up',w:2,h:1});
+ await select(rp,shopCooler);await rp.locator('#rotate').click();
+ assert.deepEqual(await rp.evaluate(id=>{const d=window.__worldEditor.model.document,o=d.objects.find(p=>p.id===id),link=d.interactions.find(i=>i.objectId===id);return{facing:o.facing,w:o.w,h:o.h,lw:link.w,lh:link.h};},shopCooler),{facing:'left',w:1,h:2,lw:1,lh:2});
  await rp.locator('#furniture-tab').click();await rp.locator('[data-catalog-id="chair-wood"]').click();
  const shopChair=await rp.evaluate(()=>window.__worldEditor.ghost.object.id);
  pt=await tilePoint(rp,3,8);await rp.mouse.click(pt.x,pt.y);await rp.locator('#rotate').click();
@@ -161,8 +185,18 @@ try{
  assert.ok(savedNames.some(t=>t.includes('school-classroom-interior.json'))&&savedNames.some(t=>t.includes('shop-konbini-interior.json')),JSON.stringify(savedNames));
  await rp.locator('#save-commit').click();await rp.locator('#save-confirm').waitFor({state:'hidden'});
  await rp.waitForFunction(()=>window.__worldEditor.model.dirty===0);
- assert.ok(JSON.parse(await readFile(path.join(root,'data/world/areas/school-classroom-interior.json'),'utf8')).objects.some(o=>o.id===classChair));
- assert.ok(JSON.parse(await readFile(path.join(root,'data/world/areas/shop-konbini-interior.json'),'utf8')).objects.some(o=>o.id===shopChair));
+ const savedClassroom=JSON.parse(await readFile(path.join(root,'data/world/areas/school-classroom-interior.json'),'utf8'));
+ const savedKonbini=JSON.parse(await readFile(path.join(root,'data/world/areas/shop-konbini-interior.json'),'utf8'));
+ assert.ok(savedClassroom.objects.some(o=>o.id===classChair));
+ const savedDesk=savedClassroom.objects.find(o=>o.id===classDesk);
+ const savedTdesk=savedClassroom.objects.find(o=>o.id===classTdesk);
+ assert.deepEqual(savedDesk,{id:classDesk,kind:'sdesk',facing:'up',x:3,y:8,w:1,h:1,solid:true,layer:'sorted'});
+ assert.deepEqual(savedTdesk,{id:classTdesk,kind:'tdesk',facing:'left',x:8,y:2,w:1,h:2,solid:true,layer:'sorted'});
+ assert.equal(savedDesk.catalogId,undefined);assert.equal(savedTdesk.catalogId,undefined);
+ assert.ok(savedKonbini.objects.some(o=>o.id===shopChair));
+ assert.deepEqual(savedKonbini.objects.find(o=>o.id===shopShelf),{id:shopShelf,kind:'shopshelf',facing:'left',x:2,y:4,w:1,h:2,solid:true,layer:'sorted'});
+ assert.equal(savedKonbini.objects.find(o=>o.id===shopBackShelf).facing,'up');
+ assert.deepEqual(savedKonbini.objects.find(o=>o.id===shopCooler),{id:shopCooler,kind:'cooler',facing:'left',x:1,y:1,w:1,h:2,solid:true,layer:'sorted'});
  await roomsSession.context.close();assert.deepEqual(roomsSession.errors,[]);assert.deepEqual(roomsSession.blocked,[]);
  await stop();await start();
  const verifyRooms=await session({width:1280,height:800}),vp=verifyRooms.page;
@@ -173,6 +207,8 @@ try{
  await walk(vp,{x:marks.schoolDoorFront.x,y:marks.schoolDoorFront.y-1,areaId:'town-main'},'game');
  assert.equal(await vp.evaluate(()=>window.__slg.game.player.areaId),'school-classroom-interior');
  assert.equal(await vp.evaluate(id=>window.__slg.game.area.objects.find(o=>o.id===id)?.facing,classChair),'up');
+ assert.equal(await vp.evaluate(id=>window.__slg.game.area.objects.find(o=>o.id===id)?.facing,classDesk),'up');
+ assert.deepEqual(await vp.evaluate(id=>{const o=window.__slg.game.area.objects.find(p=>p.id===id);return{facing:o?.facing,w:o?.w,h:o?.h};},classTdesk),{facing:'left',w:1,h:2});
  await vp.screenshot({path:path.join(output,'desktop-game-classroom-edited.png')});
  await walk(vp,{x:4,y:9,areaId:'school-classroom-interior'},'game');
  const schoolExit=await vp.evaluate(()=>window.__slg.game.area.def.portals.find(p=>p.id==='school-exit').from);
@@ -182,6 +218,9 @@ try{
  await walk(vp,{x:marks.konbiniDoorFront.x,y:marks.konbiniDoorFront.y-1,areaId:'town-main'},'game');
  assert.equal(await vp.evaluate(()=>window.__slg.game.player.areaId),'shop-konbini-interior');
  assert.ok(await vp.evaluate(id=>window.__slg.game.area.objects.some(o=>o.id===id),shopChair));
+ assert.deepEqual(await vp.evaluate(id=>{const a=window.__slg.game.area,o=a.objects.find(p=>p.id===id),l=a.interactions.find(i=>i.id==='konbini-snacks');return{facing:o?.facing,w:o?.w,h:o?.h,lw:l?.w,lh:l?.h};},shopShelf),{facing:'left',w:1,h:2,lw:1,lh:2});
+ assert.equal(await vp.evaluate(id=>window.__slg.game.area.objects.find(o=>o.id===id)?.facing,shopBackShelf),'up');
+ assert.deepEqual(await vp.evaluate(id=>{const o=window.__slg.game.area.objects.find(p=>p.id===id);return{facing:o?.facing,w:o?.w,h:o?.h};},shopCooler),{facing:'left',w:1,h:2});
  await vp.screenshot({path:path.join(output,'desktop-game-konbini-edited.png')});
  await verifyRooms.context.close();assert.deepEqual(verifyRooms.errors,[]);assert.deepEqual(verifyRooms.blocked,[]);
  pass('all existing indoor areas edit, multi-save, restart, walk and reflect in real game');
