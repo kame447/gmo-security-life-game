@@ -125,11 +125,50 @@ export async function approach(page, eventKey) {
   return found;
 }
 
+// The registered konbini clerk has the current product catalog.
+// Every other clerk and all shelves must still satisfy the original dialog assertions.
+const talkBaselines = new WeakMap();
+async function konbiniShop(page, item) {
+  return page.evaluate(async item => {
+    const { storeForClerk } = await import('/src/data/stores.ts');
+    const { SHOP_CATALOGS } = await import('/src/data/shop-catalogs.ts');
+    const { getItemDefinition } = await import('/src/data/items.ts');
+    const game = window.__slg.game;
+    const store = item.kind === 'npc' && game.area.def.kind === 'indoor'
+      ? storeForClerk(game.area.def.id, item.eventKey) : undefined;
+    if (store?.storeId !== 'shop-konbini') return { required: false };
+    const catalog = SHOP_CATALOGS.find(catalog => catalog.id === store.catalogId);
+    return { required: true, catalogId: catalog?.id,
+      rows: catalog?.offers.map(offer => ({ name: getItemDefinition(offer.itemId)?.name ?? offer.itemId,
+        price: `${offer.priceYen.toLocaleString('ja-JP')}円` })) };
+  }, item);
+}
+
 export async function talk(page, touch = false) {
   const before = await state(page), item = await page.evaluate(() => window.__slg.game.facingInteraction());
   assert.ok(item);
+  const assets = (await snapshot(page)).assets, expected = await konbiniShop(page, item);
+  if (expected.required) assert.equal(expected.catalogId, 'konbini', 'The registered konbini must have its real catalog');
+  talkBaselines.set(page, { before, assets, shop: expected.required });
   if (touch) await page.locator('#touch button[data-act]').tap(); else await page.keyboard.press('KeyZ');
+  if (expected.required) {
+    await page.locator('#shop-panel').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#shop-panel').getAttribute('data-phase'), 'catalog');
+    assert.equal(await page.locator('#dialog').isVisible(), false, 'Shop and ordinary dialog cannot overlap');
+    assert.equal(await page.evaluate(() => window.__slg.game.dialog), null);
+    assert.equal(await page.locator('#shop-conversation .shop-speaker').textContent(), item.name);
+    assert.equal(await page.locator('#shop-line').textContent(), item.lines[0].match(/^[^。！？]*[。！？]?/)[0]);
+    const rows = await page.locator('.shop-product[data-action="product"]').evaluateAll(rows => rows.map(row => ({
+      name: row.querySelector('.shop-product-name').textContent,
+      price: row.querySelector('.shop-price').textContent,
+    })));
+    assert.deepEqual(rows, expected.rows, 'The shop shows the registered catalog, not a substitute');
+    assert.deepEqual(await state(page), before, 'Opening the shop cannot move the player');
+    assert.deepEqual((await snapshot(page)).assets, assets, 'Opening the shop cannot purchase');
+    return before;
+  }
   await page.locator('#dialog').waitFor({ state: 'visible' });
+  assert.equal(await page.locator('#shop-panel').isVisible(), false, 'Other clerks and shelves retain ordinary conversation');
   assert.deepEqual(await state(page), before, 'Talking cannot move the player');
   assert.deepEqual(await page.evaluate(() => window.__slg.game.dialog), { speaker: item.name, lines: item.lines, index: 0 });
   assert.equal(await page.locator('#dialog .who').innerText(), item.name);
@@ -140,12 +179,28 @@ export async function talk(page, touch = false) {
 }
 
 export async function closeTalk(page, touch = false) {
+  const baseline = talkBaselines.get(page);
+  assert.ok(baseline, 'Closing follows the observed opening');
+  if (baseline.shop) {
+    assert.equal(await page.locator('#shop-panel').isVisible(), true);
+    assert.equal(await page.locator('#shop-panel').getAttribute('data-phase'), 'catalog');
+    await page.keyboard.press('Escape');
+    await page.locator('#shop-panel').waitFor({ state: 'hidden' });
+    assert.equal(await page.locator('#dialog').isVisible(), false);
+    assert.equal(await page.evaluate(() => window.__slg.game.dialog), null);
+    assert.deepEqual(await state(page), baseline.before, 'Cancel returns to the same indoor position');
+    assert.deepEqual((await snapshot(page)).assets, baseline.assets, 'Cancel cannot change money, items or layout');
+    talkBaselines.delete(page);
+    return;
+  }
   const before = await state(page), lines = await page.evaluate(() => window.__slg.game.dialog.lines.length);
   for (let i = 0; i < lines; i++) {
     if (touch) await page.locator('#dialog').tap(); else await page.keyboard.press('KeyZ');
   }
   await page.locator('#dialog').waitFor({ state: 'hidden' });
   assert.deepEqual(await state(page), before, 'Closing the conversation returns to the same position');
+  assert.deepEqual((await snapshot(page)).assets, baseline.assets, 'Conversation cannot change assets');
+  talkBaselines.delete(page);
 }
 
 export function assertSessionClean(session) {

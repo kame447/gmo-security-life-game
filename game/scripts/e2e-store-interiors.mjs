@@ -1,4 +1,4 @@
-// Execute against feat/store-interiors-wiring. This checks the real town, never the unit fixture.
+// All 29 checks use the real integrated store World, never a unit fixture.
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { approach, assertSessionClean, closeTalk, connections, lastPortal, openStoreSession,
@@ -42,7 +42,8 @@ try {
     try { await page.waitForTimeout(200); } finally { await page.keyboard.up('ArrowDown'); }
     assert.deepEqual(await state(page), before, 'Greeting blocks movement');
     assert.equal(await page.locator('#btn-avatar').isDisabled(), true);
-    assert.equal(await page.locator('#shop-panel, #clerk-panel').count(), 0, 'Purchase UI remains outside this map branch');
+    assert.equal(await page.locator('#shop-panel').isVisible(), store.storeId === 'shop-konbini');
+    assert.equal(await page.locator('#clerk-panel').count(), 0, 'No legacy clerk panel is introduced');
     await closeTalk(page);
     pass(`${store.catalogId}: clerk greeting stops and restores input`, before);
 

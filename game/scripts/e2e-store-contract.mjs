@@ -1,7 +1,8 @@
-// Existing map connection regression only. No purchasing UI or map/NPC fixtures.
+// Existing map connection regression, including the registered konbini shop. No map/NPC fixtures.
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { talk, closeTalk } from './store-interior-helpers.mjs';
 
 const url = process.env.SLG_URL || 'http://127.0.0.1:5173';
 const origin = new URL(url).origin;
@@ -100,21 +101,13 @@ try {
   }
   assert.equal(await page.evaluate(() => window.__slg.game.facingInteraction()?.eventKey), connection.store.clerkEventKey);
   // Take the baseline after all approach input has been released, immediately before talking.
-  const beforeTalking = await state();
-  await page.keyboard.press('KeyZ');
-  await page.locator('#dialog').waitFor({ state: 'visible' });
-  assert.deepEqual(await state(), beforeTalking, 'Opening the conversation cannot move the player');
-  assert.deepEqual(await page.evaluate(() => window.__slg.game.dialog),
-    { speaker: approach.clerk.name, lines: approach.clerk.lines, index: 0 });
-  assert.equal(await page.locator('#dialog .who').innerText(), approach.clerk.name);
-  assert.equal(await page.locator('#dialog .text').innerText(), approach.clerk.lines[0]);
+  const beforeTalking = await talk(page);
   await page.keyboard.down('ArrowDown');
   try { await page.waitForTimeout(200); }
   finally { await page.keyboard.up('ArrowDown'); }
   assert.deepEqual(await state(), beforeTalking, 'Conversation blocks movement');
   await shot('clerk');
-  for (let line = 0; line < approach.clerk.lines.length; line++) await page.keyboard.press('KeyZ');
-  await page.locator('#dialog').waitFor({ state: 'hidden' });
+  await closeTalk(page);
   assert.deepEqual(await state(), beforeTalking, 'Closing returns to the same indoor position');
   pass('reaches the registered clerk and talks without changing position', { clerkId: approach.clerk.id, beforeTalking });
 
