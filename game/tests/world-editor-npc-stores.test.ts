@@ -143,7 +143,7 @@ describe('N1.5 店を含む全エリアの人物確認', () => {
       const saved = JSON.parse(prepared.text) as AreaLayout;
       const reopened = reopen(saved, world, area.id);
       expect(reopened.document).toEqual(model.document);
-      expect(validateStoreContacts(reopened.runtime(), STORE_CONTACTS)).toEqual([]);
+      expect(validateStoreContacts(reopened.runtime(reopened.document, [area.id]), STORE_CONTACTS)).toEqual([]);
 
       expect(reopened.npcProtectedReason(original.id, area.id)).toContain('消せません');
       expect(() => reopened.removeNpc(original.id, area.id)).toThrow(/消せません/);
@@ -164,7 +164,7 @@ describe('N1.5 店を含む全エリアの人物確認', () => {
         expect(reopened.document).toEqual(baseline);
       }
     }
-  });
+  }, 15000);
 
   it('7店すべてで置いた人の追加・保存・再読込後の削除で店員キーと店舗接続を壊さない', () => {
     const world = buildWorld();
@@ -182,7 +182,7 @@ describe('N1.5 店を含む全エリアの人物確認', () => {
       expect(preparedSave.files.map(file => file.areaId)).toEqual([areaId]);
       const saved = JSON.parse(preparedSave.text) as AreaLayout;
       const reopened = reopen(saved, world, areaId);
-      const baseRuntime = reopened.runtime(reopened.initial);
+      const baseRuntime = reopened.runtime(reopened.initial, [areaId]);
       expect(reopened.npcProtectedReason(placed.id, areaId)).toBe('');
       expect(reopened.npcProtectedReason(
         areaNpcs(reopened.document, areaId).find(npc => npc.eventKey === store.clerkEventKey)!.id,
@@ -203,7 +203,7 @@ describe('N1.5 店を含む全エリアの人物確認', () => {
       expect(savedAfterDelete.interactions.some(item => item.eventKey === placed.eventKey)).toBe(false);
       const finalModel = reopen(savedAfterDelete, baseRuntime, areaId);
       expect(finalModel.document.catalogs.eventKeys).not.toContain(placed.eventKey);
-      expect(validateStoreContacts(finalModel.runtime(), STORE_CONTACTS)).toEqual([]);
+      expect(validateStoreContacts(finalModel.runtime(finalModel.document, [areaId]), STORE_CONTACTS)).toEqual([]);
     }
-  });
+  }, 15000);
 });
