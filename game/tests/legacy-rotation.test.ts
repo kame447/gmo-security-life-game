@@ -14,6 +14,7 @@ import {
   uprightDimensions,
   WALL_ROTATION_REASON,
 } from '../src/render/furniture/rotation';
+import { STORE_WALL_SIDE_REASON } from '../src/render/stores';
 import { objectSprite } from '../src/render/sprites';
 import { AREA_FACTORIES, buildWorld, validateWorld } from '../src/world';
 import { layoutArea, parseAreaLayout } from '../src/world/layouts/codec';
@@ -93,6 +94,37 @@ describe('legacy and indoor rotation contract', () => {
     ]);
 
     const model = new WorldEditorModel(world);
+    // Remaining store kinds belonging to Charge B (`fixtures-food.ts` & `shop-rug`) until directional art is added.
+    const PENDING_FOOD_STORE_KINDS = [
+      'shop-rug',
+      'bakery-bread-rack',
+      'bakery-counter',
+      'bakery-oven',
+      'bakery-pastry-table',
+      'bakery-showcase',
+      'bakery-tray-stand',
+      'cafe-brew-bar',
+      'cafe-cake-case',
+      'cafe-chair',
+      'cafe-counter',
+      'cafe-menu-board',
+      'cafe-plant',
+      'cafe-sofa',
+      'cafe-table',
+      'greengrocer-basket-rack',
+      'greengrocer-chill-case',
+      'greengrocer-counter',
+      'greengrocer-fruit-table',
+      'greengrocer-produce-stand',
+      'konbini-cooler',
+      'konbini-counter',
+      'konbini-daily-shelf',
+      'konbini-food-shelf',
+      'konbini-ice-freezer',
+      'konbini-magazine',
+      'konbini-snack-shelf',
+    ] as const;
+    const unregisteredKinds = new Set<string>();
 
     for (const area of indoorAreas) {
       const areaId = area.def.id;
@@ -100,32 +132,51 @@ describe('legacy and indoor rotation contract', () => {
       for (const baseObj of area.def.objects) {
         const o = model.object(baseObj.id!, undefined, areaId)!;
         const rule = objectRotationRule(o);
-        expect(rule, `${areaId}/${o.id} (${o.kind})`).toBeDefined();
+        if (!rule) {
+          expect(PENDING_FOOD_STORE_KINDS, `${areaId}/${o.id} (${o.kind})`).toContain(o.kind);
+          unregisteredKinds.add(o.kind);
+          continue;
+        }
 
-        if (rule!.placement === 'wall') {
-          expect(rule!.directions).toEqual(['down']);
+        if (rule.directions.length <= 1) {
+          expect(rule.directions).toEqual(['down']);
           expect(canRotateObject(o)).toBe(false);
-          expect(objectRotationReason(o)).toBe(WALL_ROTATION_REASON);
-          expect(() => model.rotate(o.id, areaId)).toThrow(WALL_ROTATION_REASON);
+          expect(objectRotationReason(o)).toBe(rule.reason);
+          expect(() => model.rotate(o.id, areaId)).toThrow(rule.reason);
 
-          const wallTarget = doc.objects.find(item => item.id === o.id)!;
-          const prevFacing = wallTarget.facing;
+          const fixedTarget = doc.objects.find(item => item.id === o.id)!;
+          const prevFacing = fixedTarget.facing;
           for (const badFacing of ['left', 'up', 'right'] as const) {
-            wallTarget.facing = badFacing;
-            expect(() => assertInteriorEdit(model.initial, doc, areaId)).toThrow(WALL_ROTATION_REASON);
+            fixedTarget.facing = badFacing;
+            expect(() => assertInteriorEdit(model.initial, doc, areaId)).toThrow(rule.reason);
           }
-          wallTarget.facing = prevFacing;
+          fixedTarget.facing = prevFacing;
           continue;
         }
 
         expect(canRotateObject(o), `${areaId}/${o.id}`).toBe(true);
         expect(objectRotationReason(o)).toBe('');
-        const expectedDirs = rule!.placement === 'rug' ? (['down', 'left'] as const) : FOUR_DIRECTIONS;
-        expect(rule!.directions).toEqual(expectedDirs);
+        const expectedDirs = rule.directions;
+        if (rule.placement === 'rug') {
+          expect(expectedDirs).toEqual(['down', 'left']);
+        } else if (expectedDirs.length === 3) {
+          expect(expectedDirs).toEqual(['down', 'left', 'right']);
+          expect(rule.reason).toBe(STORE_WALL_SIDE_REASON);
+        } else {
+          expect(expectedDirs).toEqual(FOUR_DIRECTIONS);
+        }
 
-        // Verify rotation metadata, full facing cycle, and interior policy for every single object in every indoor room.
+        // Verify disallowed facings (e.g. 'up' for Type B) are rejected by interior policy.
         const target = doc.objects.find(item => item.id === o.id)!;
         const linked = doc.interactions.filter(i => i.objectId === o.id);
+        for (const badFacing of FOUR_DIRECTIONS.filter(d => !expectedDirs.includes(d))) {
+          const prevFacing = target.facing;
+          target.facing = badFacing;
+          expect(() => assertInteriorEdit(model.initial, doc, areaId)).toThrow(rule.reason || undefined);
+          target.facing = prevFacing;
+        }
+
+        // Verify rotation metadata, full facing cycle, and interior policy for every permitted direction.
         for (let step = 1; step <= expectedDirs.length; step++) {
           const nextVariant = rotatedObjectVariant(target);
           const expectedDir = expectedDirs[step % expectedDirs.length];
@@ -143,8 +194,9 @@ describe('legacy and indoor rotation contract', () => {
         target.facing = o.facing;
       }
     }
+    expect([...unregisteredKinds].sort()).toEqual([...PENDING_FOOD_STORE_KINDS].sort());
 
-    // Exercise full WorldEditorModel rotation cycles + save/reload roundtrip across classroom, konbini, and home.
+    // Exercise full WorldEditorModel rotation cycles + save/reload roundtrip across classroom, home, and retail stores.
     const cycleTargets: [string, string][] = [
       ['home-family-interior', 'home-family-interior-toybox-1-5'],
       ['home-family-interior', 'home-family-interior-plant-14-9'],
@@ -152,10 +204,10 @@ describe('legacy and indoor rotation contract', () => {
       ['school-classroom-interior', 'school-classroom-interior-tdesk-8-2'],
       ['school-classroom-interior', 'school-classroom-interior-sdesk-2-8'],
       ['school-classroom-interior', 'school-classroom-interior-shelf-1-10'],
-      ['shop-konbini-interior', 'shop-konbini-interior-cooler-1-1'],
-      ['shop-konbini-interior', 'shop-konbini-interior-magazine-9-1'],
-      ['shop-konbini-interior', 'shop-konbini-interior-shopshelf-2-4'],
-      ['shop-konbini-interior', 'shop-konbini-interior-counter-9-4'],
+      ['shop-bookstore-interior', 'shop-bookstore-interior-back-books-west'],
+      ['shop-bookstore-interior', 'shop-bookstore-interior-magazines'],
+      ['shop-bookstore-interior', 'shop-bookstore-interior-picture-books'],
+      ['shop-pharmacy-interior', 'shop-pharmacy-interior-counter'],
     ];
     for (const [areaId, id] of cycleTargets) {
       const o = model.object(id, undefined, areaId)!;
@@ -182,7 +234,8 @@ describe('legacy and indoor rotation contract', () => {
     expect(plan.files.map(f => f.areaId).sort()).toEqual([
       'home-family-interior',
       'school-classroom-interior',
-      'shop-konbini-interior',
+      'shop-bookstore-interior',
+      'shop-pharmacy-interior',
     ]);
     for (const [areaId, id] of cycleTargets) {
       const savedObj = model.object(id, undefined, areaId)!;
@@ -304,19 +357,19 @@ describe('legacy and indoor rotation contract', () => {
     const backDown = rotatedObjectVariant({ ...customShelf, ...right });
     expect(backDown).toEqual({ facing: 'down', w: 3, h: 1 });
 
-    // Confirm rotated konbini shelves & classroom desks rotate through model + undo cleanly.
+    // Confirm rotated retail store fixtures & classroom desks rotate through model + undo cleanly.
     const model = new WorldEditorModel(buildWorld());
     model.rotate('school-classroom-interior-sdesk-2-8', 'school-classroom-interior');
-    model.rotate('shop-konbini-interior-shopshelf-2-4', 'shop-konbini-interior');
-    model.rotate('shop-konbini-interior-cooler-1-1', 'shop-konbini-interior');
+    model.rotate('shop-bookstore-interior-magazines', 'shop-bookstore-interior');
+    model.rotate('shop-bookstore-interior-picture-books', 'shop-bookstore-interior');
     expect(model.object('school-classroom-interior-sdesk-2-8', undefined, 'school-classroom-interior')?.facing).toBe('left');
-    expect(model.object('shop-konbini-interior-shopshelf-2-4', undefined, 'shop-konbini-interior')).toMatchObject({ facing: 'left', w: 1, h: 2 });
-    expect(model.object('shop-konbini-interior-cooler-1-1', undefined, 'shop-konbini-interior')).toMatchObject({ facing: 'left', w: 1, h: 2 });
-    expect(model.document.interactions.find(i => i.id === 'konbini-drinks')).toMatchObject({ x: 1, y: 1, w: 1, h: 2 });
-    expect(model.document.interactions.find(i => i.id === 'konbini-snacks')).toMatchObject({ x: 2, y: 4, w: 1, h: 2 });
+    expect(model.object('shop-bookstore-interior-magazines', undefined, 'shop-bookstore-interior')).toMatchObject({ facing: 'left', w: 1, h: 3 });
+    expect(model.object('shop-bookstore-interior-picture-books', undefined, 'shop-bookstore-interior')).toMatchObject({ facing: 'left', w: 2, h: 3 });
+    expect(model.document.interactions.find(i => i.id === 'shop-bookstore-interior-magazines-inspect')).toMatchObject({ x: 2, y: 8, w: 1, h: 3 });
+    expect(model.document.interactions.find(i => i.id === 'shop-bookstore-interior-picture-books-inspect')).toMatchObject({ x: 2, y: 4, w: 2, h: 3 });
     model.session.undo();
-    const restoredCooler = model.object('shop-konbini-interior-cooler-1-1', undefined, 'shop-konbini-interior')!;
-    expect(restoredCooler.facing ?? 'down').toBe('down');
-    expect(restoredCooler).toMatchObject({ w: 2, h: 1 });
+    const restoredBooks = model.object('shop-bookstore-interior-picture-books', undefined, 'shop-bookstore-interior')!;
+    expect(restoredBooks.facing ?? 'down').toBe('down');
+    expect(restoredBooks).toMatchObject({ w: 3, h: 2 });
   });
 });
