@@ -109,6 +109,16 @@ export function objectRotationTargetReason(object: Pick<ObjectDef, 'catalogId' |
   return rule.directions.includes(target) ? '' : (rule.reason || 'この家具は指定された向きに回せません');
 }
 
+/** UI restriction notice covering both non-rotatable items and partial-direction rules like Type B. */
+export function objectRotationRestrictionReason(object: Pick<ObjectDef, 'catalogId' | 'kind'>): string {
+  const fixedReason = objectRotationReason(object);
+  if (fixedReason) return fixedReason;
+  const rule = objectRotationRule(object);
+  if (!rule || rule.directions.length <= 1 || !rule.reason) return '';
+  const blocked = FOUR_DIRECTIONS.find(facing => !rule.directions.includes(facing));
+  return blocked ? objectRotationTargetReason(object, blocked) : '';
+}
+
 export function canRotateObject(object: Pick<ObjectDef, 'catalogId' | 'kind'>): boolean {
   return objectRotationReason(object) === '';
 }

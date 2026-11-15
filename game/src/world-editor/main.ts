@@ -7,7 +7,7 @@ import { Controls, DIRECTION_KEYS } from '../input/controls';
 import { Game } from '../session/game';
 import { Renderer, type RenderCamera } from '../render/renderer';
 import { FURNITURE, furnitureById } from '../render/furniture/catalog';
-import { objectRotationReason, rotatedObjectVariant } from '../render/furniture/rotation';
+import { objectRotationReason, objectRotationRestrictionReason, rotatedObjectVariant } from '../render/furniture/rotation';
 import { furnitureThumbnail } from '../render/furniture/sprites';
 import { personThumbnail } from '../render/people/thumbnails';
 import { outdoorForObject, OUTDOOR } from '../render/outdoor/catalog';
@@ -171,7 +171,8 @@ function update() {
     $('#object-json').textContent=canonicalJSON(o);
     const pending=placement?.id===o.id,moveReason=pending?'':objectMoveReason(o.id),reason=pending?'':objectDeleteReason(o.id);
     const rotationReason=activeArea===TOWN_AREA?outdoor.rotationReason(o.id):objectRotationReason(o);
-    $('#protection').textContent=[moveReason,reason,rotationReason].filter(Boolean).join('。');
+    const rotationRestriction=activeArea===TOWN_AREA?rotationReason:objectRotationRestrictionReason(o);
+    $('#protection').textContent=[moveReason,reason,rotationRestriction].filter(Boolean).join('。');
     $<HTMLButtonElement>('#delete').disabled=!editing()||!!reason||pending;
     $<HTMLButtonElement>('#rotate').disabled=!editing()||!!rotationReason;
     $<HTMLButtonElement>('#duplicate').disabled=!editing()||!!reason||!!moveReason||pending||(activeArea!==TOWN_AREA&&!o.catalogId);

@@ -8,6 +8,7 @@ import {
   FOUR_DIRECTIONS,
   LEGACY_ROTATION_RULES,
   objectRotationReason,
+  objectRotationRestrictionReason,
   objectRotationRule,
   rotatedDimensions,
   rotatedObjectVariant,
@@ -114,6 +115,7 @@ describe('legacy and indoor rotation contract', () => {
           expect(rule.directions).toEqual(['down']);
           expect(canRotateObject(o)).toBe(false);
           expect(objectRotationReason(o)).toBe(rule.reason);
+          expect(objectRotationRestrictionReason(o)).toBe(rule.reason);
           expect(() => model.rotate(o.id, areaId)).toThrow(rule.reason);
 
           const fixedTarget = doc.objects.find(item => item.id === o.id)!;
@@ -131,11 +133,14 @@ describe('legacy and indoor rotation contract', () => {
         const expectedDirs = rule.directions;
         if (rule.placement === 'rug') {
           expect(expectedDirs).toEqual(['down', 'left']);
+          expect(objectRotationRestrictionReason(o)).toBe('');
         } else if (expectedDirs.length === 3) {
           expect(expectedDirs).toEqual(['down', 'left', 'right']);
           expect(rule.reason).toBe(STORE_WALL_SIDE_REASON);
+          expect(objectRotationRestrictionReason(o)).toBe(STORE_WALL_SIDE_REASON);
         } else {
           expect(expectedDirs).toEqual(FOUR_DIRECTIONS);
+          expect(objectRotationRestrictionReason(o)).toBe('');
         }
 
         // Verify disallowed facings (e.g. 'up' for Type B) are rejected by interior policy.
@@ -244,12 +249,15 @@ describe('legacy and indoor rotation contract', () => {
       if (entry.placement === 'floor') {
         expect(entry.variants.map(v => v.facing), entry.id).toEqual(FOUR_DIRECTIONS);
         expect(objectRotationReason(dummy)).toBe('');
+        expect(objectRotationRestrictionReason(dummy)).toBe('');
       } else if (entry.placement === 'wall') {
         expect(entry.variants.map(v => v.facing)).toEqual(['down']);
         expect(objectRotationReason(dummy)).toBe(WALL_ROTATION_REASON);
+        expect(objectRotationRestrictionReason(dummy)).toBe(WALL_ROTATION_REASON);
       } else {
         expect(entry.variants.map(v => v.facing)).toEqual(['down', 'left']);
         expect(objectRotationReason(dummy)).toBe('');
+        expect(objectRotationRestrictionReason(dummy)).toBe('');
       }
     }
   });

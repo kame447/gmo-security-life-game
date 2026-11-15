@@ -3,10 +3,12 @@ import type { ObjectDef } from '../src/core/types';
 import {
   canRotateObject,
   objectRotationReason,
+  objectRotationRestrictionReason,
   objectRotationRule,
   objectRotationTargetReason,
   rotatedDimensions,
   rotatedObjectVariant,
+  UNKNOWN_ROTATION_REASON,
 } from '../src/render/furniture/rotation';
 import {
   RETAIL_STORE_ROTATION_ENTRIES,
@@ -90,6 +92,8 @@ describe('3店（ほんや・だがしや・くすりや）の什器回転と共
     expect(floorRule!.directions).toEqual(['down']);
     expect(canRotateObject({ kind: 'shop-floor' })).toBe(false);
     expect(objectRotationReason({ kind: 'shop-floor' })).toBe(STORE_FLOOR_REASON);
+    expect(objectRotationRestrictionReason({ kind: 'shop-floor' })).toBe(STORE_FLOOR_REASON);
+    expect(objectRotationRestrictionReason({ kind: 'unregistered-store-fixture' })).toBe(UNKNOWN_ROTATION_REASON);
     expect(() => rotatedObjectVariant({ kind: 'shop-floor', w: 12, h: 9 })).toThrow(STORE_FLOOR_REASON);
 
     for (const sample of RETAIL_SAMPLES) {
@@ -101,9 +105,11 @@ describe('3店（ほんや・だがしや・くすりや）の什器回転と共
         expect(rule!.directions).toEqual(['down', 'left', 'right']);
         expect(objectRotationTargetReason({ kind: sample.kind }, 'up')).toBe(STORE_WALL_SIDE_REASON);
         expect(objectRotationTargetReason({ kind: sample.kind }, 'left')).toBe('');
+        expect(objectRotationRestrictionReason({ kind: sample.kind }), sample.kind).toBe(STORE_WALL_SIDE_REASON);
       } else {
         expect(rule!.directions).toEqual(['down', 'left', 'up', 'right']);
         expect(objectRotationTargetReason({ kind: sample.kind }, 'up')).toBe('');
+        expect(objectRotationRestrictionReason({ kind: sample.kind }), sample.kind).toBe('');
       }
     }
   });
@@ -185,6 +191,40 @@ describe('3店（ほんや・だがしや・くすりや）の什器回転と共
 
     const saved = prepareSave({ changes: model.session.exportChanges() }, world);
     expect(saved.files.map(f => f.areaId)).toEqual([areaId]);
+  });
+
+  it('だがしやの candy-hanging-rack を選んだとき・回したときに回転可能のまま型 B の理由を返す', () => {
+    const world = buildWorld();
+    const areaId = 'shop-candy-interior';
+    const model = new WorldEditorModel(world);
+    const rack = model.document.objects.find(o => o.areaId === areaId && o.kind === 'candy-hanging-rack')!;
+    expect(rack).toBeDefined();
+
+    // Selecting Type B keeps rotation enabled while exposing the wall-side restriction reason.
+    expect(canRotateObject(rack)).toBe(true);
+    expect(objectRotationReason(rack)).toBe('');
+    expect(objectRotationRestrictionReason(rack)).toBe(STORE_WALL_SIDE_REASON);
+    expect(model.protectedReason(rack.id)).toContain('あてくじとキャンディ');
+
+    const observed: Array<{ facing: string; w: number; h: number; reason: string }> = [
+      { facing: rack.facing ?? 'down', w: rack.w, h: rack.h, reason: objectRotationRestrictionReason(rack) },
+    ];
+    for (let step = 0; step < 3; step++) {
+      model.rotate(rack.id, areaId);
+      const updated = model.object(rack.id, undefined, areaId)!;
+      observed.push({
+        facing: updated.facing ?? 'down',
+        w: updated.w,
+        h: updated.h,
+        reason: objectRotationRestrictionReason(updated),
+      });
+    }
+    expect(observed).toEqual([
+      { facing: 'down', w: 3, h: 1, reason: STORE_WALL_SIDE_REASON },
+      { facing: 'left', w: 1, h: 3, reason: STORE_WALL_SIDE_REASON },
+      { facing: 'right', w: 1, h: 3, reason: STORE_WALL_SIDE_REASON },
+      { facing: 'down', w: 3, h: 1, reason: STORE_WALL_SIDE_REASON },
+    ]);
   });
 
   it('3店の実配置で回転しても id・style・結び付きが保たれ、style 違いの見た目も維持される', () => {

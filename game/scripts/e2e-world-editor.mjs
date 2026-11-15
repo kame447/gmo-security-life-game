@@ -161,6 +161,32 @@ try{
  assert.deepEqual(await rp.evaluate(id=>{const d=window.__worldEditor.model.document,o=d.objects.find(p=>p.id===id),link=d.interactions.find(i=>i.objectId===id);return{facing:o.facing,w:o.w,h:o.h,lw:link.w,lh:link.h};},bookPicture),{facing:'up',w:3,h:2,lw:3,lh:2});
  await select(rp,bookEast);await rp.locator('#rotate').click();
  assert.deepEqual(await rp.evaluate(id=>{const o=window.__worldEditor.model.object(id,undefined,'shop-bookstore-interior');return{facing:o.facing,w:o.w,h:o.h,style:o.style};},bookEast),{facing:'left',w:1,h:4,style:'b'});
+ // Edit shop-candy-interior: select Type B candy-hanging-rack, verify restriction reason appears while #rotate stays enabled, and cycle down -> left -> right -> down.
+ await rp.locator('#area-select').selectOption('shop-candy-interior');
+ await rp.waitForFunction(()=>window.__worldEditor.activeArea==='shop-candy-interior');
+ assert.equal(await rp.locator('#location').innerText(),'だがしや');
+ const candyRack='shop-candy-interior-hanging-rack';
+ await select(rp,candyRack);
+ assert.equal(await rp.locator('#rotate').isDisabled(),false);
+ assert.match(await rp.locator('#protection').innerText(),/壁に付ける物なので、奥向きにはできません/);
+ await rp.screenshot({path:path.join(output,'desktop-candy-type-b-selected.png')});
+ const readCandyRack=()=>rp.evaluate(id=>{const o=window.__worldEditor.model.object(id,undefined,'shop-candy-interior');const i=window.__worldEditor.model.document.interactions.find(p=>p.objectId===id);return{facing:o.facing??'down',w:o.w,h:o.h,iw:i?.w,ih:i?.h};},candyRack);
+ const candyCycle=[await readCandyRack()];
+ for(const expectedFacing of ['left','right','down']){
+  await rp.locator('#rotate').click();
+  assert.equal(await rp.locator('#rotate').isDisabled(),false);
+  assert.match(await rp.locator('#protection').innerText(),/壁に付ける物なので、奥向きにはできません/);
+  assert.match(await rp.locator('#object-position').innerText(),new RegExp(`向き ${expectedFacing}`));
+  if(expectedFacing==='left')await rp.screenshot({path:path.join(output,'desktop-candy-type-b-left.png')});
+  candyCycle.push(await readCandyRack());
+ }
+ assert.deepEqual(candyCycle,[
+  {facing:'down',w:3,h:1,iw:3,ih:1},
+  {facing:'left',w:1,h:3,iw:1,ih:3},
+  {facing:'right',w:1,h:3,iw:1,ih:3},
+  {facing:'down',w:3,h:1,iw:3,ih:1},
+ ]);
+ pass('candy shop Type B restriction reason and 3-direction rotation cycle');
  // Edit shop-konbini-interior: verify shop-floor non-rotatable reason, place chair-wood, intentional rug+table overlap, trial walk + exit portal, and multi-room atomic save.
  await rp.locator('#area-select').selectOption('shop-konbini-interior');
  await rp.waitForFunction(()=>window.__worldEditor.activeArea==='shop-konbini-interior');
