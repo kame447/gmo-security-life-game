@@ -104,7 +104,7 @@ describe('interaction marker anchoring', () => {
     expect(nonNpcCount).toBeGreaterThanOrEqual(17);
   });
 
-  it('restores exact pre-floor marker y coordinates for cafe, konbini, pharmacy and home', () => {
+  it('restores exact pre-floor marker y coordinates for cafe, konbini, greengrocer, pharmacy and home', () => {
     const world = buildWorld();
     const renderer = new Renderer(document.createElement('canvas'));
 
@@ -131,6 +131,15 @@ describe('interaction marker anchoring', () => {
     expect(pharmacy.get('shop-pharmacy-interior-medicine-inspect')).toMatchObject({ x: 48, y: -9 });
     expect(pharmacy.get('shop-pharmacy-interior-daily-goods-inspect')).toMatchObject({ x: 56, y: 103 });
     expect(pharmacy.get('shop-pharmacy-interior-first-aid-inspect')).toMatchObject({ x: 200, y: 115 });
+
+    const greengrocer = byId('shop-greengrocer-interior');
+    expect(greengrocer.get('shop-greengrocer-interior-cooler-inspect')).toMatchObject({ x: 40, y: -9 });
+    expect(greengrocer.get('shop-greengrocer-interior-vegetables-inspect')).toMatchObject({ x: 40, y: 55 });
+    expect(greengrocer.get('shop-greengrocer-interior-baskets-inspect')).toMatchObject({ x: 40, y: 99 });
+    expect(greengrocer.get('shop-greengrocer-interior-crates-inspect')).toMatchObject({ x: 216, y: 55 });
+    expect(greengrocer.get('shop-greengrocer-interior-fruit-inspect')).toMatchObject({ x: 216, y: 87 });
+    const fruitObj = world.areas.get('shop-greengrocer-interior')!.objects.find(o => o.id === 'shop-greengrocer-interior-fruit')!;
+    expect(objectSprite(fruitObj).oy).toBe(0);
 
     const home = byId('home-family-interior');
     expect(home.get('home-tablet')).toMatchObject({ x: 96, y: 119 });
