@@ -1,5 +1,6 @@
 import type { Facing } from '../../core/coords';
 import type { ObjectDef } from '../../core/types';
+import { STORE_ROTATION_RULES } from '../stores/rotation';
 import { furnitureById, furnitureVariant, nextFacing } from './catalog';
 
 export const FOUR_DIRECTIONS: readonly Facing[] = Object.freeze(['down', 'left', 'up', 'right']);
@@ -92,13 +93,20 @@ export function objectRotationRule(object: Pick<ObjectDef, 'catalogId' | 'kind'>
     if (directions.length <= 1) return { placement: entry.placement, directions, reason: 'この家具は向きを変えられません' };
     return { placement: entry.placement, directions, reason: '' };
   }
-  return LEGACY_ROTATION_RULES.get(object.kind);
+  return LEGACY_ROTATION_RULES.get(object.kind) ?? STORE_ROTATION_RULES.get(object.kind);
 }
 
 export function objectRotationReason(object: Pick<ObjectDef, 'catalogId' | 'kind'>): string {
   const rule = objectRotationRule(object);
   if (!rule) return UNKNOWN_ROTATION_REASON;
-  return rule.reason;
+  return rule.directions.length <= 1 ? rule.reason : '';
+}
+
+export function objectRotationTargetReason(object: Pick<ObjectDef, 'catalogId' | 'kind'>, target: Facing): string {
+  const rule = objectRotationRule(object);
+  if (!rule) return UNKNOWN_ROTATION_REASON;
+  if (rule.directions.length <= 1) return rule.reason;
+  return rule.directions.includes(target) ? '' : (rule.reason || 'この家具は指定された向きに回せません');
 }
 
 export function canRotateObject(object: Pick<ObjectDef, 'catalogId' | 'kind'>): boolean {
