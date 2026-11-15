@@ -22,6 +22,19 @@ async function start(){serverOutput='';server=spawn(process.execPath,[path.join(
  const deadline=Date.now()+20000;while(Date.now()<deadline){if(server.exitCode!==null)throw new Error(serverOutput);try{if(serverOutput.includes('Local:')&&(await fetch(`${origin}/world-editor.html`)).ok)return;}catch{}await new Promise(r=>setTimeout(r,100));}throw new Error(`Server timeout: ${serverOutput}`);}
 async function stop(){if(!server||server.exitCode!==null)return;const p=server,done=new Promise(r=>p.once('exit',r));p.kill('SIGTERM');await done;}
 const documentOf=page=>page.evaluate(()=>window.__worldEditor.model.document);
+const saveTimeLeft=deadline=>{const remaining=deadline-Date.now();if(remaining<=0)throw new Error('Save timeout');return remaining;};
+async function savedEditorSnapshot(page,deadline){
+ while(Date.now()<deadline){
+  try{
+   await page.waitForFunction(()=>window.__worldEditor?.model?.dirty===0,undefined,{timeout:saveTimeLeft(deadline)});
+   saveTimeLeft(deadline);
+   const snapshot=await page.evaluate(()=>{const model=window.__worldEditor?.model;return model?{dirty:model.dirty,document:model.document}:null;});
+   saveTimeLeft(deadline);
+   if(snapshot)return snapshot;
+  }catch(error){if(!String(error.message).includes('Execution context was destroyed'))throw error;}
+ }
+ throw new Error('Save timeout');
+}
 const ready=async page=>{await page.goto(`${origin}/world-editor.html`);await page.waitForFunction(()=>window.__worldEditor?.renderer.stats.chunksDrawn>0);await page.locator('#workspace').focus();};
 async function session(viewport,touch=false){const context=await browser.newContext({viewport,hasTouch:touch,acceptDownloads:false,serviceWorkers:'block'});const errors=[],blocked=[];
  await context.route('**/*',route=>{const u=new URL(route.request().url());if(u.origin===origin||u.protocol==='data:')return route.continue();blocked.push(u.href);return route.abort();});
@@ -94,7 +107,7 @@ try{
   const cancel=await page.locator('#save-cancel').boundingBox();await page.mouse.click(cancel.x+cancel.width/2,cancel.y+cancel.height/2);await page.keyboard.press('ControlOrMeta+z');
   assert.equal(await page.evaluate(()=>document.querySelector('#save-confirm').open),true);assert.deepEqual(await documentOf(page),pendingDocument);assert.equal(await page.evaluate(()=>window.__worldEditor.model.dirty),pendingDirty);pass('pending write refuses Escape and cancel without discarding edits');
  }finally{pendingWrite.release();}
- const deadline=Date.now()+15000;while(await readFile(target,'utf8')===before){if(Date.now()>deadline)throw new Error('Save timeout');await new Promise(r=>setTimeout(r,50));}const saved=await readFile(target,'utf8');await page.locator('#save-confirm').waitFor({state:'hidden'});await pendingWrite.remove();assert.equal(await page.evaluate(()=>window.__worldEditor.model.dirty),0);assert.deepEqual(await documentOf(page),pendingDocument);assert.equal(JSON.parse(saved).objects.find(o=>o.id===desk).facing,'left');pass('confirmed save changes only the area JSON');
+ const deadline=Date.now()+15000;while(await readFile(target,'utf8')===before){if(Date.now()>deadline)throw new Error('Save timeout');await new Promise(r=>setTimeout(r,50));}const saved=await readFile(target,'utf8');await page.locator('#save-confirm').waitFor({state:'hidden',timeout:saveTimeLeft(deadline)});await pendingWrite.remove();const savedSnapshot=await savedEditorSnapshot(page,deadline);assert.equal(savedSnapshot.dirty,0);assert.deepEqual(savedSnapshot.document,pendingDocument);assert.equal(JSON.parse(saved).objects.find(o=>o.id===desk).facing,'left');pass('confirmed save changes only the area JSON');
  for(const headers of [{Origin:'https://invalid.example','Content-Type':'application/json','X-World-Editor':'1'},{Origin:origin,'Content-Type':'text/plain','X-World-Editor':'1'},{Origin:origin,'Content-Type':'application/json'}])assert.equal((await fetch(`${origin}/__world-editor/save`,{method:'POST',headers,body:'{}'})).status,403);
  assert.equal((await fetch(`${origin}/__world-editor/save`,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','X-World-Editor':'1'},body:JSON.stringify({areaId:'../../outside',changes:{}})})).status,400);assert.equal(await readFile(target,'utf8'),saved);pass('write origin content type header and output scope guards');
  // Close the live HMR client before intentionally stopping its development server.
@@ -230,8 +243,8 @@ try{
  await rp.locator('#save').click();await rp.locator('#save-confirm').waitFor({state:'visible'});
  const savedNames=await rp.locator('#save-files li').allTextContents();
  assert.ok(savedNames.some(t=>t.includes('school-classroom-interior.json'))&&savedNames.some(t=>t.includes('shop-bookstore-interior.json'))&&savedNames.some(t=>t.includes('shop-konbini-interior.json'))&&savedNames.some(t=>t.includes('shop-cafe-interior.json')),JSON.stringify(savedNames));
- await rp.locator('#save-commit').click();await rp.locator('#save-confirm').waitFor({state:'hidden'});
- await rp.waitForFunction(()=>window.__worldEditor.model.dirty===0);
+ const multiDeadline=Date.now()+15000;await rp.locator('#save-commit').click();await rp.locator('#save-confirm').waitFor({state:'hidden',timeout:saveTimeLeft(multiDeadline)});
+ const multiSnapshot=await savedEditorSnapshot(rp,multiDeadline);assert.equal(multiSnapshot.dirty,0);assert.deepEqual(multiSnapshot.document,multiDoc);
  const savedClassroom=JSON.parse(await readFile(path.join(root,'data/world/areas/school-classroom-interior.json'),'utf8'));
  const savedBookstore=JSON.parse(await readFile(path.join(root,'data/world/areas/shop-bookstore-interior.json'),'utf8'));
  const savedKonbini=JSON.parse(await readFile(path.join(root,'data/world/areas/shop-konbini-interior.json'),'utf8'));
