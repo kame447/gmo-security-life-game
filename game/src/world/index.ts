@@ -7,6 +7,7 @@ import { createClassroom, createHome, createKonbini } from './interiors';
 import { START } from './landmarks';
 import { toRuntime, type AreaRuntime, type World } from './runtime';
 import { createTown, FACILITIES } from './town';
+import { SHOP_AREA_FACTORIES } from './shops';
 
 export { LANDMARKS, START } from './landmarks';
 export { districtAt, isSolidTile, type AreaRuntime, type World } from './runtime';
@@ -20,7 +21,7 @@ export const CHILDHOOD_VARIANT: VariantDef = {
 };
 
 /** 読み込むエリアの一覧。新しいエリアはここに定義関数を追加する。 */
-export const AREA_FACTORIES: readonly (() => AreaDef)[] = [createTown, createHome, createClassroom, createKonbini];
+export const AREA_FACTORIES: readonly (() => AreaDef)[] = [createTown, createHome, createClassroom, createKonbini, ...SHOP_AREA_FACTORIES];
 
 /** 年代差分で無効化された出入口・調査対象を除き、追加分を足した定義を返す。 */
 function applyVariant(base: AreaDef, variant: VariantDef, isClosed: (facilityId: string) => boolean): AreaDef {
