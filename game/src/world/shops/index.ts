@@ -25,7 +25,9 @@ export function createShopInterior(shop: ShopInteriorDefinition): AreaDef {
     id, name: shop.name, kind: 'indoor', width, height, ground,
     objects: shop.furnishings.map(item => ({
       id: `${id}-${item.id}`, kind: item.kind, x: item.x, y: item.y, w: item.w, h: item.h,
-      solid: item.solid ?? true, layer: item.solid === false ? 'decal' : 'sorted',
+      solid: item.solid ?? true,
+      ...(item.style ? { style: item.style } : {}),
+      layer: item.layer ?? (item.solid === false ? 'decal' : 'sorted'),
     })),
     interactions: [
       { id: `${shop.id}-indoor-clerk`, kind: 'npc', name: shop.clerk.name,

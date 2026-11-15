@@ -23,8 +23,12 @@ function room(id: string, name: string, width: number, floor: number, height = 1
   return { id, name, kind: 'indoor', width, height, ground, objects: [], interactions: [], portals: [] };
 }
 
-function furnish(area: AreaDef, kind: string, x: number, y: number, w: number, h: number, solid = true): void {
-  const o: ObjectDef = { id: `${area.id}-${kind}-${x}-${y}`, kind, x, y, w, h, solid, layer: solid ? 'sorted' : 'decal' };
+function furnish(area: AreaDef, kind: string, x: number, y: number, w: number, h: number, solid = true, style?: string): void {
+  const o: ObjectDef = {
+    id: `${area.id}-${kind}-${x}-${y}`, kind, x, y, w, h, solid,
+    ...(style ? { style } : {}),
+    layer: solid ? 'sorted' : 'decal',
+  };
   area.objects.push(o);
 }
 
@@ -66,10 +70,14 @@ export function createClassroom(): AreaDef {
 
 export function createKonbini(): AreaDef {
   const a = room('shop-konbini-interior', 'コンビニ', 14, T.FLOOR_CLASS, 10);
-  furnish(a, 'cooler', 1, 1, 2, 1); furnish(a, 'cooler', 4, 1, 2, 1);
-  furnish(a, 'magazine', 9, 1, 2, 1);
-  for (const x of [2, 6]) for (const y of [4, 6]) furnish(a, 'shopshelf', x, y, 2, 1);
-  furnish(a, 'counter', 9, 4, 3, 1);
+  furnish(a, 'konbini-cooler', 1, 1, 2, 1, true, 'drinks');
+  furnish(a, 'konbini-cooler', 4, 1, 2, 1, true, 'chilled-food');
+  furnish(a, 'konbini-magazine', 9, 1, 2, 1);
+  furnish(a, 'konbini-snack-shelf', 2, 4, 2, 1);
+  furnish(a, 'konbini-food-shelf', 6, 4, 2, 1);
+  furnish(a, 'konbini-daily-shelf', 2, 6, 2, 1);
+  furnish(a, 'konbini-ice-freezer', 6, 6, 2, 1);
+  furnish(a, 'konbini-counter', 9, 4, 3, 1);
   a.portals = [{ id: 'konbini-exit', from: { x: 6, y: 9, w: 2 }, to: toTown(LANDMARKS.konbiniDoorFront), facilityId: 'shop-konbini' }];
   a.interactions = [
     { id: 'konbini-clerk', kind: 'npc', name: 'てんいんさん', x: 10, y: 3, sprite: 'clerk', facing: 'left', solid: true, eventKey: 'shopping.konbini.clerk', lines: ['いらっしゃいませ。おやつも のみものも あるよ。ゆっくり みてね。'] },
