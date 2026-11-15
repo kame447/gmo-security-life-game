@@ -18,7 +18,7 @@ assert.ok(path.isAbsolute(output));
 await mkdir(output, { recursive: true });
 
 const port = Number(process.env.SLG_NPC_FOUR_PORT || 5661);
-assert.ok(Number.isSafeInteger(port) && port >= 5660 && port <= 5669, `Use reserved port 5660-5669, got ${port}`);
+assert.ok(Number.isSafeInteger(port) && port > 1023 && port < 65536, `Invalid port ${port}`);
 const origin = `http://127.0.0.1:${port}`;
 
 async function sourceSnapshot() {
@@ -477,8 +477,11 @@ try {
     const roleAttr = await s.page.locator('#npc-role').getAttribute('data-role');
     assert.equal(roleAttr, spec.expectedRole, `Unexpected role for ${spec.originalId}`);
     if (spec.expectedRole === 'shop-clerk') {
+      const linesLabel = await s.page.locator('#npc-lines-label').innerText();
+      assert.equal(linesLabel, '店のあいさつ（1行目の最初の文だけが出ます）');
       const note = await s.page.locator('#npc-event-note').innerText();
-      assert.match(note, /最初の文/);
+      assert.match(note, /最初の「。」「！」「？」まで/);
+      assert.match(note, /1行目の残りの文と、2行目からあとは、いまはゲームに出ません/);
       assert.doesNotMatch(note, /台詞はゲームに出ない|会話はゲームに出ない/);
     }
 

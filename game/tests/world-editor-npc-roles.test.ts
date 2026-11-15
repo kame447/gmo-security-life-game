@@ -44,8 +44,11 @@ describe('N2 店員と人生イベントの役割導出とN3.3店員しるしの
     expect(refs.kind).toBe('shop-clerk');
     expect(refs.store).toEqual(storeForClerk(areaId, clerk.eventKey));
     expect(refs.catalog?.id).toBe('konbini');
+    expect(refs.linesLabel).toBe('店のあいさつ（1行目の最初の文だけが出ます）');
     expect(refs.note).toContain('買い物の画面');
-    expect(refs.note).toContain('最初の文');
+    expect(refs.note).toContain('1行目の最初の文（最初の「。」「！」「？」まで）が、店のあいさつとして出ます');
+    expect(refs.note).toContain('1行目の残りの文と、2行目からあとは、いまはゲームに出ません');
+    expect(refs.note).toContain('あいさつの話し手の名前として出ます');
     expect(refs.note).not.toMatch(/台詞はゲームに出ない|会話はゲームに出ない/);
     expect(npcBadges(clerk, model.document)).toEqual(['もとからいる人', '店員']);
 
