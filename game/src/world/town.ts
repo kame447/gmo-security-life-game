@@ -151,7 +151,16 @@ export function createTown(): AreaDef {
   object('flowerbed', 40, 31, 2, 1, undefined, false);
 
   rect(30, 46, 48, 1, T.PARKPATH);
-  shops.forEach(([style], i) => object('shop', 30 + i * 7, 47, 6, 6, style, true, `shop-${style}`));
+  shops.forEach(([style], i) => {
+    if (style !== 'konbini') object('shop', 30 + i * 7, 47, 6, 6, style, true, `shop-${style}`);
+  });
+  // Turn the former konbini lot (51,47) into a shopping-street pocket plaza while keeping x=51 and x=56 open.
+  object('tree', 52, 48, 1, 1, 'green');
+  object('flowerbed', 53, 48, 2, 1);
+  object('tree', 55, 48, 1, 1, 'green');
+  object('bench', 53, 50, 2, 1);
+  object('lamp', 52, 52, 1, 1);
+  object('lamp', 55, 52, 1, 1);
   // The one-tile gaps between shop footprints are paved alleys connecting both sides.
   rect(30, 47, 48, 7, T.PLAZA);
   rect(2, 59, 53, 9, T.PLAZA);
@@ -165,11 +174,15 @@ export function createTown(): AreaDef {
   object('board', 37, 36, 2, 1);
   object('postbox', 41, 36, 1, 1);
   object('shop', 60, 59, 6, 6, 'cafe'); object('house', 70, 59, 5, 4, '3');
-  object('apartment', 70, 66, 6, 5, '2'); rect(60, 66, 7, 3, T.PARKING);
+  object('apartment', 70, 66, 6, 5, '2');
+  // Relocate konbini to the NE corner of x=56 road and y=76 arterial, keeping the stable town-shop-51-47 ID.
+  object('shop', 60, 67, 6, 6, 'konbini', true, 'shop-konbini', 'town-shop-51-47');
+  rect(59, 73, 8, 2, T.PLAZA);
+  rect(67, 70, 3, 5, T.PARKING);
   rect(59, 65, 7, 1, T.PARKPATH);
   rect(72, 63, 6, 1, T.PARKPATH);
   rect(73, 71, 1, 4, T.PARKPATH);
-  object('car', 61, 67, 2, 1, '2');
+  object('car', 67, 71, 2, 1, '2');
 
   rect(90, 12, 33, 1, T.HEDGE);
   rect(90, 13, 1, 23, T.FENCE); rect(122, 13, 1, 23, T.FENCE);
@@ -243,7 +256,7 @@ export function createTown(): AreaDef {
     portals: [
       { id: 'home-enter', from: { x: 35, y: 31 }, to: { ...INTERIOR_ENTRIES.home }, facilityId: 'home-family' },
       { id: 'school-enter', from: { x: 103, y: 19, w: 2 }, to: { ...INTERIOR_ENTRIES.classroom }, facilityId: 'school' },
-      { id: 'konbini-enter', from: { x: 54, y: 52 }, to: { ...INTERIOR_ENTRIES.konbini }, facilityId: 'shop-konbini' },
+      { id: 'konbini-enter', from: { x: 63, y: 72 }, to: { ...INTERIOR_ENTRIES.konbini }, facilityId: 'shop-konbini' },
       { id: 'station-enter', from: { ...MAIN_STATION_LAYOUT.entrance }, to: { ...INTERIOR_ENTRIES.station }, facilityId: 'station' },
     ],
     interactions: [

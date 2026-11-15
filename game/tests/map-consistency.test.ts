@@ -108,8 +108,8 @@ describe('map consistency audit and placement invariants', () => {
     const world = buildWorld();
     const town = world.areas.get('town-main')!;
     const konbini = town.objects.find(o => o.facilityId === 'shop-konbini');
-    expect(konbini).toMatchObject({ x: 51, y: 47, w: 6, h: 6 });
-    expect(town.def.portals.find(p => p.id === 'konbini-enter')?.from).toEqual({ x: 54, y: 52 });
+    expect(konbini).toMatchObject({ id: 'town-shop-51-47', x: 60, y: 67, w: 6, h: 6 });
+    expect(town.def.portals.find(p => p.id === 'konbini-enter')?.from).toEqual({ x: 63, y: 72 });
     expect(findPath(town, LANDMARKS.homeFront, LANDMARKS.konbiniDoorFront)).not.toBeNull();
     expect(town.interactions.find(i => i.id === 'shopping-vending')).toMatchObject({ x: 50, y: 53 });
     expect(TRAIN_NETWORK.railLinks().length).toBeGreaterThan(0);
