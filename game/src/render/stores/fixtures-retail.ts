@@ -215,7 +215,6 @@ function drawCandyCounter(c: C2D, w: number, h: number): void {
 function drawPharmacyMedShelf(c: C2D, w: number, totalH: number): void {
   const { innerX, innerW, tier1Y, tier2Y } = shelfCabinet(c, w, totalH, MINT_MID, WHITE, MINT_LIGHT, 0);
   R(c, MINT_DARK, 1, 1, w - 2, 2);
-  drawCross(c, w - 8, 2, MINT_DARK);
   const accents = ['#d8584c', '#4b8ed6', '#4aa46d', '#e5a43e'];
   let idx = 0;
   for (let x = innerX + 2; x + 8 <= innerX + innerW - 4; x += 10) {
