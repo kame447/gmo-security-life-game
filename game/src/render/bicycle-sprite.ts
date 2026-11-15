@@ -11,7 +11,7 @@ import { BODIES, HEADS, paint, palette, slim, viewOf, type Palette } from './pla
 export const RIDER_W = 26;
 export const RIDER_H = 30;
 
-const BIKE = { frame: '#2f8f9d', dark: '#1f5f68', tire: '#2b2a30', spoke: '#c9ced6', seat: '#3b2318', basket: '#d9c48f', weave: '#b39a62', reflector: '#e2566a' };
+const BIKE = { frame: '#2f8f9d', dark: '#1f5f68', tire: '#2b2a30', spoke: '#c9ced6', seat: '#3b2318', reflector: '#e2566a' };
 
 function dot(c: C2D, color: string, x: number, y: number, w = 1, h = 1): void {
   c.fillStyle = color;
@@ -82,7 +82,7 @@ function drawSide(c: C2D, a: PlayerAppearance, colors: Palette, frame: number): 
 
 /**
  * 正面・背面：車輪は縦の帯に見え、細い脚が車輪の左右でペダルをこぐ。
- * 正面はハンドルを両手の間に収め、前かごで太ももを隠す。背面は泥よけと反射板。
+ * 正面はハンドルを両手の間に収める。泥よけは共通で、背面には反射板を付ける。
  */
 function drawFrontBack(c: C2D, a: PlayerAppearance, colors: Palette, front: boolean, frame: number): void {
   const view = front ? 'front' : 'back';
@@ -96,15 +96,9 @@ function drawFrontBack(c: C2D, a: PlayerAppearance, colors: Palette, front: bool
   dot(c, BIKE.tire, 12, 22, 2, 8);
   dot(c, BIKE.spoke, 12, 26, 2, 1);
   paintBody(c, a, colors, view);
-  if (front) {
-    dot(c, BIKE.dark, 8, 19, 10, 1);    // handlebar between the hands
-    dot(c, BIKE.seat, 8, 20, 10, 5);    // basket
-    dot(c, BIKE.basket, 9, 21, 8, 3);
-    dot(c, BIKE.weave, 9, 22, 8, 1);
-  } else {
-    dot(c, BIKE.frame, 11, 22, 4, 1);   // mudguard
-    dot(c, BIKE.reflector, 12, 23, 2, 1);
-  }
+  dot(c, BIKE.frame, 11, 22, 4, 1);     // mudguard
+  if (front) dot(c, BIKE.dark, 8, 19, 10, 1);  // handlebar between the hands
+  else dot(c, BIKE.reflector, 12, 23, 2, 1);
 }
 
 function paintBody(c: C2D, a: PlayerAppearance, colors: Palette, view: 'front' | 'back'): void {
