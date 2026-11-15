@@ -3,9 +3,9 @@ import type { ObjectDef } from '../core/types';
 import { TILE, hash2, type Facing } from '../core/coords';
 import { DEFAULT_APPEARANCE, normalizeAppearance, appearanceKey, type PlayerAppearance } from '../core/appearance';
 import { makeCanvas, R, type C2D } from './draw';
+import { drawSignText, hasGlyphs } from './sign-font';
 import { buildingRepresentativeColor } from './building-colors';
 import { drawPlayer, PLAYER_H, PLAYER_W } from './player-sprite';
-import { drawSignText, hasGlyphs } from './sign-font';
 
 export interface Sprite { canvas: HTMLCanvasElement; ox: number; oy: number }
 const objects = new Map<string, Sprite>();
