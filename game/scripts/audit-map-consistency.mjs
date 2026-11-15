@@ -45,7 +45,9 @@ const T_NAMES = new Map([
 const ROAD_TILES = new Set([2, 3, 4, 5, 6]); // ASPHALT, LANE_H, LANE_V, ZEBRA_H, ZEBRA_V
 const ZEBRA_TILES = new Set([5, 6]);
 const WATER_TILES = new Set([9, 10]); // WATER, BANK
-const RAIL_TILES = new Set([14, 15, 28, 29, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42]);
+const RAIL_GUARD_TILE = 42;
+const RAIL_TRACK_TILES = new Set([14, 15, 28, 29, 33, 34, 35, 36, 37, 38, 39, 40, 41]);
+const RAIL_TILES = new Set([...RAIL_TRACK_TILES, RAIL_GUARD_TILE]);
 const WALL_TILES = new Set([22, 23]);
 const PAVED_TILES = new Set([2, 3, 4, 5, 6, 7, 8, 11, 13, 15, 16, 24, 27]);
 const BUILDING_KINDS = new Set(['house', 'apartment', 'shop', 'school', 'gym', 'station']);
@@ -144,11 +146,14 @@ async function bundleAndLoadWorld(gameDir) {
   try {
     const worldEntry = path.join(gameDir, 'src/world/index.ts');
     const networkEntry = path.join(gameDir, 'src/travel/network.ts');
+    const stationFlowEntry = path.join(gameDir, 'src/world/station-flow.ts');
     const hasNetwork = existsSync(networkEntry);
+    const hasStationFlow = existsSync(stationFlowEntry);
     const wrapperPath = path.join(workTmp, 'entry.ts');
     const wrapperLines = [
       `export * as worldMod from ${JSON.stringify(worldEntry)};`,
       hasNetwork ? `export * as networkMod from ${JSON.stringify(networkEntry)};` : `export const networkMod = null;`,
+      hasStationFlow ? `export * as stationFlowMod from ${JSON.stringify(stationFlowEntry)};` : `export const stationFlowMod = null;`,
     ];
     await writeFile(wrapperPath, wrapperLines.join('\n'));
     const outFile = path.join(workTmp, 'bundle.mjs');
@@ -161,7 +166,7 @@ async function bundleAndLoadWorld(gameDir) {
       logLevel: 'silent',
     });
     const mod = await import(pathToFileURL(outFile).href);
-    return { worldMod: mod.worldMod, networkMod: mod.networkMod };
+    return { worldMod: mod.worldMod, networkMod: mod.networkMod, stationFlowMod: mod.stationFlowMod };
   } finally {
     await rm(workTmp, { recursive: true, force: true });
   }
@@ -205,7 +210,7 @@ function classifyOwner(areaId, x, y, w = 1, h = 1, context = {}) {
 }
 
 export async function auditGameDir(gameDir, label = 'working-tree') {
-  const { worldMod, networkMod } = await bundleAndLoadWorld(gameDir);
+  const { worldMod, networkMod, stationFlowMod } = await bundleAndLoadWorld(gameDir);
   const world = worldMod.buildWorld();
   const railLinks = networkMod?.TRAIN_NETWORK?.railLinks ? networkMod.TRAIN_NETWORK.railLinks() : undefined;
   const validateErrors = worldMod.validateWorld(world, railLinks ? { railLinks } : undefined);
@@ -241,13 +246,18 @@ export async function auditGameDir(gameDir, label = 'working-tree') {
       departures.set(key, list);
     };
     for (const link of railLinks ?? []) addDep(link.from, link.to);
-    if (typeof worldMod.getStationFlow === 'function' && Array.isArray(worldMod.STATION_FLOW_IDS)) {
-      for (const sid of worldMod.STATION_FLOW_IDS) {
-        const flow = worldMod.getStationFlow(sid);
-        if (flow?.gate && flow?.platforms?.[0]?.boardTile) {
-          addDep({ areaId: flow.gate.areaId, x: flow.gate.front.x, y: flow.gate.front.y }, flow.platforms[0].boardTile);
-          addDep({ areaId: flow.gate.areaId, x: flow.gate.inside.x, y: flow.gate.inside.y }, { areaId: flow.gate.areaId, x: flow.gate.outside.x, y: flow.gate.outside.y });
+    const stationFlowIds = stationFlowMod?.STATION_FLOW_IDS ?? worldMod.STATION_FLOW_IDS;
+    const getStationFlow = stationFlowMod?.getStationFlow ?? worldMod.getStationFlow;
+    if (typeof getStationFlow === 'function' && Array.isArray(stationFlowIds)) {
+      for (const sid of stationFlowIds) {
+        const flow = getStationFlow(sid);
+        if (!flow?.gate) continue;
+        for (const platform of flow.platforms ?? []) {
+          if (platform?.boardTile) {
+            addDep({ areaId: flow.gate.areaId, x: flow.gate.front.x, y: flow.gate.front.y }, platform.boardTile);
+          }
         }
+        addDep({ areaId: flow.gate.areaId, x: flow.gate.inside.x, y: flow.gate.inside.y }, { areaId: flow.gate.areaId, x: flow.gate.outside.x, y: flow.gate.outside.y });
       }
     }
     const queue = [];
@@ -288,7 +298,8 @@ export async function auditGameDir(gameDir, label = 'working-tree') {
       const tileIds = [...new Set(tiles.map(t => groundAt(t.x, t.y)))];
       const onRoad = tiles.filter(t => ROAD_TILES.has(groundAt(t.x, t.y)));
       const onBridge = tiles.filter(t => groundAt(t.x, t.y) === 11);
-      const onRail = tiles.filter(t => RAIL_TILES.has(groundAt(t.x, t.y)));
+      const onRailTrack = tiles.filter(t => RAIL_TRACK_TILES.has(groundAt(t.x, t.y)));
+      const onRailGuard = tiles.filter(t => groundAt(t.x, t.y) === RAIL_GUARD_TILE);
       const onWater = tiles.filter(t => WATER_TILES.has(groundAt(t.x, t.y)) || groundAt(t.x, t.y) === 0);
       const onSidewalk = tiles.filter(t => groundAt(t.x, t.y) === 7);
       const onParkpath = tiles.filter(t => groundAt(t.x, t.y) === 13);
@@ -319,7 +330,7 @@ export async function auditGameDir(gameDir, label = 'working-tree') {
           evidence: `object=${JSON.stringify(o)}`,
         });
       }
-      if (onRail.length > 0 && !(o.kind === 'train' && o.solid === false)) {
+      if (onRailTrack.length > 0 && !(o.kind === 'train' && o.solid === false)) {
         addFinding({
           id: `${areaId}:object-on-rail:${o.id ?? o.kind}@${o.x},${o.y}`,
           areaId,
@@ -327,8 +338,19 @@ export async function auditGameDir(gameDir, label = 'working-tree') {
           category: 'object-on-rail-or-water',
           owner: classifyOwner(areaId, o.x, o.y, o.w, o.h, { kind: o.kind, facilityId: o.facilityId, touchesRailOrCrossing: true }),
           x: o.x, y: o.y, w: o.w, h: o.h,
-          summary: `${o.kind} (${o.id ?? 'anon'}) overlaps rail/crossing tile (${tileName(groundAt(onRail[0].x, onRail[0].y))})`,
+          summary: `${o.kind} (${o.id ?? 'anon'}) overlaps rail/crossing tile (${tileName(groundAt(onRailTrack[0].x, onRailTrack[0].y))})`,
           evidence: `object=${JSON.stringify(o)}`,
+        });
+      } else if (onRailGuard.length > 0 && !(o.kind === 'train' && o.solid === false)) {
+        addFinding({
+          id: `${areaId}:object-on-rail-guard:${o.id ?? o.kind}@${o.x},${o.y}`,
+          areaId,
+          severity: o.kind === 'station' ? 'info' : 'warning',
+          category: 'object-on-rail-or-water',
+          owner: classifyOwner(areaId, o.x, o.y, o.w, o.h, { kind: o.kind, facilityId: o.facilityId, touchesRailOrCrossing: true }),
+          x: o.x, y: o.y, w: o.w, h: o.h,
+          summary: `${o.kind} (${o.id ?? 'anon'}) sits on rail buffer (${tileName(RAIL_GUARD_TILE)})`,
+          evidence: `object=${JSON.stringify(o)}, guardTiles=${onRailGuard.length}`,
         });
       }
       if (onWater.length > 0) {
@@ -356,15 +378,24 @@ export async function auditGameDir(gameDir, label = 'working-tree') {
         });
       }
       if (onParkpath.length > 0 && o.solid !== false) {
+        const spanAlong = (tx, ty, dx, dy) => {
+          let n = 1;
+          for (let s = 1; s < 32 && groundAt(tx + dx * s, ty + dy * s) === 13; s++) n++;
+          for (let s = 1; s < 32 && groundAt(tx - dx * s, ty - dy * s) === 13; s++) n++;
+          return n;
+        };
+        const narrowsWalkway = onParkpath.some(t => Math.min(spanAlong(t.x, t.y, 1, 0), spanAlong(t.x, t.y, 0, 1)) <= 2);
+        const plazaFurniture = new Set(['gazebo', 'bench', 'lamp']).has(o.kind);
+        const severity = narrowsWalkway ? 'error' : plazaFurniture ? 'info' : 'warning';
         addFinding({
           id: `${areaId}:object-on-parkpath:${o.id ?? o.kind}@${o.x},${o.y}`,
           areaId,
-          severity: 'error',
+          severity,
           category: 'object-on-sidewalk',
           owner: classifyOwner(areaId, o.x, o.y, o.w, o.h, { kind: o.kind, facilityId: o.facilityId }),
           x: o.x, y: o.y, w: o.w, h: o.h,
-          summary: `${o.kind} (${o.id ?? 'anon'}) placed on PARKPATH (${onParkpath.map(t => `${t.x},${t.y}`).join(', ')})`,
-          evidence: `object=${JSON.stringify(o)}`,
+          summary: `${o.kind} (${o.id ?? 'anon'}) placed on ${narrowsWalkway ? 'narrow PARKPATH walkway' : 'wide PARKPATH plaza'} (${onParkpath.map(t => `${t.x},${t.y}`).join(', ')})`,
+          evidence: `object=${JSON.stringify(o)}, narrowsWalkway=${narrowsWalkway}`,
         });
       }
       if (o.solid && o.w === 1 && o.h === 1 && !BUILDING_KINDS.has(o.kind)) {
@@ -697,27 +728,51 @@ export async function auditGameDir(gameDir, label = 'working-tree') {
       }
 
       // 3c. Check carriageway dead-ends / abrupt terminations (roads ending internally without touching boundary, plaza, or another road)
-      // Specifically detect road rows/cols that end against GRASS/RAIL_GUARD/WATER/RAIL internally.
+      // Measure contiguous carriageway run lengths along each axis so 2-3 tile street flanks are not flagged as perpendicular dead-ends.
+      const isCW = (tx, ty) => {
+        const g = groundAt(tx, ty);
+        return ROAD_TILES.has(g) || g === 11 || g === 15;
+      };
+      const spanCW = (tx, ty, dx, dy) => {
+        let n = 0;
+        for (let s = 0; s < 64 && isCW(tx + dx * s, ty + dy * s); s++) n++;
+        return n;
+      };
       for (let y = 1; y < area.height - 1; y++) {
         for (let x = 1; x < area.width - 1; x++) {
           if (!ROAD_TILES.has(groundAt(x, y))) continue;
-          const isHorizRun = ROAD_TILES.has(groundAt(x - 1, y)) && !ROAD_TILES.has(groundAt(x + 1, y)) && groundAt(x + 1, y) !== 11 && groundAt(x + 1, y) !== 15;
-          const isVertRun = ROAD_TILES.has(groundAt(x, y - 1)) && !ROAD_TILES.has(groundAt(x, y + 1)) && groundAt(x, y + 1) !== 11 && groundAt(x, y + 1) !== 15;
-          // Check east/south ends where a 2+ wide carriageway stops abruptly into grass/rail_guard/water (ignoring SIDEWALK/PLAZA border of T-junctions)
-          if (isHorizRun && groundAt(x + 1, y) !== 7 && groundAt(x + 1, y) !== 8) {
+          const eastNext = groundAt(x + 1, y);
+          const westNext = groundAt(x - 1, y);
+          const southNext = groundAt(x, y + 1);
+          const northNext = groundAt(x, y - 1);
+          if (!isCW(x + 1, y) && eastNext !== 7 && eastNext !== 8 && spanCW(x, y, -1, 0) >= 4) {
+            const touchingRail = RAIL_TILES.has(eastNext) || RAIL_TILES.has(groundAt(x + 2, y));
             addFinding({
               id: `${areaId}:road-east-deadend:${x},${y}`,
               areaId,
-              severity: 'warning',
+              severity: touchingRail ? 'error' : 'warning',
               category: 'road-discontinuity',
-              owner: classifyOwner(areaId, x, y),
+              owner: classifyOwner(areaId, x, y, 1, 1, { touchesRailOrCrossing: touchingRail }),
               x, y, w: 1, h: 1,
-              summary: `Road terminates abruptly east into ${tileName(groundAt(x + 1, y))} at (${x},${y})`,
-              evidence: `next=${tileName(groundAt(x + 1, y))}`,
+              summary: `Road terminates abruptly east into ${tileName(eastNext)} at (${x},${y})`,
+              evidence: `next=${tileName(eastNext)}`,
             });
           }
-          if (isVertRun && groundAt(x, y + 1) !== 7 && groundAt(x, y + 1) !== 8) {
-            const touchingRail = RAIL_TILES.has(groundAt(x, y + 1)) || RAIL_TILES.has(groundAt(x, y + 2));
+          if (!isCW(x - 1, y) && westNext !== 7 && westNext !== 8 && spanCW(x, y, 1, 0) >= 4) {
+            const touchingRail = RAIL_TILES.has(westNext) || RAIL_TILES.has(groundAt(x - 2, y));
+            addFinding({
+              id: `${areaId}:road-west-deadend:${x},${y}`,
+              areaId,
+              severity: touchingRail ? 'error' : 'warning',
+              category: 'road-discontinuity',
+              owner: classifyOwner(areaId, x, y, 1, 1, { touchesRailOrCrossing: touchingRail }),
+              x, y, w: 1, h: 1,
+              summary: `Road terminates abruptly west into ${tileName(westNext)} at (${x},${y})`,
+              evidence: `next=${tileName(westNext)}`,
+            });
+          }
+          if (!isCW(x, y + 1) && southNext !== 7 && southNext !== 8 && southNext !== 13 && spanCW(x, y, 0, -1) >= 4) {
+            const touchingRail = RAIL_TILES.has(southNext) || RAIL_TILES.has(groundAt(x, y + 2));
             addFinding({
               id: `${areaId}:road-south-deadend:${x},${y}`,
               areaId,
@@ -725,8 +780,21 @@ export async function auditGameDir(gameDir, label = 'working-tree') {
               category: 'road-discontinuity',
               owner: classifyOwner(areaId, x, y, 1, 1, { touchesRailOrCrossing: touchingRail }),
               x, y, w: 1, h: 1,
-              summary: `Road terminates abruptly south into ${tileName(groundAt(x, y + 1))} at (${x},${y})`,
-              evidence: `next=${tileName(groundAt(x, y + 1))}`,
+              summary: `Road terminates abruptly south into ${tileName(southNext)} at (${x},${y})`,
+              evidence: `next=${tileName(southNext)}`,
+            });
+          }
+          if (!isCW(x, y - 1) && northNext !== 7 && northNext !== 8 && northNext !== 13 && spanCW(x, y, 0, 1) >= 4) {
+            const touchingRail = RAIL_TILES.has(northNext) || RAIL_TILES.has(groundAt(x, y - 2));
+            addFinding({
+              id: `${areaId}:road-north-deadend:${x},${y}`,
+              areaId,
+              severity: touchingRail ? 'error' : 'warning',
+              category: 'road-discontinuity',
+              owner: classifyOwner(areaId, x, y, 1, 1, { touchesRailOrCrossing: touchingRail }),
+              x, y, w: 1, h: 1,
+              summary: `Road terminates abruptly north into ${tileName(northNext)} at (${x},${y})`,
+              evidence: `next=${tileName(northNext)}`,
             });
           }
         }
@@ -737,32 +805,69 @@ export async function auditGameDir(gameDir, label = 'working-tree') {
         for (let x = 0; x < area.width; x++) {
           const g = groundAt(x, y);
           if (!ZEBRA_TILES.has(g)) continue;
-          if (g === 5) { // ZEBRA_H runs N-S across an E-W street? Wait: ZEBRA_H has horizontal stripes stacked vertically for crossing N-S!
-            const n = groundAt(x, y - 1), s = groundAt(x, y + 1);
+          if (g === 5) { // ZEBRA_H: horizontal stripes stacked N-S across horizontal road
             const hasSidewalkOrZebra = (t) => t === 5 || t === 7 || t === 8 || t === 13;
-            if (!hasSidewalkOrZebra(n) && !ROAD_TILES.has(n)) {
-              addFinding({
-                id: `${areaId}:zebra-north-break:${x},${y}`,
-                areaId,
-                severity: 'warning',
-                category: 'road-discontinuity',
-                owner: classifyOwner(areaId, x, y),
-                x, y, w: 1, h: 1,
-                summary: `Crosswalk ZEBRA_H at (${x},${y}) meets ${tileName(n)} to the north`,
-                evidence: `north=${tileName(n)}`,
-              });
+            if (y > 0) {
+              const n = groundAt(x, y - 1);
+              if (!hasSidewalkOrZebra(n) && !ROAD_TILES.has(n)) {
+                addFinding({
+                  id: `${areaId}:zebra-north-break:${x},${y}`,
+                  areaId,
+                  severity: 'warning',
+                  category: 'road-discontinuity',
+                  owner: classifyOwner(areaId, x, y),
+                  x, y, w: 1, h: 1,
+                  summary: `Crosswalk ZEBRA_H at (${x},${y}) meets ${tileName(n)} to the north`,
+                  evidence: `north=${tileName(n)}`,
+                });
+              }
             }
-            if (!hasSidewalkOrZebra(s) && !ROAD_TILES.has(s)) {
-              addFinding({
-                id: `${areaId}:zebra-south-break:${x},${y}`,
-                areaId,
-                severity: 'warning',
-                category: 'road-discontinuity',
-                owner: classifyOwner(areaId, x, y),
-                x, y, w: 1, h: 1,
-                summary: `Crosswalk ZEBRA_H at (${x},${y}) meets ${tileName(s)} to the south`,
-                evidence: `south=${tileName(s)}`,
-              });
+            if (y < area.height - 1) {
+              const s = groundAt(x, y + 1);
+              if (!hasSidewalkOrZebra(s) && !ROAD_TILES.has(s)) {
+                addFinding({
+                  id: `${areaId}:zebra-south-break:${x},${y}`,
+                  areaId,
+                  severity: 'warning',
+                  category: 'road-discontinuity',
+                  owner: classifyOwner(areaId, x, y),
+                  x, y, w: 1, h: 1,
+                  summary: `Crosswalk ZEBRA_H at (${x},${y}) meets ${tileName(s)} to the south`,
+                  evidence: `south=${tileName(s)}`,
+                });
+              }
+            }
+          } else if (g === 6) { // ZEBRA_V: vertical stripes stacked E-W across vertical road
+            const hasSidewalkOrZebra = (t) => t === 6 || t === 7 || t === 8 || t === 13;
+            if (x > 0) {
+              const wTile = groundAt(x - 1, y);
+              if (!hasSidewalkOrZebra(wTile) && !ROAD_TILES.has(wTile)) {
+                addFinding({
+                  id: `${areaId}:zebra-west-break:${x},${y}`,
+                  areaId,
+                  severity: 'warning',
+                  category: 'road-discontinuity',
+                  owner: classifyOwner(areaId, x, y),
+                  x, y, w: 1, h: 1,
+                  summary: `Crosswalk ZEBRA_V at (${x},${y}) meets ${tileName(wTile)} to the west`,
+                  evidence: `west=${tileName(wTile)}`,
+                });
+              }
+            }
+            if (x < area.width - 1) {
+              const eTile = groundAt(x + 1, y);
+              if (!hasSidewalkOrZebra(eTile) && !ROAD_TILES.has(eTile)) {
+                addFinding({
+                  id: `${areaId}:zebra-east-break:${x},${y}`,
+                  areaId,
+                  severity: 'warning',
+                  category: 'road-discontinuity',
+                  owner: classifyOwner(areaId, x, y),
+                  x, y, w: 1, h: 1,
+                  summary: `Crosswalk ZEBRA_V at (${x},${y}) meets ${tileName(eTile)} to the east`,
+                  evidence: `east=${tileName(eTile)}`,
+                });
+              }
             }
           }
         }
@@ -996,15 +1101,16 @@ export async function auditGameDir(gameDir, label = 'working-tree') {
     for (const pts of unreachedPockets) {
       const sample = pts[0];
       const touchesRail = pts.some(t => RAIL_TILES.has(groundAt(t.x, t.y - 1)) || RAIL_TILES.has(groundAt(t.x, t.y + 1)));
+      const isEdgeSliver = pts.length <= 2 && pts.every(t => t.y === 0 || t.y === area.height - 1 || t.x === 0 || t.x === area.width - 1);
       addFinding({
         id: `${areaId}:isolated-walkable:${sample.x},${sample.y}`,
         areaId,
-        severity: 'warning',
+        severity: isEdgeSliver ? 'info' : 'warning',
         category: 'road-discontinuity',
         owner: classifyOwner(areaId, sample.x, sample.y, 1, 1, { touchesRailOrCrossing: touchesRail }),
         x: sample.x, y: sample.y, w: 1, h: 1,
-        summary: `Isolated walkable pocket of ${pts.length} tile(s) at (${sample.x},${sample.y})`,
-        evidence: `tiles=${pts.slice(0, 6).map(t => `(${t.x},${t.y})`).join(',')}${pts.length > 6 ? '...' : ''}`,
+        summary: `Isolated walkable pocket of ${pts.length} tile(s) at (${sample.x},${sample.y})${isEdgeSliver ? ' (map-edge sliver)' : ''}`,
+        evidence: `tiles=${pts.slice(0, 6).map(t => `(${t.x},${t.y})`).join(',')}${pts.length > 6 ? '...' : ''}, isEdgeSliver=${isEdgeSliver}`,
       });
     }
   }

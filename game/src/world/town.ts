@@ -110,7 +110,8 @@ export function createTown(): AreaDef {
           // Leave the shop-back lane and street sidewalks intact at the block edge.
           if (y + h <= bottom) rect(x, y + h, w, 1, T.GARDEN);
           const door = x + Math.floor(w / 2);
-          rect(door, y + h, 1, 1, T.PARKPATH);
+          const pathEnd = rows.length === 2 ? rows[1] - 1 : bottom + 1;
+          for (let yy = y + h; yy <= Math.min(bottom, pathEnd); yy++) rect(door, yy, 1, 1, T.PARKPATH);
           if (y + h <= bottom && y + h !== rows[1] - 1 && w >= 6 && hash2(x, y, 21) < 0.5) object('car', x, y + h, 2, 1, String(Math.floor(hash2(x, y) * 4)));
         } else {
           rect(x, rowTop, w, maxH, T.GARDEN);
@@ -138,6 +139,8 @@ export function createTown(): AreaDef {
   rect(31, 26, 9, 11, T.GARDEN);
   rect(31, 26, 9, 1, T.HEDGE); rect(31, 36, 9, 1, T.HEDGE);
   rect(31, 26, 1, 11, T.HEDGE); rect(39, 26, 1, 11, T.HEDGE);
+  // Inset the neighborhood notice board cleanly along the front hedge line without overlapping HEDGE tiles.
+  rect(37, 36, 2, 1, T.GRASS);
   rect(35, 32, 1, 5, T.PARKPATH);
   object('house', 32, 27, 6, 5, '1', true, 'home-family');
   object('flowerbed', 32, 34, 2, 1, undefined, false);
@@ -159,10 +162,13 @@ export function createTown(): AreaDef {
   object('station', station.x, station.y, station.w, station.h, undefined, true, 'station', 'town-station-12-59');
   object('busstop', 50, 61, 1, 1);
   object('vending', 50, 53, 1, 1);
-  object('board', 30, 34, 2, 1);
+  object('board', 37, 36, 2, 1);
   object('postbox', 41, 36, 1, 1);
   object('shop', 60, 59, 6, 6, 'cafe'); object('house', 70, 59, 5, 4, '3');
-  object('apartment', 70, 64, 6, 5, '2'); rect(60, 66, 7, 3, T.PARKING);
+  object('apartment', 70, 66, 6, 5, '2'); rect(60, 66, 7, 3, T.PARKING);
+  rect(59, 65, 7, 1, T.PARKPATH);
+  rect(72, 63, 6, 1, T.PARKPATH);
+  rect(73, 71, 1, 4, T.PARKPATH);
   object('car', 61, 67, 2, 1, '2');
 
   rect(90, 12, 33, 1, T.HEDGE);
@@ -170,10 +176,12 @@ export function createTown(): AreaDef {
   rect(90, 35, 33, 1, T.FENCE); rect(100, 35, 3, 2, T.SIDEWALK);
   rect(91, 21, 31, 14, T.DIRT);
   object('school', 94, 13, 20, 7, undefined, true, 'school');
+  rect(103, 20, 2, 1, T.PARKPATH);
   object('gym', 115, 14, 6, 7, undefined, true, 'school-gym');
   object('track', 98, 23, 16, 9, undefined, false);
   object('goal', 94, 26, 1, 2); object('goal', 118, 26, 1, 2);
-  [92, 120].forEach(x => { object('tree', x, 17, 1, 1, 'cherry'); object('tree', x, 33, 1, 1, 'cherry'); });
+  object('tree', 92, 17, 1, 1, 'cherry'); object('tree', 92, 33, 1, 1, 'cherry');
+  object('tree', 120, 22, 1, 1, 'cherry'); object('tree', 120, 33, 1, 1, 'cherry');
 
   rect(83, 58, 10, 2, T.PARKPATH); rect(93, 55, 11, 8, T.PARKPATH);
   rect(104, 61, 8, 7, T.SAND);
@@ -186,7 +194,8 @@ export function createTown(): AreaDef {
     object('tree', x, y, 1, 1, hash2(x, y, 11) > 0.7 ? 'cherry' : 'green');
   }
   for (let y = 53; y <= 66; y += 3) {
-    object('tree', 85, y, 1, 1, 'green'); object('tree', 113, y, 1, 1, 'cherry');
+    if (y < 58 || y > 59) object('tree', 85, y, 1, 1, 'green');
+    object('tree', 113, y, 1, 1, 'cherry');
   }
   // Sparse roadside trees: avoid roads, sidewalks, bridges and the walking landmarks.
   for (let x = 1; x < 125; x += 3) if (at(x, 0) === T.GRASS) object('tree', x, 0, 1, 1, 'dark');
@@ -199,11 +208,12 @@ export function createTown(): AreaDef {
   }
   const buildings = objects.filter(o => ['house', 'apartment', 'shop', 'school', 'gym', 'station'].includes(o.kind));
   const doorFront = (x: number, y: number, w = 1) => buildings.some(b => y === b.y + b.h && x <= b.x + Math.floor(b.w / 2) && x + w > b.x + Math.floor(b.w / 2));
-  // Decorations stay off door fronts and the one-tile continuous sidewalk y54.
+  // Decorations stay off door fronts, roadways, sidewalks, crosswalks, paths, parking and bridges.
   const decorate = (kind: string, x: number, y: number, w = 1, style?: string) => {
     if (doorFront(x, y, w) || Object.values(LANDMARKS).some(p => p.y === y && p.x >= x && p.x < x + w)) return;
     for (let xx = x; xx < x + w; xx++) {
-      if (isSolidGround(at(xx, y)) || objects.some(o => o.solid && xx >= o.x && xx < o.x + o.w && y >= o.y && y < o.y + o.h)) return;
+      const g = at(xx, y);
+      if (isSolidGround(g) || isRoad(g) || g === T.SIDEWALK || g === T.PARKPATH || g === T.BRIDGE || g === T.PARKING || objects.some(o => o.solid && xx >= o.x && xx < o.x + o.w && y >= o.y && y < o.y + o.h)) return;
     }
     object(kind, x, y, w, 1, style);
   };
@@ -217,7 +227,7 @@ export function createTown(): AreaDef {
   decorate('bench', 4, 65, 2); decorate('bench', 41, 66, 2);
   decorate('lamp', 9, 64); decorate('lamp', 46, 66);
   for (let y = 14; y < 68; y += 8) {
-    decorate(y % 3 === 0 ? 'lamp' : 'tree', 82, y, 1, 'cherry');
+    decorate(y % 3 === 0 ? 'lamp' : 'tree', 83, y, 1, 'cherry');
     decorate('tree', 123, y + 1, 1, 'cherry');
   }
   for (const x of [88, 95, 103, 111]) decorate(x === 103 ? 'lamp' : 'tree', x, 69, 1, 'cherry');
@@ -238,7 +248,7 @@ export function createTown(): AreaDef {
     ],
     interactions: [
       { id: 'neighbor-grandma', kind: 'npc', name: 'きんじょのおばあさん', x: 40, y: 33, sprite: 'grandma', facing: 'left', solid: true, eventKey: 'neighborhood.grandma', lines: ['おかえり。きょうも がっこう、たのしかった？'] },
-      { id: 'neighborhood-board', kind: 'sign', name: 'まちのけいじばん', x: 30, y: 34, w: 2, solid: true, eventKey: 'neighborhood.board', lines: ['こんどの にちようびは、こうえんの おそうじだって。'] },
+      { id: 'neighborhood-board', kind: 'sign', name: 'まちのけいじばん', x: 37, y: 36, w: 2, solid: true, eventKey: 'neighborhood.board', lines: ['こんどの にちようびは、こうえんの おそうじだって。'] },
       { id: 'neighborhood-cat', kind: 'npc', name: 'ねこ', x: 42, y: 36, sprite: 'cat', facing: 'down', solid: true, eventKey: 'neighborhood.cat', lines: ['にゃあ。ひなたで のんびりしている。'] },
       { id: 'school-guard', kind: 'npc', name: 'みまもりのひと', x: 104, y: 36, sprite: 'guard', facing: 'left', solid: true, eventKey: 'school.guard', lines: ['おはよう！ くるまを よくみて わたろうね。'] },
       { id: 'park-friend', kind: 'npc', name: 'ともだち', x: 100, y: 61, sprite: 'friend', facing: 'left', solid: true, eventKey: 'park.friend', lines: ['いっしょに あそぼう！ なにして あそぶ？'] },
