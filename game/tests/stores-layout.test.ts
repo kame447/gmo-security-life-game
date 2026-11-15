@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { STORE_CONTACTS } from '../src/data/stores';
 import { buildWorld } from '../src/world';
+import { INTERIOR_ENTRIES } from '../src/world/interiors';
 import { isSolidTile, neighbors, type AreaRuntime, type Point } from '../src/world/runtime';
 import { validateWorld } from '../src/world/validate';
 
@@ -132,5 +133,30 @@ describe('store layout circulation and alignment', () => {
     const fruit = byId.get('shop-greengrocer-interior-fruit')!;
     expect(fruit).toMatchObject({ kind: 'greengrocer-fruit-table', x: 12, y: 6, w: 3, h: 2 });
     expect(fruit.y).toBe(crates.y + crates.h);
+  });
+
+  it('keeps entrance rugs off arrival tiles across all seven stores, including konbini', () => {
+    const world = buildWorld();
+    const town = world.areas.get('town-main')!;
+
+    for (const contact of STORE_CONTACTS) {
+      const portal = town.def.portals.find(p => p.id === contact.entrancePortalId)!;
+      const area = world.areas.get(contact.interiorAreaId)!;
+      const rugs = area.objects.filter(o => o.kind === 'shop-rug');
+      expect(rugs.length, contact.catalogId).toBeGreaterThan(0);
+      for (const rug of rugs) {
+        const coversArrival =
+          portal.to.x >= rug.x
+          && portal.to.x < rug.x + rug.w
+          && portal.to.y >= rug.y
+          && portal.to.y < rug.y + rug.h;
+        expect(coversArrival, `${contact.catalogId} rug covers (${portal.to.x}, ${portal.to.y})`).toBe(false);
+      }
+    }
+
+    const konbini = world.areas.get('shop-konbini-interior')!;
+    const konbiniRug = konbini.objects.find(o => o.kind === 'shop-rug');
+    expect(konbiniRug).toMatchObject({ x: 5, y: 7, w: 4, h: 1 });
+    expect(INTERIOR_ENTRIES.konbini).toMatchObject({ areaId: 'shop-konbini-interior', x: 6, y: 8 });
   });
 });
