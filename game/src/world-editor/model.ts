@@ -2,7 +2,8 @@ import { EditorSession, diffDocuments, parseDocument, validateDocument, type Edi
 import { assembleEditorWorld } from '../editor/runtime';
 import type { EditorValidationContext } from '../editor/types';
 import { toRuntime, type World } from '../world/runtime';
-import { furnitureById, furnitureVariant, nextFacing } from '../render/furniture/catalog';
+import { furnitureById, furnitureVariant } from '../render/furniture/catalog';
+import { rotatedObjectVariant } from '../render/furniture/rotation';
 import { assertWorldEdit } from './world-policy';
 import { worldDocument } from './document';
 import { withDerived } from '../editor/changes';
@@ -95,9 +96,9 @@ export class WorldEditorModel {
     this.commit(this.candidate({ ...object, x, y }));
   }
   rotate(id: string, areaId = HOME_AREA) {
-    const o = this.object(id,undefined,areaId); if (!o?.catalogId) throw new Error('この家具の回転用の絵は、まだカタログにありません');
-    const facing = nextFacing(o.catalogId,o.facing), variant = furnitureVariant(o.catalogId,facing)!;
-    this.commit(this.candidate({ ...o, facing, w: variant.w, h: variant.h }));
+    const o = this.object(id,undefined,areaId); if (!o) throw new Error('家具を選んでください');
+    const next = rotatedObjectVariant(o);
+    this.commit(this.candidate({ ...o, ...next }));
   }
   remove(id: string, areaId = HOME_AREA) {
     const reason = this.protectedReason(id); if (reason) throw new Error(reason);

@@ -24,9 +24,25 @@ function grain(r: Brush, x: number, y: number, w: number, h: number): void {
 function table(r: Brush, facing: Facing, dining: boolean): void {
   const side = sideways(facing), w = side ? 16 : 32, h = dining || side ? 32 : 16;
   contact(r, w, h);
+  if (facing === 'up') {
+    r(ink, 3, h - 7, 3, 6); r(ink, w - 6, h - 7, 3, 6);
+    r(wood, 4, h - 7, 1, 5); r(timber, w - 5, h - 7, 1, 5);
+    box(r, timber, 1, 1, w - 2, h - 6);
+    r(wood, 2, 2, w - 4, 1); r(lightWood, 3, h - 8, w - 6, 2);
+    grain(r, 5, 4, w - 9, h - 14);
+    return;
+  }
   r(ink, 3, h - 7, 3, 6); r(ink, w - 6, h - 7, 3, 6);
   r(timber, 4, h - 7, 1, 5); r(wood, w - 5, h - 7, 1, 5);
   box(r, timber, 1, 1, w - 2, h - 6);
+  if (side && dining) {
+    r(lightWood, 2, 3, 2, h - 10); r(wood, w - 4, 2, 1, h - 8);
+    for (let xx = 5; xx < w - 5; xx += 4) {
+      r(wood, xx, 4 + (xx % 3), 1, h - 13);
+      r(lightWood, xx + 1, 5, 1, h - 16);
+    }
+    return;
+  }
   r(lightWood, 3, 2, w - 6, 2); r(wood, 2, h - 8, w - 4, 1);
   grain(r, 4, 5, w - 8, h - 15);
 }
@@ -101,8 +117,25 @@ function bookshelf(r: Brush, facing: Facing): void {
   box(r, timber, 0, 1, 16, 3); r(ink, 2, 30, 3, 1); r(ink, 11, 30, 3, 1);
 }
 
-function toybox(r: Brush): void {
+function toybox(r: Brush, facing: Facing): void {
   contact(r, 16, 16);
+  if (facing === 'up') {
+    box(r, wood, 1, 2, 14, 13);
+    r(timber, 2, 3, 12, 3); r(lightWood, 2, 3, 11, 1);
+    r(ink, 1, 7, 14, 1);
+    box(r, timber, 2, 8, 12, 6);
+    for (const hx of [3, 11]) { r(darkMetal, hx, 6, 2, 3); r(metal, hx, 7, 1, 1); }
+    r(wood, 3, 12, 10, 1);
+    return;
+  }
+  if (sideways(facing)) {
+    box(r, timber, 10, 1, 5, 7); r(lightWood, 11, 2, 1, 4);
+    r(ink, 2, 5, 8, 3); r('#b94e45', 3, 4, 3, 3); r(cream, 4, 4, 1, 1);
+    r('#698cab', 6, 4, 4, 4); r('#92b2c4', 7, 4, 2, 1);
+    box(r, timber, 1, 7, 14, 8); r(lightWood, 2, 8, 12, 1);
+    r(wood, 3, 12, 10, 1); r(ink, 6, 10, 3, 2); r(lightWood, 7, 10, 1, 1);
+    return;
+  }
   box(r, timber, 1, 1, 14, 4); r(lightWood, 2, 2, 11, 1);
   r(ink, 2, 5, 12, 3); r('#b94e45', 3, 4, 3, 3); r(cream, 4, 4, 1, 1);
   r('#698cab', 8, 4, 4, 4); r('#92b2c4', 9, 4, 2, 1);
@@ -210,8 +243,29 @@ function television(r: Brush, facing: Facing): void {
   }
 }
 
-function plant(r: Brush): void {
+function plant(r: Brush, facing: Facing): void {
   contact(r, 16, 32);
+  if (facing === 'up') {
+    r(ink, 4, 2, 7, 5); r(ink, 6, 1, 3, 1); r('#3f7653', 5, 3, 5, 3); r('#639858', 6, 3, 3, 1);
+    r(ink, 9, 8, 6, 6); r('#3f7653', 10, 9, 4, 4); r('#639858', 11, 9, 2, 2);
+    r(ink, 1, 11, 6, 6); r(ink, 0, 13, 1, 2); r('#3f7653', 2, 12, 4, 4); r('#639858', 3, 12, 2, 2);
+    r(ink, 8, 16, 6, 5); r('#3f7653', 9, 17, 4, 3); r('#8fae64', 10, 17, 1, 1);
+    r(ink, 7, 5, 2, 20); r('#639858', 7, 6, 1, 18);
+    box(r, '#bd7b58', 4, 23, 9, 6); r(wood, 5, 25, 2, 3);
+    r(ink, 5, 29, 7, 2); r('#bd7b58', 6, 29, 5, 1); r(wood, 5, 23, 7, 2); r(lightWood, 6, 24, 3, 1);
+    return;
+  }
+  if (sideways(facing)) {
+    r(ink, 7, 6, 2, 20); r('#3f7653', 7, 7, 1, 18);
+    r(ink, 4, 1, 6, 5); r(ink, 5, 0, 3, 1); r('#639858', 5, 2, 4, 3); r('#8fae64', 5, 2, 2, 1);
+    r(ink, 0, 7, 7, 5); r('#3f7653', 1, 8, 5, 3); r('#639858', 1, 8, 4, 2); r('#8fae64', 1, 8, 2, 1);
+    r(ink, 9, 9, 5, 5); r('#3f7653', 10, 10, 3, 3); r('#639858', 10, 10, 2, 2);
+    r(ink, 1, 15, 6, 5); r('#3f7653', 2, 16, 4, 3); r('#8fae64', 2, 16, 2, 1);
+    box(r, '#bd7b58', 4, 23, 9, 6); r(wood, 10, 25, 2, 3);
+    r(ink, 5, 29, 7, 2); r('#bd7b58', 6, 29, 5, 1); r(lightWood, 5, 24, 4, 1);
+    r(wood, 5, 23, 7, 1);
+    return;
+  }
   r(ink, 7, 6, 2, 20); r('#3f7653', 7, 7, 1, 18);
   r(ink, 5, 1, 7, 5); r(ink, 7, 0, 3, 1); r('#639858', 6, 2, 5, 3); r('#8fae64', 7, 2, 3, 1);
   r(ink, 1, 8, 7, 6); r(ink, 0, 9, 1, 3); r('#3f7653', 2, 9, 5, 4); r('#639858', 2, 9, 4, 2); r('#8fae64', 2, 9, 2, 1);
@@ -242,13 +296,13 @@ export function drawHomeFurniture(c: C2D, id: string, variant: FurnitureVariant)
     case 'desk-study': desk(r, variant.facing); break;
     case 'bed-single': bed(r, variant.facing); break;
     case 'bookshelf-tall': bookshelf(r, variant.facing); break;
-    case 'toybox': toybox(r); break;
+    case 'toybox': toybox(r, variant.facing); break;
     case 'kitchen-sink': sink(r, variant.facing); break;
     case 'kitchen-stove': stove(r, variant.facing); break;
     case 'cabinet-low': cabinet(r, variant.facing); break;
     case 'fridge': fridge(r, variant.facing); break;
     case 'tv-stand': television(r, variant.facing); break;
-    case 'plant-tall': plant(r); break;
+    case 'plant-tall': plant(r, variant.facing); break;
     case 'window-wall': window(r); break;
     default: return false;
   }

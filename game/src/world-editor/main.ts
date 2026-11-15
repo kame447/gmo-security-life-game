@@ -6,7 +6,8 @@ import { canonicalJSON } from '../editor/schema';
 import { Controls, DIRECTION_KEYS } from '../input/controls';
 import { Game } from '../session/game';
 import { Renderer, type RenderCamera } from '../render/renderer';
-import { FURNITURE, furnitureById, furnitureVariant, nextFacing } from '../render/furniture/catalog';
+import { FURNITURE, furnitureById } from '../render/furniture/catalog';
+import { objectRotationReason, rotatedObjectVariant } from '../render/furniture/rotation';
 import { furnitureThumbnail } from '../render/furniture/sprites';
 import { personThumbnail } from '../render/people/thumbnails';
 import { outdoorForObject, OUTDOOR } from '../render/outdoor/catalog';
@@ -78,7 +79,7 @@ function update() {
     $('#object-id').textContent=`ID ${o.id}（変更できません）`;
     $('#object-json').textContent=canonicalJSON(o);
     const pending=placement?.id===o.id,moveReason=pending?'':objectMoveReason(o.id),reason=pending?'':objectDeleteReason(o.id);
-    const rotationReason=activeArea===TOWN_AREA?outdoor.rotationReason(o.id):!o.catalogId?'この家具の回転用の絵は、まだカタログにありません':'';
+    const rotationReason=activeArea===TOWN_AREA?outdoor.rotationReason(o.id):objectRotationReason(o);
     $('#protection').textContent=[moveReason,reason,rotationReason].filter(Boolean).join('。');
     $<HTMLButtonElement>('#delete').disabled=!editing()||!!reason||pending;
     $<HTMLButtonElement>('#rotate').disabled=!editing()||!!rotationReason;
@@ -274,9 +275,10 @@ $('#rotate').onclick=()=>{
       npcPlacement={...npcPlacement,facing:directions[(directions.indexOf(npcPlacement.facing??'down')+1)%4]};previewNpc(npcPlacement,true);}
     else attempt(()=>model.rotateNpc(selectedNpc!,activeArea));return;}
   if(activeArea===TOWN_AREA){if(selected)attempt(()=>outdoor.rotate(selected!));return;}
-  const o=placement??(selected?model.object(selected,undefined,activeArea):undefined);if(!o?.catalogId)return;
-  const facing=nextFacing(o.catalogId,o.facing),variant=furnitureVariant(o.catalogId,facing)!;
-  const rotated={...o,facing,w:variant.w,h:variant.h};
+  const o=placement??(selected?model.object(selected,undefined,activeArea):undefined);if(!o)return;
+  let next:{facing:'down'|'left'|'up'|'right';w:number;h:number};
+  try{next=rotatedObjectVariant(o);}catch(error){status((error as Error).message);return;}
+  const rotated={...o,...next};
   if(placement){placement=rotated;if(drag)drag.object=rotated;preview(rotated,true);}
   else {const candidate=model.candidate(rotated);if(model.issues(candidate).length)preview(rotated,false);else attempt(()=>model.commit(candidate));}
 };

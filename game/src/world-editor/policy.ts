@@ -1,7 +1,8 @@
 import type { EditorDocument, EditorValidationContext } from '../editor/types';
 import { withDerived } from '../editor/changes';
 import { equal } from '../world/layouts/codec';
-import { furnitureById } from '../render/furniture/catalog';
+import { furnitureById, furnitureVariant } from '../render/furniture/catalog';
+import { objectRotationRule, rotatedDimensions } from '../render/furniture/rotation';
 import { isPlacedNpc, npcIssue } from './npc';
 
 const reject = (message: string): never => { throw new Error(message); };
@@ -69,11 +70,30 @@ export function assertInteriorEdit(before: EditorDocument, after: EditorDocument
     const original = before.objects.find(p => p.id === o.id);
     if (original) {
       if (o.kind !== original.kind) reject('元の家具のkindは変更できません');
-      if (!o.catalogId) {
-        const { x: _, y: __, ...old } = original, { x: a, y: b, ...next } = o;
-        fixed(old,next,'従来の家具は大きさと属性を保って移動します');
+      const rule = objectRotationRule(original);
+      if (!original.catalogId) {
+        if (o.catalogId) reject('従来の家具にカタログIDは付けられません');
+        const oldFacing = original.facing ?? 'down', newFacing = o.facing ?? 'down';
+        if (!rule || rule.directions.length <= 1) {
+          if (newFacing !== oldFacing) reject(rule?.reason || 'この家具は回せません');
+          const { x: _, y: __, ...old } = original, { x: a, y: b, ...next } = o;
+          fixed(old, next, '従来の家具は大きさと属性を保って移動します');
+        } else {
+          if (!rule.directions.includes(newFacing)) reject(rule.reason || 'この家具は指定された向きに回せません');
+          const expected = rotatedDimensions(original, newFacing);
+          if (o.w !== expected.w || o.h !== expected.h) reject('回転後の足元の大きさが一致しません');
+          const { x: _1, y: _2, facing: _3, w: _4, h: _5, ...old } = original;
+          const { x: _6, y: _7, facing: _8, w: _9, h: _10, ...next } = o;
+          fixed(old, next, '従来の家具は属性を保って移動・回転します');
+        }
       }
     } else if (!o.catalogId || !furnitureById(o.catalogId) || o.kind !== o.catalogId ||
         !new RegExp(`^${areaId}-${o.catalogId}-[1-9][0-9]*$`).test(o.id)) reject('新しい家具の識別子が不正です');
+    if (o.catalogId) {
+      const rule = objectRotationRule(o), facing = o.facing ?? 'down';
+      if (rule && !rule.directions.includes(facing)) reject(rule.reason || 'この家具は指定された向きに回せません');
+      const variant = furnitureVariant(o.catalogId, facing);
+      if (!variant || o.w !== variant.w || o.h !== variant.h) reject('回転後の足元の大きさが一致しません');
+    }
   }
 }

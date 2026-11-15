@@ -2,18 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { FURNITURE, furnitureById, nextFacing } from '../src/render/furniture/catalog';
 
 const home = [
-  ['table-dining', 2, 2, 0, 1, 'table'],
-  ['table-low', 2, 1, 0, 2, 'table'],
+  ['table-dining', 2, 2, 0, 4, 'table'],
+  ['table-low', 2, 1, 0, 4, 'table'],
   ['desk-study', 2, 1, 16, 4, 'table'],
   ['bed-single', 2, 3, 0, 4, 'bed'],
   ['bookshelf-tall', 1, 1, 16, 4, 'storage'],
-  ['toybox', 1, 1, 0, 1, 'storage'],
+  ['toybox', 1, 1, 0, 4, 'storage'],
   ['kitchen-sink', 2, 1, 16, 4, 'kitchen'],
   ['kitchen-stove', 1, 1, 16, 4, 'kitchen'],
   ['cabinet-low', 2, 1, 0, 4, 'storage'],
   ['fridge', 1, 1, 16, 4, 'kitchen'],
   ['tv-stand', 2, 1, 16, 4, 'kitchen'],
-  ['plant-tall', 1, 1, 16, 1, 'decor'],
+  ['plant-tall', 1, 1, 16, 4, 'decor'],
   ['window-wall', 2, 1, 0, 1, 'wall'],
 ] as const;
 

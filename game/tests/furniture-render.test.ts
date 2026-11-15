@@ -107,7 +107,10 @@ describe('furniture pixel artwork', () => {
       expect(furnitureSprite({ ...old, catalogId: undefined })).toBeUndefined();
       const sprite = objectSprite(old);
       expect(sprite.canvas.width).toBe(32); expect(sprite.canvas.height).toBe(48); expect(sprite.oy).toBe(0);
-      expect(objectSprite({ ...old, facing: 'up' })).toBe(sprite);
+      expect(objectSprite({ ...old, facing: 'down' })).toBe(sprite);
+      const rear = objectSprite({ ...old, facing: 'up' });
+      expect(rear.canvas.width).toBe(32); expect(rear.canvas.height).toBe(48); expect(rear.oy).toBe(0);
+      expect([...raster(rear.canvas).data()]).not.toEqual([...raster(sprite.canvas).data()]);
     }
   });
 
