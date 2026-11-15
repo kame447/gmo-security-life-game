@@ -22,7 +22,7 @@ function grain(r: Brush, x: number, y: number, w: number, h: number): void {
 }
 
 function table(r: Brush, facing: Facing, dining: boolean): void {
-  const side = sideways(facing), w = side ? 16 : 32, h = dining || side ? 32 : 16;
+  const side = sideways(facing), w = !dining && side ? 16 : 32, h = dining || side ? 32 : 16;
   contact(r, w, h);
   if (facing === 'up') {
     r(ink, 3, h - 7, 3, 6); r(ink, w - 6, h - 7, 3, 6);
