@@ -11,7 +11,7 @@ import { BODIES, HEADS, paint, palette, slim, viewOf, type Palette } from './pla
 export const RIDER_W = 26;
 export const RIDER_H = 30;
 
-const BIKE = { frame: '#2f8f9d', dark: '#1f5f68', tire: '#2b2a30', spoke: '#c9ced6', seat: '#3b2318', basket: '#d9c48f', reflector: '#e2566a' };
+const BIKE = { frame: '#2f8f9d', dark: '#1f5f68', tire: '#2b2a30', spoke: '#c9ced6', seat: '#3b2318', basket: '#d9c48f', weave: '#b39a62', reflector: '#e2566a' };
 
 function dot(c: C2D, color: string, x: number, y: number, w = 1, h = 1): void {
   c.fillStyle = color;
@@ -80,35 +80,30 @@ function drawSide(c: C2D, a: PlayerAppearance, colors: Palette, frame: number): 
   leg(pedals.near, bare ? colors.s : colors.p);
 }
 
-/** 正面・背面：車輪は縦の帯に見え、脚は車輪の左右でペダルをこぐ。正面は前かご、背面は泥よけと反射板。 */
+/**
+ * 正面・背面：車輪は縦の帯に見え、細い脚が車輪の左右でペダルをこぐ。
+ * 正面はハンドルを両手の間に収め、前かごで太ももを隠す。背面は泥よけと反射板。
+ */
 function drawFrontBack(c: C2D, a: PlayerAppearance, colors: Palette, front: boolean, frame: number): void {
   const view = front ? 'front' : 'back';
   const skin = a.outfit !== 'overalls' ? colors.s : colors.p;
-  const [left, right] = frame === 1 ? [25, 28] : frame === 2 ? [28, 25] : [27, 27];
-  for (const [x, bottom] of [[8, left], [15, right]] as const) {
-    dot(c, colors.o, x - 1, 22, 5, bottom - 21);
-    dot(c, skin, x, 22, 3, bottom - 23);
-    dot(c, colors.k, x, bottom - 1, 3, 1);
+  const [left, right] = frame === 1 ? [26, 28] : frame === 2 ? [28, 26] : [27, 27];
+  for (const [x, bottom] of [[9, left], [15, right]] as const) {
+    dot(c, colors.o, x - 1, 22, 4, bottom - 21);
+    dot(c, skin, x, 22, 2, bottom - 23);
+    dot(c, colors.k, x, bottom - 1, 2, 1);
   }
   dot(c, BIKE.tire, 12, 22, 2, 8);
-  dot(c, BIKE.dark, 11, 20, 1, 5);
-  dot(c, BIKE.dark, 14, 20, 1, 5);
-  dot(c, BIKE.frame, 11, 21, 4, 2);     // mudguard
-  const handlebar = () => {
-    dot(c, BIKE.dark, 7, 19, 12, 1);
-    dot(c, BIKE.seat, 5, 19, 2, 1);
-    dot(c, BIKE.seat, 19, 19, 2, 1);
-  };
+  dot(c, BIKE.spoke, 12, 26, 2, 1);
+  paintBody(c, a, colors, view);
   if (front) {
-    paintBody(c, a, colors, view);
-    handlebar();
-    dot(c, BIKE.seat, 9, 20, 8, 5);     // basket
-    dot(c, BIKE.basket, 10, 21, 6, 3);
-    for (const x of [11, 13, 15]) dot(c, BIKE.seat, x, 22, 1, 1);
+    dot(c, BIKE.dark, 8, 19, 10, 1);    // handlebar between the hands
+    dot(c, BIKE.seat, 8, 20, 10, 5);    // basket
+    dot(c, BIKE.basket, 9, 21, 8, 3);
+    dot(c, BIKE.weave, 9, 22, 8, 1);
   } else {
-    handlebar();
-    dot(c, BIKE.reflector, 12, 22, 2, 1);
-    paintBody(c, a, colors, view);
+    dot(c, BIKE.frame, 11, 22, 4, 1);   // mudguard
+    dot(c, BIKE.reflector, 12, 23, 2, 1);
   }
 }
 
