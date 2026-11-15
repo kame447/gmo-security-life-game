@@ -2,7 +2,7 @@ import { buildWorld, type World } from '../../src/world';
 import { toRuntime } from '../../src/world/runtime';
 import { SHOP_AREA_FACTORIES, SHOP_ENTRANCES } from '../../src/world/shops';
 
-/** #33の7店対応予定。施設未紐付けの外観は独立して未対応のまま残す。 */
+/** #33の名前付き7店。施設を持たない背景の住宅は店舗の棚卸しに含めない。 */
 export const STORE_INVENTORY = [
   { objectId: 'town-shop-30-47', style: 'greengrocer', facilityId: 'shop-greengrocer', name: 'やおや', status: 'connected' },
   { objectId: 'town-shop-37-47', style: 'bookstore', facilityId: 'shop-bookstore', name: 'ほんや', status: 'connected' },
@@ -11,8 +11,6 @@ export const STORE_INVENTORY = [
   { objectId: 'town-shop-58-47', style: 'bakery', facilityId: 'shop-bakery', name: 'パンや', status: 'connected' },
   { objectId: 'town-shop-65-47', style: 'cafe', facilityId: 'shop-cafe', name: 'きっさてん', status: 'connected' },
   { objectId: 'town-shop-72-47', style: 'pharmacy', facilityId: 'shop-pharmacy', name: 'くすりや', status: 'connected' },
-  // 施設や表示名を持たないcafe外観。既存のshop-cafeと同一店舗だとは扱わない。
-  { objectId: 'town-shop-60-59', style: 'cafe', facilityId: undefined, name: undefined, status: 'interior-pending' },
 ] as const;
 
 /**

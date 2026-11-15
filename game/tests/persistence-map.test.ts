@@ -16,7 +16,8 @@ describe('read-only inventory and fidelity measurements', () => {
     ]);
     expect(report.areas.reduce((n, a) => n + a.facilities.sourceId, 0)).toBe(12);
     expect(report.areas.reduce((n, a) => n + a.decals.sourceId, 0)).toBe(22);
-    expect(report.areas.reduce((n, a) => n + a.coordinatePatternObjectIds, 0)).toBe(316);
+    // F5 preserves town-shop-60-59 while changing its kind to apartment.
+    expect(report.areas.reduce((n, a) => n + a.coordinatePatternObjectIds, 0)).toBe(315);
     expect(report.areas.reduce((n, a) => n + a.groundSolidCells.auxiliary, 0)).toBe(1985);
     expect(report.areas.reduce((n, a) => n + a.runtimeSolidCells.auxiliary, 0)).toBe(4474);
     expect(report.duplicateSourceIds).toEqual([]);

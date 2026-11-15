@@ -148,7 +148,10 @@ export function createTown(): AreaDef {
   object('vending', 50, 53, 1, 1);
   object('board', 30, 34, 2, 1);
   object('postbox', 41, 36, 1, 1);
-  object('shop', 60, 59, 6, 6, 'cafe'); object('house', 70, 59, 5, 4, '3');
+  // Background residence; keep its source ID for existing editor layouts.
+  objects.push({ id: 'town-shop-60-59', kind: 'apartment', x: 60, y: 59, w: 6, h: 6, style: '0',
+    solid: true, facilityId: undefined, layer: 'sorted' });
+  object('house', 70, 59, 5, 4, '3');
   object('apartment', 70, 64, 6, 5, '2'); rect(60, 66, 7, 3, T.PARKING);
   object('car', 61, 67, 2, 1, '2');
 

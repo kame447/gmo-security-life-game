@@ -119,7 +119,8 @@ describe('trusted real-world editor contract', () => {
     expect(validateDocument(document).length).toBeGreaterThan(0);
     expect(validateDocument(document, context)).toEqual([]);
     const loaded = loadDocument(serializeDocument(document, context), context);
-    expect(loaded.objects.filter(o => /^\d+$/.test(o.style ?? '')).length).toBe(61);
+    // F5 reuses apartment style '0' for the background building.
+    expect(loaded.objects.filter(o => /^\d+$/.test(o.style ?? '')).length).toBe(62);
     expect(loaded.facilities.filter(f => f.kind).length).toBe(12);
     const rebuilt = assembleEditorWorld(loaded);
     expect(rebuilt.variant).toEqual(world.variant);
