@@ -1,5 +1,26 @@
 import type { Facing } from '../../core/coords';
+import type { ObjectDef } from '../../core/types';
 import type { RotationRule } from '../furniture/rotation';
+
+const VALID_FACINGS: ReadonlySet<string> = new Set<Facing>(['down', 'left', 'up', 'right']);
+
+function isFacingValue(value: string | undefined): value is Facing {
+  return value !== undefined && VALID_FACINGS.has(value);
+}
+
+/**
+ * Resolve the effective facing of an object: explicit `facing` takes precedence,
+ * legacy `cafe-chair` layouts fall back to directional `style`, otherwise `'down'`.
+ */
+export function effectiveObjectFacing(
+  object: Pick<ObjectDef, 'kind' | 'facing' | 'style'>,
+): Facing {
+  if (isFacingValue(object.facing)) return object.facing;
+  if (object.kind === 'cafe-chair' && isFacingValue(object.style)) {
+    return object.style;
+  }
+  return 'down';
+}
 
 /** Store floor decals (shop-floor) span an entire room and are not rotatable. */
 export const STORE_FLOOR_REASON = '床の下地のため回せません';

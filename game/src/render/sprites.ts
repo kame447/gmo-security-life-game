@@ -8,6 +8,7 @@ import { drawPlayer, PLAYER_H, PLAYER_W } from './player-sprite';
 import { furnitureSprite } from './furniture/sprites';
 import { legacyFurnitureSprite } from './furniture/legacy-art';
 import { drawShopExterior, storeFurnishingSprite } from './stores';
+import { effectiveObjectFacing } from './stores/rotation';
 
 export interface Sprite { canvas: HTMLCanvasElement; ox: number; oy: number }
 const objects = new Map<string, Sprite>();
@@ -301,7 +302,7 @@ function prop(c: C2D, o: ObjectDef, w: number, h: number): void {
 
 export function objectSprite(o: ObjectDef): Sprite {
   const furniture = furnitureSprite(o) ?? legacyFurnitureSprite(o); if (furniture) return furniture;
-  const key = JSON.stringify([o.kind, o.w, o.h, o.style ?? '', o.facing ?? 'down']);
+  const key = JSON.stringify([o.kind, o.w, o.h, o.style ?? '', effectiveObjectFacing(o)]);
   const cached = objects.get(key); if (cached) return cached;
   const store = storeFurnishingSprite(o);
   if (store) { objects.set(key, store); return store; }

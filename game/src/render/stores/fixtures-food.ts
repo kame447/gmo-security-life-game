@@ -69,9 +69,9 @@ import {
   drawMachineBack,
   drawSideProfile,
   rotatedCwContext,
-  storeFacing,
   uprightTileHeight,
 } from './rotation-art';
+import { effectiveObjectFacing } from './rotation';
 
 function drawDirectional(
   c: C2D,
@@ -1462,7 +1462,7 @@ export function foodStoreSprite(o: ObjectDef): StoreSprite | null {
   const w = o.w * TILE;
   const h = o.h * TILE;
   const style = o.style ?? '';
-  const facing = storeFacing(o);
+  const facing = effectiveObjectFacing(o);
   const tallOy = uprightTileHeight(o) >= 2 ? 0 : -12;
 
   switch (o.kind) {
@@ -1506,14 +1506,8 @@ export function foodStoreSprite(o: ObjectDef): StoreSprite | null {
       return sprite(w, h + 6, -6, (c) => drawCafeCounterDir(c, w, h, facing, style));
     case 'cafe-table':
       return sprite(w, h + 5, -5, (c) => drawCafeTableDir(c, w, h + 5, facing, style));
-    case 'cafe-chair': {
-      const chairDir: Facing =
-        o.facing ??
-        (style === 'left' || style === 'right' || style === 'up' || style === 'down'
-          ? style
-          : 'down');
-      return sprite(w, h + 4, -4, (c) => drawCafeChair(c, w, h + 4, chairDir));
-    }
+    case 'cafe-chair':
+      return sprite(w, h + 4, -4, (c) => drawCafeChair(c, w, h + 4, facing));
     case 'cafe-sofa':
       return sprite(w, h + 4, -4, (c) => drawCafeSofaDir(c, w, h + 4, facing));
     case 'cafe-menu-board':

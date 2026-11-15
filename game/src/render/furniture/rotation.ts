@@ -1,6 +1,6 @@
 import type { Facing } from '../../core/coords';
 import type { ObjectDef } from '../../core/types';
-import { STORE_ROTATION_RULES } from '../stores/rotation';
+import { effectiveObjectFacing, STORE_ROTATION_RULES } from '../stores/rotation';
 import { furnitureById, furnitureVariant, nextFacing } from './catalog';
 
 export const FOUR_DIRECTIONS: readonly Facing[] = Object.freeze(['down', 'left', 'up', 'right']);
@@ -124,7 +124,7 @@ export function canRotateObject(object: Pick<ObjectDef, 'catalogId' | 'kind'>): 
 }
 
 export function rotatedObjectVariant(
-  object: Pick<ObjectDef, 'catalogId' | 'kind' | 'facing' | 'w' | 'h'>,
+  object: Pick<ObjectDef, 'catalogId' | 'kind' | 'facing' | 'style' | 'w' | 'h'>,
 ): { facing: Facing; w: number; h: number } {
   const rule = objectRotationRule(object);
   if (!rule) throw new Error(UNKNOWN_ROTATION_REASON);
@@ -134,7 +134,7 @@ export function rotatedObjectVariant(
     const variant = furnitureVariant(object.catalogId, facing)!;
     return { facing: variant.facing, w: variant.w, h: variant.h };
   }
-  const current = object.facing ?? 'down';
+  const current = effectiveObjectFacing(object);
   const index = rule.directions.indexOf(current);
   const facing = rule.directions[(index >= 0 ? index + 1 : 1) % rule.directions.length];
   return { facing, ...rotatedDimensions(object, facing) };

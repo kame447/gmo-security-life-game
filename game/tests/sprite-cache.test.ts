@@ -77,4 +77,49 @@ describe('objectSprite facing cache key', () => {
     expect(revDown).not.toBe(revUp);
     expect([...raster(revDown.canvas)]).toEqual([...raster(storeFurnishingSprite({ ...reverseBase, facing: 'down' })!.canvas)]);
   });
+
+  it('keeps legacy style-only cafe-chair and explicit facing:down distinct in both draw orders and uses style:down as control', async () => {
+    for (const legacyDir of ['left', 'right', 'up', 'down'] as const) {
+      for (const order of ['legacy-first', 'explicit-down-first'] as const) {
+        vi.resetModules();
+        const { objectSprite: freshObjectSprite } = await import('../src/render/sprites');
+        const { storeFurnishingSprite: freshStoreSprite } = await import('../src/render/stores');
+
+        const legacy: ObjectDef = {
+          id: `legacy-${legacyDir}`,
+          kind: 'cafe-chair',
+          style: legacyDir,
+          x: 2,
+          y: 4,
+          w: 1,
+          h: 1,
+          solid: true,
+        };
+        const explicitDown: ObjectDef = { ...legacy, facing: 'down' };
+
+        const first = freshObjectSprite(order === 'legacy-first' ? legacy : explicitDown);
+        const second = freshObjectSprite(order === 'legacy-first' ? explicitDown : legacy);
+        const cachedLegacy = order === 'legacy-first' ? first : second;
+        const cachedDown = order === 'legacy-first' ? second : first;
+
+        const directLegacy = freshStoreSprite({ kind: 'cafe-chair', facing: legacyDir, x: 2, y: 4, w: 1, h: 1, solid: true })!;
+        const directDown = freshStoreSprite({ kind: 'cafe-chair', facing: 'down', x: 2, y: 4, w: 1, h: 1, solid: true })!;
+
+        expect([...raster(cachedLegacy.canvas)], `${legacyDir}/${order} legacy pixels`).toEqual([...raster(directLegacy.canvas)]);
+        expect([...raster(cachedDown.canvas)], `${legacyDir}/${order} explicit down pixels`).toEqual([...raster(directDown.canvas)]);
+
+        if (legacyDir === 'down') {
+          expect(cachedDown, `down control ${order}`).toBe(cachedLegacy);
+        } else {
+          expect(cachedDown, `${legacyDir}/${order} distinct cache entry`).not.toBe(cachedLegacy);
+          expect([...raster(cachedDown.canvas)], `${legacyDir}/${order} distinct pixels`).not.toEqual([...raster(cachedLegacy.canvas)]);
+        }
+
+        // Explicit facing overrides legacy style even when cached alongside omitted-facing legacy objects.
+        const overrideUp = freshObjectSprite({ ...legacy, facing: 'up' });
+        const directUp = freshStoreSprite({ kind: 'cafe-chair', facing: 'up', x: 2, y: 4, w: 1, h: 1, solid: true })!;
+        expect([...raster(overrideUp.canvas)], `${legacyDir}/${order} explicit up override`).toEqual([...raster(directUp.canvas)]);
+      }
+    }
+  });
 });
