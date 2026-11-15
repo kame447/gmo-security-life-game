@@ -12,6 +12,7 @@ export interface PlayerPosition { areaId: string; x: number; y: number; facing: 
 export const WALK_SPEED = 72;
 export const RUN_SPEED = 128;
 export const BIKE_SPEED = 176;
+export const BIKE_DASH_SPEED = 240;
 export const HITBOX = { halfW: 5, h: 8 };
 
 function outside(area: AreaRuntime, x: number, y: number): boolean {
@@ -74,7 +75,7 @@ export class MapExplorer {
     if (!Number.isFinite(dt) || dt <= 0) return;
     if (!input.dir) { this.edgeContact = null; return; }
     this.player.facing = input.dir;
-    const speed = this.riding ? BIKE_SPEED : input.run ? RUN_SPEED : WALK_SPEED;
+    const speed = this.riding ? (input.run ? BIKE_DASH_SPEED : BIKE_SPEED) : input.run ? RUN_SPEED : WALK_SPEED;
     let remaining = dt * speed;
     while (remaining > 0) {
       const step = Math.min(1, remaining);

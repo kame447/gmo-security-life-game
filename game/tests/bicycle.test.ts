@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { APPEARANCE_OPTIONS, DEFAULT_APPEARANCE, type PlayerAppearance } from '../src/core/appearance';
 import type { Facing } from '../src/core/coords';
 import type { AreaDef, PortalDef } from '../src/core/types';
-import { BIKE_SPEED, RUN_SPEED } from '../src/map/explorer';
+import { BIKE_DASH_SPEED, BIKE_SPEED, RUN_SPEED } from '../src/map/explorer';
 import { drawRider, RIDER_H, RIDER_W } from '../src/render/bicycle-sprite';
 import type { C2D } from '../src/render/draw';
 import { Game } from '../src/session/game';
@@ -23,17 +23,18 @@ function world(): World {
 }
 
 describe('bicycle riding', () => {
-  it('gets on outdoors and moves faster than running, ignoring the run key', () => {
+  it('gets on outdoors, rides faster than running, and dashes faster still with Shift', () => {
     const game = new Game(world());
     expect(game.riding).toBe(false);
     expect(game.toggleBicycle()).toBe(true);
     expect(game.riding).toBe(true);
-    expect(BIKE_SPEED).toBeGreaterThan(RUN_SPEED);
+    expect(RUN_SPEED).toBeLessThan(BIKE_SPEED);
+    expect(BIKE_SPEED).toBeLessThan(BIKE_DASH_SPEED);
     const start = game.player.x;
     game.update(0.05, { dir: 'right', run: false });
     expect(game.player.x).toBeCloseTo(start + BIKE_SPEED * 0.05);
     game.update(0.05, { dir: 'right', run: true });
-    expect(game.player.x).toBeCloseTo(start + BIKE_SPEED * 0.1);
+    expect(game.player.x).toBeCloseTo(start + (BIKE_SPEED + BIKE_DASH_SPEED) * 0.05);
     expect(game.toggleBicycle()).toBe(true);
     expect(game.riding).toBe(false);
   });
