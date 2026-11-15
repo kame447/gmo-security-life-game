@@ -173,13 +173,23 @@ function drawBakeryTrayStand(c: C2D, w: number, totalH: number): void {
   }
 }
 
-function drawBakeryCounter(c: C2D, w: number, h: number): void {
-  shopCounter(c, w, h, WOOD_CREAM, WOOD_MID, '#cf7d3e', w - 12, '#4f4640');
+function drawBakeryCounter(c: C2D, w: number, h: number, style = ''): void {
+  const isSide = style === 'side';
+  shopCounter(c, w, h, WOOD_CREAM, WOOD_MID, '#cf7d3e', isSide ? -1 : w - 12, '#4f4640');
+  if (isSide) {
+    wovenBasket(c, 4, 3, 11, 8);
+    drawCroissant(c, 4, 2);
+    if (w >= 32) {
+      box(c, w - 11, 2, 8, 9, '#c89b5e');
+      R(c, '#a8783e', w - 10, 3, 6, 2);
+    }
+    return;
+  }
   box(c, 3, 2, 8, 9, '#c89b5e');
   R(c, '#a8783e', 4, 3, 6, 2);
   if (w >= 32) {
-    wovenBasket(c, 12, 3, 9, 8);
-    drawCroissant(c, 11, 2);
+    // Keep 3px clear gap before the register outline at x = w - 12
+    box(c, 13, 5, 5, 5, '#faecd2');
   }
 }
 
@@ -298,12 +308,14 @@ function drawCafeCakeCase(c: C2D, w: number, totalH: number): void {
   glassSheen(c, 2, 3, w - 4, glassH);
 }
 
-function drawCafeCounter(c: C2D, w: number, h: number): void {
-  shopCounter(c, w, h, '#b87d4b', '#5a3824', '#396d54', w - 12, '#4f463e');
+function drawCafeCounter(c: C2D, w: number, h: number, style = ''): void {
+  const isSide = style === 'side';
+  shopCounter(c, w, h, '#b87d4b', '#5a3824', '#396d54', isSide ? -1 : w - 12, '#4f463e');
   drawCoffeeCup(c, 3, 2, true);
   if (w >= 32) {
     R(c, '#f6d06a', 14, 1, 5, 4);
     R(c, '#7c5a32', 15, 5, 3, 5);
+    if (isSide) drawCoffeeCup(c, w - 10, 2, true);
   }
 }
 
@@ -490,22 +502,28 @@ function drawKonbiniIceFreezer(c: C2D, w: number, h: number): void {
   glassSheen(c, 2, 2, w - 4, h - 5);
 }
 
-function drawKonbiniCounter(c: C2D, w: number, h: number): void {
-  // Left-side register beside clerk at checkout edge
-  shopCounter(c, w, h, WHITE, '#e5ebe9', '#399679', 2, '#4c5761');
+function drawKonbiniCounter(c: C2D, w: number, h: number, style = ''): void {
+  const isSide = style === 'side';
+  // Left-side checkout carries register next to clerk; right side holds steamer & coffee
+  shopCounter(c, w, h, WHITE, '#e5ebe9', '#399679', isSide ? -1 : w - 12, '#4c5761');
   R(c, '#ea823a', 1, 18, w - 2, 1);
+  if (!isSide) {
+    box(c, 4, 4, 9, 6, '#7cb89a');
+    R(c, WHITE, 5, 5, 7, 2);
+    return;
+  }
   // Nikuman hot steamer case
-  box(c, 13, 1, 9, 10, '#f6dfb0');
-  R(c, '#f8b959', 14, 2, 7, 8);
-  R(c, WHITE, 15, 3, 2, 2);
-  R(c, WHITE, 18, 3, 2, 2);
-  R(c, WHITE, 15, 6, 2, 2);
-  R(c, WHITE, 18, 6, 2, 2);
+  box(c, 4, 1, 9, 10, '#f6dfb0');
+  R(c, '#f8b959', 5, 2, 7, 8);
+  R(c, WHITE, 6, 3, 2, 2);
+  R(c, WHITE, 9, 3, 2, 2);
+  R(c, WHITE, 6, 6, 2, 2);
+  R(c, WHITE, 9, 6, 2, 2);
   if (w >= 30) {
     // Self-serve hot coffee tower
-    box(c, w - 9, 0, 8, 11, '#394048');
-    R(c, '#95d4c2', w - 8, 1, 6, 3);
-    R(c, WHITE, w - 6, 6, 3, 4);
+    box(c, w - 11, 0, 8, 11, '#394048');
+    R(c, '#95d4c2', w - 10, 1, 6, 3);
+    R(c, WHITE, w - 8, 6, 3, 4);
   }
 }
 
@@ -541,7 +559,7 @@ export function foodStoreSprite(o: ObjectDef): StoreSprite | null {
     case 'bakery-tray-stand':
       return sprite(w, h + 4, -4, (c) => drawBakeryTrayStand(c, w, h + 4));
     case 'bakery-counter':
-      return sprite(w, h + 6, -6, (c) => drawBakeryCounter(c, w, h));
+      return sprite(w, h + 6, -6, (c) => drawBakeryCounter(c, w, h, style));
 
     // Greengrocer
     case 'greengrocer-produce-stand': {
@@ -563,7 +581,7 @@ export function foodStoreSprite(o: ObjectDef): StoreSprite | null {
     case 'cafe-cake-case':
       return sprite(w, h + 10, -10, (c) => drawCafeCakeCase(c, w, h + 10));
     case 'cafe-counter':
-      return sprite(w, h + 6, -6, (c) => drawCafeCounter(c, w, h));
+      return sprite(w, h + 6, -6, (c) => drawCafeCounter(c, w, h, style));
     case 'cafe-table':
       return sprite(w, h + 5, -5, (c) => drawCafeTable(c, w, h + 5, style));
     case 'cafe-chair':
@@ -589,7 +607,7 @@ export function foodStoreSprite(o: ObjectDef): StoreSprite | null {
     case 'konbini-ice-freezer':
       return sprite(w, h + 4, -4, (c) => drawKonbiniIceFreezer(c, w, h + 4));
     case 'konbini-counter':
-      return sprite(w, h + 6, -6, (c) => drawKonbiniCounter(c, w, h));
+      return sprite(w, h + 6, -6, (c) => drawKonbiniCounter(c, w, h, style));
 
     default:
       return null;

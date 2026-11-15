@@ -125,14 +125,15 @@ function drawBookstoreMagazineRack(c: C2D, w: number, totalH: number): void {
   }
 }
 
-function drawBookstoreCounter(c: C2D, w: number, h: number): void {
-  shopCounter(c, w, h, WOOD_CREAM, '#6f482b', '#4d7762', w - 12, '#4f5862');
+function drawBookstoreCounter(c: C2D, w: number, h: number, style = ''): void {
+  const isSide = style === 'side';
+  shopCounter(c, w, h, WOOD_CREAM, '#6f482b', '#4d7762', isSide ? -1 : w - 12, '#4f5862');
   box(c, 3, 2, 8, 8, '#d9b583');
   R(c, '#b78b54', 4, 5, 6, 1);
-  if (w >= 32) {
-    box(c, 13, 2, 6, 8, '#5a8370');
-    R(c, '#e65d52', 14, 0, 2, 2);
-    R(c, '#f4c542', 17, 0, 1, 2);
+  if (isSide && w >= 32) {
+    box(c, 16, 2, 6, 8, '#5a8370');
+    R(c, '#e65d52', 17, 0, 2, 2);
+    R(c, '#f4c542', 20, 0, 1, 2);
   }
 }
 
@@ -256,16 +257,21 @@ function drawPharmacyDailyShelf(c: C2D, w: number, totalH: number): void {
   }
 }
 
-function drawPharmacyCounter(c: C2D, w: number, h: number): void {
-  shopCounter(c, w, h, WHITE, '#e3eeeb', MINT_DARK, w - 12, '#677880');
+function drawPharmacyCounter(c: C2D, w: number, h: number, style = ''): void {
+  const isSide = style === 'side';
+  shopCounter(c, w, h, WHITE, '#e3eeeb', MINT_DARK, isSide ? -1 : w - 12, '#677880');
   // Cross sits centered in apron row y=13..19 (totalH = h+6 = 22), cleanly above shadow
   drawCross(c, Math.floor(w / 2) - 2, 14, WHITE);
   box(c, 3, 4, 8, 6, '#5ca8dc');
   R(c, WHITE, 5, 5, 4, 2);
-  if (w >= 32) {
-    box(c, 13, 4, 6, 5, WHITE);
-    R(c, SILVER, 14, 2, 2, 3);
-    R(c, GLASS_HI, 4, 5, 5, 1);
+  R(c, GLASS_HI, 4, 5, 5, 1);
+  if (isSide && w >= 32) {
+    box(c, 15, 4, 6, 5, WHITE);
+    R(c, SILVER, 16, 2, 2, 3);
+    if (w >= 48) {
+      box(c, 26, 4, 9, 6, '#5ca8dc');
+      R(c, WHITE, 28, 5, 5, 2);
+    }
   }
   void INK;
 }
@@ -299,7 +305,7 @@ export function retailStoreSprite(o: ObjectDef): StoreSprite | null {
     case 'bookstore-magazine-rack':
       return sprite(w, h + 12, -12, (c) => drawBookstoreMagazineRack(c, w, h + 12));
     case 'bookstore-counter':
-      return sprite(w, h + 6, -6, (c) => drawBookstoreCounter(c, w, h));
+      return sprite(w, h + 6, -6, (c) => drawBookstoreCounter(c, w, h, style));
 
     // Candy shop
     case 'candy-box-rack': {
@@ -333,7 +339,7 @@ export function retailStoreSprite(o: ObjectDef): StoreSprite | null {
       return sprite(w, h - oy, oy, (c) => drawPharmacyDailyShelf(c, w, h - oy));
     }
     case 'pharmacy-counter':
-      return sprite(w, h + 6, -6, (c) => drawPharmacyCounter(c, w, h));
+      return sprite(w, h + 6, -6, (c) => drawPharmacyCounter(c, w, h, style));
     case 'pharmacy-bench':
       return sprite(w, h, 0, (c) => drawShopBench(c, w, h, MINT_MID, MINT_LIGHT));
 

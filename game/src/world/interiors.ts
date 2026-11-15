@@ -78,7 +78,8 @@ export function createKonbini(): AreaDef {
   furnish(a, 'konbini-food-shelf', 5, 4, 3, 1);
   furnish(a, 'konbini-daily-shelf', 1, 7, 3, 1);
   furnish(a, 'konbini-ice-freezer', 10, 6, 2, 1);
-  furnish(a, 'konbini-counter', 11, 3, 2, 1);
+  furnish(a, 'konbini-counter', 8, 3, 2, 1);
+  furnish(a, 'konbini-counter', 11, 3, 2, 1, true, 'side');
   a.portals = [{ id: 'konbini-exit', from: { x: 6, y: 9, w: 2 }, to: toTown(LANDMARKS.konbiniDoorFront), facilityId: 'shop-konbini' }];
   a.interactions = [
     { id: 'konbini-clerk', kind: 'npc', name: 'てんいんさん', x: 10, y: 3, sprite: 'clerk', facing: 'down', solid: true, eventKey: 'shopping.konbini.clerk', lines: ['いらっしゃいませ。おやつも のみものも あるよ。ゆっくり みてね。'] },

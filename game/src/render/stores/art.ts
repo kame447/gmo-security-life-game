@@ -95,7 +95,7 @@ export function wovenBasket(c: C2D, x: number, y: number, w: number, h: number):
   }
 }
 
-/** Shop checkout counter base with cash register & apron stripe (draws into totalH = h + 6). */
+/** Shop checkout counter base with optional cash register & apron stripe (draws into totalH = h + 6). */
 export function shopCounter(
   c: C2D,
   w: number,
@@ -113,10 +113,12 @@ export function shopCounter(
   R(c, '#ffffff', 2, 6, w - 4, 1);
   R(c, INK, 1, 12, w - 2, 1);
   R(c, stripeCol, 1, 13, w - 2, totalH - 15);
-  // Register sitting on counter top
-  box(c, regX, 0, 10, 10, regCol);
-  R(c, '#9fb6c2', regX + 2, 1, 6, 4);
-  R(c, '#d7e2e7', regX + 2, 6, 6, 2);
+  if (regX >= 0) {
+    // Register sitting on counter top
+    box(c, regX, 0, 10, 10, regCol);
+    R(c, '#9fb6c2', regX + 2, 1, 6, 4);
+    R(c, '#d7e2e7', regX + 2, 6, 6, 2);
+  }
 }
 
 /** Small paper price tag or POP accent card. */
