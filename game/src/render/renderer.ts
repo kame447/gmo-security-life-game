@@ -130,7 +130,7 @@ export class Renderer {
       let y = interaction.y * TILE - 8;
       if (interaction.kind === 'npc') y = feet.y + characterSprite(interaction.sprite ?? 'friend', interaction.facing ?? 'down', 0).oy - 9;
       else {
-        const object = area.objects.find(o => interaction.x >= o.x && interaction.x < o.x + o.w && interaction.y >= o.y && interaction.y < o.y + o.h);
+        const object = area.objects.find(o => !(o.layer === 'decal' && !o.solid) && interaction.x >= o.x && interaction.x < o.x + o.w && interaction.y >= o.y && interaction.y < o.y + o.h);
         if (object) y = object.y * TILE + objectSprite(object).oy - 9;
       }
       return { x, y, feetX: x, feetY: (interaction.y + (interaction.h ?? 1)) * TILE - 2 };
