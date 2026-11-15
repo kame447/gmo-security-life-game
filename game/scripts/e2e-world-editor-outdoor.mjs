@@ -22,6 +22,19 @@ async function start(){serverOutput='';server=spawn(process.execPath,[path.join(
  server.stdout.on('data',b=>serverOutput+=b);server.stderr.on('data',b=>serverOutput+=b);
  const deadline=Date.now()+20000;while(Date.now()<deadline){if(server.exitCode!==null)throw new Error(serverOutput);try{if(serverOutput.includes('Local:')&&(await fetch(`${origin}/world-editor.html`)).ok)return;}catch{}await new Promise(resolve=>setTimeout(resolve,100));}throw new Error(`Server timeout: ${serverOutput}`);}
 async function stop(){if(!server||server.exitCode!==null)return;const current=server,done=new Promise(resolve=>current.once('exit',resolve));current.kill('SIGTERM');await done;}
+const saveTimeLeft=deadline=>{const remaining=deadline-Date.now();if(remaining<=0)throw new Error('Save timeout');return remaining;};
+async function savedEditorSnapshot(page,deadline){
+ while(Date.now()<deadline){
+  try{
+   await page.waitForFunction(()=>window.__worldEditor?.model?.dirty===0,undefined,{timeout:saveTimeLeft(deadline)});
+   saveTimeLeft(deadline);
+   const snapshot=await page.evaluate(()=>{const model=window.__worldEditor?.model;return model?{dirty:model.dirty,document:model.document}:null;});
+   saveTimeLeft(deadline);
+   if(snapshot)return snapshot;
+  }catch(error){if(!String(error.message).includes('Execution context was destroyed'))throw error;}
+ }
+ throw new Error('Save timeout');
+}
 const doc=page=>page.evaluate(()=>window.__worldEditor.model.document);
 const object=(page,id)=>page.evaluate(id=>window.__worldEditor.model.document.objects.find(o=>o.id===id),id);
 const frames=page=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
@@ -68,9 +81,10 @@ async function drag(s,id,x,y,expected=true){await focusObject(s,id);const p=awai
  else{await s.page.mouse.move(p.x,p.y);await s.page.mouse.down();await s.page.mouse.move(p.x+delta.x,p.y+delta.y,{steps:8});await s.page.mouse.up();}
  if(expected)await s.page.waitForFunction(({id,x,y})=>{const o=window.__worldEditor.model.document.objects.find(o=>o.id===id);return o?.x===x&&o?.y===y;},{id,x,y});await frames(s.page);
 }
-async function save(s,areaIds){await s.click('#save');await s.page.locator('#save-confirm').waitFor({state:'visible'});
+async function save(s,areaIds){const expected=await doc(s.page);await s.click('#save');await s.page.locator('#save-confirm').waitFor({state:'visible'});
  const targets=await s.page.locator('#save-files li').allTextContents();assert.equal(targets.length,areaIds.length);for(const id of areaIds)assert.ok(targets.some(text=>text.includes(`${id}.json`)),JSON.stringify(targets));
- await s.click('#save-commit');await s.page.locator('#save-confirm').waitFor({state:'hidden'});await s.page.waitForFunction(()=>window.__worldEditor.model.dirty===0);
+ const deadline=Date.now()+30000;await s.click('#save-commit');await s.page.locator('#save-confirm').waitFor({state:'hidden',timeout:saveTimeLeft(deadline)});
+ const snapshot=await savedEditorSnapshot(s.page,deadline);assert.equal(snapshot.dirty,0);assert.deepEqual(snapshot.document,expected);
  for(const id of areaIds)JSON.parse(await readFile(path.join(root,directory,`${id}.json`),'utf8'));return targets;
 }
 async function restart(s,expected){await close(s);await stop();await start();const fresh=await session({width:1280,height:800});await ready(fresh);assert.deepEqual(await doc(fresh.page),expected);return fresh;}
