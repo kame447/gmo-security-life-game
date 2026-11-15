@@ -40,6 +40,11 @@
       #opening-menu button:disabled { color: #8c8794; cursor: default; }
       #opening-hint { margin: 6px 0 0; text-align: center; font-size: 12px; color: #e8e0cc; }
       @media (pointer: coarse), (max-height: 440px) { #opening-hint { display: none; } }
+      @media (min-width: 560px) and (max-height: 440px) and (orientation: landscape) {
+        #opening[data-variant="a"] #opening-menu, #opening[data-variant="b"] #opening-menu {
+          left: auto; right: max(10px, env(safe-area-inset-right)); transform: none;
+        }
+      }
       @media (prefers-reduced-motion: no-preference) {
         #opening-menu:not([hidden]) { animation: menu-in 0.25s ease-out; }
         @keyframes menu-in { from { opacity: 0; } to { opacity: 1; } }

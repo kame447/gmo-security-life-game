@@ -35,6 +35,7 @@ let artPromise: Promise<Art> | undefined;
 export async function startOpening(o: OpeningOptions): Promise<OpeningHandle> {
   const art = await (artPromise ??= loadArt());
   const scene = SCENES[o.variant];
+  o.stage.dataset.variant = o.variant;
   const c = o.canvas.getContext('2d')!;
   const env: SceneEnv = { c, w: 0, h: 0, art, logo: makeLogo(1), small: makeLogo(0.7) };
   let menu: MenuState = createMenu(o.hasSave);
@@ -96,6 +97,7 @@ export async function startOpening(o: OpeningOptions): Promise<OpeningHandle> {
   function replay(): void {
     t = 0; reveal = 0;
     setPhase('playing');
+    o.skipButton.focus({ preventScroll: true });
   }
   function onKey(e: KeyboardEvent): void {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
