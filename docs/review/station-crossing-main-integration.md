@@ -35,7 +35,7 @@ PR #57（i2rin、`feat/bicycle-ride`）とは `explorer.ts`・`renderer.ts` の�
 | 検査 | 結果 |
 | --- | --- |
 | `npm run build` | PASS。編集データ検証・TypeScript・Vite build。 |
-| `npm test` | Vitest 42ファイル482件、CLI 13件 PASS。 |
+| `npm test` | Vitest 43ファイル487件、CLI 13件 PASS（CI出力先の回帰5件を含む）。 |
 | `git diff --check` | PASS。ソースの衝突マーカーなし。 |
 | 統合 UI E2E | 修正後9/9 PASS。PC1280×800・スマホ390×844/844×390で往復。出発側・到着側の入力抑止、到着通知1回、改札外での操作復帰、資産・外見・スマホと保存再開を検査。 |
 | 乗降車 E2E | 修正後11/11 PASS。元の町から駅までの徒歩、行き先の決定、乗降車と帰路、保存再開、動きを減らす設定、スマホ縦横のタッチ。 |
