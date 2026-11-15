@@ -69,10 +69,12 @@ export class BgmPlayer {
     this.schedule();
   }
 
+  /** Stop and drop already scheduled notes; the next `play()` starts from the top with a fresh context. */
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    void this.ctx?.suspend();
+    void this.ctx?.close();
+    this.ctx = null;
   }
 
   /** Pause without losing the position, e.g. while the tab is hidden. */
@@ -96,7 +98,7 @@ export class BgmPlayer {
       gain.connect(this.master);
       this.voices[voice] = gain;
     }
-    this.waves = { lead: pulseWave(ctx, 0.25), harmony: pulseWave(ctx, 0.125) };
+    this.waves = { lead: pulseWave(ctx, this.song.leadDuty), harmony: pulseWave(ctx, 0.125) };
     this.noise = noiseBuffer(ctx);
     return ctx;
   }
