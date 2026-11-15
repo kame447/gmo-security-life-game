@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { TILE, type Facing } from '../src/core/coords';
 import { canStand, HITBOX, MapExplorer, WALK_SPEED } from '../src/map/explorer';
+import { RIDER_H, RIDER_W } from '../src/render/bicycle-sprite';
+import { PLAYER_H, PLAYER_W } from '../src/render/player-sprite';
 import { Game } from '../src/session/game';
 import { advanceCrossingClock, clearCrossingClock } from '../src/town-train/crossing-clock';
 import { CROSSING_PROTOTYPE, crossingContains, crossingState, getCrossings } from '../src/town-train/crossings';
@@ -115,6 +117,30 @@ describe.each(towns)('%s physical crossing and safety', areaId => {
       p.y <= f.y || p.y - 26 >= f.footY, `train overlap at ${t}: ${JSON.stringify(p)}`).toBe(true);
     expect(canStand(area, p.x, p.y)).toBe(true);
   };
+
+  it('keeps the full walking and riding sprites clear of trains at both waiting lines for a whole cycle', () => {
+    const positions = getCrossings(area).flatMap(c => {
+      expect(c.southWaitY - c.bottom - RIDER_H, c.id).toBeGreaterThanOrEqual(CROSSING_PROTOTYPE.clearancePixels);
+      return [c.left + HITBOX.halfW, (c.left + c.right) / 2, c.right - HITBOX.halfW].flatMap(x =>
+        [c.northWaitY, c.southWaitY].flatMap(y => {
+          expect(canStand(area, x, y), `${c.id} waiting at ${x},${y}`).toBe(true);
+          return [{ w: PLAYER_W, h: PLAYER_H }, { w: RIDER_W, h: RIDER_H }].map(size => ({ crossing: c.id, x, y, ...size }));
+        }));
+    });
+    const failures: { crossing: string; x: number; y: number; w: number; h: number; t: number }[] = [];
+    const seen = new Set<string>();
+    for (let n = 0; n <= period * 20; n++) {
+      const t = n / 20;
+      for (const f of trains.frames(area, t)) for (const p of positions) {
+        const left = Math.round(p.x) - p.w / 2, top = Math.round(p.y) - p.h;
+        if (left + p.w <= f.x || left >= f.x + f.length) continue;
+        seen.add(`${p.crossing}:${f.direction}`);
+        if (top < f.footY && top + p.h > f.y && failures.length < 10) failures.push({ ...p, t });
+      }
+    }
+    expect(seen.size).toBe(getCrossings(area).length * 2);
+    expect(failures).toEqual([]);
+  });
 
   it('lets both directions cross while open, stops all approaches while closed, and releases after passage', () => {
     for (const c of getCrossings(area)) for (const direction of ['down', 'up'] as const) {

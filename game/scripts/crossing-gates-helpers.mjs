@@ -72,6 +72,7 @@ export async function installProbe(page) {
     const { crossingState, getCrossings } = await import('/src/town-train/crossings.ts');
     const { TownTrainService } = await import('/src/town-train/service.ts');
     const { canStand } = await import('/src/map/explorer.ts');
+    const { playerSprite } = await import('/src/render/sprites.ts');
     const service = new TownTrainService(), renderer = window.__slg.renderer;
     window.__crossingFrames = [];
     if (renderer.__crossingObserved) return;
@@ -81,9 +82,13 @@ export async function installProbe(page) {
       draw(game, t);
       if (game.area.def.kind !== 'outdoor') return;
       const p = game.player;
+      const sprite = playerSprite(game.appearance, p.facing, 0, game.riding);
+      const left = Math.round(p.x) + sprite.ox, top = Math.round(p.y) + sprite.oy;
       const touchingTrain = service.frames(game.area, t).some(f =>
-        p.x + 9 > f.x && p.x - 9 < f.x + f.length && p.y > f.y && p.y - 26 < f.footY);
+        left + sprite.canvas.width > f.x && left < f.x + f.length &&
+        top + sprite.canvas.height > f.y && top < f.footY);
       window.__crossingFrames.push({ t, player: { ...p }, moving: game.moving, touchingTrain,
+        riding: game.riding, sprite: { w: sprite.canvas.width, h: sprite.canvas.height, ox: sprite.ox, oy: sprite.oy },
         standable: canStand(game.area, p.x, p.y),
         crossings: getCrossings(game.area).map(c => ({ id: c.id, ...crossingState(game.area, c, t) })) });
       if (window.__crossingFrames.length > 5000) window.__crossingFrames.shift();

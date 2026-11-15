@@ -1,4 +1,5 @@
 import { TILE } from '../core/coords';
+import { RIDER_H } from '../render/bicycle-sprite';
 import { PLAYER_H, PLAYER_W } from '../render/player-sprite';
 import type { AreaRuntime } from '../world';
 import { TOWN_RAIL_LAYOUTS } from '../world/rail-layouts';
@@ -60,7 +61,7 @@ export function getCrossings(area: AreaRuntime): readonly Crossing[] {
         northGateY: top - CROSSING_PROTOTYPE.clearancePixels,
         southGateY: bottom + 8 + CROSSING_PROTOTYPE.clearancePixels,
         northWaitY: top - (TOWN_TRAIN_PROTOTYPE.heightPixels - TILE) - CROSSING_PROTOTYPE.clearancePixels,
-        southWaitY: bottom + PLAYER_H + CROSSING_PROTOTYPE.clearancePixels }));
+        southWaitY: bottom + Math.max(PLAYER_H, RIDER_H) + CROSSING_PROTOTYPE.clearancePixels }));
     }
   }
   crossings.set(area, result);
