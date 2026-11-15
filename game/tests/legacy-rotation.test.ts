@@ -90,6 +90,7 @@ describe('legacy and indoor rotation contract', () => {
 
     for (const area of indoorAreas) {
       const areaId = area.def.id;
+      const doc = model.document;
       for (const baseObj of area.def.objects) {
         const o = model.object(baseObj.id!, undefined, areaId)!;
         const rule = objectRotationRule(o);
@@ -101,11 +102,13 @@ describe('legacy and indoor rotation contract', () => {
           expect(objectRotationReason(o)).toBe(WALL_ROTATION_REASON);
           expect(() => model.rotate(o.id, areaId)).toThrow(WALL_ROTATION_REASON);
 
+          const wallTarget = doc.objects.find(item => item.id === o.id)!;
+          const prevFacing = wallTarget.facing;
           for (const badFacing of ['left', 'up', 'right'] as const) {
-            const forged = model.document;
-            forged.objects.find(item => item.id === o.id)!.facing = badFacing;
-            expect(() => assertInteriorEdit(model.initial, forged, areaId)).toThrow(WALL_ROTATION_REASON);
+            wallTarget.facing = badFacing;
+            expect(() => assertInteriorEdit(model.initial, doc, areaId)).toThrow(WALL_ROTATION_REASON);
           }
+          wallTarget.facing = prevFacing;
           continue;
         }
 
@@ -115,7 +118,6 @@ describe('legacy and indoor rotation contract', () => {
         expect(rule!.directions).toEqual(expectedDirs);
 
         // Verify rotation metadata, full facing cycle, and interior policy for every single object in every indoor room.
-        const doc = model.document;
         const target = doc.objects.find(item => item.id === o.id)!;
         const linked = doc.interactions.filter(i => i.objectId === o.id);
         for (let step = 1; step <= expectedDirs.length; step++) {
@@ -132,6 +134,7 @@ describe('legacy and indoor rotation contract', () => {
         expect(target.kind).toBe(o.kind);
         expect(target.catalogId).toBe(o.catalogId);
         expect(target.facing).toBe('down');
+        target.facing = o.facing;
       }
     }
 
