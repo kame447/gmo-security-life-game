@@ -26,6 +26,7 @@ export function createShopInterior(shop: ShopInteriorDefinition): AreaDef {
     objects: shop.furnishings.map(item => ({
       id: `${id}-${item.id}`, kind: item.kind, x: item.x, y: item.y, w: item.w, h: item.h,
       solid: item.solid ?? true,
+      ...(item.facing ? { facing: item.facing } : {}),
       ...(item.style ? { style: item.style } : {}),
       layer: item.layer ?? (item.solid === false ? 'decal' : 'sorted'),
     })),

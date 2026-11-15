@@ -2,7 +2,7 @@ import type { Facing } from '../../core/coords';
 import type { ObjectDef } from '../../core/types';
 import { T } from '../tiles';
 
-export interface ShopFurnishing extends Pick<ObjectDef, 'kind' | 'x' | 'y' | 'w' | 'h'> {
+export interface ShopFurnishing extends Pick<ObjectDef, 'kind' | 'x' | 'y' | 'w' | 'h' | 'facing'> {
   readonly id: string;
   readonly style?: string;
   readonly layer?: ObjectDef['layer'];
@@ -111,18 +111,18 @@ export const SHOP_INTERIORS: readonly ShopInteriorDefinition[] = [
       { id: 'cake-case', kind: 'cafe-cake-case', x: 6, y: 1, w: 3, h: 1, name: 'スイーツのケース', line: 'ショートケーキと プリンが ならぶ ガラスの ショーケース。' },
       { id: 'counter', kind: 'cafe-counter', x: 12, y: 2, w: 2, h: 1 },
       { id: 'counter-side', kind: 'cafe-counter', style: 'side', x: 15, y: 2, w: 2, h: 1 },
-      { id: 'chair-nw-l', kind: 'cafe-chair', style: 'right', x: 2, y: 4, w: 1, h: 1 },
+      { id: 'chair-nw-l', kind: 'cafe-chair', facing: 'right', x: 2, y: 4, w: 1, h: 1 },
       { id: 'table-north-west', kind: 'cafe-table', style: 'coffee-cake', x: 3, y: 4, w: 2, h: 1, name: 'コーヒーとケーキのせき', line: 'あたたかい コーヒーと イチゴのケーキが おかれた まどぎわの テーブル。' },
-      { id: 'chair-nw-r', kind: 'cafe-chair', style: 'left', x: 5, y: 4, w: 1, h: 1 },
-      { id: 'chair-nc-l', kind: 'cafe-chair', style: 'right', x: 7, y: 4, w: 1, h: 1 },
+      { id: 'chair-nw-r', kind: 'cafe-chair', facing: 'left', x: 5, y: 4, w: 1, h: 1 },
+      { id: 'chair-nc-l', kind: 'cafe-chair', facing: 'right', x: 7, y: 4, w: 1, h: 1 },
       { id: 'table-north-east', kind: 'cafe-table', style: 'morning-toast', x: 8, y: 4, w: 2, h: 1, name: 'モーニングのせき', line: 'あつぎり トーストと ブレンドコーヒーの せき。' },
-      { id: 'chair-nc-r', kind: 'cafe-chair', style: 'left', x: 10, y: 4, w: 1, h: 1 },
-      { id: 'chair-sw-l', kind: 'cafe-chair', style: 'right', x: 2, y: 8, w: 1, h: 1 },
+      { id: 'chair-nc-r', kind: 'cafe-chair', facing: 'left', x: 10, y: 4, w: 1, h: 1 },
+      { id: 'chair-sw-l', kind: 'cafe-chair', facing: 'right', x: 2, y: 8, w: 1, h: 1 },
       { id: 'table-south-west', kind: 'cafe-table', style: 'teapot', x: 3, y: 8, w: 2, h: 1, name: 'こうちゃのせき', line: 'ティーポットと カップが ならぶ ゆったりした テーブル。' },
-      { id: 'chair-sw-r', kind: 'cafe-chair', style: 'left', x: 5, y: 8, w: 1, h: 1 },
-      { id: 'chair-se-l', kind: 'cafe-chair', style: 'right', x: 7, y: 8, w: 1, h: 1 },
+      { id: 'chair-sw-r', kind: 'cafe-chair', facing: 'left', x: 5, y: 8, w: 1, h: 1 },
+      { id: 'chair-se-l', kind: 'cafe-chair', facing: 'right', x: 7, y: 8, w: 1, h: 1 },
       { id: 'table-south-east', kind: 'cafe-table', style: 'soda', x: 8, y: 8, w: 2, h: 1, name: 'クリームソーダのせき', line: 'みどりいろの クリームソーダと プリンが のっている！' },
-      { id: 'chair-se-r', kind: 'cafe-chair', style: 'left', x: 10, y: 8, w: 1, h: 1 },
+      { id: 'chair-se-r', kind: 'cafe-chair', facing: 'left', x: 10, y: 8, w: 1, h: 1 },
       { id: 'sofa', kind: 'cafe-sofa', x: 12, y: 7, w: 3, h: 1 },
       { id: 'lounge-table', kind: 'cafe-table', style: 'coffee-cake', x: 12, y: 9, w: 2, h: 1 },
       { id: 'menu-board', kind: 'cafe-menu-board', x: 6, y: 11, w: 1, h: 1, name: 'メニューボード', line: 'きょうの ブレンドと いちごケーキの おしながきが かいてある。' },

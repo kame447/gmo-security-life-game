@@ -149,9 +149,11 @@ describe('legacy and indoor rotation contract', () => {
         }
 
         // Verify rotation metadata, full facing cycle, and interior policy for every permitted direction.
+        const startFacing = expectedDirs.includes(o.facing ?? 'down') ? (o.facing ?? 'down') : expectedDirs[0];
+        const startIndex = expectedDirs.indexOf(startFacing);
         for (let step = 1; step <= expectedDirs.length; step++) {
           const nextVariant = rotatedObjectVariant(target);
-          const expectedDir = expectedDirs[step % expectedDirs.length];
+          const expectedDir = expectedDirs[(startIndex + step) % expectedDirs.length];
           const expectedSize = rotatedDimensions(o, expectedDir);
           expect(nextVariant.facing).toBe(expectedDir);
           expect([nextVariant.w, nextVariant.h]).toEqual([expectedSize.w, expectedSize.h]);
@@ -162,7 +164,7 @@ describe('legacy and indoor rotation contract', () => {
         expect(target.id).toBe(o.id);
         expect(target.kind).toBe(o.kind);
         expect(target.catalogId).toBe(o.catalogId);
-        expect(target.facing).toBe('down');
+        expect(target.facing).toBe(startFacing);
         target.facing = o.facing;
       }
     }

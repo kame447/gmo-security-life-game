@@ -11,8 +11,10 @@ import {
   storeRotationRule,
 } from '../src/render/stores';
 import { STORE_RUG_RULE } from '../src/render/stores/rotation';
-import { buildWorld } from '../src/world';
+import { AREA_FACTORIES, buildWorld } from '../src/world';
+import { initialLayout, layoutArea, parseAreaLayout } from '../src/world/layouts/codec';
 import { WorldEditorModel } from '../src/world-editor/model';
+import { prepareSave } from '../src/world-editor/persistence';
 import { assertInteriorEdit } from '../src/world-editor/policy';
 
 class Canvas {
@@ -231,5 +233,120 @@ describe('food-store fixtures & shop-rug rotation (Step 2)', () => {
       expect(sLeft.canvas.height).toBe(64);
       expect(raster(sLeft.canvas)).not.toEqual(raster(sDown.canvas));
     }
+  });
+});
+
+describe('cafe-chair facing migration and #23 JSON roundtrip (Step 3)', () => {
+  beforeAll(() => vi.stubGlobal('document', { createElement: () => new Canvas() }));
+  afterAll(() => vi.unstubAllGlobals());
+
+  it('uses facing on all 8 cafe chairs in shop-cafe-interior while matching legacy style visuals pixel-for-pixel', () => {
+    const world = buildWorld();
+    const cafeDef = world.areas.get('shop-cafe-interior')!.def;
+    const chairs = cafeDef.objects.filter((o) => o.kind === 'cafe-chair');
+    expect(chairs).toHaveLength(8);
+
+    for (const chair of chairs) {
+      expect(chair.style).toBeUndefined();
+      expect(['left', 'right']).toContain(chair.facing);
+
+      const expectedDir = chair.id!.endsWith('-l') ? 'right' : 'left';
+      expect(chair.facing).toBe(expectedDir);
+
+      const currentSprite = objectSprite(chair);
+      const legacySprite = storeFurnishingSprite({
+        kind: 'cafe-chair',
+        style: expectedDir,
+        x: chair.x,
+        y: chair.y,
+        w: 1,
+        h: 1,
+        solid: true,
+      })!;
+      expect(raster(currentSprite.canvas)).toEqual(raster(legacySprite.canvas));
+      expect(currentSprite.oy).toBe(legacySprite.oy);
+    }
+  });
+
+  it('rotates cafe-chair across all 4 facings and roundtrips through #23 layout save JSON', () => {
+    const world = buildWorld();
+    const model = new WorldEditorModel(world);
+    const areaId = 'shop-cafe-interior';
+    const targetId = 'shop-cafe-interior-chair-nw-l';
+    const initial = model.object(targetId, undefined, areaId)!;
+    expect(initial.facing).toBe('right');
+
+    // Rotate step by step: right -> down -> left -> up -> right
+    const seen = new Set<string>();
+    for (const nextDir of ['down', 'left', 'up', 'right'] as const) {
+      model.rotate(targetId, areaId);
+      const updated = model.object(targetId, undefined, areaId)!;
+      expect(updated.facing).toBe(nextDir);
+      seen.add(JSON.stringify(raster(objectSprite(updated).canvas)));
+    }
+    expect(seen.size).toBe(4);
+
+    // Rotate once more to 'down', then save and roundtrip via prepareSave -> parseAreaLayout -> layoutArea
+    model.rotate(targetId, areaId);
+    expect(model.object(targetId, undefined, areaId)!.facing).toBe('down');
+
+    const prepared = prepareSave({ changes: model.session.exportChanges() }, world);
+    const savedCafe = prepared.files.find((f) => f.areaId === areaId);
+    expect(savedCafe).toBeDefined();
+
+    const generatedCafe = AREA_FACTORIES.map((f) => f()).find((a) => a.id === areaId)!;
+    const parsed = parseAreaLayout(JSON.parse(savedCafe!.text), generatedCafe);
+    const reloaded = layoutArea(parsed, generatedCafe);
+    const reloadedChair = reloaded.objects.find((o) => o.id === targetId)!;
+    expect(reloadedChair.facing).toBe('down');
+    expect(reloadedChair.style).toBeUndefined();
+    expect(raster(objectSprite(reloadedChair).canvas)).toEqual(
+      raster(objectSprite(model.object(targetId, undefined, areaId)!).canvas),
+    );
+  });
+
+  it('preserves legacy style-only cafe-chair layouts and lets explicit facing take precedence', () => {
+    const legacyRight: ObjectDef = {
+      id: 'legacy-chair',
+      kind: 'cafe-chair',
+      style: 'right',
+      x: 2,
+      y: 4,
+      w: 1,
+      h: 1,
+      solid: true,
+    };
+    const facingRight: ObjectDef = {
+      id: 'facing-chair',
+      kind: 'cafe-chair',
+      facing: 'right',
+      x: 2,
+      y: 4,
+      w: 1,
+      h: 1,
+      solid: true,
+    };
+    expect(raster(objectSprite(legacyRight).canvas)).toEqual(raster(objectSprite(facingRight).canvas));
+
+    // When a legacy chair with style='right' is given facing='up', facing overrides style
+    const overridden = objectSprite({ ...legacyRight, facing: 'up' });
+    const pureUp = objectSprite({ ...facingRight, facing: 'up' });
+    expect(raster(overridden.canvas)).toEqual(raster(pureUp.canvas));
+    expect(raster(overridden.canvas)).not.toEqual(raster(objectSprite(legacyRight).canvas));
+
+    // Roundtrip a saved layout file carrying a legacy style-only chair through parseAreaLayout + layoutArea
+    const generatedCafe = AREA_FACTORIES.map((f) => f()).find((a) => a.id === 'shop-cafe-interior')!;
+    const legacyLayout = initialLayout(generatedCafe, 'test');
+    legacyLayout.objects = legacyLayout.objects.map((o) => {
+      if (o.id !== 'shop-cafe-interior-chair-nw-l') return o;
+      const { facing: _dropped, ...withoutFacing } = o;
+      return { ...withoutFacing, style: 'up' };
+    });
+    const parsedLegacy = parseAreaLayout(legacyLayout, generatedCafe);
+    const restoredLegacy = layoutArea(parsedLegacy, generatedCafe);
+    const chair = restoredLegacy.objects.find((o) => o.id === 'shop-cafe-interior-chair-nw-l')!;
+    expect(chair.facing).toBeUndefined();
+    expect(chair.style).toBe('up');
+    expect(raster(objectSprite(chair).canvas)).toEqual(raster(pureUp.canvas));
   });
 });
