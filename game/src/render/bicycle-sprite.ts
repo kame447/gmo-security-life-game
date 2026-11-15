@@ -97,7 +97,12 @@ function drawFrontBack(c: C2D, a: PlayerAppearance, colors: Palette, front: bool
   dot(c, BIKE.spoke, 12, 26, 2, 1);
   paintBody(c, a, colors, view);
   dot(c, BIKE.frame, 11, 22, 4, 1);     // mudguard
-  if (front) dot(c, BIKE.dark, 8, 19, 10, 1);  // handlebar between the hands
+  if (front) {
+    dot(c, BIKE.dark, 12, 20, 2, 2);    // stem
+    dot(c, BIKE.spoke, 8, 19, 10, 1);   // handlebar, held at both ends
+    dot(c, colors.s, 7, 19); dot(c, colors.s, 18, 19);
+    dot(c, BIKE.seat, 6, 19); dot(c, BIKE.seat, 19, 19);
+  }
   else dot(c, BIKE.reflector, 12, 23, 2, 1);
 }
 
