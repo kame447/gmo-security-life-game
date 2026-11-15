@@ -28,6 +28,7 @@ export class TrainTravelPanel {
   private readonly root = element('div', 'train-travel-overlay');
   private frame = 0;
   private afterglow = 0;
+  private animating = false;
   private result: TravelResult | undefined;
 
   constructor(private readonly game: Game, railway: RailwayNetwork, private readonly stage: HTMLElement, private readonly hooks: TrainTravelPanelHooks) {
@@ -37,7 +38,9 @@ export class TrainTravelPanel {
     this.stage.append(this.root);
   }
 
-  get isOpen(): boolean { return this.session.isOpen; }
+  // Arrival commits the saved location before the destination animation finishes.
+  // Keep ownership of input until the actor has walked outside the gate.
+  get isOpen(): boolean { return this.session.isOpen || this.animating; }
 
   /** Gameのinteract通知から呼ぶ。改札の操作だけが対象で、成功時のみ既定会話を抑止する。 */
   tryOpen(event: MapEvent): boolean {
@@ -54,7 +57,7 @@ export class TrainTravelPanel {
   handleKey(event: KeyboardEvent): void {
     if (!this.isOpen) return;
     // The ride cannot be skipped or cancelled; every key is swallowed until the player is back in control.
-    if (this.session.isRiding) { event.preventDefault(); return; }
+    if (this.animating) { event.preventDefault(); return; }
     if (event.code === 'Escape') { event.preventDefault(); if (!event.repeat) this.back(); return; }
     const buttons = [...this.root.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
     if (event.code === 'Tab' || ['ArrowUp', 'ArrowDown', 'KeyW', 'KeyS'].includes(event.code)) {
@@ -98,6 +101,7 @@ export class TrainTravelPanel {
 
   private finish(result?: TravelResult): void {
     cancelAnimationFrame(this.frame);
+    this.animating = false;
     this.root.hidden = true;
     this.root.replaceChildren();
     this.stage.classList.remove('travel-open');
@@ -132,6 +136,7 @@ export class TrainTravelPanel {
 
   private play(ride: RideRequest): void {
     cancelAnimationFrame(this.afterglow);
+    this.animating = true;
     this.direction = ride.direction;
     this.root.hidden = true;
     this.root.replaceChildren();
@@ -186,6 +191,7 @@ export class TrainTravelPanel {
 
   /** 改札を出る: 主人公の代役が改札を歩いて通り、着いたら実際の位置を確定して描画を戻す。 */
   private walkThroughGate(): void {
+    this.animating = true;
     const player = this.game.player, areaId = player.areaId;
     const path = exitPath({ x: player.x, y: player.y }, this.session.exitGate!);
     stationScene.setFadeSuppressed(true);
@@ -198,7 +204,7 @@ export class TrainTravelPanel {
       this.session.passExit();
       stationScene.set(areaId, null);
       stationScene.setFadeSuppressed(false);
-      this.hooks.onClose();
+      this.finish();
     };
     this.frame = requestAnimationFrame(tick);
   }
