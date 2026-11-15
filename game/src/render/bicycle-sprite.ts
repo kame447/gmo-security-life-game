@@ -70,7 +70,7 @@ function drawSide(c: C2D, a: PlayerAppearance, colors: Palette, frame: number): 
   line(c, BIKE.frame, 11, 25, 18, 22);  // down tube
   line(c, BIKE.dark, 18, 22, 20, 25);   // fork
   line(c, BIKE.dark, 18, 18, 18, 22);   // stem
-  dot(c, BIKE.seat, 17, 18, 3, 1);      // handlebar
+  dot(c, BIKE.tire, 17, 18, 3, 1);      // handlebar
   dot(c, BIKE.seat, 7, 20, 4, 1);       // saddle
   dot(c, BIKE.dark, 11, 25);            // crank
   paint(c, BODIES.side[a.outfit] ?? BODIES.side.jacket, colors, 1, 13);
@@ -99,7 +99,7 @@ function drawFrontBack(c: C2D, a: PlayerAppearance, colors: Palette, front: bool
   dot(c, BIKE.frame, 11, 22, 4, 1);     // mudguard
   if (front) {
     dot(c, BIKE.dark, 12, 20, 2, 2);    // stem
-    dot(c, BIKE.spoke, 8, 19, 10, 1);   // handlebar, held at both ends
+    dot(c, BIKE.tire, 8, 19, 10, 1);    // handlebar, held at both ends
     dot(c, colors.s, 7, 19); dot(c, colors.s, 18, 19);
     dot(c, BIKE.seat, 6, 19); dot(c, BIKE.seat, 19, 19);
   }
