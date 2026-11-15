@@ -113,7 +113,7 @@ describe('出入口と到着位置の物理占有検査（decal除外と固い�
     });
     beforeWithInspectable.interactions.push({
       id: `${areaId}-inspectable-decal-note`, areaId, objectId: decalId, kind: 'object',
-      name: 'メモのあるマット', x: 3, y: 3, w: 1, h: 1, trigger: 'interact', lines: ['メモ'],
+      name: 'メモのあるマット', x: 3, y: 3, w: 1, h: 1, solid: false, eventKey: base.catalogs.eventKeys[0]!, lines: ['メモ'],
     });
     const inspectableOnArrival = structuredClone(beforeWithInspectable);
     inspectableOnArrival.objects.find(o => o.id === decalId)!.x = arrival.x;
