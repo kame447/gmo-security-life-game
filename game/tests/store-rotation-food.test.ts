@@ -77,7 +77,6 @@ const DIRECTIONAL_FIXTURES: readonly FixtureSpec[] = [
   { kind: 'bakery-bread-rack', w: 2, h: 1, style: 'loaves' },
   { kind: 'bakery-pastry-table', w: 2, h: 1 },
   { kind: 'bakery-pastry-table', w: 3, h: 1, style: 'baguettes' },
-  { kind: 'bakery-showcase', w: 2, h: 1 },
   { kind: 'bakery-tray-stand', w: 2, h: 1 },
   { kind: 'bakery-counter', w: 2, h: 1 },
   { kind: 'bakery-counter', w: 2, h: 1, style: 'side' },
@@ -90,7 +89,6 @@ const DIRECTIONAL_FIXTURES: readonly FixtureSpec[] = [
   { kind: 'greengrocer-counter', w: 2, h: 1 },
   // Cafe (cafe-plant is Type C1, tested separately)
   { kind: 'cafe-brew-bar', w: 4, h: 1 },
-  { kind: 'cafe-cake-case', w: 3, h: 1 },
   { kind: 'cafe-counter', w: 2, h: 1 },
   { kind: 'cafe-counter', w: 2, h: 1, style: 'side' },
   { kind: 'cafe-table', w: 2, h: 1, style: 'coffee-cake' },
@@ -113,6 +111,12 @@ const DIRECTIONAL_FIXTURES: readonly FixtureSpec[] = [
   { kind: 'konbini-ice-freezer', w: 2, h: 1 },
   { kind: 'konbini-counter', w: 2, h: 1 },
   { kind: 'konbini-counter', w: 2, h: 1, style: 'side' },
+];
+
+const C2_GLASS_CASES: readonly FixtureSpec[] = [
+  { kind: 'bakery-showcase', w: 2, h: 1 },
+  { kind: 'bakery-showcase', w: 3, h: 2 },
+  { kind: 'cafe-cake-case', w: 3, h: 1 },
 ];
 
 describe('food-store fixtures & shop-rug rotation (Step 2)', () => {
@@ -169,6 +173,48 @@ describe('food-store fixtures & shop-rug rotation (Step 2)', () => {
       const cachedDown = objectSprite({ ...base, facing: 'down' });
       const cachedUp = objectSprite({ ...base, facing: 'up' });
       expect(cachedUp, `${tag} cache up != down`).not.toBe(cachedDown);
+    }
+  });
+
+  it('renders C2 glass showcases with up == down and right == left pixel-for-pixel', () => {
+    for (const spec of C2_GLASS_CASES) {
+      const base: ObjectDef = {
+        kind: spec.kind,
+        x: 0,
+        y: 0,
+        w: spec.w,
+        h: spec.h,
+        solid: true,
+      };
+      const tag = `${spec.kind}(${spec.w}x${spec.h})`;
+      const down = storeFurnishingSprite({ ...base, facing: 'down' })!;
+      const up = storeFurnishingSprite({ ...base, facing: 'up' })!;
+      const left = storeFurnishingSprite({ ...base, facing: 'left', w: spec.h, h: spec.w })!;
+      const right = storeFurnishingSprite({ ...base, facing: 'right', w: spec.h, h: spec.w })!;
+
+      expect(down, `${tag} down`).not.toBeNull();
+      expect(up, `${tag} up`).not.toBeNull();
+      expect(left, `${tag} left`).not.toBeNull();
+      expect(right, `${tag} right`).not.toBeNull();
+
+      expect(up.oy, `${tag} up oy`).toBe(down.oy);
+      expect(left.oy, `${tag} left oy`).toBe(down.oy);
+      expect(right.oy, `${tag} right oy`).toBe(down.oy);
+
+      expect(down.canvas.width, `${tag} down width`).toBe(spec.w * 16);
+      expect(up.canvas.width, `${tag} up width`).toBe(spec.w * 16);
+      expect(left.canvas.width, `${tag} left width`).toBe(spec.h * 16);
+      expect(right.canvas.width, `${tag} right width`).toBe(spec.h * 16);
+
+      expect(raster(up.canvas), `${tag} up == down`).toEqual(raster(down.canvas));
+      expect(raster(right.canvas), `${tag} right == left`).toEqual(raster(left.canvas));
+      expect(raster(left.canvas), `${tag} left != down`).not.toEqual(raster(down.canvas));
+
+      // Verify objectSprite cache matches direct sprites for all 4 facings
+      expect(raster(objectSprite({ ...base, facing: 'up' }).canvas)).toEqual(raster(objectSprite({ ...base, facing: 'down' }).canvas));
+      expect(raster(objectSprite({ ...base, facing: 'right', w: spec.h, h: spec.w }).canvas)).toEqual(
+        raster(objectSprite({ ...base, facing: 'left', w: spec.h, h: spec.w }).canvas),
+      );
     }
   });
 

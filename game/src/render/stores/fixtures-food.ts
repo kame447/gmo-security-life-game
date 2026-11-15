@@ -68,6 +68,7 @@ import {
   drawCounterSide,
   drawMachineBack,
   drawSideProfile,
+  isSidewaysStoreFacing,
   rotatedCwContext,
   uprightTileHeight,
 } from './rotation-art';
@@ -753,36 +754,23 @@ function drawBakeryPastryTableDir(c: C2D, w: number, h: number, facing: Facing, 
 }
 
 function drawBakeryShowcaseDir(c: C2D, w: number, totalH: number, facing: Facing): void {
-  drawDirectional(
-    c,
-    w,
-    facing,
-    () => drawBakeryShowcase(c, w, totalH),
-    () => {
-      floorShadow(c, 1, totalH - 2, w - 2, 2);
-      box(c, 0, 1, w, totalH - 2, WOOD_MID);
-      const glassH = totalH - 9;
-      box(c, 2, 2, w - 4, glassH, '#b8d4de');
-      R(c, WOOD_DARK, Math.floor(w / 2), 2, 1, glassH);
-      R(c, SILVER, 4, 4, 1, Math.min(4, glassH - 2));
-      R(c, SILVER, Math.floor(w / 2) + 2, 4, 1, Math.min(4, glassH - 2));
-      R(c, '#8b5a34', 2, totalH - 7, w - 4, 4);
-    },
-    (ctx) => {
-      floorShadow(ctx, 1, totalH - 2, w - 2, 2);
-      box(ctx, 0, 1, w, totalH - 2, WOOD_MID);
-      const cheekW = Math.min(5, Math.floor(w / 3));
-      const paneW = w - cheekW - 3;
-      R(ctx, '#8b5a34', w - cheekW - 1, 2, cheekW, totalH - 9);
-      box(ctx, 2, 2, paneW, totalH - 9, GLASS);
-      const midShelf = 2 + Math.floor((totalH - 9) / 2);
-      R(ctx, WHITE, 3, midShelf, paneW - 2, 1);
-      box(ctx, 3, 4, Math.min(7, paneW - 2), 6, '#f2e0ba');
-      box(ctx, 3, midShelf + 2, Math.min(7, paneW - 2), 6, '#fff4ea');
-      R(ctx, '#e24b5a', 4, midShelf + 2, 3, 2);
-      glassSheen(ctx, 2, 2, paneW, totalH - 9);
-    },
-  );
+  // Type C2: rear matches front (`up` = `down`) and both side views use the open-glass profile (`right` = `left`).
+  if (!isSidewaysStoreFacing(facing)) {
+    drawBakeryShowcase(c, w, totalH);
+    return;
+  }
+  floorShadow(c, 1, totalH - 2, w - 2, 2);
+  box(c, 0, 1, w, totalH - 2, WOOD_MID);
+  const cheekW = Math.min(5, Math.floor(w / 3));
+  const paneW = w - cheekW - 3;
+  R(c, '#8b5a34', w - cheekW - 1, 2, cheekW, totalH - 9);
+  box(c, 2, 2, paneW, totalH - 9, GLASS);
+  const midShelf = 2 + Math.floor((totalH - 9) / 2);
+  R(c, WHITE, 3, midShelf, paneW - 2, 1);
+  box(c, 3, 4, Math.min(7, paneW - 2), 6, '#f2e0ba');
+  box(c, 3, midShelf + 2, Math.min(7, paneW - 2), 6, '#fff4ea');
+  R(c, '#e24b5a', 4, midShelf + 2, 3, 2);
+  glassSheen(c, 2, 2, paneW, totalH - 9);
 }
 
 function drawBakeryTrayStandDir(c: C2D, w: number, totalH: number, facing: Facing): void {
@@ -1053,35 +1041,22 @@ function drawCafeBrewBarDir(c: C2D, w: number, totalH: number, facing: Facing): 
 }
 
 function drawCafeCakeCaseDir(c: C2D, w: number, totalH: number, facing: Facing): void {
-  drawDirectional(
-    c,
-    w,
-    facing,
-    () => drawCafeCakeCase(c, w, totalH),
-    () => {
-      floorShadow(c, 1, totalH - 2, w - 2, 2);
-      box(c, 0, 2, w, totalH - 3, '#5f3b26');
-      const doorH = Math.max(8, totalH - 13);
-      box(c, 2, 3, w - 4, doorH, '#b6d2dc');
-      R(c, '#5f3b26', Math.floor(w / 2), 3, 1, doorH);
-      R(c, SILVER, 4, 5, 1, Math.min(5, doorH - 3));
-      R(c, SILVER, Math.floor(w / 2) + 2, 5, 1, Math.min(5, doorH - 3));
-      box(c, 3, totalH - 9, w - 6, 5, '#3c444d');
-    },
-    (ctx) => {
-      floorShadow(ctx, 1, totalH - 2, w - 2, 2);
-      box(ctx, 0, 2, w, totalH - 3, '#5f3b26');
-      const cheekW = Math.min(4, Math.floor(w / 4));
-      const paneW = w - cheekW - 3;
-      R(ctx, '#472a1a', w - cheekW - 1, 3, cheekW, totalH - 8);
-      box(ctx, 2, 3, paneW, totalH - 8, GLASS);
-      const mid = 3 + Math.floor((totalH - 8) / 2);
-      R(ctx, WHITE, 3, mid, paneW - 2, 1);
-      drawShortcake(ctx, 2, 4);
-      drawPudding(ctx, 2, mid + 2);
-      glassSheen(ctx, 2, 3, paneW, totalH - 8);
-    },
-  );
+  // Type C2: rear matches front (`up` = `down`) and both side views use the open-glass profile (`right` = `left`).
+  if (!isSidewaysStoreFacing(facing)) {
+    drawCafeCakeCase(c, w, totalH);
+    return;
+  }
+  floorShadow(c, 1, totalH - 2, w - 2, 2);
+  box(c, 0, 2, w, totalH - 3, '#5f3b26');
+  const cheekW = Math.min(4, Math.floor(w / 4));
+  const paneW = w - cheekW - 3;
+  R(c, '#472a1a', w - cheekW - 1, 3, cheekW, totalH - 8);
+  box(c, 2, 3, paneW, totalH - 8, GLASS);
+  const mid = 3 + Math.floor((totalH - 8) / 2);
+  R(c, WHITE, 3, mid, paneW - 2, 1);
+  drawShortcake(c, 2, 4);
+  drawPudding(c, 2, mid + 2);
+  glassSheen(c, 2, 3, paneW, totalH - 8);
 }
 
 function drawCafeCounterDir(c: C2D, w: number, h: number, facing: Facing, style: string): void {
