@@ -33,13 +33,13 @@ describe('配置から導く目印と開始位置', () => {
   it('配置ファイルが無い場合は、公開する目印と開始位置が生成用の定数と一致する（S2-12）', async () => {
     const sources = [createTown(), createHome(), createClassroom(), createKonbini()];
     expect(resolveLandmarks(sources)).toEqual(GENERATED_LANDMARKS);
-    const { LANDMARKS, START, buildWorld, validateWorld } = await worldWithLayouts([]);
+    const { LANDMARKS, START, buildWorld, validateWorld, AREA_FACTORIES } = await worldWithLayouts([]);
     expect(LANDMARKS).toEqual(GENERATED_LANDMARKS);
     expect(START).toEqual(GENERATED_START);
     const world = buildWorld();
     expect(world.start).toEqual(START);
     expect(validateWorld(world)).toEqual([]);
-    expect([...world.areas.values()].map(area => area.def)).toEqual(sources);
+    expect([...world.areas.values()].map(area => area.def)).toEqual(AREA_FACTORIES.map(create => create()));
   });
 
   it('3つのドア前は出口のtoから導き、固定の4点と入力は変えない', () => {

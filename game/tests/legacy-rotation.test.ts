@@ -83,7 +83,13 @@ describe('legacy and indoor rotation contract', () => {
     expect(indoorAreas.map(area => area.def.id).sort()).toEqual([
       'home-family-interior',
       'school-classroom-interior',
+      'shop-bakery-interior',
+      'shop-bookstore-interior',
+      'shop-cafe-interior',
+      'shop-candy-interior',
+      'shop-greengrocer-interior',
       'shop-konbini-interior',
+      'shop-pharmacy-interior',
     ]);
 
     const model = new WorldEditorModel(world);

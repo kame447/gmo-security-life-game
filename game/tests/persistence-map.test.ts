@@ -9,13 +9,16 @@ describe('read-only inventory and fidelity measurements', () => {
     const world = buildWorld(), before = structuredClone(world), report = inventoryMap(world);
     expect(report.areas.map(a => [a.areaId, a.objects.sourceId, a.objects.auxiliary, a.portals.sourceId])).toEqual([
       ['home-family-interior', 15, 0, 1], ['school-classroom-interior', 21, 0, 1],
-      ['shop-konbini-interior', 8, 0, 1], ['town-main', 270, 0, 3],
+      ['shop-bakery-interior', 10, 0, 1], ['shop-bookstore-interior', 10, 0, 1],
+      ['shop-cafe-interior', 23, 0, 1], ['shop-candy-interior', 6, 0, 1],
+      ['shop-greengrocer-interior', 9, 0, 1], ['shop-konbini-interior', 12, 0, 1],
+      ['shop-pharmacy-interior', 10, 0, 1], ['town-main', 270, 0, 9],
     ]);
     expect(report.areas.reduce((n, a) => n + a.facilities.sourceId, 0)).toBe(12);
-    expect(report.areas.reduce((n, a) => n + a.decals.sourceId, 0)).toBe(9);
-    expect(report.areas.reduce((n, a) => n + a.coordinatePatternObjectIds, 0)).toBe(312);
-    expect(report.areas.reduce((n, a) => n + a.groundSolidCells.auxiliary, 0)).toBe(1681);
-    expect(report.areas.reduce((n, a) => n + a.runtimeSolidCells.auxiliary, 0)).toBe(3975);
+    expect(report.areas.reduce((n, a) => n + a.decals.sourceId, 0)).toBe(22);
+    expect(report.areas.reduce((n, a) => n + a.coordinatePatternObjectIds, 0)).toBe(316);
+    expect(report.areas.reduce((n, a) => n + a.groundSolidCells.auxiliary, 0)).toBe(1985);
+    expect(report.areas.reduce((n, a) => n + a.runtimeSolidCells.auxiliary, 0)).toBe(4474);
     expect(report.duplicateSourceIds).toEqual([]);
     expect(world).toEqual(before);
   });
@@ -42,10 +45,10 @@ describe('read-only inventory and fidelity measurements', () => {
     expect(report.facilitiesEqual).toBe(true);
     expect(report.areaIterationOrderChanged).toBe(true);
     expect(report.facilityIterationOrderChanged).toBe(true);
-    expect(report.normalizedOrderChanges).toHaveLength(9);
+    expect(report.normalizedOrderChanges).toHaveLength(21);
     expect(report.backendAccepted).toBe(false);
     // Shape validation now accepts numeric styles; raw, unlinked data is still rejected for overlaps.
-    expect(report.backendIssues).toHaveLength(20);
+    expect(report.backendIssues).toHaveLength(143);
     expect(report.backendIssues.every(issue => issue.code === 'overlap')).toBe(true);
     expect(world).toEqual(before);
   });

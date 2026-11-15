@@ -16,7 +16,7 @@ describe('Issue #24 全屋内エリアの編集・回転・重なり・将来統
   it('実在する全屋内エリアと将来の#33商店/#59駅互換エリアを固定一覧なしで編集対象として導く', () => {
     const world = buildWorld();
     const indoorIds = [...world.areas.values()].filter(a => a.def.kind === 'indoor').map(a => a.def.id);
-    expect(indoorIds).toEqual(['home-family-interior', 'school-classroom-interior', 'shop-konbini-interior']);
+    expect(indoorIds).toEqual(['home-family-interior', 'school-classroom-interior', 'shop-konbini-interior', 'shop-greengrocer-interior', 'shop-bookstore-interior', 'shop-candy-interior', 'shop-bakery-interior', 'shop-cafe-interior', 'shop-pharmacy-interior']);
     const model = new WorldEditorModel(world);
     for (const id of indoorIds) {
       expect(isEditableArea(model.initial, id)).toBe(true);
@@ -35,13 +35,13 @@ describe('Issue #24 全屋内エリアの編集・回転・重なり・将来統
     });
     const town = structuredClone(world.areas.get('town-main')!.def);
     town.portals.push(
-      { id: 'greengrocer-enter', from: { x: 35, y: 34 }, to: { areaId: 'shop-greengrocer-interior', x: 4, y: 6, facing: 'up' } },
-      { id: 'station-main-enter', from: { x: 36, y: 34 }, to: { areaId: 'station-main-interior', x: 4, y: 6, facing: 'up' } },
+      { id: 'fixture-greengrocer-enter', from: { x: 35, y: 34 }, to: { areaId: 'fixture-shop-greengrocer-interior', x: 4, y: 6, facing: 'up' } },
+      { id: 'fixture-station-main-enter', from: { x: 36, y: 34 }, to: { areaId: 'fixture-station-main-interior', x: 4, y: 6, facing: 'up' } },
     );
     const extraAreas: [string, ReturnType<typeof toRuntime>][] = [
       [town.id, toRuntime(town)],
-      ['shop-greengrocer-interior', toRuntime({
-        id: 'shop-greengrocer-interior',
+      ['fixture-shop-greengrocer-interior', toRuntime({
+        id: 'fixture-shop-greengrocer-interior',
         name: 'やおや',
         kind: 'indoor',
         width: 10,
@@ -51,28 +51,28 @@ describe('Issue #24 全屋内エリアの編集・回転・重なり・将来統
           return y === 0 ? T.WALL_TOP : x === 0 || x === 9 || y === 7 ? T.WALL : T.FLOOR_WOOD;
         }),
         objects: [
-          { id: 'shop-greengrocer-interior-produce-1', kind: 'shopshelf', style: 'greengrocer', x: 2, y: 2, w: 2, h: 1, solid: true, layer: 'sorted' },
+          { id: 'fixture-shop-greengrocer-interior-produce-1', kind: 'shopshelf', style: 'greengrocer', x: 2, y: 2, w: 2, h: 1, solid: true, layer: 'sorted' },
         ],
         interactions: [
-          { id: 'greengrocer-clerk', kind: 'npc', name: '店主', sprite: 'clerk', x: 6, y: 2, facing: 'down', solid: true, eventKey: 'shop.greengrocer.clerk', lines: ['いらっしゃい！'] },
+          { id: 'fixture-greengrocer-clerk', kind: 'npc', name: '店主', sprite: 'clerk', x: 6, y: 2, facing: 'down', solid: true, eventKey: 'shop.greengrocer.clerk', lines: ['いらっしゃい！'] },
         ],
         portals: [
-          { id: 'greengrocer-exit', from: { x: 4, y: 7, w: 2 }, to: { areaId: town.id, x: 35, y: 35, facing: 'down' } },
+          { id: 'fixture-greengrocer-exit', from: { x: 4, y: 7, w: 2 }, to: { areaId: town.id, x: 35, y: 35, facing: 'down' } },
         ],
       })],
-      ['station-main-interior', toRuntime({
-        id: 'station-main-interior',
+      ['fixture-station-main-interior', toRuntime({
+        id: 'fixture-station-main-interior',
         name: 'まちのえき',
         kind: 'indoor',
         width: stationWidth,
         height: stationHeight,
         ground: stationGround,
         objects: [
-          { id: 'station-main-interior-bench-1', kind: 'bench', x: 3, y: 4, w: 2, h: 1, solid: true, layer: 'sorted' },
+          { id: 'fixture-station-main-interior-bench-1', kind: 'bench', x: 3, y: 4, w: 2, h: 1, solid: true, layer: 'sorted' },
         ],
         interactions: [],
         portals: [
-          { id: 'station-exit', from: { x: 4, y: 7, w: 2 }, to: { areaId: town.id, x: 36, y: 35, facing: 'down' } },
+          { id: 'fixture-station-exit', from: { x: 4, y: 7, w: 2 }, to: { areaId: town.id, x: 36, y: 35, facing: 'down' } },
         ],
       })],
     ];
@@ -83,18 +83,18 @@ describe('Issue #24 全屋内エリアの編集・回転・重なり・将来統
       areas: new Map([...world.areas, ...extraAreas]),
     };
     const extModel = new WorldEditorModel(extendedWorld);
-    expect(isEditableArea(extModel.initial, 'shop-greengrocer-interior')).toBe(true);
-    expect(isEditableArea(extModel.initial, 'station-main-interior')).toBe(true);
+    expect(isEditableArea(extModel.initial, 'fixture-shop-greengrocer-interior')).toBe(true);
+    expect(isEditableArea(extModel.initial, 'fixture-station-main-interior')).toBe(true);
 
     // Move custom-style #33 shop fixture and add chair-wood + NPC
-    extModel.move('shop-greengrocer-interior-produce-1', 3, 2, 'shop-greengrocer-interior');
-    const shopChair = { ...extModel.create('chair-wood', 'shop-greengrocer-interior'), x: 6, y: 5 };
+    extModel.move('fixture-shop-greengrocer-interior-produce-1', 3, 2, 'fixture-shop-greengrocer-interior');
+    const shopChair = { ...extModel.create('chair-wood', 'fixture-shop-greengrocer-interior'), x: 6, y: 5 };
     extModel.commit(extModel.candidate(shopChair, true));
     // Place chair on walkable station T.PLATFORM and refuse placement on T.RAIL
-    const stationChair = { ...extModel.create('chair-wood', 'station-main-interior'), x: 6, y: 4 };
+    const stationChair = { ...extModel.create('chair-wood', 'fixture-station-main-interior'), x: 6, y: 4 };
     extModel.commit(extModel.candidate(stationChair, true));
-    expect(() => extModel.commit(extModel.candidate({ ...extModel.create('chair-wood', 'station-main-interior'), x: 6, y: 2 }, true))).toThrow();
-    expect(extModel.object(stationChair.id, undefined, 'station-main-interior')).toMatchObject({ x: 6, y: 4 });
+    expect(() => extModel.commit(extModel.candidate({ ...extModel.create('chair-wood', 'fixture-station-main-interior'), x: 6, y: 2 }, true))).toThrow();
+    expect(extModel.object(stationChair.id, undefined, 'fixture-station-main-interior')).toMatchObject({ x: 6, y: 4 });
   });
 
   it('きょうしつとコンビニで家具の追加・移動・4方向回転・削除・床塗装・NPC・Undo/Redoが通り、3部屋同時保存と検証が成立する', () => {

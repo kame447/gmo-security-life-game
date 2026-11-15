@@ -9,6 +9,7 @@ import { resolveLandmarks } from './landmark-resolve';
 import { applyAreaLayout } from './layouts';
 import { toRuntime, type AreaRuntime, type World } from './runtime';
 import { createTown, FACILITIES } from './town';
+import { SHOP_AREA_FACTORIES } from './shops';
 
 export { districtAt, isSolidTile, type AreaRuntime, type World } from './runtime';
 export { findPath } from './path';
@@ -21,7 +22,7 @@ export const CHILDHOOD_VARIANT: VariantDef = {
 };
 
 /** 読み込むエリアの一覧。新しいエリアはここに定義関数を追加する。 */
-export const AREA_FACTORIES: readonly (() => AreaDef)[] = [createTown, createHome, createClassroom, createKonbini];
+export const AREA_FACTORIES: readonly (() => AreaDef)[] = [createTown, createHome, createClassroom, createKonbini, ...SHOP_AREA_FACTORIES];
 
 /** 生成用の定数とは分け、配置を適用した出口から公開用の目印と開始位置を導く。 */
 export const LANDMARKS = resolveLandmarks(AREA_FACTORIES.map(create => applyAreaLayout(create())));

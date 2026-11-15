@@ -49,7 +49,7 @@ describe('map persistence evaluation CLI', () => {
   it('emits reproducible inventory JSON and an area table without writing a destination', () => {
     const json = run('inventory'); assert.equal(json.status, 0, json.stderr);
     const data = JSON.parse(json.stdout); assert.equal(data.sourceFingerprint, fingerprint);
-    assert.equal(data.areas.reduce((n, a) => n + a.objects.total, 0), 314);
+    assert.equal(data.areas.reduce((n, a) => n + a.objects.total, 0), 386);
     const second = run('inventory'); assert.equal(second.stdout, json.stdout);
     const table = run('inventory', '--markdown'); assert.equal(table.status, 0, table.stderr);
     assert.match(table.stdout, /town-main \| 12\/0 \| 270\/0/);
@@ -58,7 +58,7 @@ describe('map persistence evaluation CLI', () => {
     const result = run('roundtrip'); assert.equal(result.status, 0, result.stderr);
     const report = JSON.parse(result.stdout);
     assert.equal(report.measurementOnly, true); assert.equal(report.backendAccepted, false);
-    assert.equal(report.backendIssues.length, 20); assert.equal(report.variantEqual, false);
+    assert.equal(report.backendIssues.length, 143); assert.equal(report.variantEqual, false);
     assert.equal(report.areas.find(a => a.areaId === 'town-main').lostDistricts, 4);
   });
   it('refuses actual source incompatibilities with exit 2 and no candidate', () => {
