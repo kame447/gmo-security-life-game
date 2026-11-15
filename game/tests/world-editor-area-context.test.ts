@@ -12,20 +12,30 @@ describe('エリア引数と従来の自宅操作の互換',()=>{
     legacy.session.undo();explicit.session.undo();expect(explicit.document).toEqual(legacy.document);
     expect(explicit.create('chair-wood',HOME_AREA)).toEqual(legacy.create('chair-wood'));
   });
-  it('引数なしと明示した自宅で、人物の編集・回転・ID・削除が全文一致する',()=>{
-    const legacy=new WorldEditorModel(buildWorld()),explicit=new WorldEditorModel(buildWorld());
-    legacy.updateNpc('home-mother',{y:6});explicit.updateNpc('home-mother',{y:6},HOME_AREA);
-    legacy.rotateNpc('home-mother');explicit.rotateNpc('home-mother',HOME_AREA);
-    expect(explicit.npc('home-mother',undefined,HOME_AREA)).toEqual(legacy.npc('home-mother'));
-    expect(explicit.npcProtectedReason('home-mother',HOME_AREA)).toBe(legacy.npcProtectedReason('home-mother'));
-    const a={...legacy.createNpc('friend'),x:4,y:7},b={...explicit.createNpc('friend',HOME_AREA),x:4,y:7};expect(a).toEqual(b);
-    legacy.commit(legacy.npcCandidate(a,true));explicit.commit(explicit.npcCandidate(b,true));
-    legacy.removeNpc(a.id);explicit.removeNpc(b.id,HOME_AREA);expect(explicit.document).toEqual(legacy.document);
+  it('人物の6関数はエリア引数を必須とし、指定エリアの編集・回転・ID・削除を行う',()=>{
+    const model=new WorldEditorModel(buildWorld());
+    // Runtime check that omitting areaId fails loudly even from untyped callers.
+    const unsafe=model as unknown as Record<string,(...args:unknown[])=>unknown>;
+    expect(()=>unsafe.npc('home-mother')).toThrow('エリア');
+    expect(()=>unsafe.npcProtectedReason('home-mother')).toThrow('エリア');
+    expect(()=>unsafe.createNpc('friend')).toThrow('エリア');
+    expect(()=>unsafe.removeNpc('home-mother')).toThrow('エリア');
+    expect(()=>unsafe.updateNpc('home-mother',{y:6})).toThrow('エリア');
+    expect(()=>unsafe.rotateNpc('home-mother')).toThrow('エリア');
+    model.updateNpc('home-mother',{y:6},HOME_AREA);
+    model.rotateNpc('home-mother',HOME_AREA);
+    expect(model.npc('home-mother',undefined,HOME_AREA)).toMatchObject({y:6,facing:'up'});
+    expect(model.npcProtectedReason('home-mother',HOME_AREA)).toContain('消せません');
+    const created={...model.createNpc('friend',HOME_AREA),x:4,y:7};
+    model.commit(model.npcCandidate(created,true));
+    expect(model.npc(created.id,undefined,HOME_AREA)).toEqual(created);
+    model.removeNpc(created.id,HOME_AREA);
+    expect(model.npc(created.id,undefined,HOME_AREA)).toBeUndefined();
   });
   it('別エリアの参照とID発行を明示でき、未登録の教室と不正な屋外の戻り先は拒否する',()=>{
     const model=new WorldEditorModel(buildWorld()),initial=model.document;
     const object=initial.objects.find(o=>o.areaId==='town-main')!,npc=initial.interactions.find(i=>i.areaId==='town-main'&&i.kind==='npc')!;
-    expect(model.object(object.id)).toBeUndefined();expect(model.npc(npc.id)).toBeUndefined();
+    expect(model.object(object.id)).toBeUndefined();expect(model.npc(npc.id,undefined,HOME_AREA)).toBeUndefined();
     expect(model.object(object.id,undefined,'town-main')).toEqual(object);expect(model.npc(npc.id,undefined,'town-main')).toEqual(npc);
     const created=model.createNpc('friend','town-main');expect(created).toMatchObject({id:'town-main-npc-1',areaId:'town-main',eventKey:'npc.town-main-npc-1'});
     const classroom=model.document;classroom.interactions.find(i=>i.id==='school-teacher')!.name='候補の名前';

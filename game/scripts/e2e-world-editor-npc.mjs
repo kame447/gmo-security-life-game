@@ -27,7 +27,7 @@ async function start(){
 }
 async function stop(){if(!server||server.exitCode!==null)return;const current=server,done=new Promise(resolve=>current.once('exit',resolve));current.kill('SIGTERM');await done;}
 const documentOf=page=>page.evaluate(()=>window.__worldEditor.model.document);
-const npcOf=(page,id)=>page.evaluate(id=>window.__worldEditor.model.npc(id),id);
+const npcOf=(page,id,area)=>page.evaluate(({id,area})=>{const app=window.__worldEditor;return app.model.npc(id,undefined,area??app.activeArea);},{id,area});
 const frames=page=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
 async function ready(page){await page.goto(`${origin}/world-editor.html`);await page.waitForFunction(()=>window.__worldEditor?.renderer.stats.chunksDrawn>0);await frames(page);}
 async function session(viewport,touch=false){
@@ -45,7 +45,7 @@ async function session(viewport,touch=false){
 async function close(s){await s.cdp?.detach();await s.context.close();assert.deepEqual(s.errors,[]);assert.deepEqual(s.blocked,[]);}
 async function point(page,id){
  return page.evaluate(async id=>{
-  const app=window.__worldEditor,npc=app.model.npc(id);if(!npc)throw new Error(`Missing NPC ${id}`);
+  const app=window.__worldEditor,npc=app.model.npc(id,undefined,app.activeArea);if(!npc)throw new Error(`Missing NPC ${id}`);
   const{characterSprite}=await import('/src/render/sprites.ts'),{feetAtTile}=await import('/src/core/coords.ts'),{hitItem}=await import('/src/world-editor/hit-test.ts');
   const sprite=characterSprite(npc.sprite,npc.facing,0),pixels=sprite.canvas.getContext('2d').getImageData(0,0,sprite.canvas.width,sprite.canvas.height).data;
   const feet=feetAtTile(npc.x,npc.y),rect=document.querySelector('#workspace').getBoundingClientRect(),area=app.model.runtime().areas.get(npc.areaId);let best;
@@ -67,7 +67,7 @@ async function move(s,id,x,y){
  const p=await point(s.page,id),delta=await s.page.evaluate(({dx,dy})=>{const a=window.__worldEditor.toScreen(0,0),b=window.__worldEditor.toScreen(dx*16,dy*16);return{x:b.x-a.x,y:b.y-a.y};},{dx:x-p.npc.x,dy:y-p.npc.y});
  if(s.touch){await s.fingers('touchStart',[p]);for(let n=1;n<=8;n++){await s.fingers('touchMove',[{x:p.x+delta.x*n/8,y:p.y+delta.y*n/8}]);await s.page.waitForTimeout(20);}await s.fingers('touchEnd',[]);}
  else{await s.page.mouse.move(p.x,p.y);await s.page.mouse.down();await s.page.mouse.move(p.x+delta.x,p.y+delta.y,{steps:8});await s.page.mouse.up();}
- await s.page.waitForFunction(({id,x,y})=>{const npc=window.__worldEditor.model.npc(id);return npc?.x===x&&npc?.y===y;},{id,x,y});
+ await s.page.waitForFunction(({id,x,y})=>{const app=window.__worldEditor,npc=app.model.npc(id,undefined,app.activeArea);return npc?.x===x&&npc?.y===y;},{id,x,y});
 }
 async function place(s,sprite,x,y){
  await s.click(`[data-person-id="${sprite}"]`);const npc=await s.page.evaluate(()=>window.__worldEditor.npcGhost.npc);

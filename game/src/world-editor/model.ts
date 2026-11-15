@@ -10,6 +10,8 @@ import { withDerived } from '../editor/changes';
 import { trustedContext } from './trusted-context';
 import { editablePerson, isPlacedNpc, npcEventKey } from './npc';
 
+const requireAreaId = (areaId: string) => { if (!areaId) throw new Error('エリアを指定してください'); return areaId; };
+
 export const HOME_AREA = 'home-family-interior';
 export class WorldEditorModel {
   readonly context: EditorValidationContext;
@@ -25,9 +27,12 @@ export class WorldEditorModel {
   get document() { return this.session.document; }
   get dirty() { return this.session.exportChanges().operations.length; }
   object(id: string, document = this.document, areaId = HOME_AREA) { return document.objects.find(o => o.id === id && o.areaId === areaId); }
-  npc(id: string, document = this.document, areaId = HOME_AREA) { return document.interactions.find(i => i.id === id && i.areaId === areaId && i.kind === 'npc'); }
-  npcProtectedReason(id: string, areaId = HOME_AREA) {
-    const npc=this.npc(id,undefined,areaId);return npc&&!isPlacedNpc(npc)?'ゲームの出来事につながっている人物なので、消せません':'';
+  npc(id: string, document = this.document, areaId: string) {
+    requireAreaId(areaId);
+    return document.interactions.find(i => i.id === id && i.areaId === areaId && i.kind === 'npc');
+  }
+  npcProtectedReason(id: string, areaId: string) {
+    const npc=this.npc(id,undefined,requireAreaId(areaId));return npc&&!isPlacedNpc(npc)?'ゲームの出来事につながっている人物なので、消せません':'';
   }
   npcCandidate(npc: EditorInteraction, adding = false): EditorDocument {
     const next=this.document,index=next.interactions.findIndex(i=>i.id===npc.id);
@@ -35,7 +40,8 @@ export class WorldEditorModel {
     else{if(index<0)throw new Error('人物を選んでください');next.interactions[index]=structuredClone(npc);}
     return withDerived(next,this.context);
   }
-  createNpc(sprite: string, areaId = HOME_AREA): EditorInteraction {
+  createNpc(sprite: string, areaId: string): EditorInteraction {
+    requireAreaId(areaId);
     const entry=editablePerson(sprite);if(!entry)throw new Error('人のカタログにある見た目を選んでください');
     let n=1,id=`${areaId}-npc-${n}`;
     while(this.used.has(id))id=`${areaId}-npc-${++n}`;
@@ -43,17 +49,17 @@ export class WorldEditorModel {
     return{id,areaId,kind:'npc',sprite,name:entry.name,x:1,y:1,facing:'down',solid:true,
       eventKey:npcEventKey(id),lines:['こんにちは。']};
   }
-  removeNpc(id: string, areaId = HOME_AREA) {
-    const reason=this.npcProtectedReason(id,areaId);if(reason)throw new Error(reason);
+  removeNpc(id: string, areaId: string) {
+    const reason=this.npcProtectedReason(id,requireAreaId(areaId));if(reason)throw new Error(reason);
     if(!this.npc(id,undefined,areaId))throw new Error('人物を選んでください');
     const next=this.document;next.interactions=next.interactions.filter(npc=>npc.id!==id);this.commit(next);
   }
-  updateNpc(id: string, patch: Partial<Pick<EditorInteraction,'x'|'y'|'facing'|'name'|'lines'|'sprite'>>, areaId = HOME_AREA) {
-    const npc=this.npc(id,undefined,areaId);if(!npc)throw new Error('人物を選んでください');
+  updateNpc(id: string, patch: Partial<Pick<EditorInteraction,'x'|'y'|'facing'|'name'|'lines'|'sprite'>>, areaId: string) {
+    const npc=this.npc(id,undefined,requireAreaId(areaId));if(!npc)throw new Error('人物を選んでください');
     this.commit(this.npcCandidate({...npc,...structuredClone(patch)}));
   }
-  rotateNpc(id: string, areaId = HOME_AREA) {
-    const npc=this.npc(id,undefined,areaId);if(!npc)throw new Error('人物を選んでください');
+  rotateNpc(id: string, areaId: string) {
+    const npc=this.npc(id,undefined,requireAreaId(areaId));if(!npc)throw new Error('人物を選んでください');
     const directions=['down','left','up','right'] as const;
     this.updateNpc(id,{facing:directions[(directions.indexOf(npc.facing??'down')+1)%directions.length]},areaId);
   }
