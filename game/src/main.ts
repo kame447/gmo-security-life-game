@@ -1,6 +1,7 @@
 /** 起動：各部品を組み立てて接続するだけ。個別の処理は app/・ui/・input/ 以下に置く。 */
 import { exposeDebug, FrameRecorder } from './app/debug';
 import { startLoop } from './app/loop';
+import { installBgm } from './audio/bgm';
 import { loadSave, writeSave } from './app/save-store';
 import { LifeEventDirector } from './events/director';
 import { CHILDHOOD_SAMPLE_EVENTS } from './events/samples/childhood';
@@ -55,6 +56,7 @@ ui.registerPanel({ id: 'phone', panel: phone, open: () => phone.open(), button: 
   shortcut: 'KeyP', canOpen: () => phone.isAvailable });
 game.phone.onChange(() => { save(); ui.update(); });
 const hud = new Hud(game, () => ui.primaryAction());
+installBgm(muted => hud.showToast(muted ? 'おんがく：オフ（M）' : 'おんがく：オン（M）'));
 const lifeEventPanel = new LifeEventPanel(game, lifeEvents, () => controls.clear());
 ui.bind({ onReset: () => { game.reset(); save(); } });
 exposeDebug(game, renderer, frames);

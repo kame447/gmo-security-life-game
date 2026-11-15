@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BGM の試聴 | セキュリティ人生シミュレーション</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #1e3734; color: #fff; font: 15px/1.6 "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; }
+      main { width: min(420px, calc(100% - 32px)); padding: 24px; border: 2px solid #f4ecdc; border-radius: 8px; background: #242a31; }
+      h1 { margin: 0 0 4px; font-size: 20px; }
+      p { margin: 4px 0; color: #d0e3d5; font-size: 13px; }
+      .buttons { display: flex; gap: 10px; margin: 18px 0 14px; }
+      button { flex: 1; color: #1e493d; background: #f3f8f0; border: 0; border-radius: 6px; padding: 10px 12px; font: inherit; font-weight: bold; cursor: pointer; }
+      #bars { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+      #bars span { height: 14px; border-radius: 3px; background: #3c4a52; }
+      #bars span.on { background: #ffe08a; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 id="title">BGM</h1>
+      <p id="meta"></p>
+      <div class="buttons">
+        <button id="play" type="button">さいせい</button>
+        <button id="mute" type="button">ミュート</button>
+      </div>
+      <div id="bars" aria-label="いま鳴っている小節"></div>
+      <p>本編では最初にキーを押すかクリックすると鳴り始め、M キーでミュートを切り替えます。</p>
+    </main>
+    <script type="module" src="/src/audio/preview.ts"></script>
+  </body>
+</html>
