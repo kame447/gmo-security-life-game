@@ -5,6 +5,7 @@ import { DEFAULT_APPEARANCE, normalizeAppearance, appearanceKey, type PlayerAppe
 import { makeCanvas, R, type C2D } from './draw';
 import { buildingRepresentativeColor } from './building-colors';
 import { drawPlayer, PLAYER_H, PLAYER_W } from './player-sprite';
+import { drawSignText, hasGlyphs } from './sign-font';
 
 export interface Sprite { canvas: HTMLCanvasElement; ox: number; oy: number }
 const objects = new Map<string, Sprite>();
@@ -31,8 +32,12 @@ function door(c: C2D, center: number, bottom: number, wide = false): void {
   R(c, '#e3ca79', x + w - 3, bottom - 9, 1, 3);
   R(c, '#d2c5a8', x - 3, bottom - 1, w + 6, 1);
 }
-/** Rasterise locally available fonts once, then threshold alpha for a hard pixel edge. */
+/**
+ * Sign text. Known words use the hand-drawn sign font; anything else falls back to rasterising a local font once,
+ * then thresholding alpha for a hard pixel edge.
+ */
 function label(c: C2D, text: string, center: number, y: number, color = ink): void {
+  if (hasGlyphs(text)) { drawSignText(c, text, center, y + 3, color); return; }
   const [tmp, t] = makeCanvas(text.length * 11 + 4, 13);
   t.font = 'bold 10px sans-serif'; t.textBaseline = 'top'; t.fillStyle = '#fff'; t.fillText(text, 2, 1);
   const pixels = t.getImageData(0, 0, tmp.width, tmp.height).data;
