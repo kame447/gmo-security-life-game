@@ -1,9 +1,11 @@
 /** Money and inventory rules, independent of maps, UI, and storage. */
 import { getItemDefinition, ITEM_DEFINITIONS } from '../data/items';
 import { PROTOTYPE_STARTING_MONEY_YEN } from '../data/player-defaults';
+import { inventorySnapshot, moveInventoryStack, normalizeInventoryLayout,
+  type InventoryLayoutSave, type InventoryResult, type InventorySnapshot, type SlotAddress } from './inventory';
 
 export interface ItemStack { itemId: string; quantity: number }
-export interface AssetSnapshot { moneyYen: number; items: ItemStack[] }
+export interface AssetSnapshot { moneyYen: number; items: ItemStack[]; layout?: InventoryLayoutSave }
 export interface AssetChange {
   moneyDeltaYen?: number;
   itemDeltas?: readonly { itemId: string; quantityDelta: number }[];
@@ -39,7 +41,8 @@ export function normalizeAssets(raw: unknown): AssetSnapshot {
     // Clamp while adding, so even duplicate large saved counts never overflow.
     quantities.set(item.id, previous + Math.min(quantity, item.maxQuantity - previous));
   }
-  return { moneyYen, items: stacksFrom(quantities) };
+  const items = stacksFrom(quantities);
+  return { moneyYen, items, ...(source.layout === undefined ? {} : { layout: normalizeInventoryLayout(source.layout, items) }) };
 }
 
 export class PlayerAssets {
@@ -51,7 +54,24 @@ export class PlayerAssets {
   quantity(itemId: string): number { return this.state.items.find(item => item.itemId === itemId)?.quantity ?? 0; }
   /** Callers may edit the returned snapshot without changing the live state. */
   snapshot(): AssetSnapshot {
-    return { moneyYen: this.moneyYen, items: this.state.items.map(item => ({ ...item })) };
+    return { moneyYen: this.moneyYen, items: this.state.items.map(item => ({ ...item })),
+      ...(this.state.layout ? { layout: this.inventoryLayout } : {}) };
+  }
+
+  get inventoryLayout(): InventoryLayoutSave { return normalizeInventoryLayout(this.state.layout, this.state.items); }
+  inventory(): InventorySnapshot { return inventorySnapshot(this.inventoryLayout, this.state.items); }
+  moveStack(from: SlotAddress, to: SlotAddress): InventoryResult {
+    const moved = moveInventoryStack(this.inventoryLayout, from, to);
+    if (!moved.ok) return moved;
+    this.state = { ...this.state, layout: moved.layout };
+    return { ok: true };
+  }
+  selectHotbar(index: number): boolean {
+    const layout = this.inventoryLayout;
+    if (!Number.isInteger(index) || index < 0 || index >= layout.hotbar.length) return false;
+    layout.selectedHotbar = index;
+    this.state = { ...this.state, layout };
+    return true;
   }
 
   changeMoney(deltaYen: number): AssetResult { return this.apply({ moneyDeltaYen: deltaYen }); }
@@ -87,7 +107,8 @@ export class PlayerAssets {
       if (!Number.isSafeInteger(next) || next > getItemDefinition(itemId)!.maxQuantity) return fail('quantity-limit');
       quantities.set(itemId, next);
     }
-    this.state = { moneyYen, items: stacksFrom(quantities) };
+    const items = stacksFrom(quantities);
+    this.state = { moneyYen, items, ...(this.state.layout ? { layout: normalizeInventoryLayout(this.state.layout, items) } : {}) };
     return { ok: true };
   }
 }
