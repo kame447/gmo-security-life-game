@@ -35,8 +35,9 @@ describe('ワールド全体の編集方針', () => {
     const docAfter = structuredClone(docBefore);
     docAfter.interactions.push({ id: 'town-neighbor-npc-1', areaId: 'town-neighbor', kind: 'npc', name: '人', sprite: 'friend',
       x: 2, y: 2, w: 1, h: 1, solid: true, eventKey: 'npc.town-neighbor-npc-1', lines: ['こんにちは。'] });
+    const derivedAfter = withDerived(docAfter, context);
     expect(isEditableArea(docBefore, 'town-neighbor')).toBe(false);
-    expect(() => assertWorldEdit(docBefore, docAfter, context)).toThrow('このエリアは変更できません: town-neighbor');
+    expect(() => assertWorldEdit(docBefore, derivedAfter, context)).toThrow('このエリアは変更できません: town-neighbor');
   });
   it('自宅の家具と同じ施設の屋外移動をまとめて通し、3エリアを求める', () => {
     const { before, after, context } = fixture();

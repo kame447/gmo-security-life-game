@@ -14,7 +14,7 @@ export function drawChair(c: C2D, facing: Facing): void {
     r(ink, 10, 3, 4, 22); r(wood, 11, 4, 2, 20);
     r(highlight, 11, 4, 2, 2); r(timber, 11, 6, 1, 13);
     r(ink, 2, 18, 11, 8); r(timber, 3, 19, 8, 4); r(highlight, 3, 19, 8, 1);
-    r(wood, 3, 23, 9, 2); r(wood, 11, 19, 2, 4); r(timber, 10, 19, 1, 4);
+    r(wood, 3, 23, 10, 2); r(wood, 11, 19, 2, 5); r(timber, 10, 19, 1, 4);
     return;
   }
   r(ink, 3, 25, 3, 6); r(ink, 10, 25, 3, 6);
@@ -26,12 +26,11 @@ export function drawChair(c: C2D, facing: Facing): void {
     r(wood, 2, 23, 12, 2);
   } else {
     r(wood, 4, 25, 1, 5); r(wood, 11, 25, 1, 5);
-    r(ink, 1, 17, 14, 7); r(timber, 2, 18, 12, 3); r(highlight, 2, 18, 11, 1); r(wood, 2, 21, 12, 1);
-    r(ink, 3, 6, 3, 19); r(wood, 4, 7, 1, 17);
-    r(ink, 10, 6, 3, 19); r(wood, 11, 7, 1, 17);
-    r(ink, 3, 6, 10, 6); r(highlight, 4, 7, 8, 1); r(timber, 4, 8, 8, 2); r(wood, 4, 10, 8, 1);
-    r(ink, 6, 11, 4, 10); r(wood, 7, 12, 2, 8);
-    r(ink, 3, 20, 10, 5); r(wood, 4, 21, 8, 3); r(timber, 4, 21, 8, 1);
+    // Clean rear view of the same chair: no side flaps; backrest stiles reveal the sunlit seat top in the lower gap.
+    r(ink, 3, 4, 10, 21); r(timber, 4, 5, 8, 18); r(highlight, 4, 5, 8, 2);
+    r(wood, 6, 8, 4, 7); r(timber, 7, 8, 1, 7);
+    r(ink, 5, 15, 6, 4); r(highlight, 6, 16, 4, 1); r(timber, 6, 17, 4, 1);
+    r(wood, 4, 20, 8, 4); r(timber, 4, 19, 8, 1);
   }
 }
 

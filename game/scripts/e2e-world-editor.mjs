@@ -29,7 +29,7 @@ async function session(viewport,touch=false){const context=await browser.newCont
  const page=await context.newPage();page.on('pageerror',e=>errors.push(String(e)));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('download',d=>{errors.push('Unexpected download');void d.cancel();});
  return {context,page,errors,blocked};}
 async function point(page,id){return page.evaluate(async id=>{
- const app=window.__worldEditor,o=app.model.object(id);if(!o)throw new Error(`Missing ${id}`);
+ const app=window.__worldEditor,o=app.model.object(id,undefined,app.activeArea);if(!o)throw new Error(`Missing ${id}`);
  const{objectSprite}=await import('/src/render/sprites.ts'),s=objectSprite(o),data=s.canvas.getContext('2d').getImageData(0,0,s.canvas.width,s.canvas.height).data;
  let best;for(let y=0;y<s.canvas.height;y++)for(let x=0;x<s.canvas.width;x++)if(data[(y*s.canvas.width+x)*4+3]){
   const score=Math.abs(x-s.canvas.width/2)+Math.abs(y-(s.canvas.height-7));if(!best||score<best.score)best={x,y,score};}
@@ -38,7 +38,7 @@ async function point(page,id){return page.evaluate(async id=>{
  },id);}
 async function move(page,id,x,y){const p=await point(page,id),q=await page.evaluate(({dx,dy})=>{const a=window.__worldEditor.toScreen(0,0),b=window.__worldEditor.toScreen(dx*16,dy*16);return{x:b.x-a.x,y:b.y-a.y};},{dx:x-p.object.x,dy:y-p.object.y});
  await page.mouse.move(p.x,p.y);await page.mouse.down();await page.mouse.move(p.x+q.x,p.y+q.y,{steps:8});await page.mouse.up();
- await page.waitForFunction(({id,x,y})=>{const o=window.__worldEditor.model.object(id);return o?.x===x&&o?.y===y;},{id,x,y});}
+ await page.waitForFunction(({id,x,y})=>{const app=window.__worldEditor,o=app.model.object(id,undefined,app.activeArea);return o?.x===x&&o?.y===y;},{id,x,y});}
 async function tilePoint(page,x,y){return page.evaluate(({x,y})=>{const p=window.__worldEditor.toScreen(x*16+8,y*16+8),r=document.querySelector('#workspace').getBoundingClientRect();return{x:p.x+r.x,y:p.y+r.y};},{x,y});}
 async function select(page,id){const p=await point(page,id);await page.mouse.click(p.x,p.y);await page.locator('#properties').waitFor({state:'visible'});}
 async function holdRequest(context,pattern){let release,started;const gate=new Promise(resolve=>release=resolve),seen=new Promise(resolve=>started=resolve);
@@ -115,6 +115,76 @@ try{
   assert.ok(await page.evaluate(y=>window.__worldEditor.game.player.y<y-2,beforeWalk.y));
   await page.locator('#walk-action').tap();await page.locator('#play').tap();assert.deepEqual(mobile.errors,[]);assert.deepEqual(mobile.blocked,[]);await cdp.detach();await mobile.context.close();pass(`${name}: touch play and PC-only save`);
  }
+ const roomsSession=await session({width:1280,height:800}),rp=roomsSession.page;await ready(rp);
+ const areaValues=await rp.locator('#area-select option').evaluateAll(opts=>opts.map(o=>o.value));
+ assert.deepEqual(areaValues.filter(v=>v!=='town-main'),['home-family-interior','school-classroom-interior','shop-konbini-interior']);
+ // Edit school-classroom-interior: place & 4-dir rotate chair-wood, move unlinked student desk, paint floor.
+ await rp.locator('#area-select').selectOption('school-classroom-interior');
+ await rp.waitForFunction(()=>window.__worldEditor.activeArea==='school-classroom-interior');
+ assert.equal(await rp.locator('#location').innerText(),'きょうしつ');
+ await rp.locator('[data-catalog-id="chair-wood"]').click();
+ const classChair=await rp.evaluate(()=>window.__worldEditor.ghost.object.id);
+ let pt=await tilePoint(rp,3,9);await rp.mouse.click(pt.x,pt.y);
+ const chairFacings=[await rp.evaluate(id=>window.__worldEditor.model.object(id,undefined,'school-classroom-interior').facing,classChair)];
+ for(let i=0;i<4;i++){await rp.locator('#rotate').click();chairFacings.push(await rp.evaluate(id=>window.__worldEditor.model.object(id,undefined,'school-classroom-interior').facing,classChair));}
+ assert.deepEqual(chairFacings,['down','left','up','right','down']);
+ await rp.locator('#rotate').click();await rp.locator('#rotate').click();
+ await move(rp,'school-classroom-interior-sdesk-2-8',3,8);
+ await rp.locator('#surface-tab').click();await rp.locator('[data-catalog-id="floor-wood-dark"]').click();
+ pt=await tilePoint(rp,6,9);await rp.mouse.click(pt.x,pt.y);await rp.locator('#stop-placement').click();
+ await rp.screenshot({path:path.join(output,'desktop-classroom-edited.png')});pass('classroom edits: chair 4-dir rotation, desk move, surface paint');
+ // Edit shop-konbini-interior: place chair-wood, intentional rug+table overlap, trial walk + exit portal, and multi-room atomic save.
+ await rp.locator('#area-select').selectOption('shop-konbini-interior');
+ await rp.waitForFunction(()=>window.__worldEditor.activeArea==='shop-konbini-interior');
+ assert.equal(await rp.locator('#location').innerText(),'コンビニ');
+ await rp.locator('#furniture-tab').click();await rp.locator('[data-catalog-id="chair-wood"]').click();
+ const shopChair=await rp.evaluate(()=>window.__worldEditor.ghost.object.id);
+ pt=await tilePoint(rp,3,8);await rp.mouse.click(pt.x,pt.y);await rp.locator('#rotate').click();
+ await rp.locator('[data-catalog-id="rug-large"]').click();pt=await tilePoint(rp,9,7);await rp.mouse.click(pt.x,pt.y);
+ const addedRug=await rp.evaluate(()=>window.__worldEditor.model.document.objects.find(o=>o.areaId==='shop-konbini-interior'&&o.catalogId==='rug-large')?.id);
+ assert.ok(addedRug,'rug-large should place cleanly in shop-konbini-interior');
+ await rp.locator('[data-catalog-id="table-low"]').click();pt=await tilePoint(rp,9,7);await rp.mouse.click(pt.x,pt.y);
+ const addedTable=await rp.evaluate(()=>window.__worldEditor.model.document.objects.find(o=>o.areaId==='shop-konbini-interior'&&o.catalogId==='table-low')?.id);
+ assert.ok(addedTable,'table-low should intentionally overlap rug-large');
+ await rp.locator('#undo').click();assert.equal(await rp.evaluate(id=>window.__worldEditor.model.object(id,undefined,'shop-konbini-interior'),addedTable),undefined);
+ await rp.locator('#redo').click();assert.ok(await rp.evaluate(id=>window.__worldEditor.model.object(id,undefined,'shop-konbini-interior'),addedTable));
+ await rp.screenshot({path:path.join(output,'desktop-konbini-edited.png')});
+ await rp.locator('#play').click();await rp.locator('#workspace').focus();
+ assert.equal(await rp.evaluate(()=>window.__worldEditor.game.player.areaId),'shop-konbini-interior');
+ const konbiniExit=await rp.evaluate(()=>window.__worldEditor.game.area.def.portals.find(p=>p.id==='konbini-exit'));
+ await walk(rp,{...konbiniExit.from,areaId:'shop-konbini-interior'});
+ assert.equal(await rp.evaluate(()=>window.__worldEditor.game.player.areaId),'town-main');
+ await rp.keyboard.press('Escape');
+ const multiDoc=await documentOf(rp);
+ await rp.locator('#save').click();await rp.locator('#save-confirm').waitFor({state:'visible'});
+ const savedNames=await rp.locator('#save-files li').allTextContents();
+ assert.ok(savedNames.some(t=>t.includes('school-classroom-interior.json'))&&savedNames.some(t=>t.includes('shop-konbini-interior.json')),JSON.stringify(savedNames));
+ await rp.locator('#save-commit').click();await rp.locator('#save-confirm').waitFor({state:'hidden'});
+ await rp.waitForFunction(()=>window.__worldEditor.model.dirty===0);
+ assert.ok(JSON.parse(await readFile(path.join(root,'data/world/areas/school-classroom-interior.json'),'utf8')).objects.some(o=>o.id===classChair));
+ assert.ok(JSON.parse(await readFile(path.join(root,'data/world/areas/shop-konbini-interior.json'),'utf8')).objects.some(o=>o.id===shopChair));
+ await roomsSession.context.close();assert.deepEqual(roomsSession.errors,[]);assert.deepEqual(roomsSession.blocked,[]);
+ await stop();await start();
+ const verifyRooms=await session({width:1280,height:800}),vp=verifyRooms.page;
+ await ready(vp);assert.deepEqual(await documentOf(vp),multiDoc);
+ await vp.goto(`${origin}/`);await vp.waitForFunction(()=>!!window.__slg?.game);
+ const marks=await vp.evaluate(async()=>({...(await import('/src/world/index.ts')).LANDMARKS}));
+ await walk(vp,{...marks.schoolDoorFront,areaId:'town-main'},'game');
+ await walk(vp,{x:marks.schoolDoorFront.x,y:marks.schoolDoorFront.y-1,areaId:'town-main'},'game');
+ assert.equal(await vp.evaluate(()=>window.__slg.game.player.areaId),'school-classroom-interior');
+ assert.equal(await vp.evaluate(id=>window.__slg.game.area.objects.find(o=>o.id===id)?.facing,classChair),'up');
+ await vp.screenshot({path:path.join(output,'desktop-game-classroom-edited.png')});
+ await walk(vp,{x:4,y:9,areaId:'school-classroom-interior'},'game');
+ const schoolExit=await vp.evaluate(()=>window.__slg.game.area.def.portals.find(p=>p.id==='school-exit').from);
+ await walk(vp,{...schoolExit,areaId:'school-classroom-interior'},'game');
+ assert.equal(await vp.evaluate(()=>window.__slg.game.player.areaId),'town-main');
+ await walk(vp,{...marks.konbiniDoorFront,areaId:'town-main'},'game');
+ await walk(vp,{x:marks.konbiniDoorFront.x,y:marks.konbiniDoorFront.y-1,areaId:'town-main'},'game');
+ assert.equal(await vp.evaluate(()=>window.__slg.game.player.areaId),'shop-konbini-interior');
+ assert.ok(await vp.evaluate(id=>window.__slg.game.area.objects.some(o=>o.id===id),shopChair));
+ await vp.screenshot({path:path.join(output,'desktop-game-konbini-edited.png')});
+ await verifyRooms.context.close();assert.deepEqual(verifyRooms.errors,[]);assert.deepEqual(verifyRooms.blocked,[]);
+ pass('all existing indoor areas edit, multi-save, restart, walk and reflect in real game');
  assert.equal(await readFile(path.join(source,layoutFile),'utf8'),original);pass('original project and all previews remain unchanged');
  console.log(`SUMMARY ${passed}/${passed} PASS`,JSON.stringify({output}));
 }catch(error){console.error('FAIL',error);console.error(serverOutput);process.exitCode=1;}
