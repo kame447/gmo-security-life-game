@@ -70,6 +70,7 @@ export function createClassroom(): AreaDef {
 
 export function createKonbini(): AreaDef {
   const a = room('shop-konbini-interior', 'コンビニ', 14, T.FLOOR_CLASS, 10);
+  furnish(a, 'shop-floor', 1, 1, 12, 8, false, 'tile');
   furnish(a, 'shop-rug', 5, 8, 4, 1, false, 'konbini');
   furnish(a, 'konbini-cooler', 1, 1, 4, 1, true, 'drinks');
   furnish(a, 'konbini-cooler', 5, 1, 4, 1, true, 'chilled-food');

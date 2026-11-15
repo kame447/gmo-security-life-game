@@ -533,6 +533,44 @@ function drawKonbiniCounter(c: C2D, w: number, h: number, style = ''): void {
   }
 }
 
+function drawShopFloor(c: C2D, w: number, h: number, style: string): void {
+  if (style === 'doma') {
+    R(c, '#9fa29b', 0, 0, w, h);
+    for (let y = 0; y < h; y += 8) {
+      for (let x = 0; x < w; x += 8) {
+        const hash = ((x >> 3) * 7 + (y >> 3) * 13) % 5;
+        if (hash === 0) R(c, '#959891', x + 1, y + 2, 4, 3);
+        else if (hash === 2) R(c, '#acafa7', x + 3, y + 4, 3, 2);
+        else if (hash === 4) R(c, '#8c8f88', x + 5, y + 1, 2, 2);
+      }
+    }
+    return;
+  }
+  if (style === 'dark-wood') {
+    R(c, '#784f32', 0, 0, w, h);
+    for (let y = 0; y < h; y += 4) {
+      R(c, '#623e25', 0, y, w, 1);
+      if (((y >> 2) & 1) === 0) R(c, '#86593a', 0, y + 2, w, 1);
+      const offset = ((y >> 2) % 2) * 8;
+      for (let x = offset; x < w; x += 16) R(c, '#623e25', x, y, 1, 4);
+    }
+    return;
+  }
+  // Light square ceramic tile for konbini ('tile') and pharmacy ('tile-mint')
+  const mint = style === 'tile-mint';
+  const base = mint ? '#ecf5f2' : '#eef3f1';
+  const alt = mint ? '#e5f0ec' : '#e8eeec';
+  const grout = mint ? '#cee0da' : '#d6dfdc';
+  R(c, base, 0, 0, w, h);
+  for (let y = 0; y < h; y += 8) {
+    for (let x = 0; x < w; x += 8) {
+      if ((((x >> 3) + (y >> 3)) & 1) === 1) R(c, alt, x, y, 8, 8);
+      R(c, grout, x, y, 8, 1);
+      R(c, grout, x, y, 1, 8);
+    }
+  }
+}
+
 function drawShopRug(c: C2D, w: number, h: number, style: string): void {
   if (style === 'bakery') shopRug(c, w, h, '#e8c494', '#b87640', '#faecd2');
   else if (style === 'bookstore') shopRug(c, w, h, '#b86258', '#683c36', '#e6c88a');
@@ -550,6 +588,8 @@ export function foodStoreSprite(o: ObjectDef): StoreSprite | null {
   const style = o.style ?? '';
 
   switch (o.kind) {
+    case 'shop-floor':
+      return sprite(w, h, 0, (c) => drawShopFloor(c, w, h, style));
     case 'shop-rug':
       return sprite(w, h, 0, (c) => drawShopRug(c, w, h, style));
 

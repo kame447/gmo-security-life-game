@@ -41,6 +41,7 @@ export const SHOP_INTERIORS: readonly ShopInteriorDefinition[] = [
     outdoorDoor: { x: 33, y: 52 },
     clerk: { name: 'やおやさん', sprite: 'shopkeeper', x: 12, y: 2, facing: 'down', line: 'いらっしゃい。きょうは キャベツも みかんも とれたてだよ！' },
     furnishings: [
+      { id: 'floor', kind: 'shop-floor', style: 'doma', x: 1, y: 1, w: 14, h: 10, solid: false, layer: 'decal' },
       { id: 'entry-rug', kind: 'shop-rug', style: 'greengrocer', x: 7, y: 8, w: 2, h: 2, solid: false, layer: 'decal' },
       { id: 'cooler', kind: 'greengrocer-chill-case', x: 1, y: 1, w: 3, h: 1, name: 'れいぞうケース', line: 'みずみずしい キャベツや だいこんが ひえている。' },
       { id: 'back-roots', kind: 'greengrocer-produce-stand', style: 'roots', x: 5, y: 1, w: 4, h: 1 },
@@ -103,6 +104,7 @@ export const SHOP_INTERIORS: readonly ShopInteriorDefinition[] = [
     outdoorDoor: { x: 68, y: 52 },
     clerk: { name: 'てんいんさん', sprite: 'clerk', x: 14, y: 2, facing: 'down', line: 'いらっしゃいませ。ひきたての コーヒーと ケーキを どうぞ。' },
     furnishings: [
+      { id: 'floor', kind: 'shop-floor', style: 'dark-wood', x: 1, y: 1, w: 16, h: 12, solid: false, layer: 'decal' },
       { id: 'entry-rug', kind: 'shop-rug', style: 'cafe', x: 7, y: 11, w: 4, h: 1, solid: false, layer: 'decal' },
       { id: 'lounge-rug', kind: 'shop-rug', style: 'cafe', x: 12, y: 8, w: 3, h: 2, solid: false, layer: 'decal' },
       { id: 'brew-bar', kind: 'cafe-brew-bar', x: 1, y: 1, w: 4, h: 1, name: 'コーヒーカウンター', line: 'エスプレッソマシンと サイフォンが コーヒーの いい かおりを たてている。' },
@@ -132,6 +134,7 @@ export const SHOP_INTERIORS: readonly ShopInteriorDefinition[] = [
     outdoorDoor: { x: 75, y: 52 },
     clerk: { name: 'くすりやさん', sprite: 'clerk', x: 6, y: 3, facing: 'down', line: 'いらっしゃいませ。おくすりの そうだんでも お気軽に どうぞ。' },
     furnishings: [
+      { id: 'floor', kind: 'shop-floor', style: 'tile-mint', x: 1, y: 1, w: 14, h: 10, solid: false, layer: 'decal' },
       { id: 'entry-rug', kind: 'shop-rug', style: 'pharmacy', x: 6, y: 9, w: 4, h: 1, solid: false, layer: 'decal' },
       { id: 'wait-mat', kind: 'shop-rug', style: 'pharmacy', x: 5, y: 4, w: 3, h: 1, solid: false, layer: 'decal' },
       { id: 'medicine', kind: 'pharmacy-med-shelf', x: 1, y: 1, w: 4, h: 1, name: 'くすりのたな', line: 'かぜぐすりや シロップびん、じょうざいシートが きれいに わかれている。' },
