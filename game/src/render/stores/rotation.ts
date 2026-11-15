@@ -29,6 +29,14 @@ export const STORE_FLOOR_BASE_RULE: RotationRule = Object.freeze({
   reason: STORE_FLOOR_REASON,
 });
 
+const RUG_DIRECTIONS: readonly Facing[] = Object.freeze(['down', 'left']);
+
+export const STORE_RUG_RULE: RotationRule = Object.freeze({
+  placement: 'rug',
+  directions: RUG_DIRECTIONS,
+  reason: '',
+});
+
 /**
  * Rotation rules for Bookstore, Candy Shop, and Pharmacy fixtures (`fixtures-retail.ts`).
  * A kind is added here only after all permitted directional artwork is complete.
@@ -60,7 +68,39 @@ export const RETAIL_STORE_ROTATION_ENTRIES: readonly (readonly [string, Rotation
  * Rotation rules for Bakery, Greengrocer, Cafe, Konbini fixtures and `shop-rug` (`fixtures-food.ts`).
  * Populated as directional artwork in `fixtures-food.ts` is completed.
  */
-export const FOOD_STORE_ROTATION_ENTRIES: readonly (readonly [string, RotationRule])[] = [];
+export const FOOD_STORE_ROTATION_ENTRIES: readonly (readonly [string, RotationRule])[] = [
+  ['shop-rug', STORE_RUG_RULE],
+  // Bakery
+  ['bakery-oven', STORE_SIDE_AND_FRONT_RULE],
+  ['bakery-bread-rack', STORE_ROTATE_ALL_RULE],
+  ['bakery-pastry-table', STORE_ROTATE_ALL_RULE],
+  ['bakery-showcase', STORE_ROTATE_ALL_RULE],
+  ['bakery-tray-stand', STORE_ROTATE_ALL_RULE],
+  ['bakery-counter', STORE_ROTATE_ALL_RULE],
+  // Greengrocer
+  ['greengrocer-produce-stand', STORE_ROTATE_ALL_RULE],
+  ['greengrocer-fruit-table', STORE_ROTATE_ALL_RULE],
+  ['greengrocer-basket-rack', STORE_ROTATE_ALL_RULE],
+  ['greengrocer-chill-case', STORE_ROTATE_ALL_RULE],
+  ['greengrocer-counter', STORE_ROTATE_ALL_RULE],
+  // Cafe
+  ['cafe-brew-bar', STORE_ROTATE_ALL_RULE],
+  ['cafe-cake-case', STORE_ROTATE_ALL_RULE],
+  ['cafe-counter', STORE_ROTATE_ALL_RULE],
+  ['cafe-table', STORE_ROTATE_ALL_RULE],
+  ['cafe-chair', STORE_ROTATE_ALL_RULE],
+  ['cafe-sofa', STORE_ROTATE_ALL_RULE],
+  ['cafe-menu-board', STORE_ROTATE_ALL_RULE],
+  ['cafe-plant', STORE_ROTATE_ALL_RULE],
+  // Konbini
+  ['konbini-cooler', STORE_ROTATE_ALL_RULE],
+  ['konbini-magazine', STORE_ROTATE_ALL_RULE],
+  ['konbini-snack-shelf', STORE_ROTATE_ALL_RULE],
+  ['konbini-food-shelf', STORE_ROTATE_ALL_RULE],
+  ['konbini-daily-shelf', STORE_ROTATE_ALL_RULE],
+  ['konbini-ice-freezer', STORE_ROTATE_ALL_RULE],
+  ['konbini-counter', STORE_ROTATE_ALL_RULE],
+];
 
 const BASE_STORE_ENTRIES: readonly (readonly [string, RotationRule])[] = [
   ['shop-floor', STORE_FLOOR_BASE_RULE],

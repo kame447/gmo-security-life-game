@@ -32,8 +32,10 @@ export function makeStoreSprite(w: number, h: number, oy: number, paint: (c: C2D
   return { canvas, ox: 0, oy };
 }
 
-/** Wrap a C2D context so every filled rect is mirrored horizontally across `width`. */
-export function mirroredContext(c: C2D, width: number): C2D {
+function wrapRectContext(
+  c: C2D,
+  drawRect: (x: number, y: number, w: number, h: number) => void,
+): C2D {
   return {
     get fillStyle() {
       return c.fillStyle;
@@ -41,10 +43,18 @@ export function mirroredContext(c: C2D, width: number): C2D {
     set fillStyle(value) {
       c.fillStyle = value;
     },
-    fillRect(x: number, y: number, w: number, h: number) {
-      c.fillRect(width - x - w, y, w, h);
-    },
+    fillRect: drawRect,
   } as unknown as C2D;
+}
+
+/** Wrap a C2D context so every filled rect is mirrored horizontally across `width`. */
+export function mirroredContext(c: C2D, width: number): C2D {
+  return wrapRectContext(c, (x, y, w, h) => c.fillRect(width - x - w, y, w, h));
+}
+
+/** Wrap a C2D context so every filled rect is rotated 90 degrees clockwise from `origH`. */
+export function rotatedCwContext(c: C2D, origH: number): C2D {
+  return wrapRectContext(c, (x, y, w, h) => c.fillRect(origH - y - h, x, h, w));
 }
 
 /**

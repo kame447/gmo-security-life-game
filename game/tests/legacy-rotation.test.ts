@@ -94,36 +94,8 @@ describe('legacy and indoor rotation contract', () => {
     ]);
 
     const model = new WorldEditorModel(world);
-    // Remaining store kinds belonging to Charge B (`fixtures-food.ts` & `shop-rug`) until directional art is added.
-    const PENDING_FOOD_STORE_KINDS = [
-      'shop-rug',
-      'bakery-bread-rack',
-      'bakery-counter',
-      'bakery-oven',
-      'bakery-pastry-table',
-      'bakery-showcase',
-      'bakery-tray-stand',
-      'cafe-brew-bar',
-      'cafe-cake-case',
-      'cafe-chair',
-      'cafe-counter',
-      'cafe-menu-board',
-      'cafe-plant',
-      'cafe-sofa',
-      'cafe-table',
-      'greengrocer-basket-rack',
-      'greengrocer-chill-case',
-      'greengrocer-counter',
-      'greengrocer-fruit-table',
-      'greengrocer-produce-stand',
-      'konbini-cooler',
-      'konbini-counter',
-      'konbini-daily-shelf',
-      'konbini-food-shelf',
-      'konbini-ice-freezer',
-      'konbini-magazine',
-      'konbini-snack-shelf',
-    ] as const;
+    // All food-store kinds and `shop-rug` (`fixtures-food.ts`) are now registered in `FOOD_STORE_ROTATION_ENTRIES`.
+    const PENDING_FOOD_STORE_KINDS: readonly string[] = [];
     const unregisteredKinds = new Set<string>();
 
     for (const area of indoorAreas) {
