@@ -16,6 +16,7 @@
         <label><input type="checkbox" data-layer="ids">ID</label>
         <label id="landmarks-layer" hidden><input type="checkbox" data-layer="landmarks">目印</label>
       </div></details>
+      <button id="npc-list-toggle" type="button" aria-expanded="false">人物一覧 (0)</button>
       <button id="play">▶ 歩いて確かめる</button><button id="save" disabled>保存する</button>
       <output id="dirty">未保存 0</output>
     </nav>
@@ -36,7 +37,12 @@
         <p id="npc-event-note"></p><ul id="npc-events"></ul>
         <label>イベントキー<input id="npc-event-key" type="text" readonly></label>
       </section>
-      <p id="protection"></p><details><summary>くわしく</summary><p id="object-id"></p><pre id="object-json"></pre></details>
+      <p id="protection"></p><details id="object-details"><summary>くわしく</summary><p id="object-id"></p><pre id="object-json"></pre></details>
+      <section id="npc-list-section" aria-labelledby="npc-list-title" hidden>
+        <h3 id="npc-list-title">このエリアの人（0）</h3>
+        <p id="npc-list-empty" hidden></p>
+        <ul id="npc-list"></ul>
+      </section>
     </aside>
     <section id="walk-dialog" hidden aria-live="polite"><strong></strong><p></p></section>
     <div id="play-controls" hidden aria-label="試し歩き">

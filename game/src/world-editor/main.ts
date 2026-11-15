@@ -17,7 +17,7 @@ import { staleLayouts } from '../world/layouts';
 import { HOME_AREA, WorldEditorModel } from './model';
 import { hitItem } from './hit-test';
 import { surfaceModule } from './surface-catalog';
-import { EDITABLE_PEOPLE, npcEvents } from './npc';
+import { areaNpcs, editablePerson, EDITABLE_PEOPLE, npcBadges, npcEvents, type NpcBadge } from './npc';
 import { changedAreaIds, isEditableArea } from './world-policy';
 import { OutdoorModel } from './outdoor';
 import { resolveLandmarks } from '../world/landmark-resolve';
@@ -28,6 +28,7 @@ const renderer = new Renderer(scene), model = new WorldEditorModel(buildWorld())
 const TOWN_AREA='town-main',outdoor=new OutdoorModel(model,TOWN_AREA);
 let world = model.runtime(), activeArea = HOME_AREA, selected: string | undefined, game: Game | undefined;
 let selectedNpc: string | undefined, npcDraft=false;
+let npcListOpen = !window.matchMedia('(max-width:700px), (max-height:470px)').matches, npcListKey = '';
 let npcPlacement: EditorInteraction | undefined;
 let npcDrag: { npc: EditorInteraction; adding: boolean; offsetX: number; offsetY: number } | undefined;
 let npcGhost: { npc: EditorInteraction; adding: boolean; document: EditorDocument; valid: boolean } | undefined;
@@ -67,10 +68,100 @@ function toScreen(x: number, y: number) {
 function inside(e: { clientX: number; clientY: number }) { const p=local(e);return p.x>=0&&p.y>=0&&p.x<workspace.clientWidth&&p.y<workspace.clientHeight; }
 function refresh() { world=viewWorld();ghost=undefined;npcGhost=undefined;paint=undefined;update(); }
 function attempt(fn: () => void) { try { fn(); refresh(); status(''); } catch(error) { status((error as Error).message); update(); } }
+const BADGE_CLASSES: Record<NpcBadge, string> = {
+  'もとからいる人': 'npc-badge-original',
+  '置いた人': 'npc-badge-placed',
+  '店員': 'npc-badge-clerk',
+  'イベントあり': 'npc-badge-event',
+};
+
+function selectNpcFromList(entry: EditorInteraction) {
+  if (saveBusy || npcDraft || game) {
+    if (npcDraft) status('入力中の変更を反映するか取り消してから選び直してください');
+    return;
+  }
+  cancelGesture();
+  surface = undefined;
+  selected = undefined;
+  selectedNpc = entry.id;
+  if (overview) {
+    overview = false;
+    camera.zoom = Math.max(camera.zoom, 3);
+    resize();
+  }
+  camera.centerX = entry.x * 16 + 8;
+  camera.centerY = entry.y * 16 + 8;
+  update();
+}
+
+function renderNpcList(npcs: EditorInteraction[]) {
+  $('#npc-list-title').textContent = `このエリアの人（${npcs.length}）`;
+  const empty = $('#npc-list-empty');
+  empty.hidden = npcs.length > 0;
+  empty.textContent = npcs.length ? '' : editableArea(activeArea)
+    ? 'このエリアに人はいません。「人」のタブから置けます'
+    : 'このエリアに人はいません';
+  const nextKey = [
+    activeArea,
+    selectedNpc ?? '',
+    String(npcDraft),
+    ...npcs.map(entry => [entry.id, entry.name, entry.sprite ?? '', entry.x, entry.y, entry.eventKey].join('\0')),
+  ].join('\n');
+  if (nextKey === npcListKey) return;
+  npcListKey = nextKey;
+  const list = $('#npc-list');
+  list.replaceChildren();
+  for (const entry of npcs) {
+    const li = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'npc-row';
+    button.dataset.npcListId = entry.id;
+    button.setAttribute('aria-pressed', String(entry.id === selectedNpc));
+    button.classList.toggle('locked', npcDraft && entry.id !== selectedNpc);
+    const spriteId = editablePerson(entry.sprite ?? '')?.id ?? 'friend';
+    const body = document.createElement('div');
+    body.className = 'npc-row-body';
+    const head = document.createElement('div');
+    head.className = 'npc-row-head';
+    const name = document.createElement('span');
+    name.className = 'npc-row-name';
+    name.textContent = entry.name;
+    const pos = document.createElement('span');
+    pos.className = 'npc-row-pos';
+    pos.textContent = `${entry.x}, ${entry.y}`;
+    head.append(name, pos);
+    const badges = document.createElement('div');
+    badges.className = 'npc-badges';
+    for (const label of npcBadges(entry)) {
+      const badge = document.createElement('span');
+      badge.className = `npc-badge ${BADGE_CLASSES[label]}`;
+      badge.textContent = label;
+      badges.append(badge);
+    }
+    body.append(head, badges);
+    button.append(personThumbnail(spriteId, 'down', 32), body);
+    button.onclick = () => selectNpcFromList(entry);
+    li.append(button);
+    list.append(li);
+  }
+}
+
 function update() {
   const o = selected ? (ghost?.object.id===selected?ghost.object:objectAt(selected)) : undefined;
   const npc=selectedNpc?(npcGhost?.npc.id===selectedNpc?npcGhost.npc:npcAt(selectedNpc)):undefined;
-  $('#properties').hidden=(!o&&!npc)||!!game;
+  if(selectedNpc&&!npc){selectedNpc=undefined;npcDraft=false;}
+  const npcs=areaNpcs(model.document,activeArea);
+  const showSelection=Boolean(o||npc),showNpcList=npcListOpen;
+  $('#properties').hidden=!!game||(!showSelection&&!showNpcList);
+  for(const selector of ['#object-name','#object-position','#selection-actions','#protection','#object-details'])$(selector).hidden=!showSelection;
+  $('#npc-list-section').hidden=!showNpcList;
+  const listToggle=$<HTMLButtonElement>('#npc-list-toggle');
+  listToggle.textContent=`人物一覧 (${npcs.length})`;
+  listToggle.setAttribute('aria-pressed',String(npcListOpen));
+  listToggle.setAttribute('aria-expanded',String(npcListOpen));
+  listToggle.disabled=!!game;
+  if(showNpcList&&!game)renderNpcList(npcs);
   $('#npc-properties').hidden=!npc;
   $('#building-properties').hidden=!o||activeArea!==TOWN_AREA||(!o.facilityId&&outdoorForObject(o)?.category!=='building');
   if (o) {
@@ -268,6 +359,7 @@ $('#outside').onclick=()=>{if(game)return;if(activeArea!==TOWN_AREA)backToTown()
 $('#area-select').onchange=()=>{const next=$<HTMLSelectElement>('#area-select').value;if(saveBusy||npcDraft||game||next===activeArea){$<HTMLSelectElement>('#area-select').value=activeArea;return;}returnToTown=undefined;openArea(next);};
 $('#enter-interior').onclick=()=>{const object=selected?objectAt(selected):undefined;if(object)enterRoom(object);};
 $('#overview').onclick=()=>{if(game)return;const area=world.areas.get(activeArea)!;overview=true;camera.centerX=area.width*8;camera.centerY=area.height*8;camera.zoom=1;resize();update();};
+$('#npc-list-toggle').onclick=()=>{if(game)return;npcListOpen=!npcListOpen;update();};
 $('#zoom-in').onclick=()=>setZoom(camera.zoom+1);$('#zoom-out').onclick=()=>setZoom(camera.zoom-1);
 $('#undo').onclick=()=>{cancelGesture();attempt(()=>model.session.undo());};$('#redo').onclick=()=>{cancelGesture();attempt(()=>model.session.redo());};
 $('#rotate').onclick=()=>{

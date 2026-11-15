@@ -9,6 +9,21 @@ export const npcEventKey = (id: string) => `npc.${id}`;
 export const isPlacedNpc = (npc: EditorInteraction) => npc.kind === 'npc' && npc.eventKey === npcEventKey(npc.id);
 export const npcEvents = (npc: EditorInteraction) => CHILDHOOD_SAMPLE_EVENTS.filter(event => event.trigger.eventKey === npc.eventKey);
 
+export type NpcBadge = 'もとからいる人' | '置いた人' | '店員' | 'イベントあり';
+
+/** Return the ordered NPC entries in `areaId` from the current editor document. */
+export const areaNpcs = (document: Pick<EditorDocument, 'interactions'>, areaId: string): EditorInteraction[] =>
+  document.interactions.filter(interaction => interaction.areaId === areaId && interaction.kind === 'npc');
+
+/** Derive display badges for an NPC row without changing persisted authoring fields. */
+export function npcBadges(npc: EditorInteraction): NpcBadge[] {
+  const placed = isPlacedNpc(npc);
+  const badges: NpcBadge[] = [placed ? '置いた人' : 'もとからいる人'];
+  if (!placed && (npc.eventKey.startsWith('shopping.') || npc.eventKey.startsWith('shop.'))) badges.push('店員');
+  if (npcEvents(npc).length > 0) badges.push('イベントあり');
+  return badges;
+}
+
 /** Checked again by the save policy; catalog declarations come from the trusted loader. */
 export function npcIssue(npc: EditorInteraction, document: EditorDocument): string | undefined {
   if (npc.kind !== 'npc' || !npc.solid || (npc.w ?? 1) !== 1 || (npc.h ?? 1) !== 1 || npc.objectId)

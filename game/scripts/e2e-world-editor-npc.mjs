@@ -112,7 +112,7 @@ async function talk(s,id){
 async function save(s){
  const target=path.join(root,layoutFile),before=await readFile(target,'utf8');assert.equal(await s.page.locator('#save').isDisabled(),false);
  await s.click('#save');await s.page.locator('#save-confirm').waitFor({state:'visible'});assert.match(await s.page.locator('#save-target').innerText(),/home-family-interior.json/);
- await s.click('#save-commit');await s.page.locator('#save-confirm').waitFor({state:'hidden'});await s.page.waitForFunction(()=>window.__worldEditor.model.dirty===0);
+ await s.click('#save-commit');await s.page.locator('#save-confirm').waitFor({state:'hidden'});await s.page.waitForFunction(()=>window.__worldEditor?.model.dirty===0);
  const saved=await readFile(target,'utf8');assert.notEqual(saved,before);return JSON.parse(saved);
 }
 async function restart(s,expected){await close(s);await stop();await start();const next=await session({width:1280,height:800});await ready(next.page);assert.deepEqual(await documentOf(next.page),expected);return next;}
@@ -120,6 +120,30 @@ async function restart(s,expected){await close(s);await stop();await start();con
 try{
  await start();browser=await chromium.launch({headless:true,args:['--disable-background-networking','--disable-gpu-vsync','--disable-frame-rate-limit']});
  let s=await session({width:1280,height:800});await ready(s.page);const initial=await documentOf(s.page),sourceMother=await npcOf(s.page,motherId);
+ const listOrder=async(page,area=areaId)=>page.evaluate(area=>Array.from(document.querySelectorAll('[data-npc-list-id]')).map(b=>b.dataset.npcListId),area);
+ const docNpcOrder=async(page,area)=>page.evaluate(area=>window.__worldEditor.model.document.interactions.filter(i=>i.areaId===area&&i.kind==='npc').map(i=>i.id),area);
+ const rowBadges=async(page,id)=>page.evaluate(id=>Array.from(document.querySelectorAll(`[data-npc-list-id="${id}"] .npc-badge`)).map(el=>el.textContent),id);
+ assert.deepEqual(await listOrder(s.page),await docNpcOrder(s.page,areaId));
+ assert.deepEqual(await rowBadges(s.page,motherId),['もとからいる人','イベントあり']);
+ await s.page.locator('#area-select').selectOption('town-main');await frames(s.page);
+ assert.deepEqual(await listOrder(s.page),await docNpcOrder(s.page,'town-main'));
+ assert.equal((await listOrder(s.page)).length,6);
+ assert.ok((await rowBadges(s.page,'candy-shopkeeper')).includes('店員'));
+ await s.page.evaluate(()=>{window.__worldEditor.camera.centerX=32;window.__worldEditor.camera.centerY=32;});await frames(s.page);
+ const offscreenBefore=await s.page.evaluate(()=>{const npc=window.__worldEditor.model.npc('station-staff',undefined,'town-main');const p=window.__worldEditor.toScreen(npc.x*16+8,npc.y*16+8),r=document.querySelector('#workspace').getBoundingClientRect();return{x:p.x,y:p.y,w:r.width,h:r.height};});
+ assert.ok(offscreenBefore.x<0||offscreenBefore.x>offscreenBefore.w||offscreenBefore.y<0||offscreenBefore.y>offscreenBefore.h);
+ await s.click('[data-npc-list-id="station-staff"]');
+ assert.equal(await s.page.locator('#npc-name').inputValue(),'えきいんさん');
+ assert.match(await s.page.locator('#object-id').textContent(),/station-staff/);
+ assert.equal(await s.page.locator('[data-npc-list-id="station-staff"]').getAttribute('aria-pressed'),'true');
+ const focusedAfter=await s.page.evaluate(()=>{const npc=window.__worldEditor.model.npc('station-staff',undefined,'town-main');const p=window.__worldEditor.toScreen(npc.x*16+8,npc.y*16+8),r=document.querySelector('#workspace').getBoundingClientRect();return{x:p.x,y:p.y,w:r.width,h:r.height};});
+ assert.ok(focusedAfter.x>=0&&focusedAfter.x<=focusedAfter.w&&focusedAfter.y>=0&&focusedAfter.y<=focusedAfter.h);
+ await s.page.locator('#area-select').selectOption('shop-konbini-interior');await frames(s.page);
+ assert.deepEqual(await listOrder(s.page),await docNpcOrder(s.page,'shop-konbini-interior'));
+ assert.deepEqual(await rowBadges(s.page,'konbini-clerk'),['もとからいる人','店員']);
+ await s.page.locator('#area-select').selectOption(areaId);await frames(s.page);
+ assert.deepEqual(await listOrder(s.page),await docNpcOrder(s.page,areaId));
+ pass('NPC list follows area switches, shows badges, and selects/pans camera to off-screen NPC');
  assert.equal(await s.page.locator('[data-catalog-id]').count(),16);await select(s,motherId);
  assert.equal(await s.page.locator('#npc-events li').count(),2);assert.match(await s.page.locator('#npc-event-note').innerText(),/ふだんの会話/);
  assert.equal(await s.page.locator('#npc-lines').isEditable(),true);assert.equal(await s.page.locator('#npc-event-key').getAttribute('readonly'),'');
@@ -158,17 +182,36 @@ try{
  await s.click('#people-tab');assert.equal(await s.page.locator('[data-person-id]').count(),10);assert.equal(await s.page.locator('[data-person-id="player"]').count(),0);
  await s.click('[data-person-id="friend"]');const cancelled=await s.page.evaluate(()=>window.__worldEditor.npcGhost.npc.id);await s.click('#stop-placement');assert.deepEqual(await documentOf(s.page),expectedMother);pass('ten game-art people thumbnails and cancelled placement leave the document unchanged');
  const placed=await place(s,'friend',4,7);assert.notEqual(placed.id,cancelled);assert.match(placed.id,/^home-family-interior-npc-[1-9][0-9]*$/);
- assert.equal((await npcOf(s.page,placed.id)).eventKey,`npc.${placed.id}`);await edit(s,{name:'新しく置いた人',lines:['追加した人の会話です。'],sprite:'grandma'});pass('new person receives a unique ID own event key and editable appearance/name/dialogue');
- await s.click('#delete');assert.equal(await npcOf(s.page,placed.id),undefined);await s.click('#undo');assert.equal((await npcOf(s.page,placed.id)).eventKey,`npc.${placed.id}`);await s.click('#redo');assert.equal(await npcOf(s.page,placed.id),undefined);pass('new person deletion undo and redo preserve the same ID and key');
+ assert.equal((await npcOf(s.page,placed.id)).eventKey,`npc.${placed.id}`);await edit(s,{name:'新しく置いた人',lines:['追加した人の会話です。'],sprite:'grandma'});
+ assert.deepEqual(await listOrder(s.page),await docNpcOrder(s.page,areaId));assert.deepEqual(await rowBadges(s.page,placed.id),['置いた人']);
+ pass('new person receives a unique ID own event key and editable appearance/name/dialogue');
+ await s.click('#delete');assert.equal(await npcOf(s.page,placed.id),undefined);assert.deepEqual(await listOrder(s.page),[motherId]);
+ await s.click('#undo');assert.equal((await npcOf(s.page,placed.id)).eventKey,`npc.${placed.id}`);assert.deepEqual(await listOrder(s.page),await docNpcOrder(s.page,areaId));
+ await s.click('#redo');assert.equal(await npcOf(s.page,placed.id),undefined);assert.deepEqual(await listOrder(s.page),[motherId]);pass('new person deletion undo and redo preserve the same ID and key');
  const retained=await place(s,'cat',4,7);assert.notEqual(retained.id,placed.id);assert.notEqual(retained.id,cancelled);await edit(s,{name:'保存して開き直す人',lines:['追加して保存した会話です。']});
  const beforeInvalid=await documentOf(s.page),invalid=await place(s,'friend',7,10);assert.equal(await npcOf(s.page,invalid.id),undefined);assert.deepEqual(await documentOf(s.page),beforeInvalid);pass('deleted IDs are not reused and an arrival-blocking placement is refused');
  await select(s,retained.id);await s.page.screenshot({path:path.join(output,'desktop-new-person.png')});const expectedAdded=await documentOf(s.page);await save(s);s=await restart(s,expectedAdded);
+ await select(s,motherId);await s.page.locator('#npc-name').fill('下書き保護名');await s.click(`[data-npc-list-id="${retained.id}"]`);
+ assert.equal(await s.page.locator('#npc-name').inputValue(),'下書き保護名');assert.match(await s.page.locator('#object-id').textContent(),new RegExp(motherId));
+ assert.equal(await s.page.locator(`[data-npc-list-id="${motherId}"]`).getAttribute('aria-pressed'),'true');
+ await s.click('#npc-revert');await s.click(`[data-npc-list-id="${retained.id}"]`);assert.equal(await s.page.locator('#npc-name').inputValue(),'保存して開き直す人');
+ pass('draft guard keeps edited form values when clicking another NPC row');
  await select(s,retained.id);assert.equal(await s.page.locator('#delete').isDisabled(),false);assert.equal(await s.page.locator('#npc-name').inputValue(),'保存して開き直す人');pass('placed person survives save/reopen and remains deletable');
  await s.click('#delete');const expectedDeleted=await documentOf(s.page);assert.ok(!expectedDeleted.catalogs.eventKeys.includes(`npc.${retained.id}`));await save(s);s=await restart(s,expectedDeleted);
  assert.equal(await npcOf(s.page,retained.id),undefined);assert.deepEqual(await npcOf(s.page,motherId),editedMother);pass('deleting a reopened person saves again without leaving a stale event key');
  const finalDocument=await documentOf(s.page),finalBytes=await readFile(path.join(root,layoutFile),'utf8');await close(s);
  for(const[name,viewport]of[['portrait',{width:390,height:844}],['landscape',{width:844,height:390}]]){
   const mobile=await session(viewport,true);await ready(mobile.page);assert.deepEqual(await documentOf(mobile.page),finalDocument);
+  if(name==='portrait'){
+   await mobile.click('#npc-list-toggle');
+   const overflow=await mobile.page.evaluate(()=>{const props=document.querySelector('#properties'),list=document.querySelector('#npc-list'),items=Array.from(list.querySelectorAll('.npc-row')).map(b=>b.getBoundingClientRect());const pr=props.getBoundingClientRect(),lr=list.getBoundingClientRect();return{propsScrollW:props.scrollWidth,propsClientW:props.clientWidth,propsLeft:pr.left,propsRight:pr.right,listScrollW:list.scrollWidth,listClientW:list.clientWidth,listRight:lr.right,itemCount:items.length,maxItemRight:Math.max(...items.map(r=>r.right))};});
+   assert.equal(overflow.itemCount,(await docNpcOrder(mobile.page,areaId)).length);
+   assert.ok(overflow.propsScrollW<=overflow.propsClientW,`portrait #properties horizontal overflow: ${JSON.stringify(overflow)}`);
+   assert.ok(overflow.listScrollW<=overflow.listClientW,`portrait #npc-list horizontal overflow: ${JSON.stringify(overflow)}`);
+   assert.ok(overflow.propsLeft>=0&&overflow.propsRight<=390&&overflow.maxItemRight<=390,`portrait list outside 390px: ${JSON.stringify(overflow)}`);
+   await mobile.click('#npc-list-toggle');
+   pass('portrait: NPC list fits within 390px without horizontal overflow');
+  }
   await mobile.click('#zoom-out');await mobile.click('#zoom-out');
   if(name==='portrait'){
    const box=await mobile.page.locator('#workspace').boundingBox(),a={x:box.x+260,y:box.y+30},b={x:box.x+340,y:box.y+30};

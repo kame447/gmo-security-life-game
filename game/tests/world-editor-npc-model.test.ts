@@ -1,7 +1,7 @@
 import {describe,expect,it} from 'vitest';
 import {WorldEditorModel,HOME_AREA} from '../src/world-editor/model';
 import {assertInteriorEdit} from '../src/world-editor/policy';
-import {EDITABLE_PEOPLE,npcEvents} from '../src/world-editor/npc';
+import {areaNpcs,EDITABLE_PEOPLE,npcBadges,npcEvents} from '../src/world-editor/npc';
 import {prepareSave} from '../src/world-editor/persistence';
 import {areaEditPolicy,isEditableArea} from '../src/world-editor/world-policy';
 import {buildWorld,validateWorld} from '../src/world';
@@ -183,4 +183,43 @@ describe('実ワールド全エリアの既存NPC回帰（N1）', () => {
     });
     expect(keyShape(afterLayout)).toEqual(keyShape(beforeLayout));
   }, 15000);
+});
+
+describe('人物一覧とバッジの派生ロジック（N3）', () => {
+  it('一覧の件数・順番が現在の文書と一致し、追加・削除・Undo/Redo・エリア切替に追従する', () => {
+    const model = new WorldEditorModel(buildWorld());
+    const docNpcIds = (areaId: string) =>
+      model.document.interactions.filter(item => item.areaId === areaId && item.kind === 'npc').map(npc => npc.id);
+    expect(areaNpcs(model.document, HOME_AREA).map(npc => npc.id)).toEqual(docNpcIds(HOME_AREA));
+    expect(areaNpcs(model.document, 'town-main').map(npc => npc.id)).toEqual(docNpcIds('town-main'));
+    expect(areaNpcs(model.document, 'town-main')).toHaveLength(6);
+    expect(areaNpcs(model.document, 'shop-konbini-interior').map(npc => npc.id)).toEqual(docNpcIds('shop-konbini-interior'));
+
+    const placed = { ...model.createNpc('friend', HOME_AREA), x: 4, y: 7, name: '新しい人', lines: ['こんにちは'] };
+    model.commit(model.npcCandidate(placed, true));
+    expect(areaNpcs(model.document, HOME_AREA).map(npc => npc.id)).toEqual(docNpcIds(HOME_AREA));
+    expect(areaNpcs(model.document, HOME_AREA).map(npc => npc.id)).toContain(placed.id);
+    expect(areaNpcs(model.document, HOME_AREA)).toHaveLength(2);
+
+    model.removeNpc(placed.id, HOME_AREA);
+    expect(areaNpcs(model.document, HOME_AREA).map(npc => npc.id)).toEqual(['home-mother']);
+
+    model.session.undo();
+    expect(areaNpcs(model.document, HOME_AREA).map(npc => npc.id)).toEqual(docNpcIds(HOME_AREA));
+    expect(areaNpcs(model.document, HOME_AREA).map(npc => npc.id)).toContain(placed.id);
+    model.session.redo();
+    expect(areaNpcs(model.document, HOME_AREA).map(npc => npc.id)).toEqual(['home-mother']);
+  });
+
+  it('もとからいる人・置いた人・店員・イベントありのバッジを返す', () => {
+    const model = new WorldEditorModel(buildWorld());
+    expect(npcBadges(model.npc('home-mother', undefined, HOME_AREA)!)).toEqual(['もとからいる人', 'イベントあり']);
+    expect(npcBadges(model.npc('konbini-clerk', undefined, 'shop-konbini-interior')!)).toEqual(['もとからいる人', '店員']);
+    expect(npcBadges(model.npc('candy-shopkeeper', undefined, 'town-main')!)).toEqual(['もとからいる人', '店員']);
+    expect(npcBadges(model.npc('school-teacher', undefined, 'school-classroom-interior')!)).toEqual(['もとからいる人']);
+
+    const placed = { ...model.createNpc('clerk', HOME_AREA), x: 4, y: 7, name: '店員風の置いた人', lines: ['メモ'] };
+    model.commit(model.npcCandidate(placed, true));
+    expect(npcBadges(model.npc(placed.id, undefined, HOME_AREA)!)).toEqual(['置いた人']);
+  });
 });
