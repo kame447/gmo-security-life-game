@@ -32,7 +32,7 @@ try {
     await check('desktop: B gets on, pedals, and B gets off', async () => {
       await page.keyboard.press('KeyB');
       assert.equal(await riding(page), true);
-      await page.waitForFunction(() => document.querySelector('#hint')?.textContent?.includes('Shift：とばす　B：おりる'));
+      await page.waitForFunction(() => document.querySelector('#hint')?.textContent?.includes('Shift：かそく　B：おりる'));
       const before = await page.evaluate(() => window.__slg.game.walkTime);
       await page.keyboard.down('ArrowDown'); await page.waitForTimeout(200); await page.keyboard.up('ArrowDown');
       assert.ok(await page.evaluate(() => window.__slg.game.walkTime) > before, 'the rider should move');

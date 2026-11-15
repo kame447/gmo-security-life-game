@@ -6,7 +6,7 @@ import { $ } from './dom';
 
 const TOAST_MS = 2400;
 const IDLE_HINT = 'やじるし / WASD：あるく　Shift：はしる　Z / Space / Enter：しらべる';
-const RIDING_HINT = 'やじるし / WASD：こぐ　Shift：とばす　B：おりる　Z / Space / Enter：しらべる';
+const RIDING_HINT = 'やじるし / WASD：こぐ　Shift：かそく　B：おりる　Z / Space / Enter：しらべる';
 
 export class Hud {
   private readonly location = $<HTMLElement>('#hud');
