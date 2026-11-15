@@ -128,7 +128,7 @@ try{
  await s.page.locator('#area-select').selectOption('town-main');await frames(s.page);
  assert.deepEqual(await listOrder(s.page),await docNpcOrder(s.page,'town-main'));
  assert.equal((await listOrder(s.page)).length,6);
- assert.ok((await rowBadges(s.page,'candy-shopkeeper')).includes('店員'));
+ assert.ok(!(await rowBadges(s.page,'candy-shopkeeper')).includes('店員'));
  await s.page.evaluate(()=>{window.__worldEditor.camera.centerX=32;window.__worldEditor.camera.centerY=32;});await frames(s.page);
  const offscreenBefore=await s.page.evaluate(()=>{const npc=window.__worldEditor.model.npc('station-staff',undefined,'town-main');const p=window.__worldEditor.toScreen(npc.x*16+8,npc.y*16+8),r=document.querySelector('#workspace').getBoundingClientRect();return{x:p.x,y:p.y,w:r.width,h:r.height};});
  assert.ok(offscreenBefore.x<0||offscreenBefore.x>offscreenBefore.w||offscreenBefore.y<0||offscreenBefore.y>offscreenBefore.h);

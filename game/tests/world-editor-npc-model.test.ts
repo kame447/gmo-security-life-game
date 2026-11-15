@@ -213,13 +213,14 @@ describe('人物一覧とバッジの派生ロジック（N3）', () => {
 
   it('もとからいる人・置いた人・店員・イベントありのバッジを返す', () => {
     const model = new WorldEditorModel(buildWorld());
-    expect(npcBadges(model.npc('home-mother', undefined, HOME_AREA)!)).toEqual(['もとからいる人', 'イベントあり']);
-    expect(npcBadges(model.npc('konbini-clerk', undefined, 'shop-konbini-interior')!)).toEqual(['もとからいる人', '店員']);
-    expect(npcBadges(model.npc('candy-shopkeeper', undefined, 'town-main')!)).toEqual(['もとからいる人', '店員']);
-    expect(npcBadges(model.npc('school-teacher', undefined, 'school-classroom-interior')!)).toEqual(['もとからいる人']);
+    expect(npcBadges(model.npc('home-mother', undefined, HOME_AREA)!, model.document)).toEqual(['もとからいる人', 'イベントあり']);
+    expect(npcBadges(model.npc('konbini-clerk', undefined, 'shop-konbini-interior')!, model.document)).toEqual(['もとからいる人', '店員']);
+    expect(npcBadges(model.npc('bakery-indoor-clerk', undefined, 'shop-bakery-interior')!, model.document)).toEqual(['もとからいる人', '店員']);
+    expect(npcBadges(model.npc('candy-shopkeeper', undefined, 'town-main')!, model.document)).toEqual(['もとからいる人']);
+    expect(npcBadges(model.npc('school-teacher', undefined, 'school-classroom-interior')!, model.document)).toEqual(['もとからいる人']);
 
     const placed = { ...model.createNpc('clerk', HOME_AREA), x: 4, y: 7, name: '店員風の置いた人', lines: ['メモ'] };
     model.commit(model.npcCandidate(placed, true));
-    expect(npcBadges(model.npc(placed.id, undefined, HOME_AREA)!)).toEqual(['置いた人']);
+    expect(npcBadges(model.npc(placed.id, undefined, HOME_AREA)!, model.document)).toEqual(['置いた人']);
   });
 });

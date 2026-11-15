@@ -17,7 +17,7 @@ import { staleLayouts } from '../world/layouts';
 import { HOME_AREA, WorldEditorModel } from './model';
 import { hitItem } from './hit-test';
 import { surfaceModule } from './surface-catalog';
-import { areaNpcs, editablePerson, EDITABLE_PEOPLE, npcBadges, npcEvents, type NpcBadge } from './npc';
+import { areaNpcs, editablePerson, EDITABLE_PEOPLE, npcBadges, npcReferences, type NpcBadge } from './npc';
 import { changedAreaIds, isEditableArea } from './world-policy';
 import { OutdoorModel } from './outdoor';
 import { resolveLandmarks } from '../world/landmark-resolve';
@@ -133,7 +133,7 @@ function renderNpcList(npcs: EditorInteraction[]) {
     head.append(name, pos);
     const badges = document.createElement('div');
     badges.className = 'npc-badges';
-    for (const label of npcBadges(entry)) {
+    for (const label of npcBadges(entry, model.document)) {
       const badge = document.createElement('span');
       badge.className = `npc-badge ${BADGE_CLASSES[label]}`;
       badge.textContent = label;
@@ -196,8 +196,11 @@ function update() {
     for(const field of document.querySelectorAll<HTMLInputElement|HTMLTextAreaElement|HTMLSelectElement>('#npc-properties input,#npc-properties textarea,#npc-properties select'))field.disabled=saveBusy||!!game||!!npcPlacement||!editableArea(activeArea);
     for(const button of document.querySelectorAll<HTMLButtonElement>('[data-npc-sprite]')){button.disabled=saveBusy||!!game||!!npcPlacement||!editableArea(activeArea);button.setAttribute('aria-pressed',String(button.dataset.npcSprite===$<HTMLInputElement>('#npc-sprite').value));}
     for(const button of ['#npc-apply','#npc-revert'])$<HTMLButtonElement>(button).disabled=!npcDraft||saveBusy||!!game;
-    const events=npcEvents(npc);$('#npc-event-note').textContent=events.length?`この人には条件つきのイベントの会話が${events.length}件あります。条件を満たすとそちらが出ます。ここで編集するのは、ふだんの会話です。`:'';
-    $('#npc-events').replaceChildren();for(const event of events){const li=document.createElement('li');li.textContent=event.title;$('#npc-events').append(li);}
+    const refs=npcReferences(npc,model.document);
+    $('#npc-role').textContent=refs.roleLabel;$('#npc-role').dataset.role=refs.kind;
+    $('#npc-lines-label').textContent=refs.linesLabel;
+    $('#npc-event-note').textContent=refs.note;
+    $('#npc-events').replaceChildren();for(const event of refs.events){const li=document.createElement('li');li.textContent=event.title;$('#npc-events').append(li);}
   }
   $<HTMLButtonElement>('#undo').disabled=saveBusy||npcDraft||!!game||!model.session.canUndo;
   $<HTMLButtonElement>('#redo').disabled=saveBusy||npcDraft||!!game||!model.session.canRedo;
