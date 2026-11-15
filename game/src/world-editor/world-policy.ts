@@ -9,11 +9,30 @@ import { assertOutdoorEdit } from './outdoor/policy';
 export type AreaEditPolicy = (before: EditorDocument, after: EditorDocument, areaId: string) => void;
 export type AreaEditPolicies = Readonly<Record<string, AreaEditPolicy>>;
 
-/** Application-owned registry. Outdoor editing is registered by U4, never by a save request. */
+/** Explicit non-indoor edit policies (e.g. audited outdoor areas). Indoor rooms are derived dynamically from the trusted world data. */
 export const AREA_EDIT_POLICIES: AreaEditPolicies = Object.freeze({
-  'home-family-interior': assertInteriorEdit,
   'town-main': (before, after, areaId) => assertOutdoorEdit(before, after, { areaId }),
 });
+
+/** Resolves an area's edit policy from the trusted world document so every indoor area is editable without a fixed area allowlist. */
+export function areaEditPolicy(
+  document: Pick<EditorDocument, 'areas'>,
+  areaId: string,
+  policies: AreaEditPolicies = AREA_EDIT_POLICIES,
+): AreaEditPolicy | undefined {
+  if (Object.hasOwn(policies, areaId)) return policies[areaId];
+  const area = document.areas.find(candidate => candidate.id === areaId);
+  return area?.kind === 'indoor' ? assertInteriorEdit : undefined;
+}
+
+/** Whether the area can be edited under the world-derived policy rules. */
+export function isEditableArea(
+  document: Pick<EditorDocument, 'areas'>,
+  areaId: string,
+  policies: AreaEditPolicies = AREA_EDIT_POLICIES,
+): boolean {
+  return typeof areaEditPolicy(document, areaId, policies) === 'function';
+}
 
 const fixed = (before: unknown, after: unknown, message: string) => {
   if (!equal(before, after)) throw new Error(message);
@@ -76,9 +95,9 @@ export function assertWorldEdit(before: EditorDocument, after: EditorDocument,
     assertReturnMove(before, after, portal, after.portals.find(candidate => candidate.id === portal.id)!);
   }
   for (const areaId of changedAreaIds(before, after)) {
-    // An unregistered room may receive only a verified return-to translation.
+    // Uneditable or secondary rooms may still receive a verified return-to translation from an outdoor move.
     if (equal(local(before, areaId, true), local(after, areaId, true))) continue;
-    const policy = Object.hasOwn(policies, areaId) ? policies[areaId] : undefined;
+    const policy = areaEditPolicy(before, areaId, policies);
     if (typeof policy !== 'function') throw new Error(`このエリアは変更できません: ${areaId}`);
     policy(before, after, areaId);
   }

@@ -17,7 +17,7 @@ import { HOME_AREA, WorldEditorModel } from './model';
 import { hitItem } from './hit-test';
 import { surfaceModule } from './surface-catalog';
 import { EDITABLE_PEOPLE, npcEvents } from './npc';
-import { AREA_EDIT_POLICIES, changedAreaIds } from './world-policy';
+import { changedAreaIds, isEditableArea } from './world-policy';
 import { OutdoorModel } from './outdoor';
 import { resolveLandmarks } from '../world/landmark-resolve';
 
@@ -46,14 +46,14 @@ const savedOverviews=new Map<string,boolean>(),savedTabs=new Map<string,string>(
 let returnToTown:{objectId:string;camera:RenderCamera;overview:boolean}|undefined;
 const categories: Record<string,string> = { seat:'いす・ソファ', table:'つくえ', bed:'ベッド', storage:'たな・収納', kitchen:'台所・家電', shop:'みせの什器', decor:'かざり・植物', wall:'窓・壁かけ' };
 const status = (text: string) => { $('#status').textContent = text; };
-const editableArea=(id:string)=>Object.hasOwn(AREA_EDIT_POLICIES,id);
+const editableArea=(id:string)=>isEditableArea(model.document,id);
 const editing = () => !saveBusy && !npcDraft && !game && editableArea(activeArea);
-const viewWorld=(document=model.document)=>model.runtime(document,[...new Set([HOME_AREA,...changedAreaIds(model.initial,document)])]);
+const viewWorld=(document=model.document)=>model.runtime(document,[...new Set([activeArea,...changedAreaIds(model.initial,document)])]);
 const objectAt=(id:string,document?:EditorDocument)=>model.object(id,document,activeArea);
 const npcAt=(id:string,document?:EditorDocument)=>model.npc(id,document,activeArea);
 const objectCandidate=(object:EditorObject,adding=false)=>activeArea===TOWN_AREA?outdoor.candidate(object,adding):model.candidate(object,adding);
 const objectIssues=(document:EditorDocument)=>activeArea===TOWN_AREA?outdoor.issues(document):model.issues(document);
-const objectMoveReason=(id:string)=>!editableArea(activeArea)?'この部屋は表示のみです':activeArea===TOWN_AREA?outdoor.readOnlyReason(id):'';
+const objectMoveReason=(id:string)=>!editableArea(activeArea)?'このエリアは表示のみです':activeArea===TOWN_AREA?outdoor.readOnlyReason(id):'';
 const objectDeleteReason=(id:string)=>activeArea===TOWN_AREA?outdoor.protectedReason(id):model.protectedReason(id);
 function entrance(object:EditorObject){return object.facilityId?world.areas.get(object.areaId)?.def.portals.find(p=>p.facilityId===object.facilityId&&p.to.areaId!==object.areaId):undefined;}
 function local(e: { clientX: number; clientY: number }) { const r = workspace.getBoundingClientRect(); return { x:e.clientX-r.left,y:e.clientY-r.top }; }
@@ -73,7 +73,7 @@ function update() {
   $('#npc-properties').hidden=!npc;
   $('#building-properties').hidden=!o||activeArea!==TOWN_AREA||(!o.facilityId&&outdoorForObject(o)?.category!=='building');
   if (o) {
-    $('#object-name').textContent = world.facilities.get(o.facilityId??'')?.name??outdoorForObject(o)?.name??furnitureById(o.catalogId ?? '')?.name ?? ({desk:'学習づくえ',lowtable:'ローテーブル',sofa:'ソファ'}[o.kind] ?? o.kind);
+    $('#object-name').textContent = world.facilities.get(o.facilityId??'')?.name??outdoorForObject(o)?.name??furnitureById(o.catalogId ?? '')?.name ?? ({desk:'学習づくえ',lowtable:'ローテーブル',sofa:'ソファ',blackboard:'黒板',window:'まど',tdesk:'教卓',sdesk:'机といす',shelf:'ロッカー',cooler:'冷蔵ケース',magazine:'雑誌ラック',shopshelf:'商品だな',counter:'レジカウンター',bookshelf:'本だな',kitchen:'キッチン',table:'テーブル',bench:'ベンチ'}[o.kind] ?? o.kind);
     $('#object-position').textContent=`位置 ${o.x}, ${o.y}　足元 ${o.w}×${o.h}`+(activeArea===TOWN_AREA?'':`　向き ${o.facing ?? 'down'}`);
     $('#object-id').textContent=`ID ${o.id}（変更できません）`;
     $('#object-json').textContent=canonicalJSON(o);
@@ -111,6 +111,7 @@ function update() {
   $<HTMLButtonElement>('#save').disabled=saveBusy||npcDraft||!!game||!canSave||!model.dirty;
   $('#dirty').textContent=`未保存 ${model.dirty+Number(npcDraft)}`;$('#zoom').textContent=overview&&!game?'全体':`${camera.zoom*100}%`;
   $('#location').textContent=(world.areas.get(activeArea)?.def.name??activeArea)+(editableArea(activeArea)?'':'（表示のみ）');
+  const areaSelect=$<HTMLSelectElement>('#area-select');areaSelect.value=activeArea;areaSelect.disabled=saveBusy||npcDraft||!!game;
   $('#outside').textContent=activeArea===TOWN_AREA?'じぶんのいえへ':'← まちへ';
   $<HTMLButtonElement>('#outside').disabled=saveBusy||npcDraft;
   $<HTMLButtonElement>('#play').disabled=saveBusy||npcDraft;
@@ -127,7 +128,7 @@ function openArea(id: string) {
   const area=world.areas.get(id)!;
   Object.assign(camera,savedCameras.get(id)??(id===TOWN_AREA?{centerX:35*16,centerY:31*16,zoom:3}:{centerX:area.width*8,centerY:area.height*8,zoom:3}));
   overview=savedOverviews.get(id)??false;catalogTab=savedTabs.get(id)??(id===TOWN_AREA?'props':'furniture');
-  status(editableArea(id)?'':'この部屋は表示と試し歩きができます');catalogue();update();resize();workspace.focus();
+  status(editableArea(id)?'':'このエリアは表示と試し歩きができます');catalogue();update();resize();workspace.focus();
 }
 function enterRoom(object:EditorObject){
   const door=entrance(object);if(!door||saveBusy||npcDraft||game)return;
@@ -263,6 +264,7 @@ window.addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);pinch=u
 workspace.addEventListener('dblclick',e=>{if(activeArea!==TOWN_AREA||saveBusy||npcDraft||game)return;const p=areaPoint(e),hit=hitItem(world.areas.get(activeArea)!,p.x,p.y);if(hit?.table==='objects'){const object=objectAt(hit.id);if(object)enterRoom(object);}});
 workspace.addEventListener('wheel',e=>{if(game)return;e.preventDefault();if(e.ctrlKey||e.metaKey)setZoom(camera.zoom+(e.deltaY<0?1:-1),local(e));else{camera.centerX+=e.deltaX*(window.devicePixelRatio||1)/(camera.zoom*canvasView.scale);camera.centerY+=e.deltaY*(window.devicePixelRatio||1)/(camera.zoom*canvasView.scale);}},{passive:false});
 $('#outside').onclick=()=>{if(game)return;if(activeArea!==TOWN_AREA)backToTown();else{const home=world.areas.get(TOWN_AREA)!.objects.find(o=>o.facilityId==='home-family');if(home?.id)enterRoom({...home,id:home.id,areaId:TOWN_AREA});}};
+$('#area-select').onchange=()=>{const next=$<HTMLSelectElement>('#area-select').value;if(saveBusy||npcDraft||game||next===activeArea){$<HTMLSelectElement>('#area-select').value=activeArea;return;}returnToTown=undefined;openArea(next);};
 $('#enter-interior').onclick=()=>{const object=selected?objectAt(selected):undefined;if(object)enterRoom(object);};
 $('#overview').onclick=()=>{if(game)return;const area=world.areas.get(activeArea)!;overview=true;camera.centerX=area.width*8;camera.centerY=area.height*8;camera.zoom=1;resize();update();};
 $('#zoom-in').onclick=()=>setZoom(camera.zoom+1);$('#zoom-out').onclick=()=>setZoom(camera.zoom-1);
@@ -369,7 +371,7 @@ $('#save').onclick=async()=>{
 saveDialog.addEventListener('cancel',e=>{if(writing)e.preventDefault();});
 saveDialog.addEventListener('close',()=>{if(!writing){saveBusy=false;savePayload=undefined;update();}});
 $('#save-cancel').onclick=()=>{if(!writing)saveDialog.close();};
-$('#save-download').onclick=()=>{const url=URL.createObjectURL(new Blob([canonicalJSON(savePayload)],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='home-layout-changes.json';link.click();URL.revokeObjectURL(url);};
+$('#save-download').onclick=()=>{const url=URL.createObjectURL(new Blob([canonicalJSON(savePayload)],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='world-layout-changes.json';link.click();URL.revokeObjectURL(url);};
 $('#save-commit').onclick=async()=>{
   if(writing||!saveBusy||!saveDialog.open||!savePayload)return;
   const button=$<HTMLButtonElement>('#save-commit'),cancel=$<HTMLButtonElement>('#save-cancel');
@@ -429,4 +431,10 @@ function frame(now:number){accumulator+=Math.min(.25,(now-previous)/1000);previo
   requestAnimationFrame(frame);
 }
 Object.defineProperty(window,'__worldEditor',{value:{model,renderer,camera,toScreen,get game(){return game;},get activeArea(){return activeArea;},get ghost(){return ghost;},get npcGhost(){return npcGhost;},get validationTimes(){return [...validationTimes];},get overview(){return overview;}}});
+for (const area of [...model.document.areas].sort((a, b) => Number(a.kind !== 'indoor') - Number(b.kind !== 'indoor'))) {
+  const option = document.createElement('option');
+  option.value = area.id;
+  option.textContent = `${area.kind === 'indoor' ? '屋内' : '屋外'}: ${area.name}${editableArea(area.id) ? '' : '（表示のみ）'}`;
+  $<HTMLSelectElement>('#area-select').append(option);
+}
 catalogue();update();requestAnimationFrame(frame);

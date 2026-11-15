@@ -9,25 +9,29 @@ export function drawChair(c: C2D, facing: Facing): void {
     R(c, color, facing === 'right' ? 16 - x - w : x, y, w, h);
   r('#00000026', 3, 31, 11, 1);
   if (facing === 'left' || facing === 'right') {
-    r(ink, 10, 2, 4, 26); r(wood, 11, 3, 2, 23); r(highlight, 11, 3, 1, 15);
-    r(ink, 5, 5, 8, 3); r(timber, 6, 5, 6, 2);
-    r(ink, 6, 11, 7, 3); r(timber, 7, 11, 5, 2);
-    r(ink, 2, 17, 11, 9); r(timber, 3, 18, 9, 5); r(highlight, 3, 18, 8, 1);
-    r(wood, 3, 23, 9, 2); r(ink, 3, 26, 3, 5); r(ink, 10, 26, 3, 5);
-    r(timber, 4, 26, 1, 4); r(wood, 11, 26, 1, 4);
+    r(ink, 3, 25, 3, 6); r(timber, 4, 25, 1, 5);
+    r(ink, 11, 25, 3, 6); r(wood, 12, 25, 1, 5);
+    r(ink, 10, 3, 4, 22); r(wood, 11, 4, 2, 20);
+    r(highlight, 11, 4, 2, 2); r(timber, 11, 6, 1, 13);
+    r(ink, 2, 18, 11, 8); r(timber, 3, 19, 8, 4); r(highlight, 3, 19, 8, 1);
+    r(wood, 3, 23, 9, 2); r(wood, 11, 19, 2, 4); r(timber, 10, 19, 1, 4);
     return;
   }
   r(ink, 3, 25, 3, 6); r(ink, 10, 25, 3, 6);
-  r(timber, 4, 25, 1, 5); r(wood, 11, 25, 1, 5);
   if (facing === 'down') {
-    r(ink, 3, 2, 10, 20); r(timber, 4, 3, 8, 17); r(highlight, 4, 3, 8, 2);
+    r(timber, 4, 25, 1, 5); r(wood, 11, 25, 1, 5);
+    r(ink, 3, 3, 10, 18); r(timber, 4, 4, 8, 15); r(highlight, 4, 4, 8, 2);
     r(ink, 5, 7, 6, 9); r(wood, 6, 8, 4, 7); r(timber, 7, 8, 1, 7);
-    r(ink, 1, 18, 14, 8); r(timber, 2, 19, 12, 5); r(highlight, 2, 19, 11, 2);
-    r(wood, 2, 24, 12, 1);
+    r(ink, 1, 18, 14, 8); r(timber, 2, 19, 12, 4); r(highlight, 2, 19, 11, 2);
+    r(wood, 2, 23, 12, 2);
   } else {
-    r(ink, 1, 9, 14, 10); r(timber, 2, 10, 12, 8); r(highlight, 2, 10, 11, 2);
-    r(ink, 3, 16, 10, 12); r(wood, 4, 17, 8, 10); r(highlight, 4, 17, 7, 1);
-    r(timber, 5, 19, 6, 5); r(wood, 8, 19, 1, 5);
+    r(wood, 4, 25, 1, 5); r(wood, 11, 25, 1, 5);
+    r(ink, 1, 17, 14, 7); r(timber, 2, 18, 12, 3); r(highlight, 2, 18, 11, 1); r(wood, 2, 21, 12, 1);
+    r(ink, 3, 6, 3, 19); r(wood, 4, 7, 1, 17);
+    r(ink, 10, 6, 3, 19); r(wood, 11, 7, 1, 17);
+    r(ink, 3, 6, 10, 6); r(highlight, 4, 7, 8, 1); r(timber, 4, 8, 8, 2); r(wood, 4, 10, 8, 1);
+    r(ink, 6, 11, 4, 10); r(wood, 7, 12, 2, 8);
+    r(ink, 3, 20, 10, 5); r(wood, 4, 21, 8, 3); r(timber, 4, 21, 8, 1);
   }
 }
 

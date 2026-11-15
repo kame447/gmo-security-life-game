@@ -132,14 +132,24 @@ if (process.argv[2] === '--fault') {
         assert.deepEqual(new WorldEditorModel(world).document, plan.expected);
       });
     });
-    it('公開保存APIは未登録の教室と余計な欄を拒否し、自宅の旧hintに互換である', async () => {
+    it('公開保存APIは教室を含む屋内保存を受け入れ、不正なエリアと余計な欄を拒否し、自宅の旧hintに互換である', async () => {
       const root = await copy(true), beforeBytes = await jsonBytes(root);
-      const forbidden = await modules(root, ({ buildWorld, WorldEditorModel, diffDocuments }) => {
+      const classroomPayload = await modules(root, ({ buildWorld, WorldEditorModel, diffDocuments }) => {
         const model = new WorldEditorModel(buildWorld()), next = model.document;
         next.interactions.find(i => i.id === 'school-teacher').name += '変更';
-        return { changes: diffDocuments(model.initial, next, model.context) };
+        next.objects.push({ ...model.create('chair-wood', 'school-classroom-interior'), x: 4, y: 8 });
+        return { expected: next, changes: diffDocuments(model.initial, next, model.context) };
       });
-      await assert.rejects(applyLayout(root, forbidden), /このエリア/);
+      const classroomResult = await applyLayout(root, { changes: classroomPayload.changes });
+      assert.equal(classroomResult.saved, true);
+      await modules(root, ({ buildWorld, WorldEditorModel, validateWorld }) => {
+        const world = buildWorld(); assert.deepEqual(validateWorld(world), []);
+        assert.deepEqual(new WorldEditorModel(world).document, classroomPayload.expected);
+      });
+      await clean(root, beforeBytes);
+      const unknownArea = structuredClone(plans.home.payload);
+      unknownArea.changes.operations.push({ type: 'add', table: 'objects', id: 'unknown-room-chair-1', after: { id: 'unknown-room-chair-1', areaId: 'unknown-room', kind: 'chair-wood', catalogId: 'chair-wood', facing: 'down', x: 1, y: 1, w: 1, h: 1, solid: true, layer: 'sorted' } });
+      await assert.rejects(applyLayout(root, unknownArea), /エリア|存在|このエリア|参照/);
       await assert.rejects(applyLayout(root, { ...plans.home.payload, files: plans.three.prepared.files }), /欄/);
       await assert.rejects(applyLayout(root, { ...plans.home.payload, policies: { 'town-main': true } }), /欄/);
       await clean(root, beforeBytes);

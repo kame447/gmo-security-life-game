@@ -29,7 +29,9 @@ describe('エリア引数と従来の自宅操作の互換',()=>{
     expect(model.object(object.id,undefined,'town-main')).toEqual(object);expect(model.npc(npc.id,undefined,'town-main')).toEqual(npc);
     const created=model.createNpc('friend','town-main');expect(created).toMatchObject({id:'town-main-npc-1',areaId:'town-main',eventKey:'npc.town-main-npc-1'});
     const classroom=model.document;classroom.interactions.find(i=>i.id==='school-teacher')!.name='候補の名前';
-    expect(()=>model.commit(classroom)).toThrow('このエリア');expect(model.document).toEqual(initial);
+    expect(()=>model.commit(classroom)).not.toThrow();
+    expect(model.npc('school-teacher',undefined,'school-classroom-interior')?.name).toBe('候補の名前');
+    model.session.undo();expect(model.document).toEqual(initial);
     const wrongReturn=model.document;wrongReturn.portals.find(p=>p.id==='konbini-exit')!.to.x--;
     expect(()=>model.commit(wrongReturn)).toThrow('戻り先');expect(model.document).toEqual(initial);
   });

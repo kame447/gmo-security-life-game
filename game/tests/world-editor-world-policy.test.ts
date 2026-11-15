@@ -3,7 +3,8 @@ import { buildWorld } from '../src/world';
 import { WorldEditorModel, HOME_AREA } from '../src/world-editor/model';
 import { withDerived } from '../src/editor/changes';
 import type { EditorDocument } from '../src/editor/types';
-import { AREA_EDIT_POLICIES, assertWorldEdit, changedAreaIds } from '../src/world-editor/world-policy';
+import { AREA_EDIT_POLICIES, areaEditPolicy, assertWorldEdit, changedAreaIds, isEditableArea } from '../src/world-editor/world-policy';
+import { assertInteriorEdit } from '../src/world-editor/policy';
 
 const fixture = () => {
   const model = new WorldEditorModel(buildWorld());
@@ -17,13 +18,25 @@ function moveShop(document: EditorDocument) {
 }
 
 describe('ワールド全体の編集方針', () => {
-  it('自宅とまちを登録し、未登録の教室の変更は拒否する', () => {
-    expect(Object.keys(AREA_EDIT_POLICIES)).toEqual([HOME_AREA, 'town-main']);
+  it('屋内エリアは固定登録を持たず世界データから導き、未登録の屋外は拒否する', () => {
+    expect(Object.keys(AREA_EDIT_POLICIES)).toEqual(['town-main']);
     expect(Object.isFrozen(AREA_EDIT_POLICIES)).toBe(true);
     const model = new WorldEditorModel(buildWorld()), after = model.document;
+    for (const id of [HOME_AREA, 'school-classroom-interior', 'shop-konbini-interior']) {
+      expect(isEditableArea(model.initial, id)).toBe(true);
+      expect(areaEditPolicy(model.initial, id)).toBe(assertInteriorEdit);
+    }
     after.objects.find(o => o.areaId === 'school-classroom-interior')!.x++;
-    expect(() => model.commit(after)).toThrow('このエリア');
-    expect(model.dirty).toBe(0);
+    expect(() => model.commit(after)).not.toThrow();
+    expect(model.dirty).toBe(1);
+    const { before, context } = fixture();
+    const unregisteredOutdoor = { ...structuredClone(before.areas[0]), id: 'town-neighbor', name: 'となりまち', kind: 'outdoor' as const };
+    const docBefore = { ...structuredClone(before), areas: [...before.areas, unregisteredOutdoor] };
+    const docAfter = structuredClone(docBefore);
+    docAfter.interactions.push({ id: 'town-neighbor-npc-1', areaId: 'town-neighbor', kind: 'npc', name: '人', sprite: 'friend',
+      x: 2, y: 2, w: 1, h: 1, solid: true, eventKey: 'npc.town-neighbor-npc-1', lines: ['こんにちは。'] });
+    expect(isEditableArea(docBefore, 'town-neighbor')).toBe(false);
+    expect(() => assertWorldEdit(docBefore, docAfter, context)).toThrow('このエリアは変更できません: town-neighbor');
   });
   it('自宅の家具と同じ施設の屋外移動をまとめて通し、3エリアを求める', () => {
     const { before, after, context } = fixture();
@@ -38,11 +51,15 @@ describe('ワールド全体の編集方針', () => {
     after.portals.find(p => p.id === 'konbini-exit')!.to.x--;
     expect(() => assertWorldEdit(before, after, context)).toThrow();
   });
-  it('建物と同量の戻り先だけは未登録の部屋でも許し、家具変更は許さない', () => {
+  it('建物と同量の戻り先移動と店内の正当な家具変更を許し、結び付き壊れは拒否する', () => {
     const { before, after, context } = fixture(); moveShop(after);
     expect(() => assertWorldEdit(before, after, context, testPolicies)).not.toThrow();
-    after.objects.find(o => o.areaId === 'shop-konbini-interior')!.x++;
-    expect(() => assertWorldEdit(before, after, context, testPolicies)).toThrow('shop-konbini-interior');
+    const desynced = structuredClone(after);
+    desynced.objects.find(o => o.areaId === 'shop-konbini-interior')!.x++;
+    expect(() => assertWorldEdit(before, desynced, context, testPolicies)).toThrow('のみもののケース');
+    const chair = new WorldEditorModel(buildWorld()).create('chair-wood', 'shop-konbini-interior');
+    after.objects.push({ ...chair, x: 4, y: 6 });
+    expect(() => assertWorldEdit(before, withDerived(after, context), context, testPolicies)).not.toThrow();
   });
   it('屋内到着位置と、建物を伴わない戻り先の変更を拒否する', () => {
     const { before, context } = fixture();

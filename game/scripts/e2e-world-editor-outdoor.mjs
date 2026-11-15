@@ -89,7 +89,7 @@ async function visitShop(s,x){await s.click('#play');assert.deepEqual(await play
  const exit=await s.page.evaluate(()=>window.__worldEditor.game.area.def.portals.find(p=>p.id==='konbini-exit'));await walk(s,{areaId:'shop-konbini-interior',...exit.from});assert.deepEqual(await playerTile(s.page),{areaId:town,x,y:53});await s.click('#play');}
 async function roomRoundtrip(s,id,double=false){await select(s,id);const before=await doc(s.page),view=await s.page.evaluate(()=>({...window.__worldEditor.camera})),dirty=await s.page.locator('#dirty').innerText();
  if(double){const p=await point(s.page,id);await s.page.mouse.dblclick(p.x,p.y);}else await s.click('#enter-interior');
- await s.page.waitForFunction(()=>window.__worldEditor.activeArea==='shop-konbini-interior');assert.match(await s.page.locator('#location').innerText(),/表示のみ/);
+ await s.page.waitForFunction(()=>window.__worldEditor.activeArea==='shop-konbini-interior');assert.equal(await s.page.locator('#location').innerText(),'コンビニ');assert.equal(await s.page.locator('#catalog').isHidden(),false);
  await s.click('#outside');await s.page.waitForFunction(()=>window.__worldEditor.activeArea==='town-main');await frames(s.page);
  assert.deepEqual(await s.page.evaluate(()=>({...window.__worldEditor.camera})),view);assert.deepEqual(await doc(s.page),before);assert.equal(await s.page.locator('#dirty').innerText(),dirty);assert.equal(await s.page.locator('#object-id').textContent(),`ID ${id}（変更できません）`);
 }
