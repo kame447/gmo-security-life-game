@@ -1,0 +1,30 @@
+name: Scope Guard
+
+# PR 本文の scope 宣言と、他のオープン PR との重複を確認する（docs/team-workflow.md）。
+# モードは .github/scope-guard.json の mode（warn / enforce）で切り替える。
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: scope-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  scope-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test
+        run: node --test scripts/scope-guard/lib.test.mjs
+      - name: Check scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/scope-guard/cli.mjs ci

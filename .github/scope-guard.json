@@ -1,0 +1,19 @@
+{
+  "mode": "warn",
+  "baseBranch": "main",
+  "shared": [
+    "README.md",
+    "AGENTS.md",
+    "docs/roadmap.md",
+    "docs/features/README.md",
+    "docs/decisions/README.md",
+    "game/README.md",
+    "game/index.html",
+    "game/package.json",
+    "game/package-lock.json",
+    "game/src/main.ts",
+    "game/src/session/game.ts",
+    "game/src/ui/controller.ts",
+    "game/src/ui/hud.ts"
+  ]
+}

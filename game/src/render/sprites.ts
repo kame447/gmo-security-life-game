@@ -1,8 +1,10 @@
-/** Original procedural pixel art. Reference PNGs inform colours only; no image IO. */
+/** Original procedural pixel art. The player follows the reference PNGs via player-sprite.ts; no image IO. */
 import type { ObjectDef } from '../core/types';
 import { TILE, hash2, type Facing } from '../core/coords';
 import { DEFAULT_APPEARANCE, normalizeAppearance, appearanceKey, type PlayerAppearance } from '../core/appearance';
 import { makeCanvas, R, type C2D } from './draw';
+import { buildingRepresentativeColor } from './building-colors';
+import { drawPlayer, PLAYER_H, PLAYER_W } from './player-sprite';
 
 export interface Sprite { canvas: HTMLCanvasElement; ox: number; oy: number }
 const objects = new Map<string, Sprite>();
@@ -53,11 +55,12 @@ function building(c: C2D, o: ObjectDef, w: number, h: number): void {
   // Door centre follows the tile contract, including even-width houses.
   const center = (Math.floor(o.w / 2) + 0.5) * TILE;
   const style = o.style ?? '0', index = Number(style) || 0;
+  const topColor = buildingRepresentativeColor(o)!;
   const wall = ['#ead9b8', '#e5d6c6', '#dadbc6', '#e3c8ac', '#dad9d4'][index % 5];
   box(c, 3, 5, w - 6, h - 5, wall);
   R(c, '#b5aa95', 4, h - 5, w - 8, 4); R(c, '#bcb19c', w - 8, 9, 4, h - 14);
   if (o.kind === 'house') {
-    roof(c, w, 0, Math.floor(h * 0.43), ['#56718a', '#99705c', '#656d71', '#61796a', '#8d7d91'][index % 5]);
+    roof(c, w, 0, Math.floor(h * 0.43), topColor);
     const top = Math.floor(h * 0.43) + 6;
     for (let x = 12; x < w - 15; x += 24) glass(c, x, top, 16, 12);
     R(c, '#b6a58c', 5, h - 29, w - 10, 2);
@@ -67,7 +70,7 @@ function building(c: C2D, o: ObjectDef, w: number, h: number): void {
     return;
   }
   if (o.kind === 'apartment') {
-    box(c, 2, 0, w - 4, 16, '#b5bec0'); box(c, 6, 3, w - 12, 9, '#dfe1d6');
+    box(c, 2, 0, w - 4, 16, topColor); box(c, 6, 3, w - 12, 9, '#dfe1d6');
     box(c, w - 26, 4, 14, 7, '#acb6b8');
     for (let y = 20; y < h - 22; y += 20) {
       for (let x = 10; x < w - 18; x += 20) glass(c, x, y, 14, 10);
@@ -87,9 +90,9 @@ function building(c: C2D, o: ObjectDef, w: number, h: number): void {
         for (let x = 8 + (y % 2) * 4; x < w - 5; x += 11) R(c, '#dfb69a', x, y - 4, 1, 4);
       }
     }
-    if (style === 'bakery' || style === 'cafe') roof(c, w, 0, 17, style === 'bakery' ? '#a27855' : '#64776a');
+    if (style === 'bakery' || style === 'cafe') roof(c, w, 0, 17, topColor);
     else {
-      box(c, 2, 1, w - 4, style === 'konbini' ? 9 : 15, style === 'bookstore' ? '#6f7779' : '#c7c9bd');
+      box(c, 2, 1, w - 4, style === 'konbini' ? 9 : 15, topColor);
       if (style !== 'konbini') box(c, style === 'pharmacy' ? 9 : w - 26, 4, 16, 8, '#e3e5da');
     }
     const count = style === 'bookstore' || style === 'cafe' ? 2 : style === 'konbini' ? 4 : 3;
@@ -123,7 +126,7 @@ function building(c: C2D, o: ObjectDef, w: number, h: number): void {
     return;
   }
   if (o.kind === 'school') {
-    box(c, 1, 13, w - 2, 15, '#c2cbcb');
+    box(c, 1, 13, w - 2, 15, topColor);
     for (let y = 36; y < h - 23; y += 25) {
       R(c, '#bba98b', 5, y - 4, w - 10, 3);
       for (let x = 10; x < w - 19; x += 20) glass(c, x, y, 15, 15);
@@ -142,14 +145,14 @@ function building(c: C2D, o: ObjectDef, w: number, h: number): void {
     for (let x = 0; x < w; x++) {
       const curve = Math.round(18 * Math.sqrt(Math.max(0, 1 - ((x - w / 2) / (w / 2)) ** 2)));
       R(c, ink, x, 22 - curve, 1, 39 + curve);
-      R(c, x % 9 === 0 ? '#a3beca' : '#6b8c9f', x, 24 - curve, 1, 35 + curve);
+      R(c, x % 9 === 0 ? '#a3beca' : topColor, x, 24 - curve, 1, 35 + curve);
     }
     R(c, '#e8daba', 4, 62, w - 8, h - 64);
     for (let x = 12; x < w - 15; x += 22) glass(c, x, 69, 16, 12);
     door(c, center, h, true); return;
   }
   if (o.kind === 'station') {
-    roof(c, w, 0, 32, '#607f98');
+    roof(c, w, 0, 32, topColor);
     for (let x = 12; x < w - 18; x += 23) glass(c, x, 39, 17, 16, true);
     R(c, '#536678', 6, 59, w - 12, 4);
     for (let x = 13; x < w - 9; x += 39) R(c, '#c4bba1', x, 61, 4, h - 62);
@@ -160,7 +163,7 @@ function building(c: C2D, o: ObjectDef, w: number, h: number): void {
   c.clearRect(0, 0, w, h);
   R(c, '#baa17c', 3, h - 6, w - 6, 5);
   for (const x of [9, w - 12]) { R(c, ink, x, 15, 4, h - 18); R(c, lightWood, x + 1, 15, 2, h - 19); }
-  R(c, wood, 12, h - 13, w - 24, 4); roof(c, w, 1, 20, '#a37a52');
+  R(c, wood, 12, h - 13, w - 24, 4); roof(c, w, 1, 20, topColor);
 }
 
 function furnishing(c: C2D, kind: string, w: number, h: number): boolean {
@@ -340,7 +343,7 @@ export function objectSprite(o: ObjectDef): Sprite {
   const tree = o.kind === 'tree', lamp = o.kind === 'lamp';
   const w = o.w * TILE, h = o.h * TILE;
   const [canvas, c] = makeCanvas(tree ? 34 : w, tree ? 40 : lamp ? h + 20 : h);
-  if (['house', 'apartment', 'shop', 'school', 'gym', 'station', 'gazebo'].includes(o.kind)) building(c, o, w, h);
+  if (buildingRepresentativeColor(o)) building(c, o, w, h);
   else prop(c, o, w, lamp ? h + 20 : h);
   const sprite = { canvas, ox: tree ? -9 : 0, oy: tree ? -24 : lamp ? -20 : 0 };
   objects.set(key, sprite); return sprite;
@@ -348,7 +351,6 @@ export function objectSprite(o: ObjectDef): Sprite {
 
 interface Costume { hair: string; coat: string; pants: string; skin: string; adult?: boolean; hat?: string }
 const costumes: Record<string, Costume> = {
-  player: { hair: '#715037', coat: '#48769f', pants: '#c7a16c', skin: '#edbe8d' },
   mother: { hair: '#5d4438', coat: '#c98178', pants: '#6c7f91', skin: '#edbe98', adult: true },
   grandma: { hair: '#b5b4a6', coat: '#9986a2', pants: '#6b697b', skin: '#e5bb95', adult: true },
   friend: { hair: '#5f493b', coat: '#be7756', pants: '#6c8c87', skin: '#edc49c' },
@@ -360,7 +362,7 @@ const costumes: Record<string, Costume> = {
   clerk: { hair: '#615046', coat: '#70a28d', pants: '#627580', skin: '#edc29a', adult: true },
 };
 
-function drawCharacter(name: string, facing: Facing, frame: 0 | 1 | 2, appearance?: PlayerAppearance): Sprite {
+function drawCharacter(name: string, facing: Facing, frame: 0 | 1 | 2): Sprite {
   const [canvas, c] = makeCanvas(18, 26);
   const side = facing === 'left' || facing === 'right', back = facing === 'up';
   // Drawing in a right-facing coordinate system gives genuinely mirrored profiles.
@@ -373,52 +375,20 @@ function drawCharacter(name: string, facing: Facing, frame: 0 | 1 | 2, appearanc
     R(c, '#8c6e52', 1, 13, 2, 7); R(c, ink, 4, 21 + step, 3, 2); R(c, ink, 12, 21 - step, 3, 2);
   } else {
     const p = { ...(costumes[name] ?? { hair: '#777466', coat: '#8d9885', pants: '#6b766b', skin: '#dbb793' }) };
-    if (appearance) {
-      p.hair = ({ brown: '#715037', black: '#3c3c40', 'dark-brown': '#514033', gold: '#c0a265', auburn: '#97563f' } as Record<string, string>)[appearance.hairColor];
-      p.coat = ({ blue: '#48769f', red: '#b86659', green: '#648b69', yellow: '#c4a356', purple: '#94779e' } as Record<string, string>)[appearance.outfitColor];
-      if (appearance.outfit === 'overalls') p.pants = p.coat;
-    }
-    const narrow = appearance?.silhouette === 'type-b';
-    const top = p.adult ? 0 : narrow ? 1 : 2, headX = side ? 6 : narrow ? 5 : 4, headW = side || narrow ? 8 : 10;
-    const armLeft = side ? 10 : narrow ? 4 : 2, armRight = narrow ? 12 : 14;
+    const top = p.adult ? 0 : 2, headX = side ? 6 : 4, headW = side ? 8 : 10;
+    const armLeft = side ? 10 : 2, armRight = 14;
     // Dark outline remains continuous on grass, pavement and indoor floors.
-    box(c, side ? 6 : narrow ? 5 : 4, 12, side ? 7 : narrow ? 8 : 10, 9, p.coat);
+    box(c, side ? 6 : 4, 12, side ? 7 : 10, 9, p.coat);
     if (name === 'mother' || name === 'grandma') box(c, 4, 18, 10, 5, p.pants);
     else { R(c, p.pants, 5, 20, 3, 3); R(c, p.pants, 10, 20, 3, 3); }
-    if (appearance?.outfit === 'overalls') {
-      R(c, ink, 4, 20, 4, 4); R(c, ink, 10, 20, 4, 4);
-      R(c, p.coat, 5, 20, 3, 4); R(c, p.coat, 10, 20, 3, 4);
-    }
     R(c, ink, 4, 23 + step, 4, 2); R(c, ink, side ? 9 : 10, 23 - step, 4, 2);
-    if (!p.adult && appearance?.outfit !== 'overalls') { R(c, p.skin, 5, 22 + step, 2, 1); R(c, p.skin, 11, 22 - step, 2, 1); }
+    if (!p.adult) { R(c, p.skin, 5, 22 + step, 2, 1); R(c, p.skin, 11, 22 - step, 2, 1); }
     R(c, '#dce0ce', 5, 23 + step, 2, 1); R(c, '#dce0ce', 11, 23 - step, 2, 1);
-    if (!back && !side && name === 'player') {
-      if (appearance?.outfit === 'shirt') {
-        R(c, '#f1e7c9', 7, 13, 4, 1); R(c, '#e6d5ad', 8, 15, 1, 5); R(c, ink, 8, 16, 1, 1); R(c, ink, 8, 19, 1, 1);
-      } else if (appearance?.outfit === 'overalls') {
-        R(c, '#e3d8b6', 5, 13, 8, 4); R(c, ink, 6, 13, 2, 5); R(c, ink, 11, 13, 2, 5);
-        R(c, p.coat, 6, 13, 1, 6); R(c, p.coat, 11, 13, 1, 6);
-        box(c, 6, 16, 7, 5, p.coat); R(c, '#e5ca83', 7, 16, 1, 1); R(c, '#e5ca83', 11, 16, 1, 1); R(c, '#d9c58c', 8, 18, 3, 1);
-      } else { R(c, '#f0ead1', 7, 13, 4, 7); R(c, '#e1b457', 7, 15, 4, 2); R(c, '#e1b457', 7, 19, 4, 1); R(c, '#e5e2cc', 6, 13, 2, 2); R(c, '#e5e2cc', 10, 13, 2, 2); }
-    }
     if (name === 'shopkeeper') { R(c, '#e1ddbe', 6, 15, 6, 6); R(c, '#b8c1a3', 7, 18, 4, 2); }
-    R(c, ink, armLeft, 15 - step, narrow && !side ? 2 : 3, 6); R(c, p.coat, armLeft + 1, 15 - step, narrow && !side ? 1 : 2, 4);
-    R(c, p.skin, armLeft + 1, 19 - step, narrow && !side ? 1 : 2, 2);
+    R(c, ink, armLeft, 15 - step, 3, 6); R(c, p.coat, armLeft + 1, 15 - step, 2, 4);
+    R(c, p.skin, armLeft + 1, 19 - step, 2, 2);
     if (!side) { R(c, ink, armRight, 15 + step, 2, 6); R(c, p.coat, armRight, 15 + step, 1, 4); R(c, p.skin, armRight, 19 + step, 1, 2); }
-    if (appearance?.outfit === 'shirt' || appearance?.outfit === 'overalls') {
-      R(c, p.skin, armLeft + 1, 16 - step, narrow && !side ? 1 : 2, 4);
-      if (!side) R(c, p.skin, armRight, 16 + step, 1, 4);
-      if (appearance.outfit === 'overalls') {
-        if (side) { R(c, '#e3d8b6', 10, 13, 3, 3); R(c, p.coat, 7, 16, 5, 5); }
-        else if (back) { R(c, '#e3d8b6', 5, 13, 8, 3); R(c, p.coat, 7, 13, 1, 6); R(c, p.coat, 11, 13, 1, 6); }
-      }
-    }
     if (name === 'clerk') { R(c, '#e9e6cd', 5, 14, 8, 2); if (!side && !back) R(c, '#4b7075', 11, 16, 2, 2); }
-    if (name === 'player') {
-      if (back) { box(c, 5, 13, 8, 8, '#789654'); R(c, '#a2b16d', 7, 15, 4, 2); R(c, '#526c43', 6, 19, 6, 1); }
-      else if (side) box(c, 3, 13, 4, 7, '#789654');
-      else { R(c, '#819553', narrow ? 6 : 5, 13, 1, 6); R(c, '#819553', narrow ? 11 : 12, 13, 1, 6); }
-    }
     box(c, headX, top + 1, headW, 11, p.skin);
     R(c, p.hair, headX + 1, top, headW - 2, 5); R(c, ink, headX + 2, top - 1 + 1, headW - 4, 1);
     R(c, p.hair, headX, top + 3, side ? 3 : 2, 5);
@@ -429,15 +399,6 @@ function drawCharacter(name: string, facing: Facing, frame: 0 | 1 | 2, appearanc
       R(c, '#be8465', side ? 13 : 9, top + 10, 1, 1); if (side) R(c, p.skin, 14, top + 8, 1, 2);
     }
     if (p.hat) { box(c, headX - 1, top, headW + 2, 4, p.hat); R(c, '#d9caa1', headX, top + 3, headW + (side ? 3 : 0), 1); }
-    if (appearance?.hairStyle === 'bob') {
-      R(c, ink, headX - 1, top + 4, 2, 9); R(c, p.hair, headX, top + 4, 2, 8);
-      if (!side || back) { R(c, ink, headX + headW - 1, top + 4, 2, 9); R(c, p.hair, headX + headW - 2, top + 4, 2, 8); }
-      if (back) R(c, p.hair, headX + 1, top + 6, headW - 2, 6);
-    }
-    if (appearance?.hairStyle === 'tied') {
-      const tieX = side ? 3 : 12;
-      box(c, tieX, top + 5, 4, 8, p.hair); R(c, '#d1aa62', tieX, top + 6, 4, 1);
-    }
     if (name === 'grandma') box(c, back ? 11 : 3, top, 4, 4, p.hair);
     if (name === 'mother') R(c, p.hair, side ? 5 : 4, top + 8, side ? 3 : 2, 6);
   }
@@ -454,7 +415,12 @@ export function playerSprite(a: PlayerAppearance, facing: Facing, frame: 0 | 1 |
   if (avatars.size > 8) avatars.delete(avatars.keys().next().value!);
   const frameKey = `${facing}:${frame}`;
   let sprite = frames.get(frameKey);
-  if (!sprite) { sprite = drawCharacter('player', facing, frame, normalized); frames.set(frameKey, sprite); }
+  if (!sprite) {
+    const [canvas, c] = makeCanvas(PLAYER_W, PLAYER_H);
+    drawPlayer(c, normalized, facing, frame);
+    sprite = { canvas, ox: -PLAYER_W / 2, oy: -PLAYER_H };
+    frames.set(frameKey, sprite);
+  }
   return sprite;
 }
 

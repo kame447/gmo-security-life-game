@@ -1,0 +1,6 @@
+#!/bin/sh
+# 作業範囲ガード。有効化: git config core.hooksPath .githooks
+# 他の作業が占有しているファイルのコミットを知らせる（docs/team-workflow.md）。
+command -v node >/dev/null 2>&1 || exit 0
+root=$(git rev-parse --show-toplevel)
+exec node "$root/scripts/scope-guard/cli.mjs" pre-commit
