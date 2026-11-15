@@ -301,7 +301,7 @@ function prop(c: C2D, o: ObjectDef, w: number, h: number): void {
 
 export function objectSprite(o: ObjectDef): Sprite {
   const furniture = furnitureSprite(o) ?? legacyFurnitureSprite(o); if (furniture) return furniture;
-  const key = JSON.stringify([o.kind, o.w, o.h, o.style ?? '']);
+  const key = JSON.stringify([o.kind, o.w, o.h, o.style ?? '', o.facing ?? 'down']);
   const cached = objects.get(key); if (cached) return cached;
   const store = storeFurnishingSprite(o);
   if (store) { objects.set(key, store); return store; }
