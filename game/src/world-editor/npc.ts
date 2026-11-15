@@ -1,5 +1,9 @@
 import type { EditorDocument, EditorInteraction } from '../editor/types';
+import { SHOP_CATALOGS, shopCatalog, type ShopCatalog } from '../data/shop-catalogs';
+import { STORE_CONTACTS, storeForClerk, type StoreContact } from '../data/stores';
+import type { LifeEventDef } from '../events/life-events';
 import { CHILDHOOD_SAMPLE_EVENTS } from '../events/samples/childhood';
+import { clerkVisit } from '../shop/clerk-visit';
 import { isSolidGround } from '../world/tiles';
 import { PEOPLE } from '../render/people/catalog';
 
@@ -10,17 +14,104 @@ export const isPlacedNpc = (npc: EditorInteraction) => npc.kind === 'npc' && npc
 export const npcEvents = (npc: EditorInteraction) => CHILDHOOD_SAMPLE_EVENTS.filter(event => event.trigger.eventKey === npc.eventKey);
 
 export type NpcBadge = 'もとからいる人' | '置いた人' | '店員' | 'イベントあり';
+export type NpcRoleKind = 'shop-clerk' | 'clerk-no-catalog' | 'life-events' | 'dialogue';
+
+export interface NpcReferenceOptions {
+  readonly stores?: readonly StoreContact[];
+  readonly catalogs?: readonly ShopCatalog[];
+  readonly events?: readonly LifeEventDef[];
+}
+
+export interface NpcReferences {
+  readonly kind: NpcRoleKind;
+  readonly roleLabel: string;
+  readonly linesLabel: string;
+  readonly note: string;
+  readonly store?: StoreContact;
+  readonly catalog?: ShopCatalog;
+  readonly events: readonly LifeEventDef[];
+}
+
+/** Derive an NPC's runtime role and game-side references using the game's shared predicates. */
+export function npcReferences(
+  npc: EditorInteraction,
+  document: Pick<EditorDocument, 'areas' | 'facilities'>,
+  options?: NpcReferenceOptions,
+): NpcReferences {
+  const area = document.areas.find(candidate => candidate.id === npc.areaId);
+  const stores = options?.stores ?? STORE_CONTACTS;
+  const catalogs = options?.catalogs ?? SHOP_CATALOGS;
+  const events = (options?.events ?? CHILDHOOD_SAMPLE_EVENTS).filter(
+    event => event.trigger.eventKey === npc.eventKey,
+  );
+  const store = area && area.kind === 'indoor' && npc.kind === 'npc'
+    ? (options?.stores
+      ? stores.find(entry => entry.interiorAreaId === area.id && entry.clerkEventKey === npc.eventKey)
+      : storeForClerk(area.id, npc.eventKey))
+    : undefined;
+  const visit = area ? clerkVisit(area, npc, stores, catalogs) : undefined;
+  const catalog = visit?.catalog ?? (store && !options?.catalogs ? shopCatalog(store.catalogId) : undefined);
+  const storeName =
+    catalog?.name ??
+    (store ? document.facilities.find(facility => facility.id === store.storeId)?.name : undefined) ??
+    area?.name ??
+    store?.storeId ??
+    '';
+
+  if (store && visit) {
+    return {
+      kind: 'shop-clerk',
+      roleLabel: `${storeName}の店員（買い物が開きます）`,
+      linesLabel: '会話・店のあいさつ（1行ずつ）',
+      note: `${storeName}の店員です。話しかけると通常の会話枠ではなく買い物の画面が開き、1行目の最初の文が店のあいさつとして表示されます。名前も話し手として使われます。`,
+      store,
+      catalog,
+      events,
+    };
+  }
+  if (store) {
+    return {
+      kind: 'clerk-no-catalog',
+      roleLabel: `${storeName}の店員（会話のみ）`,
+      linesLabel: 'ふだんの会話（1行ずつ）',
+      note: `${storeName}の店員です。商品カタログは未接続のため、話しかけるとここで編集した会話が通常の会話枠に出ます。`,
+      store,
+      events,
+    };
+  }
+  if (events.length > 0) {
+    return {
+      kind: 'life-events',
+      roleLabel: `人生イベントがある人（${events.length}件）`,
+      linesLabel: 'ふだんの会話（1行ずつ）',
+      note: `この人には条件つきのイベントの会話が${events.length}件あります。条件を満たすとそちらが出ます。ここで編集するのは、ふだんの会話です。`,
+      events,
+    };
+  }
+  return {
+    kind: 'dialogue',
+    roleLabel: 'ふだんの会話の人',
+    linesLabel: 'ふだんの会話（1行ずつ）',
+    note: 'この人に話しかけると、ここで編集したふだんの会話が通常の会話枠に出ます。',
+    events,
+  };
+}
 
 /** Return the ordered NPC entries in `areaId` from the current editor document. */
 export const areaNpcs = (document: Pick<EditorDocument, 'interactions'>, areaId: string): EditorInteraction[] =>
   document.interactions.filter(interaction => interaction.areaId === areaId && interaction.kind === 'npc');
 
 /** Derive display badges for an NPC row without changing persisted authoring fields. */
-export function npcBadges(npc: EditorInteraction): NpcBadge[] {
+export function npcBadges(
+  npc: EditorInteraction,
+  document: Pick<EditorDocument, 'areas' | 'facilities'>,
+  options?: NpcReferenceOptions,
+): NpcBadge[] {
   const placed = isPlacedNpc(npc);
+  const refs = npcReferences(npc, document, options);
   const badges: NpcBadge[] = [placed ? '置いた人' : 'もとからいる人'];
-  if (!placed && (npc.eventKey.startsWith('shopping.') || npc.eventKey.startsWith('shop.'))) badges.push('店員');
-  if (npcEvents(npc).length > 0) badges.push('イベントあり');
+  if (refs.store) badges.push('店員');
+  if (refs.events.length > 0) badges.push('イベントあり');
   return badges;
 }
 
