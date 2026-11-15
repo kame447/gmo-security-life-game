@@ -2,9 +2,10 @@
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
+import { browserOutputDirectory } from './browser-output.mjs';
 
 const base = process.env.SLG_URL || 'http://127.0.0.1:5217';
-const out = resolve(process.env.SLG_OUT || '/private/tmp/slg-audit/SolarNoether/boarding-flow/before');
+const out = resolve(process.env.SLG_OUT || browserOutputDirectory('record-old-flow'));
 await mkdir(out, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 for (const [name, w, h, touch] of [['desktop', 1280, 800, false], ['portrait', 390, 844, true]]) {

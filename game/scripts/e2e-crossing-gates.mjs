@@ -2,13 +2,14 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
+import { browserOutputDirectory } from './browser-output.mjs';
 import { auditSchedule, assertSafe, base, clearProbe, contextFor, crossingsFor, frames, hold,
   installProbe, isInside, player, putPlayer, revision, seek, sizes, snapshot } from './crossing-gates-helpers.mjs';
 
 const schedule = await auditSchedule();
 console.log(JSON.stringify(schedule, null, 2));
 if (process.argv.includes('--schedule')) process.exit(0);
-const output = resolve(process.env.SLG_OUTPUT || '/private/tmp/slg-audit/SolarNoether/crossing-gates');
+const output = browserOutputDirectory('e2e-crossing-gates');
 await mkdir(output, { recursive: true });
 const report = { revision, url: base.href, schedule, passed: [], errors: [], blocked: [], samples: 0, postExitCornerCorrections: [] };
 const browser = await chromium.launch({ headless: true });

@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
+import { browserOutputDirectory } from './browser-output.mjs';
 import { assertSafe, base, contextFor, crossingsFor, frames, putPlayer, recordFor, revision, seek, sizes, withDirection } from './crossing-gates-helpers.mjs';
 
-const output = resolve(process.env.SLG_OUTPUT || '/private/tmp/slg-audit/SolarNoether/crossing-gates');
+const output = browserOutputDirectory('capture-crossing-gates');
 const manualOnly = process.env.SLG_CAPTURE_ONLY === 'manual';
 const shots = resolve(output, 'shots'), videos = resolve(output, 'video');
 await mkdir(shots, { recursive: true }); await mkdir(videos, { recursive: true });

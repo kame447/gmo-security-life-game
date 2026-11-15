@@ -58,22 +58,23 @@ PR #57（i2rin、`feat/bicycle-ride`）とは `explorer.ts`・`renderer.ts` の�
 npm run build
 npm test
 SLG_URL=http://127.0.0.1:5297 node scripts/e2e-station-main-integration.mjs
-SLG_URL=http://127.0.0.1:5297 \
-  SLG_SHOTS=/private/tmp/slg-station-review/travel-shots \
-  SLG_VIDEO=/private/tmp/slg-station-review/travel-video \
-  node scripts/e2e-train-travel.mjs
-SLG_URL=http://127.0.0.1:5297 \
-  SLG_OUTPUT=/private/tmp/slg-station-review/crossing \
-  node scripts/e2e-crossing-gates.mjs
-SLG_URL=http://127.0.0.1:5297 \
-  SLG_OUTPUT=/private/tmp/slg-station-review/crossing \
-  node scripts/capture-crossing-gates.mjs
+SLG_URL=http://127.0.0.1:5297 node scripts/e2e-train-travel.mjs
+SLG_URL=http://127.0.0.1:5297 node scripts/e2e-crossing-gates.mjs
+SLG_URL=http://127.0.0.1:5297 node scripts/capture-crossing-gates.mjs
 ```
 
 今回のローカル証跡は `/private/tmp/slg-audit/OliveDarwin/station-crossing-main-integration/`。`build-final.log`・`unit-final.log`、`logs/fixed/`、`fixed/` が修正後の記録。修正前の `logs/e2e-station-main-integration-r2.log` は実際の移動を検出した失敗記録。旧候補での再現は `logs/arrival-input-probe-on-e80a421.log` と `probe-e80a421/probe-script.mjs`。`source-manifest-final.json` は修正後のソース102ファイルの SHA-256。
 
 PR 本文用の動画は、`attachments/crossing-controls.webm`（PC1280×800、15.64秒、5,811,820bytes）と `attachments/station-boarding.webm`（スマホ390×844、16.72秒、1,392,794bytes）。異なる2操作を収録し、両方の全フレームのデコードと動画コマを確認した。いずれもVP9/WebM、10MB未満。`attachments/metadata.json` に形式とSHA-256を記録した。
 
-撮影用の初期位置・時刻の準備と、実際のキー／タッチ操作による検査を区別する。ブラウザのスマホ表示での検査であり、実機 GPU の表示確認や最終的な数値の採用を意味しない。push・PR作成は親が承認の出典を照合中で保留している。PR公開時には動画2本を本文へ直接添付し、実際に動画として表示されることを確認する。mainへのマージは行わない。
+撮影用の初期位置・時刻の準備と、実際のキー／タッチ操作による検査を区別する。ブラウザのスマホ表示での検査であり、実機 GPU の表示確認や最終的な数値の採用を意味しない。[PR #59](https://github.com/kame447/gmo-security-life-game/pull/59) に実操作動画2本を添付済み。mainへのマージは行わない。
 
-既存Issueへの結果追記は、MCPの更新呼び出しが承認ポリシーで拒否されたため子セッションでは行っていない。親へ代行用の `issue35-append.md`・`issue36-append.md` を渡した。親の指示によりIssue投稿も保留中。新しいIssueやPRは作成していない。
+既存Issueへの結果追記は親が代行した。[#35の結果](https://github.com/kame447/gmo-security-life-game/issues/35#issuecomment-6889452875)・[#36の結果](https://github.com/kame447/gmo-security-life-game/issues/36#issuecomment-6889453104)。新規Issueは作成していない。
+
+## PR #59 の Ubuntu CI と出力先
+
+[初回のBrowser E2E](https://github.com/kame447/gmo-security-life-game/actions/runs/43679055459) では、踏切・main統合UIの2本がMac固有の既定パスへ書こうとして、Ubuntuで `mkdir` の `EACCES` になった。CIは `SLG_SHOTS` を渡していたが、この2本は読んでいなかった。
+
+`scripts/browser-output.mjs` で出力先を `SLG_OUTPUT` → `SLG_SHOTS` → `RUNNER_TEMP/slg-e2e/<script名>` → `os.tmpdir()/slg-e2e/<script名>` の順に解決する。明示した出力先はそのまま使い、環境変数がない場合もOSに合った一時フォルダへ保存する。踏切・main統合UI・定期列車・乗降車のE2Eと、踏切撮影・旧版比較録画に適用した。旧版録画の `SLG_OUT` と乗降車録画の `SLG_VIDEO` も保持する。ゲームの製品コードとCIの実行対象は変更しない。
+
+Browser E2Eの証拠は `browser-e2e-<run_id>-<attempt>` artifact（7日保持）へ保存する。展開したルートには各 `e2e-*.log` と画像フォルダがあり、踏切は `e2e-crossing-gates/e2e-summary.json`、main統合UIは `e2e-station-main-integration/summary.json` と画像が入る。`tests/browser-output.test.ts` は出力先の優先順、OSの既定値、両テストの出力フォルダで実際にJSONを書けることを検査する。

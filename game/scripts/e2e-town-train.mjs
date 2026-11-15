@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
+import { browserOutputDirectory } from './browser-output.mjs';
 
 const base = new URL(process.env.SLG_URL || 'http://127.0.0.1:5218');
 assert.ok(['http:', 'https:'].includes(base.protocol) && ['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname), 'A local preview is required');
-const shots = resolve(process.env.SLG_SHOTS || '/private/tmp/slg-audit/town-train');
+const shots = browserOutputDirectory('e2e-town-train');
 const areas = (process.env.SLG_TOWN_AREAS || 'town-main').split(',').filter(Boolean);
 assert.ok(areas.length && areas.every(id => ['town-main', 'town-neighbor'].includes(id)), 'Unknown test area');
 await mkdir(shots, { recursive: true });

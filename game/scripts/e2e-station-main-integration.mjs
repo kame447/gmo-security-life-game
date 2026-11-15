@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
+import { browserOutputDirectory } from './browser-output.mjs';
 
 const base = new URL(process.env.SLG_URL || 'http://127.0.0.1:5297');
 assert.ok(['http:', 'https:'].includes(base.protocol) && ['localhost', '127.0.0.1', '[::1]'].includes(base.hostname));
 assert.equal(base.search, '', 'Use the normal game with isolated storage');
-const output = resolve(process.env.SLG_OUTPUT || '/private/tmp/slg-audit/OliveDarwin/station-crossing-main-integration/merged-ui');
+const output = browserOutputDirectory('e2e-station-main-integration');
 await mkdir(output, { recursive: true });
 const report = { url: base.href, passed: [], errors: [], blocked: [] };
 const browser = await chromium.launch({ headless: true });

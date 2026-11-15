@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
+import { browserOutputDirectory } from './browser-output.mjs';
 
 const base = new URL(process.env.SLG_URL || 'http://127.0.0.1:5207');
 assert.ok(['http:', 'https:'].includes(base.protocol) && ['localhost', '127.0.0.1', '[::1]'].includes(base.hostname), 'Use a local preview');
-const shots = resolve(process.env.SLG_SHOTS || '/private/tmp/slg-audit/train-travel-e2e');
+const shots = browserOutputDirectory('e2e-train-travel');
 await mkdir(shots, { recursive: true });
 const errors = [], blocked = [], passed = [];
 const browser = await chromium.launch({ headless: true, args: ['--disable-gpu-vsync', '--disable-frame-rate-limit'] });
