@@ -1,8 +1,12 @@
 import {describe,expect,it} from 'vitest';
 import {WorldEditorModel,HOME_AREA} from '../src/world-editor/model';
 import {assertInteriorEdit} from '../src/world-editor/policy';
-import {npcEvents} from '../src/world-editor/npc';
+import {EDITABLE_PEOPLE,npcEvents} from '../src/world-editor/npc';
+import {prepareSave} from '../src/world-editor/persistence';
+import {areaEditPolicy,isEditableArea} from '../src/world-editor/world-policy';
 import {buildWorld,validateWorld} from '../src/world';
+import {areaLayout} from '../src/world/layouts/index';
+import type {EditorInteraction} from '../src/editor/types';
 import {Game} from '../src/session/game';
 import {feetAtTile} from '../src/core/coords';
 import {LifeEventDirector} from '../src/events/director';
@@ -66,4 +70,117 @@ describe('実ワールドの既存NPCの編集',()=>{
     }
     expect(CHILDHOOD_SAMPLE_EVENTS).toEqual(definitions);
   });
+});
+
+function legalNearbyMove(model: WorldEditorModel, npc: EditorInteraction) {
+  const area = model.document.areas.find(candidate => candidate.id === npc.areaId)!;
+  for (let distance = 1; distance <= 4; distance++) {
+    for (const [dx, dy] of [[0, distance], [distance, 0], [0, -distance], [-distance, 0]]) {
+      const moved = { ...npc, x: npc.x + dx, y: npc.y + dy };
+      if (moved.x < 1 || moved.y < 1 || moved.x >= area.width - 1 || moved.y >= area.height - 1) continue;
+      if (!model.issues(model.npcCandidate(moved)).length) return { x: moved.x, y: moved.y };
+    }
+  }
+  throw new Error(`No legal nearby move for ${npc.id} in ${npc.areaId}`);
+}
+
+describe('実ワールド全エリアの既存NPC回帰（N1）', () => {
+  it('実ワールドから全NPCを数え、有人エリアがすべて isEditableArea で編集できる', () => {
+    const world = buildWorld(), initial = new WorldEditorModel(world).initial;
+    const readonlyPopulated = initial.areas.filter(area =>
+      !isEditableArea(initial, area.id) && initial.interactions.some(item => item.areaId === area.id && item.kind === 'npc'));
+    expect(readonlyPopulated).toEqual([]);
+    let totalNpcs = 0;
+    for (const area of initial.areas) {
+      const people = initial.interactions.filter(item => item.areaId === area.id && item.kind === 'npc');
+      totalNpcs += people.length;
+      expect(isEditableArea(initial, area.id), area.id).toBe(true);
+      if (area.kind === 'indoor') expect(areaEditPolicy(initial, area.id), area.id).toBe(assertInteriorEdit);
+    }
+    expect(totalNpcs).toBeGreaterThanOrEqual(10);
+  });
+
+  it('全エリアの全実NPCで5種類の編集・Undo/Redo・保護・不正入力拒否・保存キー不変が通る', () => {
+    const world = buildWorld(), initial = new WorldEditorModel(world).initial;
+    const editableAreas = initial.areas.filter(area => isEditableArea(initial, area.id));
+    expect(editableAreas.length).toBe(initial.areas.length);
+    for (const area of editableAreas) {
+      const people = initial.interactions.filter(item => item.areaId === area.id && item.kind === 'npc');
+      for (const original of people) {
+        const model = new WorldEditorModel(world), moved = legalNearbyMove(model, original);
+        model.updateNpc(original.id, moved, area.id);
+        model.rotateNpc(original.id, area.id);
+        const appearance = EDITABLE_PEOPLE.find(person => person.id !== original.sprite)!.id;
+        model.updateNpc(original.id, {
+          name: `${original.name}・回帰`,
+          lines: ['全エリア回帰の通常会話です。'],
+          sprite: appearance,
+        }, area.id);
+        const edited = model.npc(original.id, undefined, area.id)!;
+        expect(edited).toMatchObject({
+          id: original.id,
+          eventKey: original.eventKey,
+          kind: original.kind,
+          solid: original.solid,
+          x: moved.x,
+          y: moved.y,
+          name: `${original.name}・回帰`,
+          lines: ['全エリア回帰の通常会話です。'],
+          sprite: appearance,
+        });
+        expect(edited.w).toBe(original.w);
+        expect(edited.h).toBe(original.h);
+        expect(edited.facing).not.toBe(original.facing ?? 'down');
+        expect(validateWorld(model.runtime(model.document, [area.id]))).toEqual([]);
+
+        model.session.undo();
+        expect(model.npc(original.id, undefined, area.id)!.name).toBe(original.name);
+        model.session.undo();
+        model.session.undo();
+        expect(model.npc(original.id, undefined, area.id)).toEqual(original);
+        model.session.redo();
+        model.session.redo();
+        model.session.redo();
+        expect(model.npc(original.id, undefined, area.id)).toEqual(edited);
+
+        const guard = new WorldEditorModel(world), before = guard.document;
+        for (const patch of [
+          { id: `${original.id}-tamper` },
+          { eventKey: 'tampered.event' },
+          { eventKey: `npc.${original.id}` },
+          { kind: 'object' },
+          { w: 2 },
+          { h: 2 },
+          { solid: false },
+        ]) {
+          const tampered = guard.document;
+          Object.assign(tampered.interactions.find(item => item.id === original.id)!, patch);
+          expect(() => guard.commit(tampered), `${original.id} ${JSON.stringify(patch)}`).toThrow();
+          expect(guard.document).toEqual(before);
+          expect(guard.session.canUndo).toBe(false);
+        }
+        expect(guard.npcProtectedReason(original.id, area.id)).toContain('消せません');
+        expect(() => guard.removeNpc(original.id, area.id)).toThrow(/消せません/);
+        expect(guard.document).toEqual(before);
+        expect(guard.session.canUndo).toBe(false);
+
+        for (const invalid of [{ name: '' }, { lines: [] }, { lines: [' '] }, { sprite: 'player' }, { sprite: 'unregistered-person' }]) {
+          expect(() => guard.updateNpc(original.id, invalid, area.id)).toThrow();
+          expect(guard.document).toEqual(before);
+          expect(guard.session.canUndo).toBe(false);
+        }
+      }
+    }
+
+    const keyModel = new WorldEditorModel(world);
+    keyModel.updateNpc('home-mother', { name: '鍵の比較', lines: ['通常会話'] }, HOME_AREA);
+    const beforeLayout = areaLayout(HOME_AREA)!;
+    const afterLayout = JSON.parse(prepareSave({ changes: keyModel.session.exportChanges() }, world).text);
+    const keyShape = (layout: typeof beforeLayout) => ({
+      root: Object.keys(layout).sort(),
+      area: Object.keys(layout.area).sort(),
+      npc: Object.keys(layout.interactions.find(item => item.id === 'home-mother')!).sort(),
+    });
+    expect(keyShape(afterLayout)).toEqual(keyShape(beforeLayout));
+  }, 15000);
 });

@@ -1,8 +1,10 @@
 import {describe,expect,it} from 'vitest';
-import {buildWorld,validateWorld} from '../src/world';
+import {buildWorld,LANDMARKS,validateWorld} from '../src/world';
+import {isSolidGround} from '../src/world/tiles';
 import {WorldEditorModel,HOME_AREA} from '../src/world-editor/model';
 import {EDITABLE_PEOPLE,npcEventKey} from '../src/world-editor/npc';
 import {assertHomeWorldEdit,assertInteriorEdit} from '../src/world-editor/policy';
+import {isEditableArea} from '../src/world-editor/world-policy';
 import type {EditorInteraction} from '../src/editor/types';
 import {prepareSave} from '../src/world-editor/persistence';
 import {Game} from '../src/session/game';
@@ -76,4 +78,126 @@ describe('実ワールドに置く人物と保存の境界',()=>{
       const candidate=structuredClone(after);change(candidate);expect(()=>assertHomeWorldEdit(before,candidate,HOME_AREA,model.context)).toThrow();
     }
   });
+});
+
+function freeNpcCell(model: WorldEditorModel, npc: EditorInteraction): EditorInteraction {
+  const area = model.document.areas.find(candidate => candidate.id === npc.areaId)!;
+  const seeds = model.document.interactions.filter(item => item.areaId === npc.areaId && item.kind === 'npc');
+  for (const seed of seeds) {
+    for (let radius = 1; radius <= 5; radius++) {
+      for (const [dx, dy] of [[0, radius], [radius, 0], [0, -radius], [-radius, 0], [radius, radius], [-radius, radius]]) {
+        const candidate = { ...npc, x: seed.x + dx, y: seed.y + dy };
+        if (candidate.x < 1 || candidate.y < 1 || candidate.x >= area.width - 1 || candidate.y >= area.height - 1) continue;
+        if (!model.issues(model.npcCandidate(candidate, true)).length) return candidate;
+      }
+    }
+  }
+  for (let y = 1; y < area.height - 1; y++) {
+    for (let x = 1; x < area.width - 1; x++) {
+      const candidate = { ...npc, x, y };
+      if (!model.issues(model.npcCandidate(candidate, true)).length) return candidate;
+    }
+  }
+  throw new Error(`No free NPC cell in ${npc.areaId}`);
+}
+
+describe('実ワールド全エリアのNPC追加・削除・配置拒否回帰（N1）', () => {
+  it('全編集可能エリアでarea別ID・自己キー追加、削除、Undo/Redo、ID非再利用が通る', () => {
+    const world = buildWorld(), initial = new WorldEditorModel(world).initial;
+    const editableAreas = initial.areas.filter(area => isEditableArea(initial, area.id));
+    expect(editableAreas.length).toBeGreaterThanOrEqual(4);
+    for (const area of editableAreas) {
+      const model = new WorldEditorModel(world);
+      const cancelled = model.createNpc('friend', area.id);
+      const npc = freeNpcCell(model, model.createNpc('friend', area.id));
+      expect(npc.id).not.toBe(cancelled.id);
+      expect(npc.id).toMatch(new RegExp(`^${area.id}-npc-[1-9][0-9]*$`));
+      expect(npc.eventKey).toBe(npcEventKey(npc.id));
+
+      model.commit(model.npcCandidate(npc, true));
+      expect(model.document.catalogs.eventKeys).toContain(npc.eventKey);
+      expect(validateWorld(model.runtime(model.document, [area.id]))).toEqual([]);
+
+      model.removeNpc(npc.id, area.id);
+      expect(model.npc(npc.id, undefined, area.id)).toBeUndefined();
+      expect(model.document.catalogs.eventKeys).not.toContain(npc.eventKey);
+
+      model.session.undo();
+      expect(model.npc(npc.id, undefined, area.id)).toEqual(npc);
+      expect(model.document.catalogs.eventKeys).toContain(npc.eventKey);
+
+      model.session.redo();
+      expect(model.npc(npc.id, undefined, area.id)).toBeUndefined();
+      expect(model.document.catalogs.eventKeys).not.toContain(npc.eventKey);
+
+      const next = model.createNpc('friend', area.id);
+      expect(next.id).not.toBe(npc.id);
+      expect(next.id).not.toBe(cancelled.id);
+    }
+  }, 15000);
+
+  it('全編集可能エリアで壁・固い物・他NPC・調べる場所・入口・到着・目印・到達不能を拒否する', () => {
+    const world = buildWorld(), initial = new WorldEditorModel(world).initial;
+    for (const area of initial.areas.filter(candidate => isEditableArea(initial, candidate.id))) {
+      const model = new WorldEditorModel(world), before = model.document;
+      const candidateBase = model.createNpc('friend', area.id);
+      const wallIndex = area.ground.findIndex(isSolidGround);
+      const wall = wallIndex >= 0 ? { x: wallIndex % area.width, y: Math.floor(wallIndex / area.width) } : undefined;
+      const solidObject = initial.objects.find(object => object.areaId === area.id && object.solid);
+      const otherNpc = initial.interactions.find(item => item.areaId === area.id && item.kind === 'npc');
+      const otherInteraction = initial.interactions.find(item => item.areaId === area.id && item.kind !== 'npc');
+      const portal = initial.portals.find(door => door.areaId === area.id)?.from;
+      const arrival = initial.portals.find(door => door.to.areaId === area.id)?.to;
+
+      const targets: [string, { x: number; y: number } | undefined][] = [
+        ['wall', wall],
+        ['solid-object', solidObject],
+        ['other-npc', otherNpc],
+        ['portal', portal],
+        ['arrival', arrival],
+      ];
+      if (otherInteraction) targets.push(['other-interaction', otherInteraction]);
+      if (area.kind === 'outdoor') {
+        for (const [name, point] of Object.entries({
+          schoolGate: LANDMARKS.schoolGate,
+          stationFront: LANDMARKS.stationFront,
+          parkPlaza: LANDMARKS.parkPlaza,
+          shoppingStreet: LANDMARKS.shoppingStreet,
+        })) targets.push([`landmark:${name}`, point]);
+      }
+
+      for (const [kind, tile] of targets) {
+        expect(tile, `Missing ${kind} fixture in ${area.id}`).toBeDefined();
+        const candidate = { ...candidateBase, x: tile!.x, y: tile!.y };
+        const issues = model.issues(model.npcCandidate(candidate, true));
+        expect(issues.length, `${kind} should be rejected in ${area.id}`).toBeGreaterThan(0);
+        expect(() => model.commit(model.npcCandidate(candidate, true)), `${kind} commit in ${area.id}`).toThrow();
+        expect(model.document).toEqual(before);
+      }
+
+      if (area.kind === 'indoor' && arrival) {
+        const sealModel = new WorldEditorModel(world);
+        const neighbors = [[0, -1], [1, 0], [0, 1], [-1, 0]]
+          .map(([dx, dy]) => ({ x: arrival.x + dx, y: arrival.y + dy }))
+          .filter(point => {
+            const tile = area.ground[point.y * area.width + point.x];
+            if (point.x < 0 || point.y < 0 || point.x >= area.width || point.y >= area.height || isSolidGround(tile)) return false;
+            return !initial.portals.some(door => door.areaId === area.id &&
+              point.x >= door.from.x && point.x < door.from.x + (door.from.w ?? 1) && point.y === door.from.y);
+          });
+        expect(neighbors.length).toBeGreaterThan(0);
+        for (const point of neighbors.slice(0, -1)) {
+          const blocker = { ...sealModel.createNpc('friend', area.id), x: point.x, y: point.y };
+          sealModel.commit(sealModel.npcCandidate(blocker, true));
+        }
+        const finalPoint = neighbors.at(-1)!;
+        const sealing = { ...sealModel.createNpc('friend', area.id), x: finalPoint.x, y: finalPoint.y };
+        const beforeSeal = sealModel.document;
+        const issues = sealModel.issues(sealModel.npcCandidate(sealing, true));
+        expect(issues).toContain('出入口や調べる場所への通路を保ってください');
+        expect(() => sealModel.commit(sealModel.npcCandidate(sealing, true))).toThrow('通路');
+        expect(sealModel.document).toEqual(beforeSeal);
+      }
+    }
+  }, 15000);
 });
