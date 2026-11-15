@@ -159,3 +159,21 @@ export function shopRug(c: C2D, w: number, h: number, base: string, border: stri
     }
   }
 }
+
+/** Flat commercial entrance mat without stripes (for konbini & pharmacy). */
+export function shopFlatMat(c: C2D, w: number, h: number, base: string, border: string, trim: string): void {
+  R(c, border, 1, 2, w - 2, h - 4);
+  R(c, base, 2, 3, w - 4, h - 6);
+  R(c, trim, 3, 4, w - 6, 1);
+}
+
+/** Compact notched-corner welcome mat with stitched trim (for greengrocer & candy). */
+export function shopCompactMat(c: C2D, w: number, h: number, base: string, border: string, trim: string): void {
+  R(c, border, 2, 1, w - 4, h - 2);
+  R(c, border, 1, 2, w - 2, h - 4);
+  R(c, base, 3, 3, w - 6, h - 6);
+  for (let x = 4; x <= w - 6; x += 4) {
+    R(c, trim, x, 4, 2, 1);
+    R(c, trim, x, h - 5, 2, 1);
+  }
+}

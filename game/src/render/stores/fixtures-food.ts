@@ -21,7 +21,9 @@ import {
   priceCard,
   R,
   shelfCabinet,
+  shopCompactMat,
   shopCounter,
+  shopFlatMat,
   shopRug,
   woodCrate,
   wovenBasket,
@@ -456,7 +458,9 @@ function drawKonbiniSnackShelf(c: C2D, w: number, totalH: number): void {
     ['#5589d6', '#ffffff'],
   ];
   let i = 0;
-  for (let x = innerX + 2; x + 8 <= innerX + innerW; x += 10) {
+  const step = innerW <= 30 ? 9 : 10;
+  const start = innerW <= 30 ? innerX + 1 : innerX + 2;
+  for (let x = start; x + 8 <= innerX + innerW; x += step) {
     const [b1, s1] = bags[i++ % bags.length];
     drawSnackBag(c, x, tier1Y - 9, b1, s1);
     const [b2, s2] = bags[(i + 2) % bags.length];
@@ -470,7 +474,9 @@ function drawKonbiniFoodShelf(c: C2D, w: number, totalH: number): void {
   const { innerX, innerW, tier1Y, tier2Y } = shelfCabinet(c, w, totalH, '#5b7285', CREAM, WHITE, 0);
   const stripes = ['#d9453a', '#4f9952', '#e8962e', '#4c76c2'];
   let i = 0;
-  for (let x = innerX + 2; x + 8 <= innerX + innerW; x += 10) {
+  const step = innerW <= 30 ? 9 : 10;
+  const start = innerW <= 30 ? innerX + 1 : innerX + 2;
+  for (let x = start; x + 8 <= innerX + innerW; x += step) {
     drawCupNoodle(c, x, tier1Y - 9, stripes[i++ % stripes.length]);
     drawRoundBun(c, x, tier2Y - 8, i % 2 === 1);
   }
@@ -529,12 +535,12 @@ function drawKonbiniCounter(c: C2D, w: number, h: number, style = ''): void {
 
 function drawShopRug(c: C2D, w: number, h: number, style: string): void {
   if (style === 'bakery') shopRug(c, w, h, '#e8c494', '#b87640', '#faecd2');
-  else if (style === 'greengrocer') shopRug(c, w, h, '#bfd6a3', '#528e4b', '#f2ecd2');
   else if (style === 'bookstore') shopRug(c, w, h, '#b86258', '#683c36', '#e6c88a');
-  else if (style === 'candy') shopRug(c, w, h, '#e8a278', '#c84b44', '#fae38a');
   else if (style === 'cafe') shopRug(c, w, h, '#8f3a40', '#5a2228', '#d9b583');
-  else if (style === 'pharmacy') shopRug(c, w, h, MINT_LIGHT, '#4c9984', WHITE);
-  else shopRug(c, w, h, '#cbe5dc', '#3d9986', '#ea823a');
+  else if (style === 'greengrocer') shopCompactMat(c, w, h, '#bfd6a3', '#528e4b', '#f2ecd2');
+  else if (style === 'candy') shopCompactMat(c, w, h, '#e8a278', '#c84b44', '#fae38a');
+  else if (style === 'pharmacy') shopFlatMat(c, w, h, MINT_LIGHT, '#4c9984', WHITE);
+  else shopFlatMat(c, w, h, '#cbe5dc', '#3d9986', '#e9f6f2');
 }
 
 /** Resolve pixel-art sprite for Bakery, Greengrocer, Cafe, Konbini, and shared floor rugs. */
@@ -598,12 +604,18 @@ export function foodStoreSprite(o: ObjectDef): StoreSprite | null {
       return sprite(w, h + 16, -16, (c) => drawKonbiniCooler(c, w, h + 16, style));
     case 'konbini-magazine':
       return sprite(w, h + 16, -16, (c) => drawKonbiniMagazine(c, w, h + 16));
-    case 'konbini-snack-shelf':
-      return sprite(w, h + 12, -12, (c) => drawKonbiniSnackShelf(c, w, h + 12));
-    case 'konbini-food-shelf':
-      return sprite(w, h + 12, -12, (c) => drawKonbiniFoodShelf(c, w, h + 12));
-    case 'konbini-daily-shelf':
-      return sprite(w, h + 12, -12, (c) => drawKonbiniDailyShelf(c, w, h + 12));
+    case 'konbini-snack-shelf': {
+      const oy = o.h >= 2 ? 0 : -12;
+      return sprite(w, h - oy, oy, (c) => drawKonbiniSnackShelf(c, w, h - oy));
+    }
+    case 'konbini-food-shelf': {
+      const oy = o.h >= 2 ? 0 : -12;
+      return sprite(w, h - oy, oy, (c) => drawKonbiniFoodShelf(c, w, h - oy));
+    }
+    case 'konbini-daily-shelf': {
+      const oy = o.h >= 2 ? 0 : -12;
+      return sprite(w, h - oy, oy, (c) => drawKonbiniDailyShelf(c, w, h - oy));
+    }
     case 'konbini-ice-freezer':
       return sprite(w, h + 4, -4, (c) => drawKonbiniIceFreezer(c, w, h + 4));
     case 'konbini-counter':
