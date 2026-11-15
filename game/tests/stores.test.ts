@@ -82,7 +82,7 @@ describe('UI-independent store connection validation', () => {
 describe('named store inventory in the module composition', () => {
   const world = buildStoreFixtureWorld(), town = world.areas.get('town-main')!;
 
-  it('lists every shop building, including the cafe exterior without a facility', () => {
+  it('lists the seven shop buildings and excludes background residences', () => {
     expect(town.objects.filter(item => item.kind === 'shop').map(item => item.id).sort())
       .toEqual(STORE_INVENTORY.map(item => item.objectId).sort());
     // This prefix describes current FACILITIES data, not a naming rule for new stores.
@@ -136,12 +136,13 @@ function approach(game: Game, target: TileRect): { x: number; y: number; facing:
 }
 
 describe('six store modules: movement, displays, greetings and save/resume', () => {
-  it('connects every named store and keeps the unidentified cafe outside the contract', () => {
+  it('connects every named store and keeps the background residence outside the contract', () => {
     const world = buildStoreFixtureWorld();
     expect(validateWorld(world)).toEqual([]);
     expect(validateStoreContacts(world, STORE_CONTACTS)).toEqual([]);
     expect(STORE_CONTACTS).toHaveLength(7);
-    expect(world.areas.get('town-main')!.objects.find(item => item.id === 'town-shop-60-59')?.facilityId).toBeUndefined();
+    expect(world.areas.get('town-main')!.objects.find(item => item.id === 'town-shop-60-59'))
+      .toMatchObject({ kind: 'apartment', style: '0', facilityId: undefined });
   });
 
   it.each(SHOP_INTERIORS)('walks into $name, reaches its displays and clerk, saves inside and returns', definition => {
