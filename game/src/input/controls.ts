@@ -7,6 +7,7 @@ export const DIRECTION_KEYS: Readonly<Record<string, Facing>> = {
 };
 export const ACTION_KEYS: ReadonlySet<string> = new Set(['KeyZ', 'Space', 'Enter']);
 export const RUN_KEYS: ReadonlySet<string> = new Set(['ShiftLeft', 'ShiftRight']);
+export const BICYCLE_KEYS: ReadonlySet<string> = new Set(['KeyB']);
 
 /** Held movement sources (keys and touch pointers). The most recent direction wins. */
 export class Controls {
