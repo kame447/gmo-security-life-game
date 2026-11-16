@@ -80,10 +80,11 @@ describe('opening: 入力と案の指定', () => {
     expect(keyAction('KeyS')).toBe('down');
     expect(keyAction('KeyQ')).toBeUndefined();
   });
-  it('不明な案の指定は案Aにする', () => {
+  it('不明な案の指定は案Cにする', () => {
+    expect(parseVariant('a')).toBe('a');
     expect(parseVariant('b')).toBe('b');
     expect(parseVariant('c')).toBe('c');
-    expect(parseVariant('x')).toBe('a');
-    expect(parseVariant(null)).toBe('a');
+    expect(parseVariant('x')).toBe('c');
+    expect(parseVariant(null)).toBe('c');
   });
 });

@@ -1,3 +1,4 @@
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 
@@ -16,7 +17,7 @@ function watch(page) {
   });
 }
 async function ready(page, target = normalUrl.href) {
-  await page.goto(target);
+  await page.goto(gameplayUrl(target));
   await page.waitForFunction(() => !!window.__slg?.game && !!document.querySelector('#hud')?.textContent.trim());
   await page.locator('#view').focus();
 }

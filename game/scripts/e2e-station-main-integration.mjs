@@ -1,3 +1,4 @@
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 /** Exercise the merged main UI during the complete ride, including the destination animation. */
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -84,7 +85,7 @@ try {
       page.on('pageerror', error => report.errors.push(String(error)));
       page.on('console', message => { if (message.type() === 'error') report.errors.push(message.text()); });
       await page.clock.install({ time: new Date(epoch) });
-      await page.goto(base.href, { waitUntil: 'load' });
+      await page.goto(gameplayUrl(base.href), { waitUntil: 'load' });
       await page.clock.pauseAt(new Date(epoch + 60_000));
       await page.clock.runFor(400);
       // Initial fixture setup only. Every trip and conflicting input below uses the actual UI.

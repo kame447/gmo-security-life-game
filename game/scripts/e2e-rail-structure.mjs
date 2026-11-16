@@ -1,3 +1,4 @@
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -96,7 +97,7 @@ try {
     page.on('console', message => { if (message.type() === 'error') report.errors.push(message.text()); });
     page.on('download', download => { report.downloads.push(download.suggestedFilename()); void download.cancel(); });
     try {
-      await page.goto(target.href); await ready(page);
+      await page.goto(gameplayUrl(target.href)); await ready(page);
       const { access, layout, landmarks } = await page.evaluate(async () => {
         const m = await import('/src/world/landmarks.ts');
         return { access: m.STATION_ACCESS, layout: m.MAIN_STATION_LAYOUT, landmarks: m.LANDMARKS };
