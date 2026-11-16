@@ -47,6 +47,7 @@ async function runPreflight() {
   });
   try {
     const { buildWorld, validateWorld, LANDMARKS } = await vite.ssrLoadModule('/src/world/index.ts');
+    const { TRAIN_NETWORK } = await vite.ssrLoadModule('/src/travel/network.ts');
     const { STORE_CONTACTS } = await vite.ssrLoadModule('/src/data/stores.ts');
     const { validateStoreContacts } = await vite.ssrLoadModule('/src/stores/validate.ts');
     const { clerkVisit } = await vite.ssrLoadModule('/src/shop/clerk-visit.ts');
@@ -55,16 +56,21 @@ async function runPreflight() {
     const { areaNpcs, npcReferences } = await vite.ssrLoadModule('/src/world-editor/npc.ts');
 
     const world = buildWorld();
-    const worldProblems = validateWorld(world);
+    const worldProblems = validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() });
     const storeProblems = validateStoreContacts(world, STORE_CONTACTS);
     assert.deepEqual(worldProblems, []);
     assert.deepEqual(storeProblems, []);
 
     const model = new WorldEditorModel(world);
+    assert.equal(model.initial.areas.length, 13);
     const editableAreas = model.initial.areas.filter(a => isEditableArea(model.initial, a.id));
-    assert.equal(editableAreas.length, 10);
+    assert.equal(editableAreas.length, 12);
+    const readonlyAreas = model.initial.areas.filter(a => !isEditableArea(model.initial, a.id));
+    assert.deepEqual(readonlyAreas.map(a => [a.id, areaNpcs(model.initial, a.id).length]), [['town-neighbor', 1]]);
     const totalNpcs = editableAreas.reduce((sum, a) => sum + areaNpcs(model.initial, a.id).length, 0);
     assert.equal(totalNpcs, 16);
+    const allNpcs = model.initial.areas.reduce((sum, a) => sum + areaNpcs(model.initial, a.id).length, 0);
+    assert.equal(allNpcs, 17);
 
     const contacts = [];
     for (const contact of STORE_CONTACTS) {
@@ -88,7 +94,8 @@ async function runPreflight() {
     }
     const shop = contacts.find(c => c.visitAvailable);
     assert.ok(shop, 'Catalog-backed shop contact must exist');
-    return { shop, HOME_AREA, LANDMARKS, editableCount: editableAreas.length, totalNpcs, contacts };
+    return { shop, HOME_AREA, LANDMARKS, areaCount: model.initial.areas.length, editableCount: editableAreas.length,
+      readonlyAreaIds: readonlyAreas.map(a => a.id), totalNpcs, allNpcs, contacts };
   } finally {
     await vite.close();
   }

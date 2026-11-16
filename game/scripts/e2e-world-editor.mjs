@@ -130,7 +130,8 @@ try{
  }
  const roomsSession=await session({width:1280,height:800}),rp=roomsSession.page;await ready(rp);
  const areaValues=await rp.locator('#area-select option').evaluateAll(opts=>opts.map(o=>o.value));
- assert.deepEqual(areaValues.filter(v=>v!=='town-main'),['home-family-interior','school-classroom-interior','shop-bakery-interior','shop-bookstore-interior','shop-cafe-interior','shop-candy-interior','shop-greengrocer-interior','shop-konbini-interior','shop-pharmacy-interior']);
+ assert.equal(areaValues.length,13);
+ assert.deepEqual(areaValues.filter(v=>v!=='town-main'),['home-family-interior','school-classroom-interior','shop-bakery-interior','shop-bookstore-interior','shop-cafe-interior','shop-candy-interior','shop-greengrocer-interior','shop-konbini-interior','shop-pharmacy-interior','station-main-interior','station-neighbor-interior','town-neighbor']);
  // Edit school-classroom-interior: place & 4-dir rotate chair-wood, check wall item lock reason, rotate legacy sdesk & tdesk, paint floor.
  await rp.locator('#area-select').selectOption('school-classroom-interior');
  await rp.waitForFunction(()=>window.__worldEditor.activeArea==='school-classroom-interior');
