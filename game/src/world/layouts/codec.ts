@@ -13,32 +13,7 @@ export interface AreaLayout {
   interactions: Omit<EditorInteraction, 'areaId'>[];
   portals: AreaDef['portals'];
 }
-function deepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
-  if (Array.isArray(a)) {
-    if (!Array.isArray(b) || a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      if (!deepEqual(a[i] === undefined ? null : a[i], b[i] === undefined ? null : b[i])) return false;
-    }
-    return true;
-  }
-  if (Array.isArray(b)) return false;
-  const pa = Object.getPrototypeOf(a), pb = Object.getPrototypeOf(b);
-  if ((pa !== Object.prototype && pa !== null) || (pb !== Object.prototype && pb !== null)) {
-    return canonicalJSON(a) === canonicalJSON(b);
-  }
-  const oa = a as Record<string, unknown>, ob = b as Record<string, unknown>;
-  let countA = 0, countB = 0;
-  for (const k of Object.keys(ob)) if (ob[k] !== undefined) countB++;
-  for (const k of Object.keys(oa)) {
-    if (oa[k] === undefined) continue;
-    countA++;
-    if (!Object.hasOwn(ob, k) || ob[k] === undefined || !deepEqual(oa[k], ob[k])) return false;
-  }
-  return countA === countB;
-}
-export const equal = (a: unknown, b: unknown) => deepEqual(a, b);
+export const equal = (a: unknown, b: unknown) => canonicalJSON(a) === canonicalJSON(b);
 export function plainArea(def: AreaDef): unknown {
   return { ...def, ground: Array.from(def.ground), ...(def.surfaces ? {
     surfaces: { palette: [...def.surfaces.palette], cells: Array.from(def.surfaces.cells) } } : {}) };

@@ -1,4 +1,4 @@
-import { applyChangeSet, createChangeSet, diffDocuments } from './changes.ts';
+import { applyChangeSet, cloneDocument, createChangeSet, diffDocuments } from './changes.ts';
 import { canonicalJSON, parseDocument } from './schema.ts';
 import type { ChangeSet, EditOperation, EditorDocument, EditorValidationContext } from './types.ts';
 
@@ -27,7 +27,7 @@ export class EditorSession {
     this.current = structuredClone(this.baseline);
     this.limit = historyLimit;
   }
-  get document(): EditorDocument { return structuredClone(this.current); }
+  get document(): EditorDocument { return cloneDocument(this.current); }
   get canUndo(): boolean { return this.past.length > 0; }
   get canRedo(): boolean { return this.future.length > 0; }
 

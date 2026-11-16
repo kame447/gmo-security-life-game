@@ -1,6 +1,6 @@
-import { withDerived } from '../editor/changes';
+import { deriveMetadata, sameFiniteNumbers } from '../editor/changes';
 import { assembleEditorWorld } from '../editor/runtime';
-import type { EditorDocument, EditorPortal, EditorValidationContext } from '../editor/types';
+import type { EditorArea, EditorDocument, EditorInteraction, EditorObject, EditorPortal, EditorValidationContext } from '../editor/types';
 import { equal } from '../world/layouts/codec';
 import { assertInteriorEdit } from './policy';
 import { trustedContext, worldRailLinks } from './trusted-context';
@@ -38,20 +38,59 @@ const fixed = (before: unknown, after: unknown, message: string) => {
   if (!equal(before, after)) throw new Error(message);
 };
 
-function local(document: EditorDocument, areaId: string, omitReturn = false) {
-  return {
-    area: document.areas.find(area => area.id === areaId),
-    objects: document.objects.filter(object => object.areaId === areaId),
-    interactions: document.interactions.filter(item => item.areaId === areaId),
-    portals: document.portals.filter(portal => portal.areaId === areaId)
-      .map(portal => omitReturn ? (({ to: _, ...rest }) => rest)(portal) : portal),
+interface GroupedArea {
+  area?: EditorArea;
+  objects: EditorObject[];
+  interactions: EditorInteraction[];
+  portals: EditorPortal[];
+}
+
+function groupByArea(document: EditorDocument): Map<string, GroupedArea> {
+  const map = new Map<string, GroupedArea>();
+  const bucket = (areaId: string) => {
+    let entry = map.get(areaId);
+    if (!entry) { entry = { objects: [], interactions: [], portals: [] }; map.set(areaId, entry); }
+    return entry;
   };
+  for (const area of document.areas) bucket(area.id).area = area;
+  for (const object of document.objects) bucket(object.areaId).objects.push(object);
+  for (const item of document.interactions) bucket(item.areaId).interactions.push(item);
+  for (const portal of document.portals) bucket(portal.areaId).portals.push(portal);
+  return map;
+}
+
+function sameAreaValue(a: EditorArea | undefined, b: EditorArea | undefined, omitSurfaces = false): boolean {
+  if (a === b) return true;
+  if (!a || !b) return equal(a, b);
+  if (sameFiniteNumbers(a.ground, b.ground)) {
+    const strip = (area: EditorArea) => {
+      const { ground: _, surfaces, ...rest } = area;
+      return omitSurfaces ? rest : { ...rest, ...(surfaces === undefined ? {} : { surfaces }) };
+    };
+    return equal(strip(a), strip(b));
+  }
+  if (omitSurfaces) {
+    const { surfaces: _a, ...ra } = a;
+    const { surfaces: _b, ...rb } = b;
+    return equal(ra, rb);
+  }
+  return equal(a, b);
 }
 
 /** The save plan is computed from complete documents, independent of the open UI area. */
 export function changedAreaIds(before: EditorDocument, after: EditorDocument): string[] {
-  return after.areas.filter(area => !equal(local(before, area.id), local(after, area.id)))
-    .map(area => area.id).sort();
+  const beforeGroups = groupByArea(before), afterGroups = groupByArea(after);
+  const changed: string[] = [];
+  for (const area of after.areas) {
+    const b = beforeGroups.get(area.id), a = afterGroups.get(area.id)!;
+    if (!equal(b?.objects ?? [], a.objects) ||
+        !equal(b?.interactions ?? [], a.interactions) ||
+        !equal(b?.portals ?? [], a.portals) ||
+        !sameAreaValue(b?.area, a.area)) {
+      changed.push(area.id);
+    }
+  }
+  return changed.sort();
 }
 
 function assertReturnMove(before: EditorDocument, after: EditorDocument, previous: EditorPortal, next: EditorPortal) {
@@ -88,20 +127,41 @@ export function assertWorldEdit(before: EditorDocument, after: EditorDocument,
   if (!context.derived?.startPortalId) fixed(before.start, after.start, '開始位置は変更できません');
   if (!context.derived?.placedNpcEventKeys) fixed(before.catalogs.eventKeys, after.catalogs.eventKeys, '会話の参照は変更できません');
   for (const document of [before, after]) {
-    const derived = withDerived(document, context);
-    fixed(document.start, derived.start, '開始位置は出口の戻り先から導いてください');
-    fixed(document.catalogs.eventKeys, derived.catalogs.eventKeys, '会話の参照は現在の対象から導いてください');
+    const derived = deriveMetadata(document, context);
+    if (derived) {
+      fixed(document.start, derived.start, '開始位置は出口の戻り先から導いてください');
+      fixed(document.catalogs.eventKeys, derived.eventKeys, '会話の参照は現在の対象から導いてください');
+    }
   }
-  const areaIdentity = (document: EditorDocument) => document.areas.map(({ surfaces: _, ...area }) => area);
-  fixed(areaIdentity(before), areaIdentity(after), 'エリア・地区・大きさと地面は変更できません');
+  if (before.areas.length !== after.areas.length ||
+      before.areas.some((area, index) => !sameAreaValue(area, after.areas[index], true))) {
+    const areaIdentity = (document: EditorDocument) => document.areas.map(({ surfaces: _, ...area }) => area);
+    fixed(areaIdentity(before), areaIdentity(after), 'エリア・地区・大きさと地面は変更できません');
+  }
   const doorIdentity = (document: EditorDocument) => document.portals.map(({ from: _, to: __, ...portal }) => portal);
   fixed(doorIdentity(before), doorIdentity(after), '出入口のIDと所属は変更できません');
+  const afterPortalsById = new Map(after.portals.map(portal => [portal.id, portal]));
   for (const portal of before.portals) {
-    assertReturnMove(before, after, portal, after.portals.find(candidate => candidate.id === portal.id)!);
+    assertReturnMove(before, after, portal, afterPortalsById.get(portal.id)!);
   }
-  for (const areaId of changedAreaIds(before, after)) {
+  const beforeGroups = groupByArea(before), afterGroups = groupByArea(after);
+  const changedIds: string[] = [];
+  for (const area of after.areas) {
+    const b = beforeGroups.get(area.id), a = afterGroups.get(area.id)!;
+    const objDiff = !equal(b?.objects ?? [], a.objects);
+    const interDiff = !equal(b?.interactions ?? [], a.interactions);
+    const portalDiff = !equal(b?.portals ?? [], a.portals);
+    const areaDiff = !sameAreaValue(b?.area, a.area);
+    if (!objDiff && !interDiff && !portalDiff && !areaDiff) continue;
     // Uneditable or secondary rooms may still receive a verified return-to translation from an outdoor move.
-    if (equal(local(before, areaId, true), local(after, areaId, true))) continue;
+    if (!objDiff && !interDiff && !areaDiff) {
+      const strip = (portals: EditorPortal[]) => portals.map(({ to: _, ...rest }) => rest);
+      if (equal(strip(b?.portals ?? []), strip(a.portals))) continue;
+    }
+    changedIds.push(area.id);
+  }
+  changedIds.sort();
+  for (const areaId of changedIds) {
     const policy = areaEditPolicy(before, areaId, policies);
     if (typeof policy !== 'function') throw new Error(`このエリアは変更できません: ${areaId}`);
     policy(before, after, areaId);

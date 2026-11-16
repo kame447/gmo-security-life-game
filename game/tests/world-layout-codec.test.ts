@@ -4,7 +4,7 @@ import { createTown } from '../src/world/town';
 import { TRAIN_NETWORK } from '../src/travel/network';
 import { AREA_FACTORIES, buildWorld, validateWorld } from '../src/world';
 import { applyAreaLayout, areaLayout, staleLayouts } from '../src/world/layouts';
-import { areaFingerprint, initialLayout, layoutArea, plainArea } from '../src/world/layouts/codec';
+import { areaFingerprint, equal, initialLayout, layoutArea, plainArea } from '../src/world/layouts/codec';
 import { fingerprint } from '../src/world/layouts/hash';
 import { fingerprintValue } from '../src/editor-persistence/common';
 import { WorldEditorModel, HOME_AREA } from '../src/world-editor/model';
@@ -12,6 +12,18 @@ import { canonicalJSON, parseDocument, validateDocument } from '../src/editor/sc
 import { prepareSave } from '../src/world-editor/persistence';
 
 describe('実ゲームの配置JSON',()=>{
+  it('比較はキーの順序を除いてcanonical JSONと一致し、配列の順序を保つ',()=>{
+    expect(equal({y:2,x:1,optional:undefined},{x:1,y:2})).toBe(true);
+    expect(equal({ground:[1,2],lines:['あ','い']},{lines:['あ','い'],ground:[1,2]})).toBe(true);
+    expect(equal({ground:[1,2]},{ground:[2,1]})).toBe(false);
+    expect(equal({lines:['あ','い']},{lines:['い','あ']})).toBe(false);
+  });
+  it('未検証のJS値もcanonical JSONの扱いを保ち、BigIntを黙って同一としない',()=>{
+    for(const [left,right] of [[NaN,null],[Infinity,null],[NaN,Infinity],
+      [{value:()=>1},{}],[()=>1,undefined],[[undefined],[null]]]) expect(equal(left,right)).toBe(true);
+    expect(()=>equal(1n,1n)).toThrow(TypeError);
+    const value={nested:1n};expect(()=>equal(value,value)).toThrow(TypeError);
+  });
   it('canonical UTF-8の指紋は既存WebCrypto方式と一致する',async()=>{
     for(const input of ['',{},'じぶんのいえ🪑',{cells:Array.from({length:500},(_,n)=>n)}])expect(fingerprint(input)).toBe(await fingerprintValue(input));
     expect(areaFingerprint(createHome())).toBe(areaLayout(HOME_AREA)!.source.fingerprint);

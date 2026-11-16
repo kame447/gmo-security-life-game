@@ -28,6 +28,66 @@ export function withDerived(document: EditorDocument, context?: EditorValidation
   return next;
 }
 
+/** Copy validated editor snapshots; bulk numeric layers need no per-cell structured cloning. */
+export function cloneDocument(document: EditorDocument): EditorDocument {
+  const areas = document.areas.map(({ ground, surfaces, ...area }) => ({
+    ...structuredClone(area), ground: ground.slice(),
+    ...(surfaces ? { surfaces: { ...structuredClone({ ...surfaces, cells: [] }), cells: surfaces.cells.slice() } } : {}),
+  }));
+  return { ...structuredClone({ ...document, areas: [] }), areas };
+}
+
+/** Read-only derived view for validators; nested authoring data is never mutated. */
+export function withDerivedView(document: EditorDocument, context?: EditorValidationContext): EditorDocument {
+  const rule=context?.derived;
+  if(!rule)return document;
+  if(Object.keys(rule).some(key=>!['startPortalId','placedNpcEventKeys'].includes(key)) ||
+      (rule.placedNpcEventKeys!==undefined&&rule.placedNpcEventKeys!==true))
+    fail('context.derived','metadata','Unknown derived metadata declaration');
+  const next={...document,catalogs:{...document.catalogs}};
+  if(rule.startPortalId!==undefined){
+    const portal=next.portals.find(portal=>portal.id===rule.startPortalId);
+    if(!portal)return fail('context.derived.startPortalId','reference','The declared start portal does not exist');
+    next.start=structuredClone(portal.to);
+  }
+  if(rule.placedNpcEventKeys){
+    const source=new Map([...context!.baselineWorld.areas.values()].flatMap(area=>area.def.interactions.map(item=>[item.id,item] as const)));
+    for(const item of next.interactions){
+      const original=source.get(item.id);
+      if(original ? original.eventKey!==item.eventKey : item.kind!=='npc'||item.eventKey!==`npc.${item.id}`)
+        fail(`interactions.${item.id}.eventKey`,'reference','Preserve the source event key or use the new NPC own key');
+    }
+    next.catalogs.eventKeys=[...new Set(next.interactions.map(item=>item.eventKey))].sort();
+  }
+  return next;
+}
+
+/** Read derived fields through the same non-mutating validation path. */
+export function deriveMetadata(document: EditorDocument, context?: EditorValidationContext): { start: EditorDocument['start']; eventKeys: string[] } {
+  const derived=withDerivedView(document,context);
+  return {start:derived.start,eventKeys:derived.catalogs.eventKeys};
+}
+
+/** True when both values are arrays of identical finite numbers (canonicalJSON-equivalent). */
+export function sameFiniteNumbers(a: unknown, b: unknown): boolean {
+  if (a === b && Array.isArray(a)) {
+    for (let i = 0; i < a.length; i++) {
+      const v = a[i];
+      if (typeof v !== 'number' || !Number.isFinite(v)) return false;
+    }
+    return true;
+  }
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const av = a[i], bv = b[i];
+    if (typeof av !== 'number' || typeof bv !== 'number' || !Number.isFinite(av) || !Number.isFinite(bv) || av !== bv) {
+      return false;
+    }
+  }
+  return true;
+}
+
+
 export function parseChangeSet(raw: unknown, context?: EditorValidationContext): ChangeSet {
   const issues: ValidationIssue[] = [];
   const addIssue = (path: string, message: string) => { issues.push({ path, code: 'schema', message }); };
