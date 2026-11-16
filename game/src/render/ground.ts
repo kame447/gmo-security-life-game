@@ -1,5 +1,5 @@
 import { hash2, TILE } from '../core/coords';
-import { isRoad, T } from '../world/tiles';
+import { isRailGround, isRoad, isSwitchGround, T } from '../world/tiles';
 import { R, type C2D } from './draw';
 
 /** World coordinates seed every mark, so baking a different chunk cannot change it. */
@@ -50,6 +50,40 @@ export function drawGroundTile(c: C2D, t: number, px: number, py: number, tx: nu
       r('#e5d6af', 0, 6, 16, 1);
       if (nb(-1, 0) !== T.CROSSING) for (let y = 0; y < 16; y += 4) r(y % 8 ? '#e9c85d' : '#535b5c', 0, y, 2, 4);
       if (nb(1, 0) !== T.CROSSING) for (let y = 0; y < 16; y += 4) r(y % 8 ? '#e9c85d' : '#535b5c', 14, y, 2, 4);
+    }
+  };
+
+  // ポイント: 上りの線が3タイル（48px）かけて北の行へなめらかに寄る。中心線は3px進むごとに1px上がる（下がる）。
+  const switchTile = () => {
+    const north = t === T.SWITCH_WN_C || t === T.SWITCH_WN_D || t === T.SWITCH_EN_D || t === T.SWITCH_EN_C;
+    if (north) rail(false); else { base('#a6a89c'); grain(['#898f87', '#c0bdae', '#959b91'], 30, 42); }
+    // この tile を通る中心線の y（x は 0..15）。tile の外にある x は null。
+    const centre = (x: number): number | null => {
+      let y: number;
+      switch (t) {
+        case T.SWITCH_WS_A: y = 8 - x / 3; break;
+        case T.SWITCH_WS_B: y = 8 - (16 + x) / 3; break;
+        case T.SWITCH_WN_C: y = 24 - (16 + x) / 3; break;
+        case T.SWITCH_WN_D: y = 24 - (32 + x) / 3; break;
+        case T.SWITCH_EN_D: y = 8 + x / 3; break;
+        case T.SWITCH_EN_C: y = 8 + (16 + x) / 3; break;
+        case T.SWITCH_ES_B: y = (16 + x) / 3 - 8; break;
+        default: y = (32 + x) / 3 - 8; break;
+      }
+      return y >= -1 && y <= 17 ? Math.round(y) : null;
+    };
+    const put = (color: string, x: number, y: number, w: number, h: number) => {
+      const y0 = Math.max(0, y), y1 = Math.min(16, y + h);
+      if (y1 > y0) r(color, x, y0, w, y1 - y0);
+    };
+    for (let x = 0; x < 16; x++) {
+      const y = centre(x);
+      if (y !== null && x % 4 === 0) put('#796c5a', x, y - 6, 2, 12);
+    }
+    for (let x = 0; x < 16; x++) {
+      const y = centre(x);
+      if (y === null) continue;
+      for (const off of [-5, 3]) { put('#596970', x, y + off, 1, 3); put('#e0e4df', x, y + off, 1, 1); }
     }
   };
 
@@ -126,7 +160,30 @@ export function drawGroundTile(c: C2D, t: number, px: number, py: number, tx: nu
     }
     case T.DIRT: base('#dfba85'); grain(['#edcf9b', '#cda771', '#eac58e'], 22, 78, true); break;
     case T.SAND: base('#eed69f'); grain(['#dec089', '#f9e5b6', '#d8bb82'], 22, 81); break;
-    case T.RAIL: rail(false); break;
+    case T.RAIL:
+    case T.RAIL_BRIDGE:
+    case T.CROSSING_SIGNAL:
+    case T.SWITCH_WS_A:
+    case T.SWITCH_WS_B:
+    case T.SWITCH_WN_C:
+    case T.SWITCH_WN_D:
+    case T.SWITCH_EN_D:
+    case T.SWITCH_EN_C:
+    case T.SWITCH_ES_B:
+    case T.SWITCH_ES_A:
+      if (isSwitchGround(t)) switchTile(); else rail(false);
+      // Boundaries occupy the already-solid rail tile, never a neighboring public sidewalk.
+      for (const [dy, y] of [[-1, 0], [1, 13]]) if (!isRailGround(nb(0, dy)) && nb(0, dy) !== T.RAIL_GUARD) {
+        r(t === T.RAIL_BRIDGE ? '#415e6b' : '#596e6a', 0, y, 16, 3);
+        r('#dae0c6', 0, y, 16, 1);
+        for (const x of [2, 10]) r('#bcc7b9', x, y, 2, 3);
+      }
+      if (t === T.RAIL_BRIDGE) {
+        r('#496575', 0, 6, 16, 4); r('#c2d1cd', 0, 6, 16, 1);
+        for (let x = 0; x < 16; x += 4) r('#7b969b', x, 7, 2, 3);
+      }
+      // CROSSING_SIGNAL remains solid rail land; the dynamic gate hardware owns the warning lamps.
+      break;
     case T.CROSSING: rail(true); break;
     case T.PLATFORM:
       stone('#c7c7b7', '#e0dfc9', '#b0b4a7', 8);
@@ -135,6 +192,54 @@ export function drawGroundTile(c: C2D, t: number, px: number, py: number, tx: nu
         for (let x = 1; x < 16; x += 3) { r('#c7a24a', x, 10); r('#ffe29a', x, 12); }
         r('#f8f0d5', 0, 14, 16, 1); r('#778782', 0, 15, 16, 1);
       }
+      if (nb(0, -1) === T.RAIL) {
+        r('#778782', 0, 0, 16, 1); r('#f8f0d5', 0, 1, 16, 1);
+        r('#f2cf65', 0, 2, 16, 4);
+        for (let x = 1; x < 16; x += 3) { r('#ffe29a', x, 3); r('#c7a24a', x, 5); }
+      }
+      break;
+    case T.PLATFORM_EDGE:
+      stone('#c7c7b7', '#e0dfc9', '#b0b4a7', 8);
+      r('#f2cf65', 0, 10, 16, 4);
+      for (let x = 1; x < 16; x += 3) r('#c7a24a', x, 11, 1, 2);
+      r('#526d6b', 0, 3, 16, 2); r('#d7e3ce', 0, 3, 16, 1);
+      for (const x of [2, 11]) r('#627b75', x, 2, 2, 7);
+      break;
+    case T.RAIL_GUARD: {
+      base('#9eaf87'); grain(['#91a37f', '#b0ba98', '#899c78'], 18, 151, true);
+      const protectedGround = (tile: number) => tile === T.RAIL_GUARD || tile === T.RAIL_FENCE || isRailGround(tile);
+      // Only the perimeter carries a fence. Neighboring guard tiles share one continuous protected verge.
+      if (!protectedGround(nb(0, -1))) {
+        r('#536c67', 0, 2, 16, 2); r('#d4dfcc', 0, 2, 16, 1); r('#536c67', 0, 7, 16, 1);
+        for (const x of [2, 10]) { r('#667e73', x, 0, 2, 10); r('#d4dfcc', x, 0, 2, 1); }
+      }
+      if (!protectedGround(nb(0, 1))) {
+        r('#536c67', 0, 9, 16, 2); r('#d4dfcc', 0, 9, 16, 1); r('#536c67', 0, 14, 16, 1);
+        for (const x of [2, 10]) { r('#667e73', x, 7, 2, 9); r('#d4dfcc', x, 7, 2, 1); }
+      }
+      for (const dx of [-1, 1]) if (!protectedGround(nb(dx, 0))) {
+        const x = dx < 0 ? 0 : 13;
+        r('#536c67', x, 0, 3, 16); r('#d4dfcc', x, 0, 1, 16);
+        for (const y of [1, 9]) r('#8fa491', x, y, 3, 2);
+      }
+      break;
+    }
+    case T.RAIL_FENCE:
+      stone('#c7c7b7', '#e0dfc9', '#b0b4a7', 8);
+      r('#536c67', 0, 3, 16, 2); r('#d4dfcc', 0, 3, 16, 1);
+      r('#536c67', 0, 10, 16, 2);
+      for (const x of [2, 10]) r('#667e73', x, 2, 2, 12);
+      break;
+    case T.TICKET_GATE:
+      stone('#d5a78c', '#e9c5a5', '#b88f7b', 4);
+      for (const x of [0, 13]) { r('#405b65', x, 1, 3, 14); r('#b5d0cc', x, 1, 3, 3); r('#86ce79', x, 5, 3, 2); }
+      r('#e6efd5', 7, 5, 2, 7); r('#e6efd5', 5, 7, 6, 2); r('#e6efd5', 6, 6, 4, 2);
+      break;
+    case T.BOARDING_SIGN:
+      stone('#c7c7b7', '#e0dfc9', '#b0b4a7', 8);
+      r('#496a79', 1, 1, 14, 11); r('#d6e6d6', 2, 2, 12, 8); r('#486875', 7, 12, 2, 4);
+      c.save(); c.fillStyle = '#294754'; c.font = 'bold 6px sans-serif'; c.textAlign = 'center';
+      c.fillText('のりば', px + 8, py + 8); c.restore();
       break;
     case T.FENCE: {
       grass();

@@ -1,0 +1,77 @@
+/* Flat light boxes with a dark edge and one inner line; no rounding, blur or gradients.
+   Three separate boxes sit inside the drawn room: wallet (top corner), product list (other side), one bar (bottom).
+   --shop-unit is the size of one game pixel on screen; type, spacing and lines are multiples of it. */
+.shop-panel {
+  --shop-ink: #2b2838; --shop-paper: #fbf8ee; --shop-rule: #b9b4a4; --shop-muted: #5c596a; --shop-cursor: #1f7a68;
+  --shop-unit: 2px; --shop-line: 2px; --shop-bar: 70px; --shop-tap: 0px; --u: var(--shop-unit);
+  position: absolute; inset: 0; z-index: 20; color: var(--shop-ink);
+  font-family: inherit; font-size: max(13px, calc(var(--u) * 7)); line-height: 1.3;
+}
+/* Touch screens keep rows that a finger can hit. */
+.shop-panel.is-touch { --shop-tap: 44px; }
+.shop-panel:focus { outline: none; }
+.shop-panel[hidden], .shop-panel [hidden] { display: none !important; }
+.shop-panel * { box-sizing: border-box; }
+.shop-panel p, .shop-panel dl, .shop-panel dd { margin: 0; }
+/* The script sizes this to the visible room. The list takes the side away from the player. */
+.shop-stage {
+  position: absolute; display: grid; row-gap: calc(var(--u) * 2);
+  grid-template: "wallet . list" minmax(0, 1fr) "bar bar bar" auto / 30% minmax(0, 1fr) 48%;
+}
+.shop-panel.is-mirrored .shop-stage { grid-template-areas: "list . wallet" "bar bar bar"; grid-template-columns: 48% minmax(0, 1fr) 30%; }
+.shop-box {
+  position: relative; min-width: 0; background: var(--shop-paper); border: var(--shop-line) solid var(--shop-ink);
+  box-shadow: inset 0 0 0 var(--shop-line) var(--shop-paper), inset 0 0 0 calc(var(--shop-line) * 2) var(--shop-rule);
+  padding: calc(var(--u) * 2);
+}
+.shop-panel button {
+  min-width: 44px; min-height: 44px; padding: 0 calc(var(--u) * 3); color: inherit; background: transparent;
+  border: var(--shop-line) solid var(--shop-rule); border-radius: 0; font: inherit; cursor: pointer; touch-action: manipulation;
+}
+.shop-panel button:focus-visible { outline: var(--shop-line) dashed var(--shop-cursor); outline-offset: var(--shop-line); }
+.shop-panel button:disabled { cursor: default; }
+
+.shop-wallet { grid-area: wallet; align-self: start; display: grid; padding: calc(var(--u) * 2) calc(var(--u) * 4); }
+.shop-wallet strong { text-align: right; font-weight: 400; font-variant-numeric: tabular-nums; }
+
+/* The list is only as tall as its rows, up to the bar. */
+.shop-list { grid-area: list; align-self: start; min-height: 0; max-height: 100%; display: flex; }
+.shop-list.is-long { padding-bottom: calc(var(--u) * 6); }
+.shop-products { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.shop-panel .shop-product { min-height: max(var(--shop-tap), calc(var(--u) * 12)); }
+.shop-product { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: calc(var(--u) * 3); flex: none; text-align: left; border-color: transparent !important; }
+/* The cursor is one frame around the whole row. */
+.shop-product.is-selected { border-color: var(--shop-cursor) !important; }
+.shop-product-name { overflow-wrap: anywhere; }
+.shop-price { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* Shown only while rows continue below the box. */
+.shop-below {
+  position: absolute; left: 50%; bottom: calc(var(--u) * 1.5); margin-left: calc(var(--u) * -4); width: 0; height: 0; pointer-events: none;
+  border: solid transparent; border-width: calc(var(--u) * 4) calc(var(--u) * 4) 0; border-top-color: var(--shop-cursor);
+}
+
+.shop-bar { grid-area: bar; min-height: var(--shop-bar); padding: calc(var(--u) * 3); display: grid; grid-template-columns: calc(var(--u) * 20) minmax(0, 1fr); gap: calc(var(--u) * 3); align-items: start; }
+/* No icon while the clerk speaks or the cursor is on the leaving row. */
+.shop-bar.is-plain { grid-template-columns: minmax(0, 1fr); }
+.shop-icon { width: calc(var(--u) * 20); height: calc(var(--u) * 20); padding: calc(var(--u) * 2); background: #fff; border: var(--shop-line) solid var(--shop-rule); }
+.shop-icon svg { display: block; width: 100%; height: 100%; }
+/* The clerk's name runs in before the words. */
+.shop-speaker, #shop-line, #shop-result { display: inline; }
+.shop-panel .shop-speaker { color: var(--shop-muted); }
+#shop-description { display: block; }
+
+.shop-checkout { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--u) * 2) calc(var(--u) * 5); }
+.shop-checkout-item { flex: 1 1 100%; display: flex; align-items: baseline; gap: calc(var(--u) * 5); }
+.shop-checkout-item strong { font-weight: 400; }
+#shop-owned { font-size: max(11px, calc(var(--u) * 5)); color: var(--shop-muted); font-variant-numeric: tabular-nums; }
+.shop-quantity { display: flex; align-items: center; gap: calc(var(--u) * 2); }
+.shop-quantity output { min-width: calc(var(--u) * 12); text-align: center; font-variant-numeric: tabular-nums; }
+.shop-totals { flex: 1 1 calc(var(--u) * 44); max-width: calc(var(--u) * 70); line-height: 1.3; }
+.shop-totals > div { display: flex; justify-content: space-between; align-items: baseline; gap: calc(var(--u) * 3); }
+.shop-totals dt { font-size: max(11px, calc(var(--u) * 5)); }
+.shop-totals dd { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.shop-actions { display: flex; gap: calc(var(--u) * 3); margin-left: auto; }
+.shop-actions button { min-width: max(56px, calc(var(--u) * 24)); }
+.shop-actions .is-cursor { border-color: var(--shop-cursor); }
+.shop-actions button:disabled { border-style: dashed; color: var(--shop-muted); }
+#shop-notice { flex: 1 1 100%; font-size: max(11px, calc(var(--u) * 5)); color: #8c3427; }

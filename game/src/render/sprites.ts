@@ -8,6 +8,7 @@ import { drawPlayer, PLAYER_H, PLAYER_W } from './player-sprite';
 import { furnitureAsset, FURNITURE_URLS } from './furniture-images/catalog';
 import { FurnitureImageLoader } from './furniture-images/loader';
 import { paintFurnitureImage } from './furniture-images/paint';
+import { drawRider, RIDER_H, RIDER_W } from './bicycle-sprite';
 
 export interface Sprite { canvas: HTMLCanvasElement; ox: number; oy: number }
 const objects = new Map<string, Sprite>();
@@ -418,19 +419,20 @@ function drawCharacter(name: string, facing: Facing, frame: 0 | 1 | 2): Sprite {
   return sprite;
 }
 
-export function playerSprite(a: PlayerAppearance, facing: Facing, frame: 0 | 1 | 2): Sprite {
+export function playerSprite(a: PlayerAppearance, facing: Facing, frame: 0 | 1 | 2, riding = false): Sprite {
   const normalized = normalizeAppearance(a), key = appearanceKey(normalized);
   let frames = avatars.get(key);
   if (frames) avatars.delete(key);
   else frames = new Map<string, Sprite>();
   avatars.set(key, frames);
   if (avatars.size > 8) avatars.delete(avatars.keys().next().value!);
-  const frameKey = `${facing}:${frame}`;
+  const frameKey = `${facing}:${frame}:${riding ? 'bike' : 'walk'}`;
   let sprite = frames.get(frameKey);
   if (!sprite) {
-    const [canvas, c] = makeCanvas(PLAYER_W, PLAYER_H);
-    drawPlayer(c, normalized, facing, frame);
-    sprite = { canvas, ox: -PLAYER_W / 2, oy: -PLAYER_H };
+    const [w, h] = riding ? [RIDER_W, RIDER_H] : [PLAYER_W, PLAYER_H];
+    const [canvas, c] = makeCanvas(w, h);
+    (riding ? drawRider : drawPlayer)(c, normalized, facing, frame);
+    sprite = { canvas, ox: -w / 2, oy: -h };
     frames.set(frameKey, sprite);
   }
   return sprite;

@@ -16,6 +16,8 @@
 
 [ゲーム内スマートフォンの状態と画面（候補／要検証）](0006-phone-foundation.md)
 
+[バッグとホットバーの共通インベントリ（採用）](0013-bag-candidate-comparison.md)
+
 [GUIの編集結果を限定したJSON差分として扱う（独立サンプルでのプロトタイプ）](0007-editor-data-boundary.md)
 
 [生成マップの編集結果を永続化する方式の検討（未採用）](0009-map-editor-persistence-options.md)
@@ -23,3 +25,7 @@
 [headless ブラウザ E2E を CI で実行する（提案／要検証）](0010-ci-headless-e2e.md)
 
 [実行中のエリアからミニマップを生成する（提案／要検証）](0012-runtime-minimap.md)
+
+[列車の確認と到着を分担し、既存のエリア変更通知を使う（試作／要検証）](0014-train-arrival-area-enter.md)
+
+[踏切の通行制限と歩行退避（試作／要検証）](crossing-gates-safety.md)

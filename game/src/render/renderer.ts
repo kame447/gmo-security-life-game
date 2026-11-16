@@ -2,13 +2,19 @@ import { CHUNK_PX, CHUNK_TILES, TILE, chunkId, feetAtTile, hash2, type Facing } 
 import type { PlayerAppearance } from '../core/appearance';
 import type { AreaRuntime } from '../world';
 import { T } from '../world/tiles';
+import { drawTrainFrame, townTrainPaints } from '../town-train/render';
+import { stationScene } from '../town-train/station-scene';
+import { stationTrackRow, trainHeading } from '../town-train/station-scene';
+import { TRAIN_HEIGHT_PX, TRAIN_LENGTH_PX, trainSprite } from '../town-train/car';
+import { crossingState, getCrossings, type CrossingState } from '../town-train/crossings';
+import { drawCrossingGate, drawCrossingStopLines } from '../town-train/crossing-render';
 import { makeCanvas, R, type C2D } from './draw';
 import { drawGroundTile } from './ground';
 import { characterSprite, objectSprite, playerSprite, type Sprite } from './sprites';
 
 const CACHE_LIMIT = 24;
 interface Chunk { canvas: HTMLCanvasElement; water: { x: number; y: number; phase: number }[] }
-interface Item { sprite: Sprite; x: number; y: number; depth: number; decal: boolean; character: boolean; seen: number }
+interface Item { sprite: Sprite; x: number; y: number; depth: number; decal: boolean; character: boolean; seen: number; paint?: (c: C2D) => void }
 interface Marker { x: number; y: number; feetX: number; feetY: number }
 interface AreaIndex { buckets: Map<string, Item[]>; markers: Marker[]; characterClip?: Path2D }
 /** 描画に必要な読み取り専用の状態。ゲーム本体（session/）には依存しない。 */
@@ -18,6 +24,7 @@ export interface RenderView {
   readonly appearance: PlayerAppearance;
   readonly moving: boolean;
   readonly walkTime: number;
+  readonly riding?: boolean;
   /** While a dialog is open, interaction markers are hidden. */
   readonly dialog: object | null;
 }
@@ -43,7 +50,10 @@ export class Renderer {
   /** Opt in only while profiling; ordinary draws never call performance.now(). */
   measureTimings = false;
   private readonly timings: RenderTimings = { totalMs: 0, clearMs: 0, groundMs: 0, bakeMs: 0, gatherMs: 0, sortMs: 0, spritesMs: 0, waterMs: 0, markersMs: 0, fadeMs: 0 };
-  readonly stats = { chunksCached: 0, chunksDrawn: 0, spritesDrawn: 0, zoom: 1, viewW: 1, viewH: 1, indoor: false, fading: false, camX: 0, camY: 0, chunksBakedThisFrame: 0, timings: null as RenderTimings | null };
+  readonly stats = { chunksCached: 0, chunksDrawn: 0, spritesDrawn: 0, zoom: 1, viewW: 1, viewH: 1, indoor: false, fading: false, camX: 0, camY: 0, chunksBakedThisFrame: 0, timings: null as RenderTimings | null,
+    /** この1フレームに描いた列車（足元の y を含む箱）。E2E が線路の上にあることを確かめる。 */
+    trains: [] as { x: number; y: number; w: number; h: number; areaId: string; heading: string; doorOpen: number; direction?: string }[],
+    crossings: [] as { id: string; left: number; right: number; northWaitY: number; southWaitY: number; northGateY: number; southGateY: number; time: number; state: CrossingState }[] };
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const c = canvas.getContext('2d');
@@ -182,7 +192,10 @@ export class Renderer {
     // Share the player's rounding before subtracting an integer viewport anchor.
     // Rounding (p - view/2) separately makes odd viewport sizes wobble by 1px.
     const camera = (p: number, size: number, view: number) => size < view ? Math.round((size - view) / 2) : Math.max(0, Math.min(size - view, Math.round(p) - Math.floor(view / 2)));
-    const camX = camera(game.player.x, mapW, this.viewW), camY = camera(game.player.y - 8, mapH, this.viewH);
+    // 駅の演出中は、実際の主人公の代わりに演出の人物を描き、カメラもその人物に追従する。状態が無ければ従来どおり。
+    const scene = stationScene.get(area.def.id), actor = scene?.actor;
+    const focus = actor ?? game.player;
+    const camX = camera(focus.x, mapW, this.viewW), camY = camera(focus.y - 8, mapH, this.viewH);
     this.stats.camX = camX;
     this.stats.camY = camY;
     const right = camX + this.viewW, bottom = camY + this.viewH;
@@ -226,7 +239,7 @@ export class Renderer {
     if (profiling) { const now = performance.now(); timing.gatherMs = now - mark; mark = now; }
     const drawItem = (item: Item) => {
       if (item.character && index.characterClip) { c.save(); c.clip(index.characterClip); }
-      c.drawImage(item.sprite.canvas, item.x, item.y);
+      if (item.paint) item.paint(c); else c.drawImage(item.sprite.canvas, item.x, item.y);
       if (item.character && index.characterClip) c.restore();
       this.stats.spritesDrawn++;
     };
@@ -240,20 +253,58 @@ export class Renderer {
       if (wave > 0.92) R(c, '#def3de', point.x + 1, point.y - 1, 1, 3);
     }
     if (profiling) { const now = performance.now(); timing.waterMs = now - mark; mark = now; }
+    this.stats.trains.length = 0;
+    const pushTrain = (x: number, bottom: number, heading: 'left' | 'right', doorOpen: number, paint?: (c: C2D) => void, direction?: string) => {
+      const y = bottom - TRAIN_HEIGHT_PX;
+      if (x >= right || x + TRAIN_LENGTH_PX <= camX || y >= camY + this.viewH || bottom <= camY) return;
+      this.stats.trains.push({ x, y, w: TRAIN_LENGTH_PX, h: TRAIN_HEIGHT_PX, areaId: area.def.id, heading, doorOpen, direction });
+      const sprite: Sprite = { canvas: trainSprite(heading, doorOpen), ox: 0, oy: 0 };
+      this.sorted.push({ sprite, x, y, depth: bottom, decal: false, character: false, seen: this.tick, paint });
+    };
+    if (!indoor) for (const t of townTrainPaints(area, timeSec)) {
+      const frame = t.frame;
+      pushTrain(Math.round(frame.x), Math.round(frame.footY), frame.heading, 0, ctx => drawTrainFrame(ctx as unknown as CanvasRenderingContext2D, frame, 0, t.layout), frame.direction);
+    }
+    for (const t of scene?.trains ?? []) {
+      const row = stationTrackRow(area.def.id);
+      if (row !== null) pushTrain(Math.round(t.x), (row + 1) * TILE, trainHeading(t), t.doorOpen);
+    }
+    this.stats.crossings.length = 0;
+    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    for (const crossing of getCrossings(area)) {
+      const state = crossingState(area, crossing, timeSec);
+      this.stats.crossings.push({ id: crossing.id, left: crossing.left, right: crossing.right,
+        northWaitY: crossing.northWaitY, southWaitY: crossing.southWaitY,
+        northGateY: crossing.northGateY, southGateY: crossing.southGateY, time: timeSec, state });
+      if (crossing.right + 8 < camX || crossing.left - 8 > right) continue;
+      drawCrossingStopLines(c, crossing);
+      for (const south of [false, true]) {
+        const depth = south ? crossing.southGateY : crossing.northGateY;
+        if (depth < camY || depth - (crossing.right - crossing.left) / 2 - 20 > bottom) continue;
+        // Dynamic paint uses the existing sorted-item path; the sprite is only a placeholder for this paint item.
+        this.sorted.push({ sprite: { canvas: this.canvas, ox: 0, oy: 0 }, x: crossing.left, y: depth,
+          depth, decal: false, character: false, seen: this.tick,
+          paint: ctx => drawCrossingGate(ctx, crossing, state, timeSec, reduced, south) });
+      }
+    }
     this.sorted.sort((a, b) => a.depth - b.depth || a.x - b.x);
     if (profiling) { const now = performance.now(); timing.sortMs = now - mark; mark = now; }
-    const frame = game.moving ? (Math.floor(game.walkTime / 0.15) % 2 + 1) as 1 | 2 : 0;
-    const player = playerSprite(game.appearance, game.player.facing, frame);
+    const moving = actor ? actor.walking : game.moving;
+    const frame = moving ? (Math.floor((actor ? timeSec : game.walkTime) / 0.15) % 2 + 1) as 1 | 2 : 0;
+    const player = playerSprite(game.appearance, actor ? actor.facing : game.player.facing, frame, game.riding);
+    const hidden = actor ? !actor.visible : false;
     let playerDrawn = false;
     const drawPlayer = () => {
+      playerDrawn = true;
+      if (hidden) return;
       if (index.characterClip) { c.save(); c.clip(index.characterClip); }
-      c.drawImage(player.canvas, Math.round(game.player.x) + player.ox, Math.round(game.player.y) + player.oy);
+      c.drawImage(player.canvas, Math.round(focus.x) + player.ox, Math.round(focus.y) + player.oy);
       if (index.characterClip) c.restore();
       this.stats.spritesDrawn++;
       playerDrawn = true;
     };
     for (const item of this.sorted) {
-      if (!playerDrawn && game.player.y < item.depth) drawPlayer();
+      if (!playerDrawn && focus.y < item.depth) drawPlayer();
       drawItem(item);
     }
     if (!playerDrawn) drawPlayer();
@@ -284,6 +335,7 @@ export class Renderer {
     if (profiling) { const now = performance.now(); timing.markersMs = now - mark; mark = now; }
     c.restore();
     c.setTransform(1, 0, 0, 1, 0, 0);
+    if (stationScene.isFadeSuppressed()) this.fadeStartedAt = null;
     const fade = this.fadeStartedAt === null ? 0 : Math.max(0, Math.min(1, 1 - (timeSec - this.fadeStartedAt) / 0.2));
     this.stats.fading = fade > 0;
     if (fade > 0) R(c, `rgba(0,0,0,${fade})`, 0, 0, this.canvas.width, this.canvas.height);
