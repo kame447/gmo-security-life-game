@@ -66,6 +66,7 @@ export class ClerkFlow {
   }
   browseAgain(): void {
     if (this.phase !== 'receipt' && this.phase !== 'confirm') return;
+    if (this.phase === 'receipt' && this.purchaseValue?.ok) this.buyQuantityValue = 1;
     this.phaseValue = 'catalog';
     this.purchaseValue = null;
   }

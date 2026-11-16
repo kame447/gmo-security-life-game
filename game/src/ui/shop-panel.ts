@@ -12,6 +12,12 @@ const ACTION = new Set(['KeyZ', 'Enter', 'Space']);
 /** How long the clerk's greeting keeps the bar when the cursor is not moved. */
 const GREETING_MS = 2000;
 
+export interface ShopScene {
+  stats: { zoom: number; camX: number; camY: number };
+  area: { width: number; height: number };
+  playerX: number;
+}
+
 /**
  * Three separate boxes inside the drawn room: the wallet (top corner), the product list (the other side) and one bar
  * (bottom) that carries, one at a time, the clerk's words, the description of the product under the cursor, or the
@@ -31,9 +37,10 @@ export class ShopPanel {
   /** Whether the pressed row already had the cursor when the pointer went down. */
   private pressedCursorRow = false;
   private layoutKey = '';
+  private followFrame?: number;
 
   constructor(private readonly assets: ShopAssetsPort, private readonly onClose: () => void,
-    private readonly onPurchase: () => void) {
+    private readonly onPurchase: () => void, private readonly scene: () => ShopScene) {
     this.root.id = 'shop-panel';
     this.root.className = 'shop-panel';
     this.root.hidden = true;
@@ -124,23 +131,18 @@ export class ShopPanel {
   private follow(): void {
     if (!this.isOpen) return;
     this.layout();
-    requestAnimationFrame(() => this.follow());
+    this.followFrame = requestAnimationFrame(() => this.follow());
   }
 
   /**
-   * Places the boxes on the visible part of the room. The camera, scale and player come from the read-only
-   * `window.__slg` hook because this panel is not handed the renderer; without it the whole canvas is used.
+   * Places the boxes on the visible part of the room, using live scene data supplied by the caller.
    */
   private layout(): void {
     const canvas = document.querySelector<HTMLCanvasElement>('#view')!, view = canvas.getBoundingClientRect();
-    const origin = this.root.getBoundingClientRect(), hook = (window as Partial<Window>).__slg, edge = 8;
-    let unit = 2, room = { x: view.x, y: view.y, w: view.width, h: view.height }, playerX = view.x;
-    if (hook) {
-      const stats = hook.renderer.stats, area = hook.game.area;
-      unit = stats.zoom * view.width / canvas.width;
-      room = { x: view.x - stats.camX * unit, y: view.y - stats.camY * unit, w: area.width * TILE * unit, h: area.height * TILE * unit };
-      playerX = view.x + (hook.game.player.x - stats.camX) * unit;
-    }
+    const origin = this.root.getBoundingClientRect(), { stats, area, playerX: worldPlayerX } = this.scene(), edge = 8;
+    const unit = stats.zoom * view.width / canvas.width;
+    const room = { x: view.x - stats.camX * unit, y: view.y - stats.camY * unit, w: area.width * TILE * unit, h: area.height * TILE * unit };
+    const playerX = view.x + (worldPlayerX - stats.camX) * unit;
     // The visible part of the room, grown around its centre to a usable minimum on small screens.
     const fit = (start: number, size: number, low: number, high: number, least: number) => {
       const from = Math.max(start, low), to = Math.min(start + size, high);
@@ -176,6 +178,8 @@ export class ShopPanel {
 
   close(): void {
     if (!this.isOpen) return;
+    if (this.followFrame !== undefined) cancelAnimationFrame(this.followFrame);
+    this.followFrame = undefined;
     this.pointerOrigin.reset(); this.endGreeting();
     this.flow?.close(); this.root.hidden = true; this.onClose();
   }

@@ -30,7 +30,7 @@ const shopReview = reviewOnly && new URLSearchParams(window.location.search).get
 let shopEvents: MapEventSink | undefined;
 const phoneOptions = { initialPhoneOwned: PHONE_INITIAL_OWNED, phoneDataConfig: PHONE_BUDGET_PROTOTYPE };
 const game = new Game(world, { ...phoneOptions, save: reviewOnly ? undefined : loadSave(world, phoneOptions), sink: {
-  onMapEvent: event => shopEvents?.onMapEvent(event) ?? lifeEvents.onMapEvent(event),
+  onMapEvent: event => lifeEvents.onMapEvent(event) ?? shopEvents?.onMapEvent(event),
 } });
 if (shopReview) prepareShopReview(game);
 game.phone.setVisible(!document.hidden);
@@ -63,7 +63,8 @@ const phone = new Smartphone(game.phone, $<HTMLElement>('#stage'), () => { contr
 ui.registerPanel({ id: 'phone', panel: phone, open: () => phone.open(), button: phone.button,
   shortcut: 'KeyP', canOpen: () => phone.isAvailable });
 game.phone.onChange(() => { save(); ui.update(); });
-const shop = new ShopPanel(game.assets, () => { controls.clear(); ui.focusMap(); }, save);
+const shop = new ShopPanel(game.assets, () => { controls.clear(); ui.focusMap(); }, save,
+  () => ({ stats: renderer.stats, area: game.area, playerX: game.player.x }));
 ui.registerPanel({ id: 'shop', panel: shop });
 shopEvents = clerkEvents(game, ui, context => shop.open(context));
 const hud = new Hud(game, () => ui.primaryAction());
