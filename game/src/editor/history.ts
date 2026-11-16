@@ -1,4 +1,4 @@
-import { applyChangeSet, cloneDocument, createChangeSet, diffDocuments } from './changes.ts';
+import { cloneDocument, diffDocuments, prepareChangeSet } from './changes.ts';
 import { canonicalJSON, parseDocument } from './schema.ts';
 import type { ChangeSet, EditOperation, EditorDocument, EditorValidationContext } from './types.ts';
 
@@ -32,7 +32,7 @@ export class EditorSession {
   get canRedo(): boolean { return this.future.length > 0; }
 
   commit(operations: readonly EditOperation[]): EditorDocument {
-    const next = applyChangeSet(this.current, createChangeSet(this.current, operations, this.context), this.context);
+    const next = prepareChangeSet(this.current, operations, this.context).document;
     if (canonicalJSON(next) !== canonicalJSON(this.current)) {
       this.past.push(this.current);
       if (this.past.length > this.limit) this.past.shift();

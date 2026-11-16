@@ -6,7 +6,7 @@ import { furnitureById, furnitureVariant } from '../render/furniture/catalog';
 import { rotatedObjectVariant } from '../render/furniture/rotation';
 import { assertWorldEdit } from './world-policy';
 import { worldDocument } from './document';
-import { withDerived } from '../editor/changes';
+import { withDerived, withDerivedView } from '../editor/changes';
 import { trustedContext, worldRailLinks } from './trusted-context';
 import { editablePerson, isPlacedNpc, npcEventKey } from './npc';
 
@@ -38,7 +38,7 @@ export class WorldEditorModel {
     const next=this.document,index=next.interactions.findIndex(i=>i.id===npc.id);
     if(adding)next.interactions.push(structuredClone(npc));
     else{if(index<0)throw new Error('人物を選んでください');next.interactions[index]=structuredClone(npc);}
-    return withDerived(next,this.context);
+    return withDerivedView(next,this.context);
   }
   createNpc(sprite: string, areaId: string): EditorInteraction {
     requireAreaId(areaId);
@@ -78,11 +78,11 @@ export class WorldEditorModel {
         linked.x = object.x; linked.y = object.y; linked.w = object.w; linked.h = object.h;
       }
     }
-    return withDerived(next,this.context);
+    return withDerivedView(next,this.context);
   }
   issues(candidate: EditorDocument): string[] {
     let derived: EditorDocument;
-    try { derived=withDerived(candidate,this.context);assertWorldEdit(this.initial,derived,this.context); }
+    try { derived=withDerivedView(candidate,this.context);assertWorldEdit(this.initial,derived,this.context); }
     catch (error) { return [(error as Error).message]; }
     return validateDocument(derived,this.context).map(issue => {
       if (issue.code === 'arrival') return '出入口の到着位置をふさぐことはできません';
@@ -92,7 +92,7 @@ export class WorldEditorModel {
     });
   }
   commit(candidate: EditorDocument) {
-    candidate=withDerived(candidate,this.context);
+    candidate=withDerivedView(candidate,this.context);
     const errors = this.issues(candidate); if (errors.length) throw new Error(errors[0]);
     const changes = diffDocuments(this.document,candidate,this.context);
     this.session.commit(changes.operations);
