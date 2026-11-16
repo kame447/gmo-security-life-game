@@ -15,6 +15,8 @@ import { Renderer } from './render/renderer';
 import { PHONE_INITIAL_OWNED } from './phone/config';
 import { PHONE_BUDGET_PROTOTYPE } from './phone/budget-config';
 import { Game } from './session/game';
+import { TRAIN_NETWORK } from './travel/network';
+import { TrainTravelPanel } from './travel/panel';
 import { AvatarPanel } from './ui/avatar-panel';
 import { HotbarPanel } from './ui/bag-hotbar/panel';
 import { UiController } from './ui/controller';
@@ -26,6 +28,7 @@ import { ShopPanel } from './ui/shop-panel';
 import { buildWorld } from './world';
 
 const world = buildWorld();
+let train: TrainTravelPanel | undefined;
 // 人生イベントは試作段階。まだ永続保存には対応していない。
 const lifeEvents = new LifeEventDirector(CHILDHOOD_SAMPLE_EVENTS);
 const review = bagReviewOptions(window.location.search);
@@ -33,7 +36,9 @@ const shopReview = review.temporary && new URLSearchParams(window.location.searc
 let shopEvents: MapEventSink | undefined;
 const phoneOptions = { initialPhoneOwned: PHONE_INITIAL_OWNED, phoneDataConfig: PHONE_BUDGET_PROTOTYPE };
 const game = new Game(world, { ...phoneOptions, save: review.temporary ? undefined : loadSave(world, phoneOptions), sink: {
-  onMapEvent: event => lifeEvents.onMapEvent(event) ?? shopEvents?.onMapEvent(event),
+  // clerk-event-routing.test.ts evaluates this expression with only shopEvents and lifeEvents bound.
+  onMapEvent: event => lifeEvents.onMapEvent(event) ?? shopEvents?.onMapEvent(event)
+    ?? (typeof train !== 'undefined' && train.tryOpen(event) ? { lines: [] } : undefined),
 } });
 if (review.temporary) applyBagReviewFixture(game.assets);
 if (shopReview) prepareShopReview(game);
@@ -60,7 +65,7 @@ const avatar = new AvatarPanel(game, commit => {
 const minimap: Minimap = new Minimap(game, (): boolean => ui.mode === 'explore',
   () => { controls.clear(); ui.update(); },
   () => { controls.clear(); ui.update(); ui.focusMap(); });
-const ui: UiController = new UiController(game, controls, canvas, minimap);
+const ui: UiController = new UiController(game, controls, canvas, minimap, () => train);
 ui.registerPanel({ id: 'avatar', panel: avatar, open: () => avatar.open(), button: $<HTMLButtonElement>('#btn-avatar') });
 const closeBag = () => { controls.clear(); ui.update(); ui.focusMap(); };
 const bag = new HotbarPanel(game, closeBag, () => { controls.clear(); ui.focusMap(); }, save);
@@ -70,6 +75,12 @@ const phone = new Smartphone(game.phone, $<HTMLElement>('#stage'), () => { contr
 ui.registerPanel({ id: 'phone', panel: phone, open: () => phone.open(), button: phone.button,
   shortcut: 'KeyP', canOpen: () => phone.isAvailable });
 game.phone.onChange(() => { save(); ui.update(); });
+train = new TrainTravelPanel(game, TRAIN_NETWORK, $<HTMLElement>('#stage'), {
+  canOpen: () => ui.mode === 'explore',
+  onOpen: () => { controls.clear(); ui.update(); },
+  onClose: () => { controls.clear(); save(); ui.update(); ui.focusMap(); },
+  arrive: destination => game.arriveByTrain(destination),
+});
 const shop = new ShopPanel(game.assets, () => { controls.clear(); ui.focusMap(); }, save,
   () => ({ stats: renderer.stats, area: game.area, playerX: game.player.x }));
 ui.registerPanel({ id: 'shop', panel: shop });
