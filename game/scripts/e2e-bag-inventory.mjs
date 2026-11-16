@@ -132,6 +132,16 @@ try {
       assert.equal(await slot(p, 'hotbar', 4).getAttribute('data-item-id'), 'key');
       assert.equal(await p.locator('.bag-detail-category').textContent(), '重要アイテム');
       await conserved(p, initial); await click(p, '.bag-close', true);
+      if (size.name === 'landscape') {
+        const hudCheck = await p.evaluate(() => {
+          const r = el => el.getBoundingClientRect();
+          const hud = r(document.querySelector('.bag-quick-hud'));
+          const touch = [...document.querySelectorAll('#touch button')].map(r);
+          return { hud, overlapsTouch: touch.some(b => hud.left < b.right && b.left < hud.right && hud.top < b.bottom && b.top < hud.bottom) };
+        });
+        assert.ok(hudCheck.hud.top >= size.viewport.height * 0.75, 'landscape hotbar stays near bottom edge, away from center');
+        assert.equal(hudCheck.overlapsTouch, false, 'landscape hotbar does not overlap touch buttons');
+      }
       await click(p, hudSlot(p, 4), true); assert.equal((await view(p)).selectedHotbar, 4);
       await openBag(p, true);
       const beforeSwipe = await state(p);

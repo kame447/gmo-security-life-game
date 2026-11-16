@@ -76,5 +76,24 @@ body.bag-open { touch-action: auto; }
   .bag-detail-icon svg { width: 56px; height: 56px; }
   .bag-detail h2 { font-size: 17px; }
   .bag-footer { padding: 5px 10px; }
-  .bag-quick-hud { bottom: 140px; }
+  #stage:has(#touch.on) #hint { display: none; }
+  #stage:has(#touch.on) .bag-quick-hud { left: 50%; right: auto; bottom: 4px; transform: translateX(-50%); align-items: center; }
+  #stage:not(:has(#touch.on)) .bag-quick-hud { bottom: 48px; }
+  .bag-quick-hud { gap: 2px; }
+  .bag-hud-label { padding: 1px 7px; font-size: 10px; }
+  .bag-hud-slots { gap: 3px; padding: 4px; }
+  .bag-hud-slots .bag-quick-slot { width: 34px; height: 34px; min-width: 34px; min-height: 34px; }
+  .bag-hud-slots .bag-quick-slot.is-important::after { left: 2px; bottom: 0; font-size: 8px; }
+  .bag-hud-slots .bag-cell-count { right: 2px; bottom: 1px; font-size: 11px; }
+}
+@media (max-width: 360px) {
+  #stage:has(#touch.on) #hint { display: none; }
+  #stage:has(#touch.on) .bag-quick-hud { left: auto; right: 8px; bottom: 6px; transform: none; align-items: flex-end; }
+  #stage:not(:has(#touch.on)) .bag-quick-hud { bottom: 52px; }
+  .bag-quick-hud { gap: 2px; }
+  .bag-hud-label { padding: 1px 6px; font-size: 10px; }
+  .bag-hud-slots { gap: 2px; padding: 3px; }
+  .bag-hud-slots .bag-quick-slot { width: 30px; height: 30px; min-width: 30px; min-height: 30px; }
+  .bag-hud-slots .bag-quick-slot.is-important::after { left: 2px; bottom: 0; font-size: 8px; }
+  .bag-hud-slots .bag-cell-count { right: 2px; bottom: 1px; font-size: 11px; }
 }
