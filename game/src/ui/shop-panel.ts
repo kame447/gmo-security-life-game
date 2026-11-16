@@ -110,7 +110,8 @@ export class ShopPanel {
     this.greetingTimer = window.setTimeout(() => { if (this.isOpen && this.greeted) { this.endGreeting(); this.render(); } }, GREETING_MS);
     // Rows are drawn tighter for a mouse; touch screens keep 44px rows.
     this.root.classList.toggle('is-touch', navigator.maxTouchPoints > 0 || matchMedia('(any-pointer: coarse)').matches);
-    this.text('.shop-speaker', context.greeting.speaker);
+    const speaker = context.greeting.speaker.trim();
+    this.text('.shop-speaker', speaker ? `${speaker}：` : '');
     this.el('#shop-products').replaceChildren(); this.rows.length = 0;
     const addRow = (action: string, name: string, price: string, index?: number) => {
       const row = document.createElement('button');
@@ -292,7 +293,7 @@ export class ShopPanel {
     // Only the clerk's short first sentence is used as the greeting.
     this.text('#shop-line', (flow.greeting.lines[0] ?? '').match(/^[^。！？]*[。！？]?/)![0]);
     this.el('#shop-line').hidden = !greeting; this.el('#shop-result').hidden = !receipt;
-    this.el('.shop-speaker').hidden = !speaking;
+    this.el('.shop-speaker').hidden = !speaking || !this.el('.shop-speaker').textContent;
     if (flow.result) {
       const result = flow.result;
       this.text('#shop-result', result.ok ? `${item?.name ?? ''}を${result.boughtQuantity}個、どうぞ。` :

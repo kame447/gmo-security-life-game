@@ -18,7 +18,8 @@ try {
       const greeting = await page.evaluate(() => window.__slg.game.facingInteraction());
       const hello = await page.locator('#shop-line').innerText();
       assert.ok(hello.length > 0 && hello.length <= 12 && greeting.lines[0].startsWith(hello), `The greeting is the clerk's short first sentence: ${hello}`);
-      assert.equal(await page.locator('#shop-conversation .shop-speaker').innerText(), greeting.name);
+      assert.equal(await page.locator('#shop-conversation .shop-speaker').innerText(), `${greeting.name}：`);
+      assert.equal(await page.locator('#shop-info').innerText(), `${greeting.name}：${hello}`);
       assert.equal(await page.locator('.shop-product.is-selected .shop-product-name').innerText(), '水');
       const firstDescription = await page.locator('#shop-description').textContent();
       const initialBox = await assertFits(page);
@@ -54,6 +55,7 @@ try {
       await page.keyboard.down('Enter'); await page.keyboard.down('Enter');
       await page.waitForTimeout(100); await page.keyboard.up('Enter');
       assert.equal(await phase(page), 'receipt'); await assertFits(page);
+      assert.equal(await page.locator('#shop-conversation .shop-speaker').innerText(), `${greeting.name}：`);
       const bought = await assets(page);
       assert.equal(bought.moneyYen, initial.moneyYen - 240);
       assert.equal(bought.items.find(item => item.itemId === 'bottled-water').quantity, 5);
@@ -94,6 +96,7 @@ try {
       await page.locator('#shop-back').tap(); assert.deepEqual(await assets(page), touchBefore);
       await page.locator('.shop-product').nth(1).tap(); await page.locator('#shop-confirm').tap();
       assert.equal(await phase(page), 'receipt'); await assertFits(page);
+      assert.equal(await page.locator('#shop-conversation .shop-speaker').innerText(), `${greeting.name}：`);
       await page.locator('#shop-exit').tap();
       await page.locator('#shop-panel').waitFor({ state: 'hidden' });
       assert.deepEqual(await position(page), touchPosition);
@@ -209,7 +212,7 @@ try {
         checkout: document.querySelector('#shop-checkout').getClientRects().length > 0, cursor: document.querySelector('.shop-product.is-selected .shop-product-name').textContent };
     });
     const onlyGreeting = async label => { const now = await bar();
-      assert.ok(now.line && now.speaker && !now.description && !now.result && !now.icon && !now.checkout, `${label}: the greeting stands alone ${JSON.stringify(now)}`); };
+      assert.ok(now.line && now.speaker.endsWith('：') && !now.description && !now.result && !now.icon && !now.checkout, `${label}: the greeting stands alone ${JSON.stringify(now)}`); };
     const onlyDescription = async (label, name) => { const now = await bar();
       assert.ok(now.cursor === name && now.description && now.icon && !now.line && !now.speaker && !now.result && !now.checkout, `${label}: only the description of ${name} ${JSON.stringify(now)}`); };
 
@@ -228,7 +231,7 @@ try {
     await page.clock.fastForward(2500);
     let now = await bar(); assert.ok(now.phase === 'confirm' && now.checkout && !now.line && !now.description && !now.result, `The timer leaves the purchase check alone ${JSON.stringify(now)}`);
     await page.keyboard.press('Enter'); await page.clock.fastForward(2500);
-    now = await bar(); assert.ok(now.phase === 'receipt' && now.result && now.speaker && !now.line && !now.description && !now.icon && !now.checkout, `The clerk's reply stands alone ${JSON.stringify(now)}`);
+    now = await bar(); assert.ok(now.phase === 'receipt' && now.result && now.speaker.endsWith('：') && !now.line && !now.description && !now.icon && !now.checkout, `The clerk's reply stands alone ${JSON.stringify(now)}`);
     await page.keyboard.press('Enter'); await onlyDescription('after acknowledging the reply', '水');
     pass('bar: the timer never overwrites the purchase check or the reply; the reply and description do not mix');
 

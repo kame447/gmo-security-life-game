@@ -96,6 +96,7 @@ async function talk() {
   if (interaction.eventKey === 'shopping.konbini.clerk') {
     await page.locator('#shop-panel[data-phase="catalog"]').waitFor({ state: 'visible' });
     // The bar greets with the clerk's first sentence only.
+    assert.equal(await page.locator('#shop-conversation .shop-speaker').innerText(), await page.evaluate(() => `${window.__slg.game.facingInteraction().name}：`));
     assert.equal(await page.locator('#shop-line').innerText(), await page.evaluate(() => window.__slg.game.facingInteraction().lines[0].match(/^[^。！？]*[。！？]?/)[0]));
     const duringShop = await state();
     await hold('ArrowDown', 180);

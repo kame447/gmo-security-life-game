@@ -57,7 +57,7 @@
 .shop-icon svg { display: block; width: 100%; height: 100%; }
 /* The clerk's name runs in before the words. */
 .shop-speaker, #shop-line, #shop-result { display: inline; }
-.shop-panel .shop-speaker { margin-right: calc(var(--u) * 4); color: var(--shop-muted); }
+.shop-panel .shop-speaker { color: var(--shop-muted); }
 #shop-description { display: block; }
 
 .shop-checkout { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--u) * 2) calc(var(--u) * 5); }

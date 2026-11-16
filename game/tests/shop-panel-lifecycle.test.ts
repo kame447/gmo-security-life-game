@@ -43,3 +43,34 @@ describe('shop animation lifetime', () => {
     expect(s.raf.size).toBe(1); expect(s.frame()).toBe(1);
   });
 });
+describe('shop speaker and speech separation', () => {
+  const key = (code: string) => ({ code, repeat: false, preventDefault() {} } as KeyboardEvent);
+
+  it('appends a colon after the speaker in both greeting and receipt states, and omits it when empty', () => {
+    const s = setup(); s.panel.open(s.context);
+    const speaker = s.document.querySelector('.shop-speaker')!;
+    const line = s.document.querySelector('#shop-line')!;
+    const result = s.document.querySelector('#shop-result')!;
+    expect(speaker.textContent).toBe('店員：');
+    expect(speaker.hidden).toBe(false);
+    expect(line.textContent).toBe('こんにちは。');
+    expect(line.hidden).toBe(false);
+
+    s.panel.handleKey(key('Enter'));
+    expect(speaker.hidden).toBe(true);
+    s.panel.handleKey(key('Enter'));
+    expect(speaker.hidden).toBe(false);
+    expect(speaker.textContent).toBe('店員：');
+    expect(result.hidden).toBe(false);
+    expect(result.textContent).toBe('水を1個、どうぞ。');
+
+    s.panel.handleKey(key('Enter'));
+    s.panel.handleKey(key('ArrowDown'));
+    expect(speaker.hidden).toBe(true);
+    s.panel.close();
+
+    s.panel.open({ ...s.context, greeting: { speaker: '', lines: ['こんにちは。'] } });
+    expect(speaker.textContent).toBe('');
+    expect(speaker.hidden).toBe(true);
+  });
+});
