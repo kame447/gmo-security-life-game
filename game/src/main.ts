@@ -64,9 +64,7 @@ game.phone.onChange(() => { save(); ui.update(); });
 const hud = new Hud(game, () => ui.primaryAction());
 const lifeEventPanel = new LifeEventPanel(game, lifeEvents, () => controls.clear());
 ui.bind({ onReset: () => { game.reset(); save(); } });
-if (bag instanceof HotbarPanel) {
-  window.addEventListener('keydown', event => bag.handleHudKey(event, ui.mode === 'explore'));
-}
+window.addEventListener('keydown', event => bag.handleHudKey(event, ui.mode === 'explore'));
 exposeDebug(game, renderer, frames);
 
 game.on(event => {
@@ -98,7 +96,7 @@ const loop = startLoop({
     lifeEventPanel.update();
     hud.update(now);
     ui.update();
-    if (bag instanceof HotbarPanel) bag.update(ui.mode === 'explore');
+    bag.update(ui.mode === 'explore');
     minimap.update();
   },
 });

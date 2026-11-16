@@ -16,6 +16,10 @@ export type AssetResult = { ok: true } | { ok: false; reason: AssetFailure };
 
 const fail = (reason: AssetFailure): AssetResult => ({ ok: false, reason });
 const isPositiveInteger = (n: number): boolean => Number.isSafeInteger(n) && n > 0;
+const sameLayout = (a: InventoryLayoutSave, b: InventoryLayoutSave): boolean =>
+  a.v === b.v && a.selectedHotbar === b.selectedHotbar &&
+  a.bag.length === b.bag.length && a.bag.every((id, i) => id === b.bag[i]) &&
+  a.hotbar.length === b.hotbar.length && a.hotbar.every((id, i) => id === b.hotbar[i]);
 
 function stacksFrom(quantities: ReadonlyMap<string, number>): ItemStack[] {
   return ITEM_DEFINITIONS.flatMap(item => {
@@ -47,22 +51,34 @@ export function normalizeAssets(raw: unknown): AssetSnapshot {
 
 export class PlayerAssets {
   private state: AssetSnapshot;
+  private fixedLayout: InventoryLayoutSave;
+  private hasExplicitLayout: boolean;
 
-  constructor(saved?: unknown) { this.state = normalizeAssets(saved); }
+  constructor(saved?: unknown) {
+    this.state = normalizeAssets(saved);
+    this.hasExplicitLayout = this.state.layout !== undefined;
+    this.fixedLayout = normalizeInventoryLayout(this.state.layout, this.state.items);
+  }
 
   get moneyYen(): number { return this.state.moneyYen; }
   quantity(itemId: string): number { return this.state.items.find(item => item.itemId === itemId)?.quantity ?? 0; }
+  private snapshotLayout(layout = this.inventoryLayout, items = this.state.items): InventoryLayoutSave | undefined {
+    return this.hasExplicitLayout || !sameLayout(layout, normalizeInventoryLayout(undefined, items)) ? layout : undefined;
+  }
   /** Callers may edit the returned snapshot without changing the live state. */
   snapshot(): AssetSnapshot {
+    const layout = this.snapshotLayout();
     return { moneyYen: this.moneyYen, items: this.state.items.map(item => ({ ...item })),
-      ...(this.state.layout ? { layout: this.inventoryLayout } : {}) };
+      ...(layout ? { layout } : {}) };
   }
 
-  get inventoryLayout(): InventoryLayoutSave { return normalizeInventoryLayout(this.state.layout, this.state.items); }
+  get inventoryLayout(): InventoryLayoutSave { return normalizeInventoryLayout(this.fixedLayout, this.state.items); }
   inventory(): InventorySnapshot { return inventorySnapshot(this.inventoryLayout, this.state.items); }
   moveStack(from: SlotAddress, to: SlotAddress): InventoryResult {
     const moved = moveInventoryStack(this.inventoryLayout, from, to);
     if (!moved.ok) return moved;
+    this.hasExplicitLayout = true;
+    this.fixedLayout = moved.layout;
     this.state = { ...this.state, layout: moved.layout };
     return { ok: true };
   }
@@ -70,6 +86,8 @@ export class PlayerAssets {
     const layout = this.inventoryLayout;
     if (!Number.isInteger(index) || index < 0 || index >= layout.hotbar.length) return false;
     layout.selectedHotbar = index;
+    this.hasExplicitLayout = true;
+    this.fixedLayout = layout;
     this.state = { ...this.state, layout };
     return true;
   }
@@ -108,7 +126,9 @@ export class PlayerAssets {
       quantities.set(itemId, next);
     }
     const items = stacksFrom(quantities);
-    this.state = { moneyYen, items, ...(this.state.layout ? { layout: normalizeInventoryLayout(this.state.layout, items) } : {}) };
+    this.fixedLayout = normalizeInventoryLayout(this.fixedLayout, items);
+    const layout = this.snapshotLayout(this.fixedLayout, items);
+    this.state = { moneyYen, items, ...(layout ? { layout } : {}) };
     return { ok: true };
   }
 }

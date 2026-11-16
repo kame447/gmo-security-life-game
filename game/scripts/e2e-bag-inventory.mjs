@@ -5,7 +5,7 @@ const browser = await launchBrowser(); let passed = 0;
 const check = async (label, action) => { await action(); passed++; console.log(`PASS ${label}`); };
 try {
   const desktop = await session(browser, sizes[0]); const page = desktop.page;
-  const before = await state(page); const seed = await page.evaluate(() => window.__slg.game.serialize());
+  const before = await state(page); const beforeLayout = await page.evaluate(() => window.__slg.game.assets.inventoryLayout); const seed = await page.evaluate(() => window.__slg.game.serialize());
   await openBag(page); const position = await page.evaluate(() => ({ ...window.__slg.game.player }));
   await check('no explanatory captions, row heading or slot numbers; quantities remain', async () => {
     const text = await page.locator('.bag-window').innerText();
@@ -57,6 +57,18 @@ try {
     assert.equal(await slot(page, 'hotbar', 2).getAttribute('data-item-id'), '');
     await page.keyboard.press('Enter');
     assert.equal(await slot(page, 'hotbar', 2).getAttribute('data-item-id'), 'bottled-water');
+    await slot(page, 'bag', 3).focus(); await page.keyboard.press('Enter');
+    assert.equal(await page.locator('.is-held').count(), 1);
+    const cdp = await page.context().newCDPSession(page);
+    try {
+      for (let i = 0; i < 4; i++) {
+        await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', text: '\r', unmodifiedText: '\r', windowsVirtualKeyCode: 13, autoRepeat: true });
+      }
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    } finally { await cdp.detach(); }
+    assert.equal(await page.locator('.is-held').count(), 1, 'holding Enter on a slot keeps pending move instead of toggling');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.is-held').count(), 0);
     await slot(page, 'bag', 3).focus(); await page.keyboard.press('Space'); await page.keyboard.press('Escape');
     assert.equal(await page.locator('.bag-window').isVisible(), true);
     assert.equal(await page.locator('.is-held').count(), 0);
@@ -138,7 +150,7 @@ try {
     seed.phone = { v: 1, owned: false, dataBudget: { v: 1, remainingMb: 123, capacityMb: 5000 }, chat: {
       v: 1, contacts: [{ id: 'saved-friend', name: '保存した相手', icon: 'person' }], threads: [{ id: 'saved-thread', contactId: 'saved-friend',
         messages: [{ id: 'message-1', from: 'saved-friend', text: '保存を保つ', atMs: 1000, read: false }], pending: [], nextSequence: 1, replyCursor: 0 }] } };
-    const layout = structuredClone(before.layout);
+    const layout = structuredClone(beforeLayout);
     layout.bag[layout.bag.indexOf('pencil')] = null; layout.hotbar[4] = 'pencil'; layout.selectedHotbar = 0;
     seed.assets.layout = layout;
     const normal = await session(browser, sizes[0], { temporary: false, seed }); const p = normal.page;

@@ -47,8 +47,6 @@ export class HotbarPanel {
     this.panel.style.setProperty('--hotbar-slots', String(INVENTORY_PROTOTYPE.hotbarSlots));
     this.overlay.querySelector('.bag-close')!.addEventListener('click', () => this.close());
     this.overlay.querySelector('.bag-cancel-move')!.addEventListener('click', () => { this.model.cancelMove(); this.render(true); });
-    // Materialize the deterministic legacy layout before later acquisitions can shift it.
-    game.assets.selectHotbar(game.assets.inventoryLayout.selectedHotbar);
     this.model = new HotbarModel(game.assets); this.bindGestures(); this.render();
   }
   get isOpen(): boolean { return this.opened; }
@@ -86,7 +84,10 @@ export class HotbarPanel {
       return;
     }
     if (event.code === 'Tab') { this.cycleFocus(event); return; }
-    if ((event.code === 'Enter' || event.code === 'Space') && event.target instanceof HTMLButtonElement) return;
+    if ((event.code === 'Enter' || event.code === 'Space') && event.target instanceof HTMLButtonElement) {
+      if (event.repeat) event.preventDefault();
+      return;
+    }
     const direction = ({ ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0],
       ArrowUp: [0, -1], KeyW: [0, -1], ArrowDown: [0, 1], KeyS: [0, 1] } as Record<string, [number, number]>)[event.code];
     if (direction) {

@@ -102,4 +102,33 @@ describe('one inventory across backpack and hotbar', () => {
     expect(restored.assets.snapshot()).toEqual(game.assets.snapshot());
     expect(restored.serialize().phone).toEqual(phone);
   });
+  it('fixes item placement inside PlayerAssets and Game saves without opening HotbarPanel', () => {
+    const fresh = new PlayerAssets();
+    fresh.addItem('pencil', 1);
+    fresh.addItem('notebook', 1);
+    expect(fresh.inventory().bag.slice(0, 2)).toEqual([{ itemId: 'pencil', quantity: 1 }, { itemId: 'notebook', quantity: 1 }]);
+    expect(new PlayerAssets(fresh.snapshot()).inventory().bag.slice(0, 2)).toEqual([
+      { itemId: 'pencil', quantity: 1 }, { itemId: 'notebook', quantity: 1 },
+    ]);
+
+    const world = buildWorld();
+    const legacy = { ...new Game(world).serialize(), assets: { moneyYen: 500, items: [{ itemId: 'pencil', quantity: 1 }] } };
+    const game = new Game(world, { save: legacy });
+    expect(game.assets.addItem('notebook', 1)).toEqual({ ok: true });
+    expect(game.assets.inventory().bag.slice(0, 2)).toEqual([
+      { itemId: 'pencil', quantity: 1 }, { itemId: 'notebook', quantity: 1 },
+    ]);
+    let stored = '';
+    vi.stubGlobal('localStorage', { getItem: () => stored, setItem: (_key: string, value: string) => { stored = value; } });
+    writeSave(game.serialize());
+    const reloaded = new Game(world, { save: loadSave(world) });
+    expect(reloaded.assets.inventory().bag.slice(0, 2)).toEqual([
+      { itemId: 'pencil', quantity: 1 }, { itemId: 'notebook', quantity: 1 },
+    ]);
+
+    reloaded.assets.removeItem('pencil', 1);
+    writeSave(reloaded.serialize());
+    const afterRemove = new Game(world, { save: loadSave(world) });
+    expect(afterRemove.assets.inventory().bag.slice(0, 2)).toEqual([null, { itemId: 'notebook', quantity: 1 }]);
+  });
 });
