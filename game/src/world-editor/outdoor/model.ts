@@ -1,4 +1,4 @@
-import { withDerived } from '../../editor/changes';
+import { cloneDocument, withDerivedView } from '../../editor/changes';
 import { validateDocument } from '../../editor/schema';
 import type { EditorDocument, EditorObject } from '../../editor/types';
 import { outdoorById, outdoorReadOnlyReason } from '../../render/outdoor/catalog';
@@ -24,7 +24,7 @@ export class OutdoorModel implements OutdoorModelApi {
   rotationReason(_id: string) { return '屋外の物には回転用の絵がないため回せません'; }
   rotate(id: string): never { throw new Error(this.rotationReason(id)); }
   candidate(object: EditorObject, adding = false): EditorDocument {
-    const next = structuredClone(this.host.document), old = this.object(object.id, next);
+    const next = cloneDocument(this.host.document), old = this.object(object.id, next);
     if (object.areaId !== this.areaId) throw new Error('同じまちの中で移動してください');
     if (adding) {
       if (next.objects.some(o => o.id === object.id)) throw new Error('識別子が重複しています');
@@ -47,11 +47,11 @@ export class OutdoorModel implements OutdoorModelApi {
         if (portal.to.areaId === this.areaId) { portal.to.x += dx; portal.to.y += dy; }
       }
     }
-    return withDerived(next, this.host.context);
+    return withDerivedView(next, this.host.context);
   }
   issues(candidate: EditorDocument): string[] {
     try {
-      const derived = withDerived(candidate, this.host.context);
+      const derived = withDerivedView(candidate, this.host.context);
       assertWorldEdit(this.host.initial, derived, this.host.context);
       return validateDocument(derived, this.host.context).map(issue => issue.message);
     } catch (error) { return [(error as Error).message]; }

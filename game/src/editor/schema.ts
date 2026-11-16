@@ -86,13 +86,29 @@ export function furnitureDefinitionIssue(o: ObjectDef): string | undefined {
 /** Canonical keys; array order is preserved (ground cells and dialogue lines are ordered). */
 export function canonicalJSON(value: unknown): string {
   const sort = (v: unknown): unknown => {
-    if (Array.isArray(v)) return v.map(sort);
-    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).filter(([, item]) => item !== undefined)
-      .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, item]) => [key, sort(item)]));
+    if (Array.isArray(v)) {
+      const out = new Array(v.length);
+      for (let i = 0; i < v.length; i++) out[i] = sort(v[i]);
+      return out;
+    }
+    if (v && typeof v === 'object') {
+      const rec = v as Record<string, unknown>;
+      const keys = Object.keys(rec).sort();
+      const out: Record<string, unknown> = {};
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i], item = rec[key];
+        if (item === undefined) continue;
+        const sorted = sort(item);
+        if (key === '__proto__') Object.defineProperty(out, key, { value: sorted, enumerable: true, configurable: true, writable: true });
+        else out[key] = sorted;
+      }
+      return out;
+    }
     return v;
   };
   return JSON.stringify(sort(value), null, 2) + '\n';
 }
+
 function normalize(document: EditorDocument): EditorDocument {
   const copy: EditorDocument = JSON.parse(canonicalJSON(document));
   for (const table of EDITOR_TABLES) copy[table].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
