@@ -3,9 +3,9 @@
  * 入力（update/action）を各担当へ振り分ける（DOM 非依存）。
  */
 import { normalizeAppearance, type PlayerAppearance } from '../core/appearance';
-import type { InteractionDef, MapEvent, MapEventSink } from '../core/types';
+import type { InteractionDef, MapEvent, MapEventSink, SpawnPoint } from '../core/types';
 import { DialogController, type DialogState } from '../events/dialog';
-import { MapExplorer, positionAt, type InputState, type PlayerPosition } from '../map/explorer';
+import { canStand, MapExplorer, positionAt, type InputState, type PlayerPosition } from '../map/explorer';
 import { PHONE_INITIAL_OWNED } from '../phone/config';
 import { PHONE_BUDGET_PROTOTYPE, type PhoneBudgetConfig } from '../phone/budget-config';
 import type { PhoneUsageContext } from '../phone/budget';
@@ -51,6 +51,7 @@ export class Game {
   get area(): AreaRuntime { return this.explorer.area; }
   get moving(): boolean { return this.explorer.moving; }
   get walkTime(): number { return this.explorer.walkTime; }
+  get riding(): boolean { return this.explorer.riding; }
   get dialog(): DialogState | null { return this.dialogs.current; }
   set dialog(d: DialogState | null) { this.dialogs.current = d; }
 
@@ -71,6 +72,11 @@ export class Game {
     this.explorer.update(dt, input);
   }
 
+  /** Get on or off the bicycle (outdoors only, not during a dialog). */
+  toggleBicycle(): boolean {
+    return !this.dialogs.current && this.explorer.toggleBicycle();
+  }
+
   facingInteraction(): InteractionDef | undefined { return this.explorer.facingInteraction(); }
 
   /** Advance an open dialog, or interact with what the player faces. */
@@ -85,6 +91,19 @@ export class Game {
 
   setAppearance(a: PlayerAppearance): void {
     this.appearance = normalizeAppearance(a);
+  }
+
+  /** The travel session confirms the trip; Game validates landing and emits the normal area notification. */
+  arriveByTrain(destination: Readonly<SpawnPoint>): boolean {
+    if (this.dialogs.current || !Number.isInteger(destination.x) || !Number.isInteger(destination.y) ||
+        !['up', 'down', 'left', 'right'].includes(destination.facing)) return false;
+    const area = this.world.areas.get(destination.areaId);
+    const player = positionAt(destination);
+    if (!area || !canStand(area, player.x, player.y) || area.portalAt.has(destination.y * area.width + destination.x)) return false;
+    this.explorer.halt();
+    this.player = player;
+    this.emit({ type: 'area-enter', areaId: destination.areaId });
+    return true;
   }
 
   private phoneLocation(areaId: string): Pick<PhoneUsageContext, 'areaId' | 'areaKind' | 'facilityId'> {

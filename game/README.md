@@ -1,5 +1,17 @@
 # 幼少期マップ探索プロトタイプ
 
+## 所持金とバッグ（Issue #20）
+
+「もちもの」または I でバッグを開きます。探索中の下の枠は、数字キーかクリック／タップで選びます。バッグの画面と操作は2026-11-14の実画面レビューで合格しました。初期の所持金、確認用のサンプル、枠の数は暫定です。仕様と未決定事項は [所持金とバッグ](../docs/features/inventory.md) に記載しています。
+
+URL に `?review=1` を付けると、既存セーブを読まず、保存欄へ書き込まない一時セッションで、確認用のサンプル（所持金と10品）を使います。実ブラウザの確認・撮影・録画は、開発サーバーを起動したうえで次のコマンドで行います。撮影と録画はヘッドレスで、出力先は `SLG_SHOTS`・`SLG_VIDEOS` だけです。
+
+```sh
+SLG_URL=http://127.0.0.1:5173 node scripts/e2e-bag-inventory.mjs
+SLG_URL=http://127.0.0.1:5173 SLG_SHOTS=/tmp/bag-shots node scripts/shots-bag-inventory.mjs
+SLG_URL=http://127.0.0.1:5173 SLG_VIDEOS=/tmp/bag-videos node scripts/video-bag-inventory.mjs
+```
+
 [Issue #7](https://github.com/kame447/gmo-security-life-game/issues/7) の探索基盤を確認するブラウザ用プロトタイプです。TypeScript・Vite・Canvas 2D 標準APIを使います。数値や技術構成は [判断記録 0003](../docs/decisions/0003-map-prototype-canvas2d.md) の提案／要検証であり、本採用の決定ではありません。
 
 ## 現在の扱い（2026-11-12）
@@ -57,6 +69,10 @@ npm test
 スマホの画面と操作は2026-11-14の実画面レビューで合格しました。通信容量の設定値と仮の会話内容は未確定です。端末を開き、矢印／Tab で選択、Enter／Space／Z で決定、Backspace で戻る、H でホーム、Esc で閉じます。仕様と未決定事項は [スマートフォン](../docs/features/phone.md) に記載しています。
 
 レビュー画面は URL に `?review=1` を付けて開きます。既存セーブは読まず、レビュー中はゲームの保存欄へ書き込みません。実ゲーム画像は開発サーバーを起動したうえで `SLG_URL='http://127.0.0.1:5173/?review=1' SLG_SHOTS=/tmp/phone-shots node scripts/shots-phone.mjs` で生成します。操作と保存隔離のブラウザ確認は `SLG_URL=http://127.0.0.1:5173 node scripts/e2e-phone-simple.mjs` です。
+
+買い物は店内の店員への1回の操作で始まります。所持金・商品一覧・会話と説明の3つの箱を表示し、上下／W・Sで選択、Z／Enter／Spaceで確認、「買う」で購入します。クリック／タッチは行を選んでもう一度押すと確認へ進みます。Escで確認を取り消し、一覧の「店を出る」で店内へ戻ります。画面は2026-11-15に利用者が承認しました。商品と価格は暫定です。操作・保存・検証は [買い物仕様](../docs/features/shopping.md) を参照してください。
+
+買い物の一時レビューは `?review=1&shopReview=1` です。既存のスマホ用 `?review=1` はそのまま維持します。`SLG_URL=http://127.0.0.1:5173 node scripts/e2e-shop.mjs` は3サイズの取引・取消・保存と帯の切替を確認し、`SLG_URL=http://127.0.0.1:5173 SLG_SHOTS=/tmp/shop-shots node scripts/shots-shop-pr.mjs` は挨拶・説明・確認の実画面をPC横とスマホ縦横で撮影します。
 
 周辺地図は現在地に追従し、エリアが変わると地図も切り替わります。全体図を開いている間はゲーム更新を止め、探索入力・会話・出入口の遷移は行いません。会話中・みため変更中・スマホ表示中は全体図を開けません。地図の配色や大きさは提案／要検証です。
 
