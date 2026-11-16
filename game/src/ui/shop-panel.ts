@@ -58,7 +58,7 @@ export class ShopPanel {
         <div id="shop-conversation" class="shop-box shop-bar">
           <div id="shop-icon" class="shop-icon"></div>
           <div id="shop-info" class="shop-info">
-            <p class="shop-speaker"></p><p id="shop-line"></p><p id="shop-result" role="status" hidden></p>
+            <p><span class="shop-speaker"></span><span id="shop-line"></span><span id="shop-result" role="status" hidden></span></p>
             <p id="shop-description"></p>
           </div>
           <section id="shop-checkout" class="shop-checkout" aria-label="購入の確認" hidden>
