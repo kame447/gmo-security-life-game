@@ -12,6 +12,8 @@
 
 [ゲームのコードを責務ごとのモジュールに分ける](0004-game-module-structure.md)
 
+[主要タスクと人生の節目による進行](0005-task-based-life-progression.md)
+
 [ゲーム内スマートフォンの状態と画面（候補／要検証）](0006-phone-foundation.md)
 
 [GUIの編集結果を限定したJSON差分として扱う（独立サンプルでのプロトタイプ）](0007-editor-data-boundary.md)

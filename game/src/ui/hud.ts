@@ -6,6 +6,7 @@ import { $ } from './dom';
 
 const TOAST_MS = 2400;
 const IDLE_HINT = 'やじるし / WASD：あるく　Shift：はしる　Z / Space / Enter：しらべる';
+const RIDING_HINT = 'やじるし / WASD：こぐ　Shift：かそく　B：おりる　Z / Space / Enter：しらべる';
 
 export class Hud {
   private readonly location = $<HTMLElement>('#hud');
@@ -41,7 +42,8 @@ export class Hud {
     }
     const target = game.facingInteraction();
     this.hint.hidden = !!game.dialog;
-    this.hint.textContent = target ? `${target.name}　Z / Space / Enter：しらべる・はなす` : IDLE_HINT;
+    const idle = game.riding ? RIDING_HINT : game.area.def.kind === 'outdoor' ? `${IDLE_HINT}　B：じてんしゃ` : IDLE_HINT;
+    this.hint.textContent = target ? `${target.name}　Z / Space / Enter：しらべる・はなす` : idle;
     if (now >= this.toastUntil) this.toast.hidden = true;
   }
 }
