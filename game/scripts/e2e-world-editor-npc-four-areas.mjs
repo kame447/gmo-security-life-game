@@ -597,7 +597,7 @@ try {
   await g.page.locator('#shop-panel[data-phase="catalog"]').waitFor({ state: 'visible' });
   assert.equal(await g.page.locator('#dialog').isVisible(), false);
   assert.equal(await g.page.evaluate(() => window.__slg.game.dialog), null);
-  assert.equal(await g.page.locator('#shop-conversation .shop-speaker').innerText(), shopRecord.original.name);
+  assert.equal(await g.page.locator('#shop-conversation .shop-speaker').innerText(), `${shopRecord.original.name}：`);
   assert.equal(await g.page.locator('#shop-line').innerText(), shopRecord.original.lines[0]);
   await g.page.screenshot({ path: path.join(output, 'n5-game-konbini-shop.png') });
   await g.click('#shop-exit');

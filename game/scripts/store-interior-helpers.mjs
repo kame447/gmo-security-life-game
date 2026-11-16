@@ -156,7 +156,7 @@ export async function talk(page, touch = false) {
     assert.equal(await page.locator('#shop-panel').getAttribute('data-phase'), 'catalog');
     assert.equal(await page.locator('#dialog').isVisible(), false, 'Shop and ordinary dialog cannot overlap');
     assert.equal(await page.evaluate(() => window.__slg.game.dialog), null);
-    assert.equal(await page.locator('#shop-conversation .shop-speaker').textContent(), item.name);
+    assert.equal(await page.locator('#shop-conversation .shop-speaker').textContent(), `${item.name}：`);
     assert.equal(await page.locator('#shop-line').textContent(), item.lines[0].match(/^[^。！？]*[。！？]?/)[0]);
     const rows = await page.locator('.shop-product[data-action="product"]').evaluateAll(rows => rows.map(row => ({
       name: row.querySelector('.shop-product-name').textContent,
