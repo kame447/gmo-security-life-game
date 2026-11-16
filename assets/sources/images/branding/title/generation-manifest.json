@@ -1,0 +1,50 @@
+[
+  {
+    "asset": "opening-a-street",
+    "prompt": "Use case: stylized-concept. Create an original 2D pixel-art game background, aspect ratio 16:9, designed for nearest-neighbor reduction to 480x270. Near-vertical overhead view of a quiet Japanese residential street intersection in a semi-urban town. Wide grey asphalt streets cross at the center. The central rectangle, about 200x120 pixels at the target size, must be completely clear flat grey asphalt with no road markings, objects, wires, shadows or cracks; this is space for an animated title and pit. Around the outer edges: tiled roofs of modest houses, small concrete garden walls, shrubs, utility poles and zebra crossings placed away from the central rectangle. Sunny gentle everyday atmosphere. Restrained warm cream, terracotta, sage green, slate grey palette, 32-48 colors, crisp chunky square pixels, no antialiasing or painterly gradients. Camera almost straight down, not isometric, not side view. No people, no animals, no cars, no letters, no numbers, no text, no logos, no watermarks, no UI, no recognizable brands or existing fictional characters. Full bleed, no border.",
+    "tool": "image_gen.imagegen",
+    "model": "Tool did not expose model identifier",
+    "generated_date": "2026-11-14 JST",
+    "original_file": "opening-a-street-original.png"
+  },
+  {
+    "asset": "opening-a-pit",
+    "prompt": "Use case: stylized-concept. Original 2D pixel-art game sprite of a deep pit in asphalt seen from directly above, designed for 160x112 pixels. One irregular oval hole, width about 150 and height about 96 at target resolution, centered with transparent margins. Broken chunky grey asphalt rim, a few small loose stones close to rim, warm brown soil immediately inside, dark navy-black deep interior. Near-overhead view compatible with a top-down residential street. Clear readable silhouette, friendly adventure-game mood, 32-48 muted warm colors, crisp square pixels, no antialiasing. Genuine transparent background outside the hole and its broken rim; the dark interior is opaque. Do not depict surrounding street or rectangular floor. No text, letters, numbers, logos, watermarks, UI, people or characters.",
+    "tool": "image_gen.imagegen",
+    "model": "Tool did not expose model identifier",
+    "generated_date": "2026-11-14 JST",
+    "original_file": "opening-a-pit-original.png"
+  },
+  {
+    "asset": "opening-c-pitwall",
+    "prompt": "Use case: stylized-concept. Original crisp 2D pixel-art game background, square composition intended 480x480 logical pixels. Camera at the very bottom of a deep circular earthen pit looking straight UP vertically toward the sky opening. Rough earth and stone walls fill all four outer canvas edges and corners and converge radially toward a circular opening exactly in the center. The central opening has diameter approximately 140 pixels of the 480 square (29 percent of canvas width). THE CENTRAL OPENING IS TRUE TRANSPARENT ALPHA, with no painted sky, no dark fill and no checkerboard. Everything outside the central opening is opaque earthen wall all the way to the square canvas edges; do not isolate a donut on transparent outside. From dark brown foreground at outer edges to lighter ochre-brown walls toward center, angular rocks, occasional small roots, broken slate asphalt and a few green grass tufts around the distant circular mouth. Strong radial upward perspective; clearly looking out of a pit, not down into a hole. Friendly adventure-game pixel style, restrained 32-48 colors, square pixels, no antialiasing. No people, animals, text, logos, watermarks, UI.",
+    "tool": "image_gen.imagegen",
+    "model": "Tool did not expose model identifier",
+    "generated_date": "2026-11-14 JST",
+    "original_file": "opening-c-pitwall-original.png"
+  },
+  {
+    "asset": "opening-c-sky",
+    "prompt": "Use case: stylized-concept. Original 2D pixel-art blue-sky background for a game cinematic looking upward through a hole. Wide 16:9 canvas intended logical size 480x270. Calm luminous daytime blue sky with two or three gently shaped white pixel clouds near upper corners, broad open clear sky through center. No ground or horizon, no sun disk. Restrained pale blue and white palette, deliberately blocky pixel cloud silhouettes and minimal stepped shading, no smooth gradients, no antialiasing, full bleed opaque background. No people, objects, buildings, letters, text, numbers, logos, watermarks, UI or border.",
+    "tool": "image_gen.imagegen",
+    "model": "Tool did not expose model identifier",
+    "generated_date": "2026-11-14 JST",
+    "original_file": "opening-c-sky-original.png"
+  },
+  {
+    "asset": "opening-c-town",
+    "prompt": "Use case: stylized-concept. Original 2D pixel-art panoramic establishing view of a friendly Japanese semi-urban town, wide 16:9 composition intended logical size 480x270. Camera slightly elevated looking across town, not top-down map, not isometric. Lower two thirds contain lived-in tiled-roof houses, a few low and medium-rise apartment buildings, small trees, a modest station area and railway tracks continuing horizontally out of frame, a quiet neighborhood shopping street with blank facades. Distant low green mountains on the horizon. The TOP THIRD is broad calm blue sky with just small restrained clouds at far sides and a clear central area for a title that will be added later. Warm cream walls, terracotta and slate roofs, muted sage green vegetation, pastel blue sky, gentle morning daylight. Deliberate crisp chunky square pixels, 32-48 color feel, no antialiasing, no photographic or painterly texture. No people, animals, cars, readable signs, text, letters, numbers, logos, brands, watermarks, UI or border.",
+    "tool": "image_gen.imagegen",
+    "model": "Tool did not expose model identifier",
+    "generated_date": "2026-11-14 JST",
+    "original_file": "opening-c-town-original.png"
+  },
+  {
+    "asset": "opening-dust",
+    "prompt": "Use case: stylized-concept. Original 2D pixel-art animation sprite sheet, exactly FOUR separate frames in one horizontal row, each square 24x24 logical pixels, total logical 96x24. Four stages of one small soft earthy dust puff after an impact: frame 1 tiny low compact puff, frame 2 growing round lobe cluster, frame 3 broader separated billows, frame 4 small dispersed fading particles. Consistent warm sandy beige and tan palette, pale cream highlights, soft friendly mood, crisp square pixels, 16-24 colors, no antialiasing. Each frame has transparent margins and is centered horizontally with bottom aligned; clear gaps between cells, no overlap. Genuine transparent alpha background, no checkerboard drawn into art. No ground, impact object, people, text, labels, numbers, letters, outlines around frames, UI, logos or watermarks.",
+    "tool": "image_gen.imagegen",
+    "model": "Tool did not expose model identifier",
+    "generated_date": "2026-11-14 JST",
+    "original_file": "opening-dust-original.png"
+  }
+]
