@@ -3,7 +3,7 @@ import { assembleEditorWorld } from '../editor/runtime';
 import type { EditorDocument, EditorPortal, EditorValidationContext } from '../editor/types';
 import { equal } from '../world/layouts/codec';
 import { assertInteriorEdit } from './policy';
-import { trustedContext } from './trusted-context';
+import { trustedContext, worldRailLinks } from './trusted-context';
 import { assertOutdoorEdit } from './outdoor/policy';
 
 export type AreaEditPolicy = (before: EditorDocument, after: EditorDocument, areaId: string) => void;
@@ -71,9 +71,14 @@ function assertReturnMove(before: EditorDocument, after: EditorDocument, previou
   })) throw new Error('戻り先は同じ施設の建物と同じだけ動かしてください');
 }
 
+function defaultWorldContext(before: EditorDocument): EditorValidationContext {
+  const world = assembleEditorWorld(before);
+  return trustedContext(world, worldRailLinks(world));
+}
+
 /** before is the application's trusted document, never ChangeSet.baseDocument from a request. */
 export function assertWorldEdit(before: EditorDocument, after: EditorDocument,
-  context: EditorValidationContext = trustedContext(assembleEditorWorld(before)), policies: AreaEditPolicies = AREA_EDIT_POLICIES): void {
+  context: EditorValidationContext = defaultWorldContext(before), policies: AreaEditPolicies = AREA_EDIT_POLICIES): void {
   fixed(before.schemaVersion, after.schemaVersion, '文書の形式は変更できません');
   fixed(before.id, after.id, '文書のIDは変更できません');
   fixed(before.tileSize, after.tileSize, 'マスの大きさは変更できません');

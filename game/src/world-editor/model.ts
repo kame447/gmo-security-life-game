@@ -7,7 +7,7 @@ import { rotatedObjectVariant } from '../render/furniture/rotation';
 import { assertWorldEdit } from './world-policy';
 import { worldDocument } from './document';
 import { withDerived } from '../editor/changes';
-import { trustedContext } from './trusted-context';
+import { trustedContext, worldRailLinks } from './trusted-context';
 import { editablePerson, isPlacedNpc, npcEventKey } from './npc';
 
 const requireAreaId = (areaId: string) => { if (!areaId) throw new Error('エリアを指定してください'); return areaId; };
@@ -19,7 +19,7 @@ export class WorldEditorModel {
   session: EditorSession;
   private readonly used = new Set<string>();
   constructor(world: World) {
-    this.context = trustedContext(world);
+    this.context = trustedContext(world, worldRailLinks(world));
     this.initial = parseDocument(withDerived(worldDocument(world),this.context), this.context);
     this.session = new EditorSession(this.initial, { context: this.context });
     for (const list of [this.initial.objects,this.initial.interactions,this.initial.portals]) for (const item of list) this.used.add(item.id);

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { feetAtTile } from '../src/core/coords';
+import { TRAIN_NETWORK } from '../src/travel/network';
 import { createHome, createClassroom, createKonbini } from '../src/world/interiors';
 import { LANDMARKS as GENERATED_LANDMARKS, START as GENERATED_START } from '../src/world/landmarks';
 import { resolveLandmarks, START_PORTAL_ID } from '../src/world/landmark-resolve';
@@ -38,7 +39,7 @@ describe('配置から導く目印と開始位置', () => {
     expect(START).toEqual(GENERATED_START);
     const world = buildWorld();
     expect(world.start).toEqual(START);
-    expect(validateWorld(world)).toEqual([]);
+    expect(validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
     expect([...world.areas.values()].map(area => area.def)).toEqual(AREA_FACTORIES.map(create => create()));
   });
 
@@ -73,7 +74,7 @@ describe('配置から導く目印と開始位置', () => {
     const world = buildWorld();
     expect(world.start).toEqual(START);
     expect(world.areas.get('home-family-interior')!.def.portals[0].to).toEqual(START);
-    expect(validateWorld(world)).toEqual([]);
+    expect(validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
     const { Game } = await import('../src/session/game');
     const game = new Game(world);
     const expected = { areaId: START.areaId, ...feetAtTile(35, 33), facing: START.facing };

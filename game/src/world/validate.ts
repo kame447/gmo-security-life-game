@@ -2,8 +2,15 @@ import { inside, isSolidTile, neighbors, type AreaRuntime, type World } from './
 
 type TileRect = { x: number; y: number; w?: number; h?: number };
 
+import { getStationFlow, STATION_FLOW_IDS } from './station-flow';
+
+export interface RailPoint { readonly areaId: string; readonly x: number; readonly y: number }
+/** Directed, explicitly confirmed travel; these links never create automatic portals. */
+export interface RailLink { readonly from: RailPoint; readonly to: RailPoint }
+export interface WorldValidationOptions { readonly railLinks?: readonly RailLink[] }
+
 /** Validate definitions and flood the portal graph from the actual starting point. */
-export function validateWorld(world: World): string[] {
+export function validateWorld(world: World, options: WorldValidationOptions = {}): string[] {
   const errors: string[] = [];
   const ids = new Set<string>();
   const id = (value: string) => {
@@ -50,7 +57,19 @@ export function validateWorld(world: World): string[] {
     errors.push('Invalid or solid starting point');
     return errors;
   }
-  const reached = reachableTiles(world);
+  const validLinks: RailLink[] = [];
+  for (const [index, link] of (options.railLinks ?? []).entries()) {
+    let valid = true;
+    for (const [side, point] of [['from', link.from], ['to', link.to]] as const) {
+      const area = world.areas.get(point.areaId);
+      const owner = `railLinks[${index}].${side}`;
+      if (!area) { errors.push(`Unknown rail area ${point.areaId}: ${owner}`); valid = false; }
+      else if (!inside(area, point.x, point.y)) { errors.push(`Out of bounds rail point: ${owner}`); valid = false; }
+      else if (isSolidTile(area, point.x, point.y)) { errors.push(`Solid rail point: ${owner}`); valid = false; }
+    }
+    if (valid) validLinks.push(link);
+  }
+  const reached = reachableTiles(world, [...validLinks, ...stationGateLinks(world)]);
   for (const [areaId, a] of world.areas) {
     const seen = reached.get(areaId)!;
     for (const p of a.def.portals) {
@@ -65,8 +84,14 @@ export function validateWorld(world: World): string[] {
 }
 
 /** Flood fill from the start, following portals into other areas. */
-function reachableTiles(world: World): Map<string, Set<number>> {
+function reachableTiles(world: World, railLinks: readonly RailLink[]): Map<string, Set<number>> {
   const reached = new Map([...world.areas].map(([key]) => [key, new Set<number>()]));
+  const departures = new Map<string, RailPoint[]>();
+  for (const link of railLinks) {
+    const key = `${link.from.areaId}:${link.from.x}:${link.from.y}`;
+    const targets = departures.get(key) ?? [];
+    targets.push(link.to); departures.set(key, targets);
+  }
   const queue: { areaId: string; x: number; y: number }[] = [];
   const visit = (areaId: string, x: number, y: number) => {
     const a = world.areas.get(areaId), seen = reached.get(areaId);
@@ -79,9 +104,13 @@ function reachableTiles(world: World): Map<string, Set<number>> {
   visit(world.start.areaId, world.start.x, world.start.y);
   for (let head = 0; head < queue.length; head++) {
     const p = queue[head], a = world.areas.get(p.areaId)!;
-    for (const n of neighbors(p)) visit(p.areaId, n.x, n.y);
     const door = a.portalAt.get(p.y * a.width + p.x);
-    if (door) visit(door.to.areaId, door.to.x, door.to.y);
+    if (door) {
+      visit(door.to.areaId, door.to.x, door.to.y);
+      continue; // Normal movement enters the portal before any further walking or action.
+    }
+    for (const n of neighbors(p)) visit(p.areaId, n.x, n.y);
+    for (const to of departures.get(`${p.areaId}:${p.x}:${p.y}`) ?? []) visit(to.areaId, to.x, to.y);
   }
   return reached;
 }
@@ -91,9 +120,27 @@ function isAccessible(a: AreaRuntime, r: TileRect, seen: Set<number>): boolean {
   for (let dy = 0; dy < (r.h ?? 1); dy++) {
     for (let dx = 0; dx < (r.w ?? 1); dx++) {
       for (const n of neighbors({ x: r.x + dx, y: r.y + dy })) {
-        if (inside(a, n.x, n.y) && !isSolidTile(a, n.x, n.y) && seen.has(n.y * a.width + n.x)) return true;
+        const tile = n.y * a.width + n.x;
+        if (inside(a, n.x, n.y) && !isSolidTile(a, n.x, n.y) && !a.portalAt.has(tile) && seen.has(tile)) return true;
       }
     }
   }
   return false;
+}
+
+/**
+ * 改札は歩いて通れない（操作の対象が solid）。行き先を選んだあとの移動（改札の前 → ホーム、ホーム → 改札の前）を、
+ * 到達性の検証だけが辿れる辺として加える。実際の移動は乗車側が行う。
+ */
+export function stationGateLinks(world: World): RailLink[] {
+  const links: RailLink[] = [];
+  for (const id of STATION_FLOW_IDS) {
+    const flow = getStationFlow(id);
+    if (!world.areas.has(flow.gate.areaId)) continue;
+    const front = { areaId: flow.gate.areaId, x: flow.gate.front.x, y: flow.gate.front.y };
+    for (const p of flow.platforms) links.push({ from: front, to: { areaId: p.boardTile.areaId, x: p.boardTile.x, y: p.boardTile.y } });
+    const inside = { areaId: flow.gate.areaId, x: flow.gate.inside.x, y: flow.gate.inside.y };
+    links.push({ from: inside, to: { areaId: flow.gate.areaId, x: flow.gate.outside.x, y: flow.gate.outside.y } });
+  }
+  return links;
 }

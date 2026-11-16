@@ -3,17 +3,21 @@
  * 経路探索・検証・座標の目印は個別モジュールにあり、ここから再公開する。
  */
 import type { AreaDef, SpawnPoint, VariantDef } from '../core/types';
-import { createClassroom, createHome, createKonbini } from './interiors';
+import { createClassroom, createHome, createKonbini, createStation } from './interiors';
 import { START as GENERATED_START } from './landmarks';
 import { resolveLandmarks } from './landmark-resolve';
 import { applyAreaLayout } from './layouts';
 import { toRuntime, type AreaRuntime, type World } from './runtime';
 import { createTown, FACILITIES } from './town';
 import { SHOP_AREA_FACTORIES } from './shops';
+import { createNeighborStation, createNeighborTown, NEIGHBOR_FACILITIES } from './towns/neighbor';
 
+export { STATION_ACCESS } from './landmarks';
 export { districtAt, isSolidTile, type AreaRuntime, type World } from './runtime';
 export { findPath } from './path';
-export { validateWorld } from './validate';
+export { getStationFlow, type StationFlow, type StationPlatform } from './station-flow';
+export { RAIL_DIRECTIONS, RAIL_ORDER, headingOf, trackRowOf, type RailDirection, type RailHeading } from './rail-geometry';
+export { validateWorld, stationGateLinks, type RailPoint, type RailLink, type WorldValidationOptions } from './validate';
 
 export const CHILDHOOD_VARIANT: VariantDef = {
   id: 'childhood',
@@ -22,7 +26,11 @@ export const CHILDHOOD_VARIANT: VariantDef = {
 };
 
 /** 読み込むエリアの一覧。新しいエリアはここに定義関数を追加する。 */
-export const AREA_FACTORIES: readonly (() => AreaDef)[] = [createTown, createHome, createClassroom, createKonbini, ...SHOP_AREA_FACTORIES];
+export const AREA_FACTORIES: readonly (() => AreaDef)[] = [
+  createTown, createHome, createClassroom, createKonbini,
+  ...SHOP_AREA_FACTORIES,
+  createStation, createNeighborTown, createNeighborStation,
+];
 
 /** 生成用の定数とは分け、配置を適用した出口から公開用の目印と開始位置を導く。 */
 export const LANDMARKS = resolveLandmarks(AREA_FACTORIES.map(create => applyAreaLayout(create())));
@@ -39,7 +47,7 @@ function applyVariant(base: AreaDef, variant: VariantDef, isClosed: (facilityId:
 }
 
 export function buildWorld(variant: VariantDef = CHILDHOOD_VARIANT): World {
-  const facilities = new Map(FACILITIES.map(f => [f.id, { ...f, state: variant.facilityStates?.[f.id] ?? f.state }]));
+  const facilities = new Map([...FACILITIES, ...NEIGHBOR_FACILITIES].map(f => [f.id, { ...f, state: variant.facilityStates?.[f.id] ?? f.state }]));
   const isClosed = (id: string) => facilities.get(id)?.state === 'closed';
   const areas = new Map<string, AreaRuntime>();
   for (const create of AREA_FACTORIES) {

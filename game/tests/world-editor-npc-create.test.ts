@@ -1,4 +1,5 @@
 import {describe,expect,it} from 'vitest';
+import {TRAIN_NETWORK} from '../src/travel/network';
 import {buildWorld,LANDMARKS,validateWorld} from '../src/world';
 import {isSolidGround} from '../src/world/tiles';
 import {WorldEditorModel,HOME_AREA} from '../src/world-editor/model';
@@ -34,7 +35,7 @@ describe('実ワールドに置く人物と保存の境界',()=>{
     expect(model.document.catalogs.eventKeys).toContain(npcEventKey(npc.id));expect(model.document.catalogs.sprites).toEqual(before.catalogs.sprites);
     expect(model.document.objects).toEqual(before.objects);expect(model.document.portals).toEqual(before.portals);
     expect(model.document.interactions.filter(i=>i.id!==npc.id)).toEqual(before.interactions);
-    expect(validateWorld(model.runtime())).toEqual([]);
+    expect(validateWorld(model.runtime(),{railLinks:TRAIN_NETWORK.railLinks()})).toEqual([]);
     model.updateNpc(npc.id,{name:'追加した人',sprite:'teacher',facing:'right',lines:['追加した会話','2行目です']},HOME_AREA);
     const game=new Game(model.runtime(),{phoneClock:()=>0,phoneEpochClock:()=>0});
     game.player={areaId:HOME_AREA,...feetAtTile(4,8),facing:'up'};expect(game.facingInteraction()?.id).toBe(npc.id);game.action();
@@ -58,7 +59,7 @@ describe('実ワールドに置く人物と保存の境界',()=>{
     for(const[x,y]of [[0,2],[10,3],[13,4],[5,8],[7,11],[7,10]]){
       expect(()=>model.commit(model.npcCandidate({...npc,x,y},true))).toThrow();expect(model.document).toEqual(before);
     }
-    model.commit(model.npcCandidate({...npc,x:4,y:7},true));expect(validateWorld(model.runtime())).toEqual([]);
+    model.commit(model.npcCandidate({...npc,x:4,y:7},true));expect(validateWorld(model.runtime(),{railLinks:TRAIN_NETWORK.railLinks()})).toEqual([]);
   });
   it('新規人物の偽ID/偽キー/種類/衝突/足元/空欄と、元人物の改名による保護回避を局所でも拒否する',()=>{
     const{model}=fixture(),before=model.document,valid={...model.createNpc('friend',HOME_AREA),x:4,y:7};
@@ -116,7 +117,7 @@ describe('実ワールド全エリアのNPC追加・削除・配置拒否回帰�
 
       model.commit(model.npcCandidate(npc, true));
       expect(model.document.catalogs.eventKeys).toContain(npc.eventKey);
-      expect(validateWorld(model.runtime(model.document, [area.id]))).toEqual([]);
+      expect(validateWorld(model.runtime(model.document, [area.id]),{railLinks:TRAIN_NETWORK.railLinks()})).toEqual([]);
 
       model.removeNpc(npc.id, area.id);
       expect(model.npc(npc.id, undefined, area.id)).toBeUndefined();
@@ -152,10 +153,10 @@ describe('実ワールド全エリアのNPC追加・削除・配置拒否回帰�
       const targets: [string, { x: number; y: number } | undefined][] = [
         ['wall', wall],
         ['solid-object', solidObject],
-        ['other-npc', otherNpc],
         ['portal', portal],
         ['arrival', arrival],
       ];
+      if (otherNpc) targets.push(['other-npc', otherNpc]);
       if (otherInteraction) targets.push(['other-interaction', otherInteraction]);
       if (area.kind === 'outdoor') {
         for (const [name, point] of Object.entries({

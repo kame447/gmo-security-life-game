@@ -8,10 +8,10 @@ import {buildWorld} from '../src/world';
 import {worldDocument} from '../src/world-editor/document';
 import {WorldEditorModel,HOME_AREA} from '../src/world-editor/model';
 import {prepareSave} from '../src/world-editor/persistence';
-import {trustedContext} from '../src/world-editor/trusted-context';
+import {trustedContext,worldRailLinks} from '../src/world-editor/trusted-context';
 
 function fixture(){
-  const world=buildWorld(),context=trustedContext(world),document=parseDocument(withDerived(worldDocument(world),context),context);
+  const world=buildWorld(),context=trustedContext(world,worldRailLinks(world)),document=parseDocument(withDerived(worldDocument(world),context),context);
   return{world,context,document};
 }
 function npc():EditorInteraction{
@@ -29,7 +29,7 @@ function houseMove(document:EditorDocument):EditOperation[]{
 
 describe('信頼済みの宣言による開始位置とNPCイベントキー',()=>{
   it('宣言なしの既存APIは開始位置とcatalogsの変更を拒否したまま',()=>{
-    const{document,world}=fixture(),original=structuredClone(document),strict={baselineWorld:world};
+    const{document,world}=fixture(),original=structuredClone(document),strict={baselineWorld:world,railLinks:worldRailLinks(world)};
     expect(withDerived(document)).toBe(document);
     expect(withDerived(document,strict)).toBe(document);expect(validateDocument(document,strict)).toEqual([]);
     expect(()=>createChangeSet(document,houseMove(document),strict)).toThrow();
@@ -62,7 +62,7 @@ describe('信頼済みの宣言による開始位置とNPCイベントキー',()
   it('保存して開き直したNPCを消してもキーが残らず、その次の保存も競合しない',()=>{
     const{document,context}=fixture(),person=npc();
     const added=applyChangeSet(document,createChangeSet(document,[{type:'add',table:'interactions',id:person.id,after:person}],context),context);
-    const reopenedWorld=assembleEditorWorld(added),reopenedContext=trustedContext(reopenedWorld);
+    const reopenedWorld=assembleEditorWorld(added),reopenedContext=trustedContext(reopenedWorld,worldRailLinks(reopenedWorld));
     const reopened=parseDocument(worldDocument(reopenedWorld),reopenedContext),session=new EditorSession(reopened,{context:reopenedContext});
     const loadedPerson=reopened.interactions.find(i=>i.id===person.id)!;
     session.commit([{type:'delete',table:'interactions',id:person.id,before:loadedPerson}]);
@@ -77,7 +77,7 @@ describe('信頼済みの宣言による開始位置とNPCイベントキー',()
     const{document,world}=fixture(),person=npc();
     document.interactions.push(person,{id:'home-shared-note',areaId:HOME_AREA,kind:'object',name:'検証用のメモ',x:9,y:6,
       solid:false,eventKey:person.eventKey,lines:['共有キーの検証です。']});document.catalogs.eventKeys.push(person.eventKey);
-    const source=parseDocument(document,{baselineWorld:world}),context=trustedContext(assembleEditorWorld(source));
+    const source=parseDocument(document,{baselineWorld:world,railLinks:worldRailLinks(world)}),reopened=assembleEditorWorld(source),context=trustedContext(reopened,worldRailLinks(reopened));
     const changes=createChangeSet(source,[{type:'delete',table:'interactions',id:person.id,before:person}],context);
     expect(applyChangeSet(source,changes,context).catalogs.eventKeys).toContain(person.eventKey);
   });
@@ -117,14 +117,17 @@ describe('信頼済みの宣言による開始位置とNPCイベントキー',()
     expect(()=>prepareSave({areaId:HOME_AREA,changes:model.session.exportChanges(),derived:contextForForgery()},world)).toThrow();
   });
   it('信頼済みcontextはワールドからだけ作り、入力や呼出側のワールドを変更しない',()=>{
-    const{world,document,context}=fixture(),snapshot=structuredClone(document);
-    expect(context.derived).toEqual({startPortalId:'home-exit',placedNpcEventKeys:true});expect(context.railLinks).toBeUndefined();
-    expect(context.baselineWorld).not.toBe(world);expect(Object.keys(context).sort()).toEqual(['baselineWorld','derived']);
+    const{world,document,context}=fixture(),snapshot=structuredClone(document),plain=trustedContext(world);
+    expect(plain.derived).toEqual({startPortalId:'home-exit',placedNpcEventKeys:true});expect(plain.railLinks).toBeUndefined();
+    expect(plain.baselineWorld).not.toBe(world);expect(Object.keys(plain).sort()).toEqual(['baselineWorld','derived']);
+    expect(context.derived).toEqual({startPortalId:'home-exit',placedNpcEventKeys:true});
+    expect(context.railLinks).toEqual(worldRailLinks(world));
+    expect(context.baselineWorld).not.toBe(world);expect(Object.keys(context).sort()).toEqual(['baselineWorld','derived','railLinks']);
     withDerived(document,context);expect(document).toEqual(snapshot);
     const copied=context.baselineWorld.areas.get(HOME_AREA)!;copied.def.interactions[0].name='コピーの変更';
     expect(world.areas.get(HOME_AREA)!.def.interactions[0].name).not.toBe('コピーの変更');
-    const forged={...createChangeSet(document,[],trustedContext(world)),derived:contextForForgery()};
-    expect(()=>applyChangeSet(document,forged,trustedContext(world))).toThrow();
+    const forged={...createChangeSet(document,[],trustedContext(world,worldRailLinks(world))),derived:contextForForgery()};
+    expect(()=>applyChangeSet(document,forged,trustedContext(world,worldRailLinks(world)))).toThrow();
   });
 });
 function contextForForgery(){return{startPortalId:'untrusted-exit',placedNpcEventKeys:true};}

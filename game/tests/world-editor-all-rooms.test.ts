@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { TRAIN_NETWORK } from '../src/travel/network';
 import { AREA_FACTORIES, buildWorld, validateWorld } from '../src/world';
 import { T } from '../src/world/tiles';
 import { staleLayouts } from '../src/world/layouts';
@@ -16,7 +17,7 @@ describe('Issue #24 全屋内エリアの編集・回転・重なり・将来統
   it('実在する全屋内エリアと将来の#33商店/#59駅互換エリアを固定一覧なしで編集対象として導く', () => {
     const world = buildWorld();
     const indoorIds = [...world.areas.values()].filter(a => a.def.kind === 'indoor').map(a => a.def.id);
-    expect(indoorIds).toEqual(['home-family-interior', 'school-classroom-interior', 'shop-konbini-interior', 'shop-greengrocer-interior', 'shop-bookstore-interior', 'shop-candy-interior', 'shop-bakery-interior', 'shop-cafe-interior', 'shop-pharmacy-interior']);
+    expect(indoorIds).toEqual(['home-family-interior', 'school-classroom-interior', 'shop-konbini-interior', 'shop-greengrocer-interior', 'shop-bookstore-interior', 'shop-candy-interior', 'shop-bakery-interior', 'shop-cafe-interior', 'shop-pharmacy-interior', 'station-main-interior', 'station-neighbor-interior']);
     const model = new WorldEditorModel(world);
     for (const id of indoorIds) {
       expect(isEditableArea(model.initial, id)).toBe(true);
@@ -162,7 +163,7 @@ describe('Issue #24 全屋内エリアの編集・回転・重なり・将来統
       [classroom, true],
       [konbini, true],
     ]);
-    expect(validateWorld(assembleEditorWorld(model.document))).toEqual([]);
+    expect(validateWorld(assembleEditorWorld(model.document), { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
   }, 15000);
 
   it('意図した重なり（ラグ上の家具・壁の窓・床塗装）を許し、不正な重なりと旧配置JSONを拒否する', () => {

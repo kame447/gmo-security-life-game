@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createHome, createClassroom, createKonbini } from '../src/world/interiors';
 import { createTown } from '../src/world/town';
+import { TRAIN_NETWORK } from '../src/travel/network';
 import { AREA_FACTORIES, buildWorld, validateWorld } from '../src/world';
 import { applyAreaLayout, areaLayout, staleLayouts } from '../src/world/layouts';
 import { areaFingerprint, initialLayout, layoutArea, plainArea } from '../src/world/layouts/codec';
@@ -36,7 +37,7 @@ describe('実ゲームの配置JSON',()=>{
       expect(plainArea(buildWorld().areas.get(create().id)!.def)).toEqual(plainArea(create()));
       expect(plainArea(preview.areas.get(create().id)!.def)).toEqual(plainArea(create()));
     }
-    expect(validateWorld(buildWorld())).toEqual([]);
+    expect(validateWorld(buildWorld(),{railLinks:TRAIN_NETWORK.railLinks()})).toEqual([]);
   });
   it('既存メタデータとcatalogId/facing/surfacesが実文書から保存へ往復する',()=>{
     const world=buildWorld(),model=new WorldEditorModel(world),chair=model.create('chair-wood');
@@ -49,7 +50,7 @@ describe('実ゲームの配置JSON',()=>{
     expect(l.area.surfaces).toEqual(area.surfaces);
     expect(parseDocument(model.document,model.context).variant).toEqual(world.variant);
     expect(model.document.areas.find(a=>a.id==='town-main')!.districts).toEqual(createTown().districts);
-    expect(validateWorld(model.runtime())).toEqual([]);
+    expect(validateWorld(model.runtime(),{railLinks:TRAIN_NETWORK.railLinks()})).toEqual([]);
   });
   it('未知catalogId・不一致の足元・壁への不正配置を拒否する',()=>{
     const model=new WorldEditorModel(buildWorld()),o={...model.create('chair-wood'),x:8,y:6};

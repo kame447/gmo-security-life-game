@@ -1,0 +1,185 @@
+import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { chromium } from 'playwright';
+
+const target = new URL(process.env.SLG_URL || 'http://127.0.0.1:5202');
+assert.ok(['http:', 'https:'].includes(target.protocol) && ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname), 'Use a local game server');
+assert.equal(target.search, '', 'Rail checks use the normal game without review fixtures');
+const output = process.env.SLG_SHOTS;
+if (output) { assert.ok(path.isAbsolute(output), 'SLG_SHOTS must be absolute'); await mkdir(output, { recursive: true }); }
+const sizes = [['desktop', 1280, 800, false], ['portrait', 390, 844, true], ['landscape', 844, 390, true]];
+const report = { checks: [], screenshots: [], errors: [], blocked: [], downloads: [] };
+const browser = await chromium.launch({ headless: true, args: ['--disable-background-networking', '--disable-gpu-vsync', '--disable-frame-rate-limit'] });
+const state = page => page.evaluate(() => ({ ...window.__slg.game.player }));
+const snapshot = page => page.evaluate(() => window.__slg.game.serialize());
+const tile = player => ({ x: Math.floor(player.x / 16), y: Math.floor((player.y - 4) / 16) });
+const landed = spawn => ({ areaId: spawn.areaId, x: spawn.x * 16 + 8, y: spawn.y * 16 + 14, facing: spawn.facing });
+function pass(name) { report.checks.push(name); console.log('PASS', name); }
+async function ready(page) {
+  await page.waitForFunction(() => !!window.__slg?.game && !window.__slg.renderer.stats.fading);
+  await page.locator('#view').focus();
+  await page.evaluate(() => {
+    if (window.__railPortals) return;
+    window.__railPortals = [];
+    window.__slg.game.on(event => {
+      if (event.type === 'portal') window.__railPortals.push({ ...event, player: { ...window.__slg.game.player } });
+    });
+  });
+}
+async function shot(page, name) {
+  if (!output) return;
+  const file = path.join(output, `${name}.png`);
+  await page.screenshot({ path: file }); report.screenshots.push(file);
+}
+async function hold(page, key, ms) {
+  await page.keyboard.down(key);
+  try { await page.waitForTimeout(ms); } finally { await page.keyboard.up(key); }
+}
+/** Bounded real-key correction checks both sides of every waypoint; never writes player coordinates. */
+async function walkTo(page, goal) {
+  const route = await page.evaluate(async goal => {
+    const { findPath } = await import('/src/world/index.ts'), game = window.__slg.game;
+    return findPath(game.area, { x: Math.floor(game.player.x / 16), y: Math.floor((game.player.y - 4) / 16) }, goal);
+  }, goal);
+  assert.ok(route, `No path to ${JSON.stringify(goal)}`);
+  await page.locator('#view').focus();
+  for (const point of route) for (const axis of ['x', 'y']) {
+    const value = point[axis] * 16 + (axis === 'x' ? 8 : 14);
+    let settled = false;
+    for (let correction = 0; correction < 8; correction++) {
+      const before = await state(page), delta = value - before[axis];
+      if (Math.abs(delta) <= 3) { settled = true; break; }
+      const key = axis === 'x' ? (delta > 0 ? 'ArrowRight' : 'ArrowLeft') : (delta > 0 ? 'ArrowDown' : 'ArrowUp');
+      await page.keyboard.down(key);
+      try {
+        // A walking route may wait at a timed crossing; allow a full train cycle plus walking time.
+        const timeout = await page.evaluate(async () => ((await import('/src/town-train/config.ts')).TOWN_TRAIN_PROTOTYPE.intervalSeconds + 8) * 1000);
+        await page.waitForFunction(({ axis, value, sign, areaId }) => {
+          const p = window.__slg.game.player;
+          return p.areaId !== areaId || (p[axis] - value) * sign >= -3;
+        }, { axis, value, sign: Math.sign(delta), areaId: before.areaId }, { polling: 'raf', timeout });
+      } finally { await page.keyboard.up(key); }
+      if ((await state(page)).areaId !== before.areaId) {
+        await page.waitForFunction(() => !window.__slg.renderer.stats.fading); return;
+      }
+    }
+    assert.ok(settled || Math.abs((await state(page))[axis] - value) <= 3,
+      `Waypoint alignment failed: ${JSON.stringify({ point, actual: await state(page), axis })}`);
+    assert.equal(tile(await state(page))[axis], point[axis]);
+  }
+}
+async function landing(page, id, destination) {
+  const event = await page.evaluate(id => window.__railPortals.findLast(event => event.portalId === id), id);
+  assert.ok(event, `No observed portal ${id}`); assert.deepEqual(event.player, landed(destination));
+}
+async function reloadExact(page) {
+  const saved = await snapshot(page);
+  await page.reload(); await ready(page); assert.deepEqual(await snapshot(page), saved);
+}
+let current;
+try {
+  for (const [name, width, height, touch] of sizes) {
+    const context = await browser.newContext({ viewport: { width, height }, hasTouch: touch, isMobile: touch,
+      acceptDownloads: false, serviceWorkers: 'block' });
+    await context.route('**/*', route => {
+      const url = new URL(route.request().url());
+      if (url.origin === target.origin || url.protocol === 'data:') return route.continue();
+      report.blocked.push(url.origin); return route.abort();
+    });
+    await context.routeWebSocket('**', socket => {
+      if (new URL(socket.url()).origin === target.origin.replace(/^http/, 'ws')) socket.connectToServer();
+      else { report.blocked.push(new URL(socket.url()).origin); void socket.close(); }
+    });
+    const page = await context.newPage(); current = page;
+    page.on('pageerror', error => report.errors.push(String(error)));
+    page.on('console', message => { if (message.type() === 'error') report.errors.push(message.text()); });
+    page.on('download', download => { report.downloads.push(download.suggestedFilename()); void download.cancel(); });
+    try {
+      await page.goto(target.href); await ready(page);
+      const { access, layout, landmarks } = await page.evaluate(async () => {
+        const m = await import('/src/world/landmarks.ts');
+        return { access: m.STATION_ACCESS, layout: m.MAIN_STATION_LAYOUT, landmarks: m.LANDMARKS };
+      });
+      const problems = await page.evaluate(async () => {
+        const { validateWorld, isSolidTile } = await import('/src/world/index.ts');
+        const { isRailGround, T } = await import('/src/world/tiles.ts');
+        const { TRAIN_NETWORK } = await import('/src/travel/network.ts');
+        const { MAIN_STATION_LAYOUT: layout } = await import('/src/world/landmarks.ts');
+        const world = window.__slg.game.world, town = world.areas.get('town-main');
+        const errors = validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() });
+        for (let y = layout.trackY; y < layout.trackY + layout.trackRows; y++) for (let x = 0; x < town.width; x++) {
+          const t = town.ground[y * town.width + x];
+          // 駅の区間（駅舎の幅）の南の行は柵（1線の区間）。それ以外は線路で、踏切以外は通れない。
+          const fence = y === layout.trackY + 1 && x >= layout.building.x - 3 && x < layout.building.x + layout.building.w + 3;
+          if (!(isRailGround(t) || fence) || (t !== T.CROSSING && !isSolidTile(town, x, y))) errors.push(`Invalid track at ${x},${y}`);
+          if (x >= 116 && x <= 120 && t !== T.RAIL_BRIDGE) errors.push(`Missing railway bridge at ${x},${y}`);
+        }
+        return errors;
+      });
+      assert.deepEqual(problems, []); pass(`${name}: actual World has continuous, blocked railway and a valid station`);
+
+      if (name === 'desktop') {
+        for (const entranceId of ['home-enter', 'school-enter', 'konbini-enter']) {
+          const entrance = await page.evaluate(id => window.__slg.game.area.def.portals.find(p => p.id === id), entranceId);
+          await walkTo(page, entrance.from); await landing(page, entrance.id, entrance.to);
+          const exit = await page.evaluate(() => window.__slg.game.area.def.portals.find(p => p.to.areaId === 'town-main'));
+          await walkTo(page, exit.from); await landing(page, exit.id, exit.to);
+          assert.equal((await state(page)).areaId, 'town-main');
+        }
+        await walkTo(page, await page.evaluate(async () => (await import('/src/world/landmarks.ts')).LANDMARKS.parkPlaza));
+        pass('desktop: home, school, konbini portals and park remain accessible');
+      }
+      await walkTo(page, landmarks.stationFront); await shot(page, `${name}-01-station-exterior`);
+      await walkTo(page, access.outdoorEntrance); await landing(page, access.entrancePortalId, access.entry);
+      assert.equal((await state(page)).areaId, access.areaId);
+      await shot(page, `${name}-02-concourse-gates`);
+      // 改札は歩いて通れない。行き先を選ぶ操作（乗車側）を経ない限り、ホームへは入れない。
+      await walkTo(page, { x: 17, y: 11 });
+      await hold(page, 'ArrowUp', 500);
+      assert.equal(await page.evaluate(() => window.__slg.game.facingInteraction()?.id), 'station-ticket');
+      const atGate = await state(page); await hold(page, 'ArrowUp', 300); assert.deepEqual(await state(page), atGate);
+      await shot(page, `${name}-02b-gate-closed`);
+      // ホームへの移動は乗車側の担当。ここでは移動後の位置（データの乗車位置）から構造だけを確かめる。
+      await page.evaluate(spawn => { window.__slg.game.player = spawn; }, landed(access.boarding));
+      await hold(page, 'ArrowUp', 100);
+      assert.equal(await page.evaluate(() => window.__slg.game.facingInteraction()?.id), access.interaction.id);
+      await shot(page, `${name}-03-platform-boarding`);
+      await reloadExact(page); pass(`${name}: closed gates, island platform between two tracks, exact indoor reload`);
+      await walkTo(page, { x: 10, y: 5 });
+      await hold(page, 'ArrowUp', 700); const stopped = await state(page);
+      assert.equal(tile(stopped).y, 4); await hold(page, 'ArrowUp', 200); assert.deepEqual(await state(page), stopped);
+      await shot(page, `${name}-04-platform-boundary`);
+      await page.evaluate(spawn => { window.__slg.game.player = spawn; }, landed({ areaId: access.areaId, x: 17, y: 11, facing: 'down' }));
+      await walkTo(page, { x: 17, y: 17 });
+      await landing(page, access.exitPortalId, { areaId: 'town-main', ...landmarks.stationFront, facing: 'down' });
+      pass(`${name}: platform edge rejects walking onto rails and the original exit returns outdoors`);
+
+      for (const x of [56, 80, 125]) {
+        await walkTo(page, { x, y: layout.trackY - 1 }); await walkTo(page, { x, y: layout.trackY + 1 });
+        assert.equal(tile(await state(page)).y, layout.trackY + 1); await shot(page, `${name}-crossing-${x}`);
+        await walkTo(page, { x, y: layout.trackY + layout.trackRows + 1 }); await walkTo(page, { x, y: layout.trackY - 1 });
+      }
+      pass(`${name}: all three level crossings connect both sides`);
+      const RAIL_BUFFER_TILES = await page.evaluate(async () => (await import('/src/world/rail-protection.ts')).RAIL_BUFFER_TILES);
+      await walkTo(page, { x: 125, y: layout.trackY + layout.trackRows + RAIL_BUFFER_TILES }); await shot(page, `${name}-05-railway-bridge`);
+      await reloadExact(page); pass(`${name}: bridge approach preserves exact outdoor save and appearance`);
+      const fenceApproachY = layout.trackY - RAIL_BUFFER_TILES - 1;
+      await walkTo(page, { x: 10, y: fenceApproachY });
+      await hold(page, 'ArrowDown', 280); const outside = await state(page);
+      assert.equal(tile(outside).y, fenceApproachY); await hold(page, 'ArrowDown', 200); assert.deepEqual(await state(page), outside);
+      pass(`${name}: continuous protection fence blocks ordinary street movement`);
+    } catch (error) {
+      if (output) await shot(page, `${name}-failure`).catch(() => {});
+      throw error;
+    } finally { await context.close(); current = undefined; }
+  }
+  assert.deepEqual(report.errors, []); assert.deepEqual(report.blocked, []); assert.deepEqual(report.downloads, []);
+  console.log(`SUMMARY ${report.checks.length} PASS; screenshots=${report.screenshots.length}; errors=0`);
+} catch (error) {
+  if (current && output) await shot(current, 'failure').catch(() => {});
+  report.failure = String(error.stack || error); console.error('FAIL', report.failure); process.exitCode = 1;
+} finally {
+  await browser.close();
+  if (output) await writeFile(path.join(output, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`);
+}

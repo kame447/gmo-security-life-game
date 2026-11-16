@@ -17,6 +17,7 @@ import {
 } from '../src/render/furniture/rotation';
 import { STORE_WALL_SIDE_REASON } from '../src/render/stores';
 import { objectSprite } from '../src/render/sprites';
+import { TRAIN_NETWORK } from '../src/travel/network';
 import { AREA_FACTORIES, buildWorld, validateWorld } from '../src/world';
 import { layoutArea, parseAreaLayout } from '../src/world/layouts/codec';
 import { WorldEditorModel } from '../src/world-editor/model';
@@ -92,6 +93,8 @@ describe('legacy and indoor rotation contract', () => {
       'shop-greengrocer-interior',
       'shop-konbini-interior',
       'shop-pharmacy-interior',
+      'station-main-interior',
+      'station-neighbor-interior',
     ]);
 
     const model = new WorldEditorModel(world);
@@ -224,7 +227,7 @@ describe('legacy and indoor rotation contract', () => {
         id, kind: savedObj.kind, facing: savedObj.facing, x: savedObj.x, y: savedObj.y, w: savedObj.w, h: savedObj.h,
       });
     }
-    expect(validateWorld(assembleEditorWorld(model.document))).toEqual([]);
+    expect(validateWorld(assembleEditorWorld(model.document), { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
 
     for (const [areaId, id] of cycleTargets) {
       const o = model.object(id, undefined, areaId)!;

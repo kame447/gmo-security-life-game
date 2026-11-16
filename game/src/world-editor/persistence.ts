@@ -10,7 +10,7 @@ import { initialLayout } from '../world/layouts/codec';
 import { documentLayout, worldDocument } from './document';
 import { HOME_AREA } from './model';
 import { AREA_EDIT_POLICIES, assertWorldEdit, changedAreaIds, type AreaEditPolicies } from './world-policy';
-import { trustedContext } from './trusted-context';
+import { trustedContext, worldRailLinks } from './trusted-context';
 
 /** Called with a World loaded by the writer, never with a browser-supplied context. */
 export function prepareSave(raw: unknown, world: World, policies: AreaEditPolicies = AREA_EDIT_POLICIES) {
@@ -20,7 +20,7 @@ export function prepareSave(raw: unknown, world: World, policies: AreaEditPolici
   // Existing phase-one clients may send their home hint. It never selects save targets.
   if (keys !== 'changes' && (keys !== 'areaId,changes' || request.areaId !== HOME_AREA)) throw new Error('保存データの欄が不正です');
   if (staleLayouts(AREA_FACTORIES.map(create => create())).length) throw new Error('生成元が変わっています。配置ファイルの移行を確認してください');
-  const context = trustedContext(world);
+  const context = trustedContext(world, worldRailLinks(world));
   const current = parseDocument(withDerived(worldDocument(world),context),context);
   const preview = previewChangeSet(current,request.changes,context);
   assertWorldEdit(current,preview.document,context,policies);

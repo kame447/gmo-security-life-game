@@ -47,12 +47,12 @@ describe('屋外の編集方針', () => {
     expect(() => assertOutdoorEdit(before, after, { areaId: 'town-main' })).toThrow('目印');
     // Use ordinary existing trees as a four-sided ring, without changing their attributes.
     const isolated = structuredClone(before), center = LANDMARKS.parkPlaza;
-    const trees = isolated.objects.filter(o => o.kind === 'tree').slice(0, 4);
+    const trees = isolated.objects.filter(o => o.areaId === 'town-main' && o.kind === 'tree').slice(0, 4);
     for (const [n, [dx, dy]] of [[0, -1], [1, 0], [0, 1], [-1, 0]].entries()) Object.assign(trees[n], { x: center.x + dx, y: center.y + dy });
     expect(() => assertOutdoorEdit(before, isolated, { areaId: 'town-main' })).toThrow('目印');
   });
-  it.each(['station', 'train', 'track'])('%sは移動・削除・複製できず、回転も拒否する（規則9）', kind => {
-    const { host, outdoor } = fixture(), o = host.document.objects.find(o => o.kind === kind)!;
+  it.each(['station', 'track'])('%sは移動・削除・複製できず、回転も拒否する（規則9）', kind => {
+    const { host, outdoor } = fixture(), o = host.document.objects.find(o => o.areaId === 'town-main' && o.kind === kind)!;
     expect(outdoor.readOnlyReason(o.id)).not.toBe('');
     expect(() => outdoor.move(o.id, o.x + 1, o.y)).toThrow();
     expect(() => outdoor.remove(o.id)).toThrow();
@@ -61,6 +61,17 @@ describe('屋外の編集方針', () => {
     const changed = host.document; changed.objects.find(p => p.id === o.id)!.style = 'changed';
     expect(() => assertOutdoorEdit(host.initial, changed, { areaId: 'town-main' })).toThrow();
     expect(host.dirty).toBe(0);
+  });
+  it('動的描画になったtrainも保護一覧に残り、配置・編集を拒否する（規則9）', () => {
+    const { host, outdoor } = fixture();
+    const before = structuredClone(host.initial);
+    const train = { id: 'town-train-18-71', areaId: 'town-main', kind: 'train', x: 18, y: 71, w: 16, h: 2, solid: false, layer: 'decal' as const };
+    before.objects.push(train);
+    const changed = structuredClone(before);
+    changed.objects.find(p => p.id === train.id)!.x++;
+    expect(() => assertOutdoorEdit(before, changed, { areaId: 'town-main' })).toThrow('線路');
+    const added = host.document; added.objects.push({ ...outdoor.create('tree-green'), kind: 'train' });
+    expect(() => assertOutdoorEdit(host.initial, added, { areaId: 'town-main' })).toThrow();
   });
   it('地面・施設・年代・地区・大きさの変更は拒否する（規則9/10）', () => {
     const { before } = fixture();
@@ -93,7 +104,7 @@ describe('屋外の編集方針', () => {
       const next = host.document; next.objects.push({ ...outdoor.create('tree-green'), ...patch });
       expect(() => assertOutdoorEdit(host.initial, next, { areaId: 'town-main' })).toThrow();
     }
-    const next = host.document; next.objects.find(o => o.kind === 'tree')!.solid = false;
+    const next = host.document; next.objects.find(o => o.areaId === 'town-main' && o.kind === 'tree')!.solid = false;
     expect(() => assertOutdoorEdit(host.initial, next, { areaId: 'town-main' })).toThrow('属性');
   });
 });

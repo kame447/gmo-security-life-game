@@ -64,7 +64,7 @@ describe('屋外の操作モデルと共有履歴', () => {
   });
   it('掲示板を動かすと結び付いた調べる場所が同じだけ動きUndo1段で戻る（S2-8）', () => {
     const { host, outdoor } = fixture(), before = host.document;
-    const board = before.objects.find(o => o.kind === 'board')!;
+    const board = before.objects.find(o => o.areaId === 'town-main' && o.kind === 'board')!;
     const candidate = freeCandidate(host, outdoor, board, false);
     host.commit(candidate);
     const moved = host.document.objects.find(o => o.id === board.id)!, target = host.document.interactions.find(i => i.objectId === board.id)!;
@@ -82,7 +82,7 @@ describe('屋外の操作モデルと共有履歴', () => {
     host.session.undo(); expect(outdoor.object(first.id)).toBeUndefined();
     const third = outdoor.create('tree-green'); expect(new Set([cancelled.id, first.id, second.id, third.id]).size).toBe(4);
     host.session.redo(); expect(outdoor.object(first.id)).toBeDefined();
-    const source = host.document.objects.find(o => o.kind === 'house' && !o.facilityId)!;
+    const source = host.document.objects.find(o => o.areaId === 'town-main' && o.kind === 'house' && !o.facilityId)!;
     const copy = outdoor.duplicate(source.id);
     expect(copy.id).not.toBe(source.id); expect({ ...copy, id: source.id }).toEqual(source);
     const replacement = outdoor.candidate(copy, true);

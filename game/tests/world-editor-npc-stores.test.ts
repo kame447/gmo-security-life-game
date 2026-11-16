@@ -5,6 +5,7 @@ import { withDerived } from '../src/editor/changes';
 import { assembleEditorWorld } from '../src/editor/runtime';
 import type { EditorInteraction } from '../src/editor/types';
 import { validateStoreContacts } from '../src/stores/validate';
+import { TRAIN_NETWORK } from '../src/travel/network';
 import { buildWorld, validateWorld } from '../src/world';
 import { layoutArea, type AreaLayout } from '../src/world/layouts/codec';
 import type { World } from '../src/world/runtime';
@@ -13,7 +14,7 @@ import { WorldEditorModel } from '../src/world-editor/model';
 import { areaNpcs, EDITABLE_PEOPLE, npcEventKey } from '../src/world-editor/npc';
 import { prepareSave } from '../src/world-editor/persistence';
 import { assertInteriorEdit } from '../src/world-editor/policy';
-import { trustedContext } from '../src/world-editor/trusted-context';
+import { trustedContext, worldRailLinks } from '../src/world-editor/trusted-context';
 import { isEditableArea } from '../src/world-editor/world-policy';
 
 function legalMove(model: WorldEditorModel, npc: EditorInteraction): { x: number; y: number } {
@@ -56,23 +57,23 @@ function reopen(layout: AreaLayout, world: World, areaId: string): WorldEditorMo
     ...document.portals.filter(door => door.areaId !== areaId),
     ...area.portals.map(door => ({ ...door, areaId })),
   ];
-  const context = trustedContext(world);
+  const context = trustedContext(world, worldRailLinks(world));
   return new WorldEditorModel(assembleEditorWorld(parseDocument(withDerived(document, context), context)));
 }
 
 describe('N1.5 店を含む全エリアの人物確認', () => {
-  it('isEditableArea による走査で全10エリア16人が編集対象になり、7店の接続と一致する', () => {
+  it('isEditableArea による走査で全12編集可能エリア16人が編集対象になり、7店の接続と一致する', () => {
     const world = buildWorld();
     const initial = new WorldEditorModel(world).initial;
-    expect(validateWorld(world)).toEqual([]);
+    expect(validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
     expect(validateStoreContacts(world, STORE_CONTACTS)).toEqual([]);
 
     const editableAreas = initial.areas.filter(area => isEditableArea(initial, area.id));
     const readonlyPopulated = initial.areas.filter(
       area => !isEditableArea(initial, area.id) && areaNpcs(initial, area.id).length > 0,
     );
-    expect(readonlyPopulated).toEqual([]);
-    expect(editableAreas).toHaveLength(10);
+    expect(readonlyPopulated.map(area => area.id)).toEqual(['town-neighbor']);
+    expect(editableAreas).toHaveLength(12);
 
     const counts = Object.fromEntries(editableAreas.map(area => [area.id, areaNpcs(initial, area.id).length]));
     expect(counts['town-main']).toBe(6);
@@ -125,7 +126,7 @@ describe('N1.5 店を含む全エリアの人物確認', () => {
       expect(edited.facing).not.toBe(original.facing ?? 'down');
 
       const editedWorld = model.runtime(model.document, [area.id]);
-      expect(validateWorld(editedWorld)).toEqual([]);
+      expect(validateWorld(editedWorld, { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
       expect(validateStoreContacts(editedWorld, STORE_CONTACTS)).toEqual([]);
 
       model.session.undo();

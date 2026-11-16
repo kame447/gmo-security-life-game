@@ -7,10 +7,11 @@ import { ACTION_KEYS, BICYCLE_KEYS, Controls, DIRECTION_KEYS, RUN_KEYS } from '.
 import type { InputState } from '../map/explorer';
 import type { Minimap } from '../minimap/view';
 import type { Game } from '../session/game';
+import type { TrainTravelPanel } from '../travel/panel';
 import { $ } from './dom';
 import { ModalPanels, type ModalPanelHost, type ModalPanelId, type ModalPanelRegistration, type UiMode as PanelUiMode } from './modal-panels';
 
-export type UiMode = PanelUiMode | 'map';
+export type UiMode = PanelUiMode | 'map' | 'travel';
 
 const TOUCH_LABELS: Record<Facing, string> = { up: 'うえ', down: 'した', left: 'ひだり', right: 'みぎ' };
 const NO_INPUT: InputState = { dir: null, run: false };
@@ -28,11 +29,12 @@ export class UiController implements ModalPanelHost {
     private readonly controls: Controls,
     private readonly canvas: HTMLCanvasElement,
     private readonly minimap?: Minimap,
+    private readonly travel?: () => Pick<TrainTravelPanel, 'isOpen' | 'handleKey'> | undefined,
   ) {
     this.panels = new ModalPanels(() => !!this.game.dialog, () => this.controls.clear());
   }
 
-  get mode(): UiMode { return this.minimap?.isOpen ? 'map' : this.panels.mode; }
+  get mode(): UiMode { return this.minimap?.isOpen ? 'map' : this.travel?.()?.isOpen ? 'travel' : this.panels.mode; }
 
   registerPanel(registration: ModalPanelRegistration): void {
     if (registration.button && registration.button.parentElement !== this.menu) {
@@ -51,7 +53,7 @@ export class UiController implements ModalPanelHost {
   }
 
   openPanel(id: ModalPanelId, openOverride?: () => void): boolean {
-    if (this.minimap?.isOpen) return false;
+    if (this.minimap?.isOpen || this.travel?.()?.isOpen) return false;
     try { return this.panels.open(id, openOverride); }
     finally { this.update(); }
   }
@@ -59,9 +61,10 @@ export class UiController implements ModalPanelHost {
   /** Call after panel state changes and each frame for dialog/availability changes. */
   update(): void {
     const active = this.panels.active;
-    this.stage.classList.toggle('modal-open', !!active);
+    const traveling = !!this.travel?.()?.isOpen;
+    this.stage.classList.toggle('modal-open', !!active || traveling);
     for (const entry of this.panels.registrations) {
-      if (entry.button) entry.button.disabled = !!this.minimap?.isOpen || !this.panels.canOpen(entry.id);
+      if (entry.button) entry.button.disabled = traveling || !!this.minimap?.isOpen || !this.panels.canOpen(entry.id);
     }
     if (this.previousPanel && !active) {
       this.controls.clear();
@@ -72,12 +75,12 @@ export class UiController implements ModalPanelHost {
 
   /** Movement input for this frame. Held keys survive a dialog; the session itself pauses movement then. */
   movementInput(): InputState {
-    return this.panels.active || this.minimap?.isOpen ? NO_INPUT : this.controls.state();
+    return this.panels.active || this.minimap?.isOpen || this.travel?.()?.isOpen ? NO_INPUT : this.controls.state();
   }
 
   /** Decide / talk / advance: shared by keys, the dialog box and the touch A button. */
   primaryAction(): void {
-    if (!this.panels.active && !this.minimap?.isOpen) this.game.action();
+    if (!this.panels.active && !this.minimap?.isOpen && !this.travel?.()?.isOpen) this.game.action();
     this.update();
   }
 
@@ -91,7 +94,7 @@ export class UiController implements ModalPanelHost {
     this.canvas.addEventListener('pointerdown', () => this.focusMap());
 
     $<HTMLButtonElement>('#btn-reset').addEventListener('click', () => {
-      if (this.panels.active || this.minimap?.isOpen) return;
+      if (this.panels.active || this.minimap?.isOpen || this.travel?.()?.isOpen) return;
       this.controls.clear();
       handlers.onReset();
       this.focusMap();
@@ -102,6 +105,12 @@ export class UiController implements ModalPanelHost {
 
   private onKeyDown(event: KeyboardEvent): void {
     if (this.minimap?.isOpen) { this.minimap.handleKey(event); return; }
+    const travel = this.travel?.();
+    if (travel?.isOpen) {
+      try { travel.handleKey(event); }
+      finally { this.update(); }
+      return;
+    }
     if (this.panels.active) {
       try { this.panels.dispatchKey(event); }
       finally { this.update(); }
@@ -142,7 +151,7 @@ export class UiController implements ModalPanelHost {
   private bindTouch(): void {
     this.setTouch(matchMedia('(pointer: coarse)').matches);
     this.touchToggle.addEventListener('click', () => {
-      if (this.panels.active || this.minimap?.isOpen) return;
+      if (this.panels.active || this.minimap?.isOpen || this.travel?.()?.isOpen) return;
       this.setTouch(!this.touch.classList.contains('on'));
       this.focusMap();
     });
@@ -151,7 +160,7 @@ export class UiController implements ModalPanelHost {
       const bicycle = button.dataset.bike !== undefined;
       button.setAttribute('aria-label', direction ? TOUCH_LABELS[direction] : bicycle ? 'じてんしゃに のる・おりる' : 'しらべる・はなす');
       button.addEventListener('pointerdown', event => {
-        if (this.panels.active || this.minimap?.isOpen) return;
+        if (this.panels.active || this.minimap?.isOpen || this.travel?.()?.isOpen) return;
         event.preventDefault();
         this.focusMap();
         button.setPointerCapture(event.pointerId);
