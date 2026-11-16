@@ -253,7 +253,42 @@ try {
     clean(errors, network);
     pass('bar: the leaving row shows nothing, before and after the greeting time');
   } finally { await timedContext.close(); }
-  console.log(`SUMMARY ${passed}/24 PASS`);
+
+  const counterContext = await browser.newContext({ viewport: { width: 1280, height: 800 }, acceptDownloads: false, serviceWorkers: 'block' });
+  try {
+    const network = await restrictNetwork(counterContext), page = await counterContext.newPage(), errors = observe(page);
+    await page.goto(shopUrl()); await ready(page); await seed(page);
+    await page.evaluate(async () => {
+      const { feetAtTile } = await import('/src/core/coords.ts');
+      window.__slg.game.player = { areaId: 'shop-konbini-interior', ...feetAtTile(9, 5), facing: 'up' };
+    });
+    await page.keyboard.press('KeyZ');
+    assert.equal(await page.locator('#shop-panel').isVisible(), false, 'Off-center counter tile does not open shop');
+    await page.evaluate(async () => {
+      const { feetAtTile } = await import('/src/core/coords.ts');
+      window.__slg.game.player = { areaId: 'shop-konbini-interior', ...feetAtTile(10, 6), facing: 'down' };
+    });
+    await page.keyboard.down('ArrowUp');
+    try {
+      await page.waitForFunction(() => window.__slg.game.facingInteraction()?.id === 'konbini-clerk', undefined, { polling: 'raf', timeout: 5000 });
+    } finally { await page.keyboard.up('ArrowUp'); }
+    await afterPointer(page);
+    await page.waitForFunction(() => document.querySelector('#hint').textContent.includes('てんいんさん'));
+    const counterPos = await position(page);
+    assert.equal(counterPos.facing, 'up');
+    await openClerk(page);
+    await assertFits(page);
+    const beforeBuy = await assets(page);
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('#shop-panel').dataset.phase === 'receipt');
+    assert.equal((await assets(page)).moneyYen, beforeBuy.moneyYen - 120);
+    await closeShop(page);
+    assert.deepEqual(await position(page), counterPos);
+    clean(errors, network);
+    pass('front of counter: walking up to (10,5) facing up opens shop across counter, fits, buys and restores position');
+  } finally { await counterContext.close(); }
+  console.log(`SUMMARY ${passed}/25 PASS`);
 } catch (error) {
-  console.error('FAIL', error); console.error(`SUMMARY ${passed}/24 PASS; FAILED`); process.exitCode = 1;
+  console.error('FAIL', error); console.error(`SUMMARY ${passed}/25 PASS; FAILED`); process.exitCode = 1;
 } finally { await browser.close(); }
