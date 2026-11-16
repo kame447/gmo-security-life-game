@@ -1,5 +1,6 @@
 import type { AreaDef, ObjectDef, PortalDef } from '../core/types';
-import { LANDMARKS } from './landmarks';
+import { LANDMARKS, STATION_ACCESS } from './landmarks';
+import { STATION_FLOW_LAYOUT, STATION_FLOW_PLATFORMS } from './station-flow';
 import { T } from './tiles';
 
 /** 屋外から入ったときの屋内の到着位置。出口マットのすぐ北。 */
@@ -7,6 +8,7 @@ export const INTERIOR_ENTRIES = {
   home: { areaId: 'home-family-interior', x: 7, y: 10, facing: 'up' },
   classroom: { areaId: 'school-classroom-interior', x: 8, y: 10, facing: 'up' },
   konbini: { areaId: 'shop-konbini-interior', x: 6, y: 8, facing: 'up' },
+  station: { ...STATION_ACCESS.entry },
 } as const satisfies Record<string, PortalDef['to']>;
 
 /** 屋内から出たときは、入った入口の前へ下向きで戻る。 */
@@ -88,6 +90,37 @@ export function createKonbini(): AreaDef {
     { id: 'konbini-clerk', kind: 'npc', name: 'てんいんさん', x: 10, y: 3, sprite: 'clerk', facing: 'down', solid: true, eventKey: 'shopping.konbini.clerk', lines: ['いらっしゃいませ。おやつも のみものも あるよ。ゆっくり みてね。'] },
     { id: 'konbini-snacks', kind: 'object', name: 'おかしのたな', x: 2, y: 3, w: 2, h: 2, solid: true, eventKey: 'shopping.konbini.snacks', lines: ['あまい おかしと、しょっぱい おかし。どっちも おいしそう！'] },
     { id: 'konbini-drinks', kind: 'object', name: 'のみもののケース', x: 1, y: 1, w: 4, solid: true, eventKey: 'shopping.konbini.drinks', lines: ['おちゃに ジュース、ぎゅうにゅう。つめたく ひえているよ。'] },
+  ];
+  return a;
+}
+
+/**
+ * 島式1面2線の構内。北の線が下り、南の線が上り（定義は rail-geometry.ts）。
+ * 入口 → 改札（南）→ 構内通路が南の線を渡る → ホーム（北から edge・のりば・ホーム）。
+ * 静止した列車は置かない。列車は発車・到着の演出のときだけ描く。
+ */
+export function createStation(): AreaDef {
+  const a = room(STATION_ACCESS.areaId, 'まちのえき こうない', 36, T.PLAZA, 18);
+  const f = STATION_FLOW_LAYOUT;
+  for (let x = 0; x < a.width; x++) {
+    // 線路は1本で、部屋の左右の端まで連続する。列車は部屋の端から出入りする。
+    a.ground[f.trackY * a.width + x] = T.RAIL;
+    if (x === 0 || x === a.width - 1) continue;
+    for (let y = 1; y < f.northFenceY; y++) a.ground[y * a.width + x] = T.VOID;
+    a.ground[f.northFenceY * a.width + x] = T.RAIL_FENCE;
+    for (let y = f.platformTop; y <= f.platformBottom; y++) a.ground[y * a.width + x] = T.PLATFORM;
+    a.ground[f.gateY * a.width + x] = T.RAIL_FENCE;
+  }
+  for (const x of f.gateXs) a.ground[f.gateY * a.width + x] = T.TICKET_GATE;
+  for (const p of STATION_FLOW_PLATFORMS.slice(0, 1)) a.ground[p.sign.y * a.width + p.sign.x] = T.BOARDING_SIGN;
+  furnish(a, 'bench', 3, 6, 3, 1); furnish(a, 'bench', 27, 6, 3, 1);
+  a.portals = [{ id: STATION_ACCESS.exitPortalId, from: { x: 17, y: 17, w: 2 },
+    to: toTown(LANDMARKS.stationFront), facilityId: STATION_ACCESS.stationId }];
+  a.interactions = [
+    // 改札（2タイル）。操作の対象が solid なので、行き先を決める操作を通らずにホームへは入れない。
+    { id: 'station-ticket', kind: 'object', name: 'かいさつ', x: f.gateXs[0], y: f.gateY, w: 2, solid: true, eventKey: 'station.ticket',
+      lines: ['きっぷを とおすところだ。きょうは まちを たんけんしよう。'] },
+    ...STATION_FLOW_PLATFORMS.slice(0, 1).map(p => ({ id: p.sign.interactionId, eventKey: p.sign.eventKey, x: p.sign.x, y: p.sign.y, kind: 'sign' as const, name: 'のりば', solid: true, lines: ['ここが でんしゃの のりばだ。'] })),
   ];
   return a;
 }

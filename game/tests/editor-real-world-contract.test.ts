@@ -11,6 +11,7 @@ import {
   type EditorDocument, type EditorSessionOptions, type EditorValidationContext,
 } from '../src/editor/index.ts';
 import { assembleEditorWorld } from '../src/editor/runtime.ts';
+import { worldRailLinks } from '../src/world-editor/trusted-context.ts';
 
 /** The old reference scene is enriched with source metadata before treating it as a snapshot. */
 function snapshot(world: World): EditorDocument {
@@ -28,7 +29,7 @@ function snapshot(world: World): EditorDocument {
   return { schemaVersion: 1, id: world.variant.id, tileSize: 16, start: { ...world.start }, variant: structuredClone(world.variant),
     catalogs: { sprites: unique(scene.interactions.map(i => i.sprite)), eventKeys: unique(scene.interactions.map(i => i.eventKey)) }, ...scene };
 }
-const setup = () => { const world = buildWorld(), document = snapshot(world); return { world, document, context: { baselineWorld: world } satisfies EditorValidationContext }; };
+const setup = () => { const world = buildWorld(), document = snapshot(world); return { world, document, context: { baselineWorld: world, railLinks: worldRailLinks(world) } satisfies EditorValidationContext }; };
 const codes = (document: EditorDocument, context: EditorValidationContext) => validateDocument(document, context).map(i => i.code);
 const clone = <T>(value: T): T => structuredClone(value);
 const home = (document: EditorDocument) => document.objects.find(o => o.id === 'town-house-32-27')!;
@@ -39,7 +40,7 @@ describe('trusted real-world editor contract', () => {
   it('keeps the trusted context through a real home edit, undo, redo, export and preview', () => {
     const { document, context } = setup();
     const strictIssues = validateDocument(document);
-    expect(strictIssues).toHaveLength(4);
+    expect(strictIssues).toHaveLength(95);
     expect(strictIssues.every(issue => issue.code === 'overlap')).toBe(true);
     expect(() => new EditorSession(document)).toThrow(EditorValidationError);
     expect(() => new EditorSession(document, { context, historyLimit: 0 })).toThrow(RangeError);
@@ -119,9 +120,10 @@ describe('trusted real-world editor contract', () => {
     expect(validateDocument(document).length).toBeGreaterThan(0);
     expect(validateDocument(document, context)).toEqual([]);
     const loaded = loadDocument(serializeDocument(document, context), context);
-    // F5 reuses apartment style '0' for the background building.
-    expect(loaded.objects.filter(o => /^\d+$/.test(o.style ?? '')).length).toBe(62);
-    expect(loaded.facilities.filter(f => f.kind).length).toBe(12);
+    // F5 reuses apartment style '0' for the background building; town-neighbor adds 2 numbered houses.
+    expect(loaded.objects.filter(o => /^\d+$/.test(o.style ?? '')).length).toBe(64);
+    // 12 town-main facilities + station-neighbor from PR #59.
+    expect(loaded.facilities.filter(f => f.kind).length).toBe(13);
     const rebuilt = assembleEditorWorld(loaded);
     expect(rebuilt.variant).toEqual(world.variant);
     for (const [id, area] of world.areas) {

@@ -6,6 +6,7 @@ import { STORE_CONTACTS, storeForClerk, type StoreContact } from '../src/data/st
 import { canStand, HITBOX, RUN_SPEED } from '../src/map/explorer';
 import { Game } from '../src/session/game';
 import { validateStoreContacts, type StoreProblemCode } from '../src/stores/validate';
+import { TRAIN_NETWORK } from '../src/travel/network';
 import { buildWorld, findPath, validateWorld, type World } from '../src/world';
 import { toRuntime } from '../src/world/runtime';
 import { SHOP_INTERIORS } from '../src/world/shops';
@@ -138,7 +139,7 @@ function approach(game: Game, target: TileRect): { x: number; y: number; facing:
 describe('six store modules: movement, displays, greetings and save/resume', () => {
   it('connects every named store and keeps the background residence outside the contract', () => {
     const world = buildStoreFixtureWorld();
-    expect(validateWorld(world)).toEqual([]);
+    expect(validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
     expect(validateStoreContacts(world, STORE_CONTACTS)).toEqual([]);
     expect(STORE_CONTACTS).toHaveLength(7);
     expect(world.areas.get('town-main')!.objects.find(item => item.id === 'town-shop-60-59'))

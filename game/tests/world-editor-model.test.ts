@@ -1,4 +1,5 @@
 import { describe,expect,it } from 'vitest';
+import { TRAIN_NETWORK } from '../src/travel/network';
 import { buildWorld, validateWorld } from '../src/world';
 import { WorldEditorModel, HOME_AREA } from '../src/world-editor/model';
 import { prepareSave } from '../src/world-editor/persistence';
@@ -26,7 +27,7 @@ describe('WYSIWYGの操作と保存の契約',()=>{
     model.commit(model.candidate({...linked,catalogId:'sofa-2seat',facing:'down',solid:true,layer:'sorted'}));
     model.rotate(id);
     expect(model.document.interactions.find(i=>i.id==='home-study-desk')).toMatchObject({x:4,y:2,w:1,h:2});
-    expect(validateWorld(model.runtime())).toEqual([]);
+    expect(validateWorld(model.runtime(),{railLinks:TRAIN_NETWORK.railLinks()})).toEqual([]);
   });
   it('削除・Undo・未確定の取消後も発行済みIDを使い回さない',()=>{
     const model=new WorldEditorModel(buildWorld()),first=model.create('chair-wood');

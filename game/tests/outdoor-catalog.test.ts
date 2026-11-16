@@ -27,14 +27,14 @@ describe('outdoor catalog (DOM independent)', () => {
   it('covers every actual town object or explicitly identifies its immovable kind', () => {
     const town = buildWorld().areas.get('town-main')!;
     const before = structuredClone(town.objects);
-    expect(town.objects).toHaveLength(270);
+    expect(town.objects).toHaveLength(273);
     let cataloged = 0, fixed = 0;
     for (const object of town.objects) {
       const entry = outdoorForObject(object), restriction = outdoorReadOnlyReason(object.kind);
       expect(Boolean(entry) !== Boolean(restriction), object.id).toBe(true);
       if (entry) cataloged++; else fixed++;
     }
-    expect(cataloged).toBe(267); expect(fixed).toBe(3);
+    expect(cataloged).toBe(271); expect(fixed).toBe(2);
     expect(town.objects).toEqual(before);
   });
 

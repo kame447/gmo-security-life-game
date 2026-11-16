@@ -5,6 +5,7 @@ import {areaNpcs,EDITABLE_PEOPLE,npcBadges,npcEvents} from '../src/world-editor/
 import {prepareSave} from '../src/world-editor/persistence';
 import {areaEditPolicy,isEditableArea} from '../src/world-editor/world-policy';
 import {buildWorld,validateWorld} from '../src/world';
+import {TRAIN_NETWORK} from '../src/travel/network';
 import {areaLayout} from '../src/world/layouts/index';
 import type {EditorInteraction} from '../src/editor/types';
 import {Game} from '../src/session/game';
@@ -21,7 +22,7 @@ describe('実ワールドの既存NPCの編集',()=>{
     model.updateNpc(id,{name:'検証用の表示名',lines:['編集したふだんの会話です。','2行目も保ちます。']},HOME_AREA);
     expect(model.npc(id,undefined,HOME_AREA)).toMatchObject({id,eventKey:'home.mother',kind:'npc',solid:true,x:13,y:6,facing:'up',name:'検証用の表示名'});
     expect(model.npc(id,undefined,HOME_AREA)!.lines).toEqual(['編集したふだんの会話です。','2行目も保ちます。']);
-    expect(validateWorld(model.runtime())).toEqual([]);
+    expect(validateWorld(model.runtime(),{railLinks:TRAIN_NETWORK.railLinks()})).toEqual([]);
     model.session.undo();expect(model.npc(id,undefined,HOME_AREA)!.lines).toEqual(source.lines);model.session.redo();expect(model.npc(id,undefined,HOME_AREA)!.name).toBe('検証用の表示名');
   });
   it('元NPCの削除/キー変更/自己キーへの付替え/種類/足元/衝突変更を独立した方針でも拒否する',()=>{
@@ -47,7 +48,7 @@ describe('実ワールドの既存NPCの編集',()=>{
     const model=new WorldEditorModel(buildWorld()),before=model.document;model.updateNpc(id,{x:4,y:7},HOME_AREA);
     expect(model.npc(id,undefined,HOME_AREA)).toMatchObject({x:4,y:7});expect(model.document.objects).toEqual(before.objects);
     expect(model.document.interactions.filter(i=>i.id!==id)).toEqual(before.interactions.filter(i=>i.id!==id));
-    expect(model.document.portals).toEqual(before.portals);expect(validateWorld(model.runtime())).toEqual([]);
+    expect(model.document.portals).toEqual(before.portals);expect(validateWorld(model.runtime(),{railLinks:TRAIN_NETWORK.railLinks()})).toEqual([]);
   });
   it('試し歩きは編集した通常会話、実イベントの条件前/1回目/後は既存の分岐どおり',()=>{
     const model=new WorldEditorModel(buildWorld());model.updateNpc(id,{y:6,name:'検証用の表示名',lines:['編集したふだんの会話です。']},HOME_AREA);
@@ -90,28 +91,34 @@ function editableNpcAreaIds() {
 }
 
 describe('実ワールド全エリアの既存NPC回帰（N1）', () => {
-  it('実ワールドから全NPCを数え、有人エリアがすべて isEditableArea で編集できる', () => {
+  it('実ワールドから全NPCを数え、編集対象と読み取り専用屋外の境界を保つ（N1）', () => {
     const world = buildWorld(), initial = new WorldEditorModel(world).initial;
     const readonlyPopulated = initial.areas.filter(area =>
       !isEditableArea(initial, area.id) && initial.interactions.some(item => item.areaId === area.id && item.kind === 'npc'));
-    expect(readonlyPopulated).toEqual([]);
-    let totalNpcs = 0;
+    expect(readonlyPopulated.map(area => area.id)).toEqual(['town-neighbor']);
+    let totalNpcs = 0, editableNpcs = 0;
     for (const area of initial.areas) {
       const people = initial.interactions.filter(item => item.areaId === area.id && item.kind === 'npc');
       totalNpcs += people.length;
-      expect(isEditableArea(initial, area.id), area.id).toBe(true);
-      if (area.kind === 'indoor') expect(areaEditPolicy(initial, area.id), area.id).toBe(assertInteriorEdit);
+      if (isEditableArea(initial, area.id)) {
+        editableNpcs += people.length;
+        if (area.kind === 'indoor') expect(areaEditPolicy(initial, area.id), area.id).toBe(assertInteriorEdit);
+      } else {
+        expect(area.id).toBe('town-neighbor');
+        expect(area.kind).toBe('outdoor');
+      }
     }
     expect(totalNpcs).toBeGreaterThanOrEqual(10);
-    expect(initial.areas).toHaveLength(10);
-    expect(totalNpcs).toBe(16);
-    expect(editableNpcAreaIds()).toEqual(initial.areas.map(area => area.id));
+    expect(initial.areas).toHaveLength(13);
+    expect(editableNpcs).toBe(16);
+    expect(totalNpcs).toBe(17);
+    expect(editableNpcAreaIds()).toEqual(initial.areas.filter(area => isEditableArea(initial, area.id)).map(area => area.id));
   });
 
   it.each(editableNpcAreaIds())('%s の全実NPCで5種類の編集・Undo/Redo・保護・不正入力拒否・保存キー不変が通る', areaId => {
     const world = buildWorld(), initial = new WorldEditorModel(world).initial;
     const editableAreas = initial.areas.filter(area => isEditableArea(initial, area.id));
-    expect(editableAreas.length).toBe(initial.areas.length);
+    expect(editableAreas.length).toBe(initial.areas.length - 1);
     const area = editableAreas.find(area => area.id === areaId)!;
     expect(area).toBeDefined();
     const people = initial.interactions.filter(item => item.areaId === area.id && item.kind === 'npc');
@@ -140,7 +147,7 @@ describe('実ワールド全エリアの既存NPC回帰（N1）', () => {
       expect(edited.w).toBe(original.w);
       expect(edited.h).toBe(original.h);
       expect(edited.facing).not.toBe(original.facing ?? 'down');
-      expect(validateWorld(model.runtime(model.document, [area.id]))).toEqual([]);
+      expect(validateWorld(model.runtime(model.document, [area.id]), { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
 
       model.session.undo();
       expect(model.npc(original.id, undefined, area.id)!.name).toBe(original.name);

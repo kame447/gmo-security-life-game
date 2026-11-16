@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { STORE_CONTACTS } from '../src/data/stores';
+import { TRAIN_NETWORK } from '../src/travel/network';
 import { buildWorld } from '../src/world';
 import { INTERIOR_ENTRIES } from '../src/world/interiors';
 import { isSolidTile, neighbors, type AreaRuntime, type Point } from '../src/world/runtime';
@@ -90,7 +91,7 @@ function analyzeCustomerCirculation(area: AreaRuntime) {
 describe('store layout circulation and alignment', () => {
   it('validates world connectivity across all seven stores', () => {
     const world = buildWorld();
-    expect(validateWorld(world)).toEqual([]);
+    expect(validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
     for (const contact of STORE_CONTACTS) {
       expect(world.areas.has(contact.interiorAreaId)).toBe(true);
     }

@@ -73,11 +73,12 @@ if (process.argv[2] === '--fault') {
       server: { middlewareMode: true, watch: null, hmr: false } });
     try {
       const world = await server.ssrLoadModule('/src/world/index.ts');
+      const travel = await server.ssrLoadModule('/src/travel/network.ts');
       const model = await server.ssrLoadModule('/src/world-editor/model.ts');
       const persistence = await server.ssrLoadModule('/src/world-editor/persistence.ts');
       const changes = await server.ssrLoadModule('/src/editor/changes.ts');
       const policy = await server.ssrLoadModule('/src/world-editor/world-policy.ts');
-      return await action({ ...world, ...model, ...persistence, ...changes, ...policy });
+      return await action({ ...world, ...travel, ...model, ...persistence, ...changes, ...policy });
     } finally { await server.close(); }
   }
   before(async () => {
@@ -114,8 +115,8 @@ if (process.argv[2] === '--fault') {
         assert.equal(result.saved, true); assert.equal(result.targets.length, count);
         assert.equal((await stat(path.join(areas(root), `${HOME}.json`))).mode & 0o777, 0o640);
         for (const file of plan.prepared.files) assert.equal(await readFile(path.join(root, file.relativePath), 'utf8'), file.text);
-        await modules(root, ({ buildWorld, WorldEditorModel, validateWorld }) => {
-          const world = buildWorld(); assert.deepEqual(validateWorld(world), []);
+        await modules(root, ({ buildWorld, WorldEditorModel, validateWorld, TRAIN_NETWORK }) => {
+          const world = buildWorld(); assert.deepEqual(validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() }), []);
           assert.deepEqual(new WorldEditorModel(world).document, plan.expected);
         });
         assert.equal((await readdir(areas(root))).filter(n => !n.endsWith('.json')).length, 0);
@@ -127,8 +128,8 @@ if (process.argv[2] === '--fault') {
       const result = await applyLayout(root, plan.payload);
       assert.equal(result.saved, true); assert.equal(result.targets.length, 2);
       for (const file of plan.prepared.files) assert.equal(await readFile(path.join(root, file.relativePath), 'utf8'), file.text);
-      await modules(root, ({ buildWorld, WorldEditorModel, validateWorld }) => {
-        const world = buildWorld(); assert.deepEqual(validateWorld(world), []);
+      await modules(root, ({ buildWorld, WorldEditorModel, validateWorld, TRAIN_NETWORK }) => {
+        const world = buildWorld(); assert.deepEqual(validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() }), []);
         assert.deepEqual(new WorldEditorModel(world).document, plan.expected);
       });
     });
@@ -142,8 +143,8 @@ if (process.argv[2] === '--fault') {
       });
       const classroomResult = await applyLayout(classroomRoot, { changes: classroomPayload.changes });
       assert.equal(classroomResult.saved, true);
-      await modules(classroomRoot, ({ buildWorld, WorldEditorModel, validateWorld }) => {
-        const world = buildWorld(); assert.deepEqual(validateWorld(world), []);
+      await modules(classroomRoot, ({ buildWorld, WorldEditorModel, validateWorld, TRAIN_NETWORK }) => {
+        const world = buildWorld(); assert.deepEqual(validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() }), []);
         assert.deepEqual(new WorldEditorModel(world).document, classroomPayload.expected);
       });
       const root = await copy(true), beforeBytes = await jsonBytes(root);

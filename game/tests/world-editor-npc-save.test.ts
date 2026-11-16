@@ -3,7 +3,7 @@ import {buildWorld} from '../src/world';
 import {WorldEditorModel,HOME_AREA} from '../src/world-editor/model';
 import {prepareSave} from '../src/world-editor/persistence';
 import {worldDocument} from '../src/world-editor/document';
-import {trustedContext} from '../src/world-editor/trusted-context';
+import {trustedContext,worldRailLinks} from '../src/world-editor/trusted-context';
 import {withDerived} from '../src/editor/changes';
 import {parseDocument} from '../src/editor/schema';
 import {assembleEditorWorld} from '../src/editor/runtime';
@@ -16,7 +16,7 @@ function reopen(layout:AreaLayout,world:World,areaId:string){
   document.objects=[...document.objects.filter(o=>o.areaId!==areaId),...area.objects.map(o=>({...o,id:o.id!,areaId}))];
   document.interactions=[...document.interactions.filter(i=>i.areaId!==areaId),...layout.interactions.map(i=>({...i,areaId}))];
   document.portals=[...document.portals.filter(p=>p.areaId!==areaId),...area.portals.map(p=>({...p,areaId}))];
-  const context=trustedContext(world);
+  const context=trustedContext(world,worldRailLinks(world));
   return new WorldEditorModel(assembleEditorWorld(parseDocument(withDerived(document,context),context)));
 }
 describe('NPCの編集と自宅配置JSONの往復',()=>{
