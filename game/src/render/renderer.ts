@@ -18,6 +18,7 @@ export interface RenderView {
   readonly appearance: PlayerAppearance;
   readonly moving: boolean;
   readonly walkTime: number;
+  readonly riding?: boolean;
   /** While a dialog is open, interaction markers are hidden. */
   readonly dialog: object | null;
 }
@@ -243,7 +244,7 @@ export class Renderer {
     this.sorted.sort((a, b) => a.depth - b.depth || a.x - b.x);
     if (profiling) { const now = performance.now(); timing.sortMs = now - mark; mark = now; }
     const frame = game.moving ? (Math.floor(game.walkTime / 0.15) % 2 + 1) as 1 | 2 : 0;
-    const player = playerSprite(game.appearance, game.player.facing, frame);
+    const player = playerSprite(game.appearance, game.player.facing, frame, game.riding);
     let playerDrawn = false;
     const drawPlayer = () => {
       if (index.characterClip) { c.save(); c.clip(index.characterClip); }

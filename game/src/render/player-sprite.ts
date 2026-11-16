@@ -274,7 +274,7 @@ export const BODIES: Record<View, Record<string, Grid>> = {
   },
 };
 
-interface Palette { [token: string]: string }
+export interface Palette { [token: string]: string }
 
 const HAIR: Record<string, string> = {
   brown: '#8a4f2c', black: '#35302f', 'dark-brown': '#5c3a25', gold: '#d2a24c', auburn: '#a5472e',
@@ -309,7 +309,7 @@ export function palette(a: PlayerAppearance): Palette {
   };
 }
 
-function viewOf(facing: Facing): View {
+export function viewOf(facing: Facing): View {
   return facing === 'up' ? 'back' : facing === 'down' ? 'front' : 'side';
 }
 
@@ -318,7 +318,7 @@ export function slim(grid: Grid): Grid {
   return grid.map(row => `.${row.slice(0, 8)}${row.slice(10)}.`);
 }
 
-function paint(c: C2D, grid: Grid, colors: Palette, x0: number, y0: number): void {
+export function paint(c: C2D, grid: Grid, colors: Palette, x0: number, y0: number): void {
   grid.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) {
       const color = colors[row[x]];
