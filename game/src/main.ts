@@ -1,12 +1,14 @@
 /** 起動：各部品を組み立てて接続するだけ。個別の処理は app/・ui/・input/ 以下に置く。 */
 import { exposeDebug, FrameRecorder } from './app/debug';
 import { startLoop } from './app/loop';
+import { bagReviewOptions } from './app/bag-review';
 import { clerkEvents } from './app/clerk-events';
 import { prepareShopReview } from './app/shop-review';
 import type { MapEventSink } from './core/types';
 import { loadSave, writeSave } from './app/save-store';
 import { LifeEventDirector } from './events/director';
 import { CHILDHOOD_SAMPLE_EVENTS } from './events/samples/childhood';
+import { applyBagReviewFixture } from './data/bag-review-fixture';
 import { Controls } from './input/controls';
 import { Minimap } from './minimap/view';
 import { Renderer } from './render/renderer';
@@ -14,6 +16,7 @@ import { PHONE_INITIAL_OWNED } from './phone/config';
 import { PHONE_BUDGET_PROTOTYPE } from './phone/budget-config';
 import { Game } from './session/game';
 import { AvatarPanel } from './ui/avatar-panel';
+import { HotbarPanel } from './ui/bag-hotbar/panel';
 import { UiController } from './ui/controller';
 import { $ } from './ui/dom';
 import { Hud } from './ui/hud';
@@ -25,13 +28,14 @@ import { buildWorld } from './world';
 const world = buildWorld();
 // 人生イベントは試作段階。まだ永続保存には対応していない。
 const lifeEvents = new LifeEventDirector(CHILDHOOD_SAMPLE_EVENTS);
-const reviewOnly = new URLSearchParams(window.location.search).get('review') === '1';
-const shopReview = reviewOnly && new URLSearchParams(window.location.search).get('shopReview') === '1';
+const review = bagReviewOptions(window.location.search);
+const shopReview = review.temporary && new URLSearchParams(window.location.search).get('shopReview') === '1';
 let shopEvents: MapEventSink | undefined;
 const phoneOptions = { initialPhoneOwned: PHONE_INITIAL_OWNED, phoneDataConfig: PHONE_BUDGET_PROTOTYPE };
-const game = new Game(world, { ...phoneOptions, save: reviewOnly ? undefined : loadSave(world, phoneOptions), sink: {
+const game = new Game(world, { ...phoneOptions, save: review.temporary ? undefined : loadSave(world, phoneOptions), sink: {
   onMapEvent: event => lifeEvents.onMapEvent(event) ?? shopEvents?.onMapEvent(event),
 } });
+if (review.temporary) applyBagReviewFixture(game.assets);
 if (shopReview) prepareShopReview(game);
 game.phone.setVisible(!document.hidden);
 const canvas = $<HTMLCanvasElement>('#view');
@@ -40,7 +44,7 @@ const controls = new Controls();
 const frames = new FrameRecorder();
 
 function save() {
-  if (reviewOnly) return;
+  if (review.temporary) return;
   const data = game.serialize();
   // A draft is visible immediately, but autosave must preserve the last confirmed appearance.
   const confirmed = avatar.confirmedAppearance;
@@ -58,6 +62,9 @@ const minimap: Minimap = new Minimap(game, (): boolean => ui.mode === 'explore',
   () => { controls.clear(); ui.update(); ui.focusMap(); });
 const ui: UiController = new UiController(game, controls, canvas, minimap);
 ui.registerPanel({ id: 'avatar', panel: avatar, open: () => avatar.open(), button: $<HTMLButtonElement>('#btn-avatar') });
+const closeBag = () => { controls.clear(); ui.update(); ui.focusMap(); };
+const bag = new HotbarPanel(game, closeBag, () => { controls.clear(); ui.focusMap(); }, save);
+ui.registerPanel({ id: 'inventory', panel: bag, open: () => bag.open(), button: bag.button, shortcut: 'KeyI' });
 const phone = new Smartphone(game.phone, $<HTMLElement>('#stage'), () => { controls.clear(); ui.focusMap(); },
   () => ({ remainingMb: game.phone.remainingDataMb, capacityMb: game.phone.dataCapacityMb }));
 ui.registerPanel({ id: 'phone', panel: phone, open: () => phone.open(), button: phone.button,
@@ -70,6 +77,7 @@ shopEvents = clerkEvents(game, ui, context => shop.open(context));
 const hud = new Hud(game, () => ui.primaryAction());
 const lifeEventPanel = new LifeEventPanel(game, lifeEvents, () => controls.clear());
 ui.bind({ onReset: () => { game.reset(); save(); } });
+window.addEventListener('keydown', event => bag.handleHudKey(event, ui.mode === 'explore'));
 exposeDebug(game, renderer, frames);
 if (shopReview) game.action();
 
@@ -78,7 +86,7 @@ game.on(event => {
   if (event.type === 'area-enter') save();
 });
 window.addEventListener('pagehide', () => { controls.clear(); save(); });
-setInterval(save, 3000);
+if (!review.temporary) setInterval(save, 3000);
 
 let dpr = 0;
 function resize() {
@@ -102,6 +110,7 @@ const loop = startLoop({
     lifeEventPanel.update();
     hud.update(now);
     ui.update();
+    bag.update(ui.mode === 'explore');
     minimap.update();
   },
 });

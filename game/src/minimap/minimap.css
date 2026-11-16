@@ -20,3 +20,11 @@
   #stage #hud { max-width: calc(100% - 44px); }
   #minimap-button { top: 80px; width: 128px; }
 }
+
+/* Review alternative A: reclaim side margins only on very narrow screens.
+   A 320px viewport gets a 312px logical canvas; text remains 13px. */
+@media (max-width: 340px) {
+  #full-map-overlay { padding: 2px; }
+  .full-map-panel { padding: 0; border-width: 2px; }
+  .full-map-panel header { box-sizing: border-box; padding: 4px 6px 0; }
+}

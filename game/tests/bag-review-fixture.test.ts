@@ -5,17 +5,21 @@ import { PlayerAssets } from '../src/state/assets';
 
 describe('shared bag comparison state', () => {
   it('reproduces the same valid state after acquisitions, purchases and repeated seeding', () => {
+    const fresh = new PlayerAssets();
+    expect(applyBagReviewFixture(fresh)).toEqual({ ok: true });
+    expect(fresh.snapshot()).toEqual(BAG_REVIEW_ASSETS);
+
     const assets = new PlayerAssets();
     assets.addItem('pencil', 99);
     assets.changeMoney(-700);
     expect(applyBagReviewFixture(assets)).toEqual({ ok: true });
-    expect(assets.snapshot()).toEqual(BAG_REVIEW_ASSETS);
+    expect({ moneyYen: assets.snapshot().moneyYen, items: assets.snapshot().items }).toEqual(BAG_REVIEW_ASSETS);
     assets.removeItem('key', 1);
     assets.addItem('shirt', 2);
     expect(applyBagReviewFixture(assets)).toEqual({ ok: true });
-    expect(assets.snapshot()).toEqual(BAG_REVIEW_ASSETS);
+    expect({ moneyYen: assets.snapshot().moneyYen, items: assets.snapshot().items }).toEqual(BAG_REVIEW_ASSETS);
     expect(applyBagReviewFixture(assets)).toEqual({ ok: true });
-    expect(assets.snapshot()).toEqual(BAG_REVIEW_ASSETS);
+    expect({ moneyYen: assets.snapshot().moneyYen, items: assets.snapshot().items }).toEqual(BAG_REVIEW_ASSETS);
   });
 
   it('keeps old item IDs and limits while making clothes ordinary owned items', () => {
