@@ -5,6 +5,7 @@
 import { DIR, TILE, feetAtTile, pxToTile, type Facing } from '../core/coords';
 import type { InteractionDef, MapEvent, SpawnPoint } from '../core/types';
 import type { AreaRuntime, World } from '../world';
+import { T, isSolidGround } from '../world/tiles';
 
 export interface InputState { dir: Facing | null; run: boolean }
 export interface PlayerPosition { areaId: string; x: number; y: number; facing: Facing }
@@ -41,6 +42,27 @@ export function positionAt(spawn: SpawnPoint): PlayerPosition {
 
 /** The tile under the player's feet, used for portals and facing checks. */
 const feetTile = (p: PlayerPosition) => ({ tx: pxToTile(p.x), ty: pxToTile(p.y - 4) });
+
+const inArea = (area: AreaRuntime, tx: number, ty: number): boolean =>
+  tx >= 0 && ty >= 0 && tx < area.width && ty < area.height;
+
+const coversTile = (rect: { x: number; y: number; w: number; h: number }, tx: number, ty: number): boolean =>
+  tx >= rect.x && ty >= rect.y && tx < rect.x + rect.w && ty < rect.y + rect.h;
+
+/** Whether (tx, ty) is solely a solid shop counter (not a wall, portal, or other solid obstacle). */
+function isShopCounterTile(area: AreaRuntime, tx: number, ty: number): boolean {
+  const index = ty * area.width + tx;
+  if (!area.solid[index] || area.portalAt.has(index)) return false;
+  // Hand-built AreaRuntime test fixtures may leave ground zeroed as T.VOID.
+  if (area.ground[index] !== T.VOID && isSolidGround(area.ground[index])) return false;
+  let hasCounter = false;
+  for (const object of area.objects) {
+    if (!object.solid || !coversTile(object, tx, ty)) continue;
+    if (object.kind !== 'counter') return false;
+    hasCounter = true;
+  }
+  return hasCounter;
+}
 
 export class MapExplorer {
   player: PlayerPosition;
@@ -133,8 +155,14 @@ export class MapExplorer {
     const { dx, dy } = DIR[this.player.facing];
     const { tx: fx, ty: fy } = feetTile(this.player);
     const tx = fx + dx, ty = fy + dy;
-    if (tx < 0 || ty < 0 || tx >= this.area.width || ty >= this.area.height) return undefined;
-    return this.area.interactionAt.get(ty * this.area.width + tx);
+    if (!inArea(this.area, tx, ty)) return undefined;
+    const direct = this.area.interactionAt.get(ty * this.area.width + tx);
+    if (direct) return direct;
+    if (!isShopCounterTile(this.area, tx, ty)) return undefined;
+    const tx2 = tx + dx, ty2 = ty + dy;
+    if (!inArea(this.area, tx2, ty2)) return undefined;
+    const across = this.area.interactionAt.get(ty2 * this.area.width + tx2);
+    return across?.kind === 'npc' ? across : undefined;
   }
 
   reset(start: PlayerPosition): void {

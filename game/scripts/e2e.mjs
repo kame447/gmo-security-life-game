@@ -83,7 +83,7 @@ async function talk() {
     const from = { x: Math.floor(game.player.x / 16), y: Math.floor((game.player.y - 4) / 16) };
     for (const item of game.area.interactions) for (const [dx, dy, key] of [[0, 1, 'ArrowUp'], [0, -1, 'ArrowDown'], [1, 0, 'ArrowLeft'], [-1, 0, 'ArrowRight']]) {
       const tile = { x: item.x + dx, y: item.y + dy };
-      if (findPath(game.area, from, tile)) return { ...tile, key, id: item.id };
+      if (findPath(game.area, from, tile)) return { ...tile, key, id: item.id, eventKey: item.eventKey };
     }
   });
   assert.ok(interaction);
@@ -93,6 +93,20 @@ async function talk() {
     return window.__slg.game.player.facing === faces[key];
   }, interaction.key);
   await page.keyboard.press('KeyZ');
+  if (interaction.eventKey === 'shopping.konbini.clerk') {
+    await page.locator('#shop-panel[data-phase="catalog"]').waitFor({ state: 'visible' });
+    // The bar greets with the clerk's first sentence only.
+    assert.equal(await page.locator('#shop-conversation .shop-speaker').innerText(), await page.evaluate(() => `${window.__slg.game.facingInteraction().name}：`));
+    assert.equal(await page.locator('#shop-line').innerText(), await page.evaluate(() => window.__slg.game.facingInteraction().lines[0].match(/^[^。！？]*[。！？]?/)[0]));
+    const duringShop = await state();
+    await hold('ArrowDown', 180);
+    assert.deepEqual(await state(), duringShop, 'Clerk conversation blocks movement');
+    await page.keyboard.press('Escape');
+    await page.locator('#shop-panel').waitFor({ state: 'hidden' });
+    assert.equal(await page.locator('#view').evaluate(e => document.activeElement === e), true);
+    console.log('PASS indoor clerk greeting, movement lock and in-room return', JSON.stringify({ interaction, duringShop }));
+    return;
+  }
   await page.locator('#dialog').waitFor({ state: 'visible' });
   assert.ok(await page.evaluate(() => window.__slg.game.dialog));
   assert.equal(await page.locator('#btn-avatar').isDisabled(), true);

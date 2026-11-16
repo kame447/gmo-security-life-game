@@ -2,6 +2,9 @@
 import { exposeDebug, FrameRecorder } from './app/debug';
 import { startLoop } from './app/loop';
 import { bagReviewOptions } from './app/bag-review';
+import { clerkEvents } from './app/clerk-events';
+import { prepareShopReview } from './app/shop-review';
+import type { MapEventSink } from './core/types';
 import { loadSave, writeSave } from './app/save-store';
 import { LifeEventDirector } from './events/director';
 import { CHILDHOOD_SAMPLE_EVENTS } from './events/samples/childhood';
@@ -19,15 +22,21 @@ import { $ } from './ui/dom';
 import { Hud } from './ui/hud';
 import { LifeEventPanel } from './ui/life-event-panel';
 import { Smartphone } from './ui/smartphone';
+import { ShopPanel } from './ui/shop-panel';
 import { buildWorld } from './world';
 
 const world = buildWorld();
 // 人生イベントは試作段階。まだ永続保存には対応していない。
 const lifeEvents = new LifeEventDirector(CHILDHOOD_SAMPLE_EVENTS);
 const review = bagReviewOptions(window.location.search);
+const shopReview = review.temporary && new URLSearchParams(window.location.search).get('shopReview') === '1';
+let shopEvents: MapEventSink | undefined;
 const phoneOptions = { initialPhoneOwned: PHONE_INITIAL_OWNED, phoneDataConfig: PHONE_BUDGET_PROTOTYPE };
-const game = new Game(world, { ...phoneOptions, save: review.temporary ? undefined : loadSave(world, phoneOptions), sink: lifeEvents });
+const game = new Game(world, { ...phoneOptions, save: review.temporary ? undefined : loadSave(world, phoneOptions), sink: {
+  onMapEvent: event => lifeEvents.onMapEvent(event) ?? shopEvents?.onMapEvent(event),
+} });
 if (review.temporary) applyBagReviewFixture(game.assets);
+if (shopReview) prepareShopReview(game);
 game.phone.setVisible(!document.hidden);
 const canvas = $<HTMLCanvasElement>('#view');
 const renderer = new Renderer(canvas);
@@ -61,11 +70,16 @@ const phone = new Smartphone(game.phone, $<HTMLElement>('#stage'), () => { contr
 ui.registerPanel({ id: 'phone', panel: phone, open: () => phone.open(), button: phone.button,
   shortcut: 'KeyP', canOpen: () => phone.isAvailable });
 game.phone.onChange(() => { save(); ui.update(); });
+const shop = new ShopPanel(game.assets, () => { controls.clear(); ui.focusMap(); }, save,
+  () => ({ stats: renderer.stats, area: game.area, playerX: game.player.x }));
+ui.registerPanel({ id: 'shop', panel: shop });
+shopEvents = clerkEvents(game, ui, context => shop.open(context));
 const hud = new Hud(game, () => ui.primaryAction());
 const lifeEventPanel = new LifeEventPanel(game, lifeEvents, () => controls.clear());
 ui.bind({ onReset: () => { game.reset(); save(); } });
 window.addEventListener('keydown', event => bag.handleHudKey(event, ui.mode === 'explore'));
 exposeDebug(game, renderer, frames);
+if (shopReview) game.action();
 
 game.on(event => {
   if (event.type === 'edge' && world.variant.edgeMessage) hud.showToast(world.variant.edgeMessage);
