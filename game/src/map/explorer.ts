@@ -13,6 +13,8 @@ export interface PlayerPosition { areaId: string; x: number; y: number; facing: 
 
 export const WALK_SPEED = 72;
 export const RUN_SPEED = 128;
+export const BIKE_SPEED = 176;
+export const BIKE_DASH_SPEED = 240;
 export const HITBOX = { halfW: 5, h: 8 };
 
 function outside(area: AreaRuntime, x: number, y: number): boolean {
@@ -46,6 +48,8 @@ export class MapExplorer {
   player: PlayerPosition;
   moving = false;
   walkTime = 0;
+  /** On the bicycle. Outdoors only; not saved. */
+  riding = false;
   private edgeContact: string | null = null;
   private escape: { crossingId: string; points: { x: number; y: number }[] } | null = null;
   private retreatedThisFrame = false;
@@ -127,13 +131,20 @@ export class MapExplorer {
     return candidates[0]?.points ?? null;
   }
 
+  /** Get on or off the bicycle. Getting on is allowed only outdoors; returns whether the state changed. */
+  toggleBicycle(): boolean {
+    if (!this.riding && this.area.def.kind !== 'outdoor') return false;
+    this.riding = !this.riding;
+    return true;
+  }
+
   update(dt: number, input: InputState): void {
     if (this.escape || this.retreatedThisFrame) { this.moving = this.escape !== null; return; }
     this.moving = false;
     if (!Number.isFinite(dt) || dt <= 0) return;
     if (!input.dir) { this.edgeContact = null; return; }
     this.player.facing = input.dir;
-    const speed = input.run ? RUN_SPEED : WALK_SPEED;
+    const speed = this.riding ? (input.run ? BIKE_DASH_SPEED : BIKE_SPEED) : input.run ? RUN_SPEED : WALK_SPEED;
     let remaining = dt * speed;
     while (remaining > 0) {
       const step = Math.min(1, remaining);
@@ -186,6 +197,7 @@ export class MapExplorer {
     if (!portal) return false;
     const fromAreaId = this.player.areaId;
     this.player = positionAt({ ...portal.to });
+    if (this.area.def.kind !== 'outdoor') this.riding = false;
     this.emit({ type: 'portal', portalId: portal.id, fromAreaId, toAreaId: portal.to.areaId, facilityId: portal.facilityId });
     this.emit({ type: 'area-enter', areaId: this.player.areaId });
     return true;
@@ -203,6 +215,7 @@ export class MapExplorer {
     this.player = start;
     this.moving = false;
     this.walkTime = 0;
+    this.riding = false;
     this.edgeContact = null;
     this.escape = null;
     this.retreatedThisFrame = false;

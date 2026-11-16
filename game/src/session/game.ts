@@ -51,6 +51,7 @@ export class Game {
   get area(): AreaRuntime { return this.explorer.area; }
   get moving(): boolean { return this.explorer.moving; }
   get walkTime(): number { return this.explorer.walkTime; }
+  get riding(): boolean { return this.explorer.riding; }
   get dialog(): DialogState | null { return this.dialogs.current; }
   set dialog(d: DialogState | null) { this.dialogs.current = d; }
 
@@ -69,6 +70,11 @@ export class Game {
   update(dt: number, input: InputState): void {
     if (this.dialogs.current) { this.explorer.halt(); return; }
     this.explorer.update(dt, input);
+  }
+
+  /** Get on or off the bicycle (outdoors only, not during a dialog). */
+  toggleBicycle(): boolean {
+    return !this.dialogs.current && this.explorer.toggleBicycle();
   }
 
   facingInteraction(): InteractionDef | undefined { return this.explorer.facingInteraction(); }

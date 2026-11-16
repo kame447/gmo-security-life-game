@@ -3,7 +3,7 @@
  * どの画面が前面にあるかを1か所で判定し、キー・タッチ・ボタンをその担当へ渡す。
  */
 import type { Facing } from '../core/coords';
-import { ACTION_KEYS, Controls, DIRECTION_KEYS, RUN_KEYS } from '../input/controls';
+import { ACTION_KEYS, BICYCLE_KEYS, Controls, DIRECTION_KEYS, RUN_KEYS } from '../input/controls';
 import type { InputState } from '../map/explorer';
 import type { Minimap } from '../minimap/view';
 import type { Game } from '../session/game';
@@ -41,7 +41,7 @@ export class UiController implements ModalPanelHost {
       throw new Error('A modal launch button must be a direct child of #menu');
     }
     const shortcut = registration.shortcut;
-    if (shortcut && (DIRECTION_KEYS[shortcut] || ACTION_KEYS.has(shortcut) || RUN_KEYS.has(shortcut))) {
+    if (shortcut && (DIRECTION_KEYS[shortcut] || ACTION_KEYS.has(shortcut) || RUN_KEYS.has(shortcut) || BICYCLE_KEYS.has(shortcut))) {
       throw new Error(`Shortcut conflicts with game controls: ${shortcut}`);
     }
     this.panels.register(registration);
@@ -135,6 +135,9 @@ export class UiController implements ModalPanelHost {
     } else if (ACTION_KEYS.has(event.code)) {
       event.preventDefault();
       if (!event.repeat) this.primaryAction();
+    } else if (BICYCLE_KEYS.has(event.code)) {
+      event.preventDefault();
+      if (!event.repeat) this.game.toggleBicycle();
     }
   }
 
@@ -154,13 +157,15 @@ export class UiController implements ModalPanelHost {
     });
     for (const button of this.touch.querySelectorAll<HTMLButtonElement>('button')) {
       const direction = button.dataset.dir as Facing | undefined;
-      button.setAttribute('aria-label', direction ? TOUCH_LABELS[direction] : 'しらべる・はなす');
+      const bicycle = button.dataset.bike !== undefined;
+      button.setAttribute('aria-label', direction ? TOUCH_LABELS[direction] : bicycle ? 'じてんしゃに のる・おりる' : 'しらべる・はなす');
       button.addEventListener('pointerdown', event => {
         if (this.panels.active || this.minimap?.isOpen || this.travel?.()?.isOpen) return;
         event.preventDefault();
         this.focusMap();
         button.setPointerCapture(event.pointerId);
         if (direction) this.controls.press(`pointer-${event.pointerId}`, direction);
+        else if (bicycle) this.game.toggleBicycle();
         else this.primaryAction();
       });
       const release = (event: PointerEvent) => this.controls.release(`pointer-${event.pointerId}`);
