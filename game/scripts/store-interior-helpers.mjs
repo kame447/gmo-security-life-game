@@ -55,9 +55,11 @@ export async function connections(page) {
   const result = await page.evaluate(async () => {
     const { STORE_CONTACTS } = await import('/src/data/stores.ts');
     const { validateStoreContacts } = await import('/src/stores/validate.ts');
+    const { TRAIN_NETWORK } = await import('/src/travel/network.ts');
     const { validateWorld } = await import('/src/world/index.ts');
     const world = window.__slg.game.world;
-    return { problems: validateStoreContacts(world, STORE_CONTACTS), worldProblems: validateWorld(world),
+    return { problems: validateStoreContacts(world, STORE_CONTACTS),
+      worldProblems: validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() }),
       stores: STORE_CONTACTS.map(store => {
         const outdoor = [...world.areas.values()].find(area => area.def.portals.some(portal => portal.id === store.entrancePortalId));
         return { ...store, outdoorId: outdoor?.def.id, entrance: outdoor?.def.portals.find(portal => portal.id === store.entrancePortalId),
