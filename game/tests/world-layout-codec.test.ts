@@ -8,10 +8,20 @@ import { areaFingerprint, equal, initialLayout, layoutArea, plainArea } from '..
 import { fingerprint } from '../src/world/layouts/hash';
 import { fingerprintValue } from '../src/editor-persistence/common';
 import { WorldEditorModel, HOME_AREA } from '../src/world-editor/model';
-import { canonicalJSON, parseDocument, validateDocument } from '../src/editor/schema';
+import { canonicalCopy, canonicalJSON, parseDocument, validateDocument } from '../src/editor/schema';
 import { prepareSave } from '../src/world-editor/persistence';
 
 describe('実ゲームの配置JSON',()=>{
+  it('検証後の正規化コピーがcanonical JSON往復と一致し、元の配列と共有しない',()=>{
+    const value={z:undefined,b:[-0,null,'あ',{y:2,x:1}],a:JSON.parse('{"__proto__":{"x":1}}')};
+    const copy=canonicalCopy(value);
+    expect(copy).toEqual(JSON.parse(canonicalJSON(value)));
+    expect(Object.keys(copy)).toEqual(['a','b']);
+    expect(Object.is(copy.b[0],-0)).toBe(false);
+    expect(copy.b).not.toBe(value.b);expect(copy.a).not.toBe(value.a);
+    const sparse=new Array(2);sparse[1]='値';
+    expect(canonicalCopy(sparse)).toEqual(JSON.parse(canonicalJSON(sparse)));
+  });
   it('比較はキーの順序を除いてcanonical JSONと一致し、配列の順序を保つ',()=>{
     expect(equal({y:2,x:1,optional:undefined},{x:1,y:2})).toBe(true);
     expect(equal({ground:[1,2],lines:['あ','い']},{lines:['あ','い'],ground:[1,2]})).toBe(true);

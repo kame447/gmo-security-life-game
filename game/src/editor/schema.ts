@@ -6,6 +6,8 @@ import { EDITOR_TABLES, EditorValidationError, type EditorDocument, type EditorE
 
 type Check = (value: unknown, path: string, issues: ValidationIssue[]) => void;
 type Fields = Record<string, Check>;
+// Only these pure scalar checks can avoid constructing a path for a successful array cell.
+const scalarChecks = new WeakMap<Check, (value: unknown) => boolean>();
 const issue = (issues: ValidationIssue[], path: string, code: string, message: string) => { issues.push({ path, code, message }); };
 export const fail = (path: string, code: string, message: string): never => { throw new EditorValidationError([{ path, code, message }]); };
 const pattern = (regex: RegExp, description: string): Check => (v, p, e) => {
@@ -15,14 +17,23 @@ export const idCheck = pattern(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/, 'Expected a st
 const eventKey = pattern(/^[a-z][a-z0-9]*(?:[-.][a-z0-9]+)*$/, 'Expected a lowercase event key (dot/kebab segments)');
 const text: Check = (v, p, e) => { if (typeof v !== 'string' || !v.trim()) issue(e, p, 'type', 'Expected non-empty text'); };
 const boolean: Check = (v, p, e) => { if (typeof v !== 'boolean') issue(e, p, 'type', 'Expected boolean'); };
-const integer = (min: number, max = 65536): Check => (v, p, e) => {
-  if (typeof v !== 'number' || !Number.isSafeInteger(v) || v < min || v > max) issue(e, p, 'range', `Expected integer ${min}..${max}`);
+const integer = (min: number, max = 65536): Check => {
+  const accepts = (v: unknown) => typeof v === 'number' && Number.isSafeInteger(v) && v >= min && v <= max;
+  const check: Check = (v, p, e) => { if (!accepts(v)) issue(e, p, 'range', `Expected integer ${min}..${max}`); };
+  scalarChecks.set(check, accepts); return check;
 };
-const literal = (...values: unknown[]): Check => (v, p, e) => { if (!values.includes(v)) issue(e, p, 'value', `Expected ${values.join(' | ')}`); };
+const literal = (...values: unknown[]): Check => {
+  const accepted = new Set(values), accepts = (v: unknown) => accepted.has(v);
+  const check: Check = (v, p, e) => { if (!accepts(v)) issue(e, p, 'value', `Expected ${values.join(' | ')}`); };
+  scalarChecks.set(check, accepts); return check;
+};
 const optional = (check: Check): Check => (v, p, e) => { if (v !== undefined) check(v, p, e); };
-const array = (check: Check, max = 10000): Check => (v, p, e) => {
-  if (!Array.isArray(v) || v.length > max) { issue(e, p, 'type', `Expected array of at most ${max} items`); return; }
-  for (let n = 0; n < v.length; n++) check(v[n], `${p}[${n}]`, e);
+const array = (check: Check, max = 10000): Check => {
+  const accepts = scalarChecks.get(check);
+  return (v, p, e) => {
+    if (!Array.isArray(v) || v.length > max) { issue(e, p, 'type', `Expected array of at most ${max} items`); return; }
+    for (let n = 0; n < v.length; n++) if (!accepts || !accepts(v[n])) check(v[n], `${p}[${n}]`, e);
+  };
 };
 export const shape = (fields: Fields): Check => (v, p, e) => {
   if (!v || typeof v !== 'object' || Array.isArray(v) || ![Object.prototype, null].includes(Object.getPrototypeOf(v))) {
@@ -109,8 +120,31 @@ export function canonicalJSON(value: unknown): string {
   return JSON.stringify(sort(value), null, 2) + '\n';
 }
 
+/** Internal copy after schema validation: values are finite JSON scalars and plain containers. */
+export function canonicalCopy<T>(value: T): T {
+  const copy = (v: unknown): unknown => {
+    if (Array.isArray(v)) {
+      const result = new Array(v.length);
+      for (let n = 0; n < v.length; n++) { const item = v[n]; result[n] = item === undefined ? null : copy(item); }
+      return result;
+    }
+    if (v && typeof v === 'object') {
+      const source = v as Record<string, unknown>, result: Record<string, unknown> = {};
+      for (const key of Object.keys(source).sort()) {
+        if (source[key] === undefined) continue;
+        const item = copy(source[key]);
+        if (key === '__proto__') Object.defineProperty(result, key, { value: item, enumerable: true, configurable: true, writable: true });
+        else result[key] = item;
+      }
+      return result;
+    }
+    return v === 0 ? 0 : v;
+  };
+  return copy(value) as T;
+}
+
 function normalize(document: EditorDocument): EditorDocument {
-  const copy: EditorDocument = JSON.parse(canonicalJSON(document));
+  const copy: EditorDocument = canonicalCopy(document);
   for (const table of EDITOR_TABLES) copy[table].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   copy.catalogs.sprites.sort(); copy.catalogs.eventKeys.sort();
   return copy;

@@ -1,4 +1,4 @@
-import { canonicalJSON, checkEntity, fail, idCheck, locationless, parseDocument, shape } from './schema.ts';
+import { canonicalCopy, canonicalJSON, checkEntity, fail, idCheck, locationless, parseDocument, shape } from './schema.ts';
 import { EDITOR_TABLES, EditorValidationError, type ChangeSet, type EditOperation, type EditorDocument, type EditorEntity, type EditorTable, type EditorValidationContext, type ValidationIssue } from './types.ts';
 
 const equal = (a: unknown, b: unknown) => canonicalJSON(a) === canonicalJSON(b);
@@ -88,39 +88,41 @@ export function sameFiniteNumbers(a: unknown, b: unknown): boolean {
 }
 
 
+const checkOperations = (value: unknown, path: string, issues: ValidationIssue[]) => {
+  if (!Array.isArray(value) || value.length > 10000) { issues.push({ path, code: 'schema', message: 'Expected at most 10000 operations' }); return; }
+  value.forEach((rawOp: unknown, n) => {
+    const p = `${path}[${n}]`;
+    if (!rawOp || typeof rawOp !== 'object' || Array.isArray(rawOp)) { issues.push({ path: p, code: 'schema', message: 'Expected operation' }); return; }
+    const op = rawOp as Record<string, unknown>;
+    if (!EDITOR_TABLES.includes(op.table as EditorTable) || !['add', 'delete', 'update', 'move'].includes(op.type as string)) {
+      issues.push({ path: p, code: 'schema', message: 'Unknown table or operation type' }); return;
+    }
+    const table = op.table as EditorTable;
+    const check = (v: unknown, field: string, errors: ValidationIssue[]) => checkEntity(table, v, field, errors);
+    shape({ type: () => {}, table: () => {}, id: idCheck,
+      ...(op.type === 'add' ? {} : { before: check }),
+      ...(op.type === 'delete' ? {} : { after: check }),
+    })(op, p, issues);
+  });
+};
 export function parseChangeSet(raw: unknown, context?: EditorValidationContext): ChangeSet {
   const issues: ValidationIssue[] = [];
+  let baseDocument: EditorDocument | undefined;
   const addIssue = (path: string, message: string) => { issues.push({ path, code: 'schema', message }); };
   shape({
     schemaVersion: (v, p) => { if (v !== 1) addIssue(p, 'Expected change-set schemaVersion 1'); },
     documentId: idCheck,
     baseDocument: (v, p) => {
-      try { parseDocument(v, context); } catch (error) {
+      try { baseDocument = parseDocument(v, context); } catch (error) {
         if (!(error instanceof EditorValidationError)) throw error;
         issues.push(...error.issues.map(i => ({ ...i, path: `${p}.${i.path}` })));
       }
     },
-    operations: (value, path) => {
-      if (!Array.isArray(value) || value.length > 10000) { addIssue(path, 'Expected at most 10000 operations'); return; }
-      value.forEach((rawOp: unknown, n) => {
-        const p = `${path}[${n}]`;
-        if (!rawOp || typeof rawOp !== 'object' || Array.isArray(rawOp)) { addIssue(p, 'Expected operation'); return; }
-        const op = rawOp as Record<string, unknown>;
-        if (!EDITOR_TABLES.includes(op.table as EditorTable) || !['add', 'delete', 'update', 'move'].includes(op.type as string)) {
-          addIssue(p, 'Unknown table or operation type'); return;
-        }
-        const table = op.table as EditorTable;
-        const check = (v: unknown, field: string, errors: ValidationIssue[]) => checkEntity(table, v, field, errors);
-        shape({ type: () => {}, table: () => {}, id: idCheck,
-          ...(op.type === 'add' ? {} : { before: check }),
-          ...(op.type === 'delete' ? {} : { after: check }),
-        })(op, p, issues);
-      });
-    },
+    operations: (value, path) => checkOperations(value, path, issues),
   })(raw, '$', issues);
   if (issues.length) throw new EditorValidationError(issues);
-  const copy: ChangeSet = JSON.parse(canonicalJSON(raw));
-  copy.baseDocument = parseDocument(copy.baseDocument, context);
+  const copy: ChangeSet = canonicalCopy(raw as ChangeSet);
+  copy.baseDocument = baseDocument!;
   if (copy.documentId !== copy.baseDocument.id) fail('documentId', 'conflict', 'Change set belongs to another document');
   return copy;
 }
@@ -130,7 +132,7 @@ function applyParsed(document: EditorDocument, changes: ChangeSet, context?: Edi
   if (document.id !== changes.documentId || !equal(document, changes.baseDocument)) {
     fail('baseDocument', 'conflict', 'Source data changed; reload and re-export the edit before applying');
   }
-  const draft = structuredClone(document);
+  const draft = cloneDocument(document);
   for (const [n, op] of changes.operations.entries()) {
     const path = `operations[${n}]`, list = draft[op.table] as EditorEntity[];
     const index = list.findIndex(entity => entity.id === op.id);
@@ -150,7 +152,7 @@ function applyParsed(document: EditorDocument, changes: ChangeSet, context?: Edi
     else if (op.type === 'add') list.push(structuredClone(op.after));
     else list[index] = structuredClone(op.after);
   }
-  return parseDocument(withDerived(draft, context), context);
+  return parseDocument(withDerivedView(draft, context), context);
 }
 
 export function applyChangeSet(document: unknown, changes: unknown, context?: EditorValidationContext): EditorDocument {
@@ -159,17 +161,21 @@ export function applyChangeSet(document: unknown, changes: unknown, context?: Ed
 
 /** GUI entry point; a multi-object gesture is one atomic transaction and one undo step. */
 export function createChangeSet(document: unknown, operations: readonly EditOperation[], context?: EditorValidationContext): ChangeSet {
+  return prepareChangeSet(document, operations, context).changes;
+}
+
+/** Internal transaction result: history can use the candidate already validated during creation. */
+export function prepareChangeSet(document: unknown, operations: readonly EditOperation[], context?: EditorValidationContext): { changes: ChangeSet; document: EditorDocument } {
   const baseDocument = parseDocument(document, context);
   const changes = parseChangeSet({ schemaVersion: 1, documentId: baseDocument.id, baseDocument, operations }, context);
-  applyParsed(baseDocument, changes, context);
-  return changes;
+  return { changes, document: applyParsed(baseDocument, changes, context) };
 }
 
 /** Stable ID-based output, independent of insertion order or JSON property order. */
 export function diffDocuments(before: unknown, after: unknown, context?: EditorValidationContext): ChangeSet {
   const base = parseDocument(before, context), next = parseDocument(after, context);
   const metadata = (document: EditorDocument) => {
-    const derived=withDerived(document,context),rule=context?.derived;
+    const derived=withDerivedView(document,context),rule=context?.derived;
     if(rule?.startPortalId!==undefined&&!equal(document.start,derived.start))fail('start','derived','Start must match the declared portal destination');
     if(rule?.placedNpcEventKeys&&!equal(document.catalogs.eventKeys,derived.catalogs.eventKeys))fail('catalogs.eventKeys','derived','Event keys must match the current interactions');
     const { areas: _, facilities: __, objects: ___, interactions: ____, portals: _____, start, catalogs, ...rest } = document;
@@ -193,7 +199,14 @@ export function diffDocuments(before: unknown, after: unknown, context?: EditorV
     }
     for (const [id, entity] of updated) if (!old.has(id)) operations.push({ type: 'add', table, id, after: entity } as EditOperation);
   }
-  return createChangeSet(base, operations, context);
+  // Both documents and every generated entity were validated above. Copy the generated
+  // protocol payload for independent ownership, then keep the full transaction checks.
+  const issues: ValidationIssue[] = [];
+  checkOperations(operations, '$.operations', issues);
+  if (issues.length) throw new EditorValidationError(issues);
+  const changes: ChangeSet = canonicalCopy({ schemaVersion: 1, documentId: base.id, baseDocument: base, operations });
+  applyParsed(base, changes, context);
+  return changes;
 }
 
 export function serializeChangeSet(raw: unknown, context?: EditorValidationContext): string {
