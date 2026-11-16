@@ -1,5 +1,7 @@
 # 編集データと差分適用の共通基盤
 
+既存マップの永続化方式を選ぶ前の読み取り評価は、[判断記録0009の測定結果](../decisions/0009-map-editor-persistence-options.md)を参照してください。`node scripts/map-persistence-check.mjs inventory|roundtrip|dry-run` でID・往復忠実度・事前検査を確認できます。出力先はstdoutまたは新しい一時ディレクトリで、実ゲームへの反映は未接続、3方式は未採用です。
+
 対象：[Issue #23](https://github.com/kame447/gmo-security-life-game/issues/23)。[マップGUI #24](https://github.com/kame447/gmo-security-life-game/issues/24) と [NPC GUI #25](https://github.com/kame447/gmo-security-life-game/issues/25) が共有する、GUIに依存しない編集APIです。
 
 状態：独立したサンプルデータに対するプロトタイプ。既存の `world/town.ts`・`interiors.ts` とNPC定義は移行・変更していません。通常ゲームの `buildWorld()` は従来のデータを使います。既存マップへの移行、全年代対応、各GUIの完成は後続作業です。サンプルの地形・施設・人物・会話は検証用の暫定値であり、採用するゲーム内容ではありません。
@@ -174,3 +176,35 @@ npm run editor -- apply /private/tmp/editor-changes.json
 既存の生成マップへの永続反映方式は [判断記録 0009](../decisions/0009-map-editor-persistence-options.md) に提案を記載しています。現時点の適用先は引き続きサンプルJSON一つです。実マップへの移行や全店舗の内装完成を、このツールの完成と混同しません。
 
 `scripts/e2e-map-editor.mjs` は一時コピー上で参照表示、倍率・パン、ドラッグと取消、施設・往復出入口、検証・履歴、差分出力→CLI→再読込→Gameを確認します。`SLG_EDITOR_PORT`（既定5185）、通常ゲーム確認先の `SLG_URL`、スクリーンショット出力先の `SLG_SHOTS` を指定できます。
+
+## 実描画による自宅の編集（WYSIWYG、ローカル試作）
+
+Issue #23・#24の最初の対象として、`world-editor.html` で「じぶんのいえ」を直接編集する。主表示はゲームの `Renderer`、家具の絵と不透明画素による選択はゲームのスプライトを共用する。旧サンプル画面とは別の入口で、利用者の操作確認と明示の合格を待つ。
+
+- 家具を選んでドラッグし、整数マスへ移動する。カタログから置く、回す、複製、一般家具の削除、Undo/Redoを扱う。移動中も完成時の絵を描き、置ける足元は緑、置けない足元は赤で示す。失敗した操作は確定しない。
+- 学習づくえとローテーブルは `objectId` で調べる場所と結び付ける。移動・回転は位置と足元を一緒に変更し、Undoの1段にする。結び付きは変更できず、この2家具は削除できない。人物・会話・出入口もこの段階では追加・削除・変更しない。
+- 新規IDは `<areaId>-<catalogId>-<連番>`。初期文書・現在文書・このセッションで一度でも発行したIDを除いて採番する。削除やUndoの後も発行済みIDを再利用しない。
+- カタログは自宅用16品と床・壁紙10柄。新しい絵は `catalogId` で選び、既存の家具の `kind` とIDを保持する。未移行のオブジェクトは従来どおり描く。残り18品、屋外の編集、NPC属性の編集は後続の段階とする。
+- 当たり・出入口・歩ける範囲・マス目・IDは、既定ではすべて非表示。必要なものだけ実画面に重ねる。倍率とパンは編集履歴に含めない。
+- 「歩いて確かめる」は保存前の配置を同じCanvas・Rendererと実Gameで試す。おかあさんとの会話と屋外への退出ができる。人生イベントの進行やプレイヤーのlocalStorageには接続しない。Escで編集へ戻り、カメラと未保存の配置を保持する。
+- スマホは1本指で移動、2本指で整数倍率の拡縮とパン、タッチボタンで試し歩きする。最初の段階ではPCだけが保存できる。
+
+### 配置の正本と保存
+
+`game/data/world/areas/home-family-interior.json` を自宅配置の正本にする。`buildWorld()` は生成定義へ `applyAreaLayout()` を一度適用し、配置JSONのない町・教室・コンビニは元の定義を保持する。生成元のcanonical UTF-8 JSONをSHA-256で記録し、生成関数が変わった場合はテストと編集画面で検出して保存を止める。
+
+初回移行では、元の家具13点のID・会話・出入口・地形を保持した。台所を流し台・コンロ台・ローボードへ分け、左上を含む流し台に元のIDを残し、残り2品だけ新しいIDを発行した。家の家具は計15点。既知の2組に編集用 `objectId` を加え、ゲームへ渡すときはその欄だけ落とす。
+
+保存ボタンは変更一覧と対象ファイルを示してから確定する。開発サーバーとCLIは同じ保存関数を使う。書く側がディスクから基準Worldを読み、信頼済み文脈付きの `EditorSession` と同じ検証、全Worldの到達性、編集範囲、IDと保護対象を検査する。候補やHTTP本文を信頼元にしない。競合を拒否し、固定ファイルのロック・同一ディレクトリの一時ファイル・renameで反映する。シンボリックリンク、任意の出力先、別エリアへの保存は拒否する。
+
+HTTPの保存口は `vite dev` が127.0.0.1で待ち受ける場合だけ有効。同じorigin、JSON、専用ヘッダー、最大32MiBを検査し、ビルド済み配信には保存口を含めない。差分のダウンロードを使う場合は、同じ保存要求をCLIへ渡せる。
+
+```sh
+cd game
+npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
+# /world-editor.html を開く
+npm run world-editor -- preview /path/to/home-layout-changes.json
+npm run world-editor -- apply /path/to/home-layout-changes.json
+```
+
+`scripts/e2e-world-editor.mjs` はOSの一時コピーだけを編集する。実描画の画素比較、実pointer/キー/タッチ操作、保存取消、書込要求の拒否、保存・サーバー再起動・通常ゲームでの入室までを確認する。`SLG_WORLD_EDITOR_PORT`（既定5380）と絶対パスの `SLG_SHOTS` を指定する。元のプロジェクトと既存プレビューは変更しない。

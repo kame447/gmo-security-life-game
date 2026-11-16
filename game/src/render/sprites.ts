@@ -6,6 +6,10 @@ import { makeCanvas, R, type C2D } from './draw';
 import { buildingRepresentativeColor } from './building-colors';
 import { drawPlayer, PLAYER_H, PLAYER_W } from './player-sprite';
 import { drawRider, RIDER_H, RIDER_W } from './bicycle-sprite';
+import { furnitureSprite } from './furniture/sprites';
+import { legacyFurnitureSprite } from './furniture/legacy-art';
+import { drawShopExterior, storeFurnishingSprite } from './stores';
+import { effectiveObjectFacing } from './stores/rotation';
 
 export interface Sprite { canvas: HTMLCanvasElement; ox: number; oy: number }
 const objects = new Map<string, Sprite>();
@@ -82,48 +86,7 @@ function building(c: C2D, o: ObjectDef, w: number, h: number): void {
     glass(c, 10, h - 20, 15, 12); return;
   }
   if (o.kind === 'shop') {
-    const facades: Record<string, string> = { greengrocer: '#cbd3ad', bookstore: '#bc8d75', candy: '#e4c7b4', konbini: '#e8e7d9', bakery: '#e6c892', cafe: '#bca88d', pharmacy: '#d3dfc8' };
-    box(c, 3, 5, w - 6, h - 5, facades[style] ?? wall);
-    R(c, '#a89d86', 4, h - 4, w - 8, 3);
-    if (style === 'bookstore') {
-      for (let y = 18; y < h - 54; y += 5) {
-        R(c, '#dfb69a', 5, y, w - 10, 1);
-        for (let x = 8 + (y % 2) * 4; x < w - 5; x += 11) R(c, '#dfb69a', x, y - 4, 1, 4);
-      }
-    }
-    if (style === 'bakery' || style === 'cafe') roof(c, w, 0, 17, topColor);
-    else {
-      box(c, 2, 1, w - 4, style === 'konbini' ? 9 : 15, topColor);
-      if (style !== 'konbini') box(c, style === 'pharmacy' ? 9 : w - 26, 4, 16, 8, '#e3e5da');
-    }
-    const count = style === 'bookstore' || style === 'cafe' ? 2 : style === 'konbini' ? 4 : 3;
-    const winWidth = count === 2 ? 23 : count === 4 ? 14 : 18;
-    for (let i = 0; i < count; i++) {
-      const x = Math.round(11 + i * (w - 22 - winWidth) / (count - 1));
-      glass(c, x, 22, winWidth, style === 'cafe' ? 12 : 16, style === 'cafe');
-      if (style === 'cafe') { R(c, wood, x - 3, 22, 3, 12); R(c, wood, x + winWidth, 22, 3, 12); }
-    }
-    const signs: Record<string, [string, string]> = {
-      greengrocer: ['やおや', '#4b815e'], bookstore: ['ほん', '#527593'], candy: ['だがし', '#af645e'],
-      konbini: ['コンビニ', '#488e92'], bakery: ['パン', '#ad8047'], cafe: ['カフェ', '#886951'], pharmacy: ['くすり', '#69835b'],
-    };
-    const [name, color] = signs[style] ?? ['おみせ', '#78847b'];
-    box(c, 6, h - 54, w - 12, 16, '#fcf1d3'); label(c, name, w / 2, h - 53, color);
-    if (style === 'konbini') { R(c, '#488e92', 5, h - 54, w - 10, 3); R(c, '#9ab56b', 5, h - 40, w - 10, 2); }
-    for (let x = 4; x < w - 4; x += 6) {
-      R(c, Math.floor((x - 4) / 6) % 2 ? '#f3e6c6' : color, x, h - 37, Math.min(6, w - 4 - x), 10);
-      R(c, ink, x, h - 27, Math.min(6, w - 4 - x), 1);
-    }
-    glass(c, 9, h - 24, Math.max(15, center - 23), 19); glass(c, center + 12, h - 24, Math.max(12, w - center - 22), 19);
-    door(c, center, h);
-    if (style === 'greengrocer' || style === 'bakery') {
-      for (let x = 10; x < center - 11; x += 8) { box(c, x, h - 8, 8, 6, wood); R(c, style === 'bakery' ? '#e7b765' : '#82a54b', x + 1, h - 9, 6, 3); }
-    }
-    if (style === 'bookstore') {
-      box(c, w - 24, h - 15, 14, 13, wood);
-      for (let x = w - 22; x < w - 12; x += 3) R(c, x % 2 ? '#7c9fa6' : '#e7cf9b', x, h - 13, 2, 9);
-    }
-    if (style === 'candy') for (let x = 14; x < center - 12; x += 9) { box(c, x, h - 13, 6, 10, '#d7dbbc'); R(c, '#c97b64', x + 1, h - 7, 4, 3); }
+    drawShopExterior(c, o, w, h, { topColor, wall, label, glass, door, roof });
     return;
   }
   if (o.kind === 'school') {
@@ -339,8 +302,11 @@ function prop(c: C2D, o: ObjectDef, w: number, h: number): void {
 }
 
 export function objectSprite(o: ObjectDef): Sprite {
-  const key = JSON.stringify([o.kind, o.w, o.h, o.style ?? '']);
+  const furniture = furnitureSprite(o) ?? legacyFurnitureSprite(o); if (furniture) return furniture;
+  const key = JSON.stringify([o.kind, o.w, o.h, o.style ?? '', effectiveObjectFacing(o)]);
   const cached = objects.get(key); if (cached) return cached;
+  const store = storeFurnishingSprite(o);
+  if (store) { objects.set(key, store); return store; }
   const tree = o.kind === 'tree', lamp = o.kind === 'lamp';
   const w = o.w * TILE, h = o.h * TILE;
   const [canvas, c] = makeCanvas(tree ? 34 : w, tree ? 40 : lamp ? h + 20 : h);

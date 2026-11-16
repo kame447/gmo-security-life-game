@@ -2,6 +2,7 @@ import { hash2 } from '../core/coords';
 import type { AreaDef, FacilityDef, ObjectDef } from '../core/types';
 import { INTERIOR_ENTRIES } from './interiors';
 import { LANDMARKS } from './landmarks';
+import { SHOP_ENTRANCES } from './shops';
 import { isRoad, isSolidGround, T } from './tiles';
 
 const shops = [
@@ -15,7 +16,7 @@ export const FACILITIES: FacilityDef[] = [
   { id: 'school-gym', kind: 'gym', name: 'たいいくかん', areaId: 'town-main', interior: 'background', state: 'open' },
   { id: 'station', kind: 'station', name: 'まちのえき', areaId: 'town-main', interior: 'interaction', state: 'open' },
   { id: 'park', kind: 'park', name: 'かわぞいこうえん', areaId: 'town-main', interior: 'interaction', state: 'open' },
-  ...shops.map(([id, name]) => ({ id: `shop-${id}`, kind: id, name, areaId: 'town-main', interior: id === 'konbini' ? 'full' as const : 'interaction' as const, state: 'open' as const })),
+  ...shops.map(([id, name]) => ({ id: `shop-${id}`, kind: id, name, areaId: 'town-main', interior: 'full' as const, state: 'open' as const })),
 ];
 
 /** Pure, deterministic map data. Reference PNG is a design reference, never a runtime asset. */
@@ -147,7 +148,10 @@ export function createTown(): AreaDef {
   object('vending', 50, 53, 1, 1);
   object('board', 30, 34, 2, 1);
   object('postbox', 41, 36, 1, 1);
-  object('shop', 60, 59, 6, 6, 'cafe'); object('house', 70, 59, 5, 4, '3');
+  // Background residence; keep its source ID for existing editor layouts.
+  objects.push({ id: 'town-shop-60-59', kind: 'apartment', x: 60, y: 59, w: 6, h: 6, style: '0',
+    solid: true, facilityId: undefined, layer: 'sorted' });
+  object('house', 70, 59, 5, 4, '3');
   object('apartment', 70, 64, 6, 5, '2'); rect(60, 66, 7, 3, T.PARKING);
   object('car', 61, 67, 2, 1, '2');
 
@@ -219,6 +223,7 @@ export function createTown(): AreaDef {
       { id: 'home-enter', from: { x: 35, y: 31 }, to: { ...INTERIOR_ENTRIES.home }, facilityId: 'home-family' },
       { id: 'school-enter', from: { x: 103, y: 19, w: 2 }, to: { ...INTERIOR_ENTRIES.classroom }, facilityId: 'school' },
       { id: 'konbini-enter', from: { x: 54, y: 52 }, to: { ...INTERIOR_ENTRIES.konbini }, facilityId: 'shop-konbini' },
+      ...SHOP_ENTRANCES,
     ],
     interactions: [
       { id: 'neighbor-grandma', kind: 'npc', name: 'きんじょのおばあさん', x: 40, y: 33, sprite: 'grandma', facing: 'left', solid: true, eventKey: 'neighborhood.grandma', lines: ['おかえり。きょうも がっこう、たのしかった？'] },
