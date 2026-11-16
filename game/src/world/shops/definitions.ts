@@ -55,7 +55,7 @@ export const SHOP_INTERIORS: readonly ShopInteriorDefinition[] = [
   {
     id: 'bookstore', name: 'ほんや', width: 18, height: 12, floor: T.FLOOR_WOOD, doorX: 8,
     outdoorDoor: { x: 40, y: 52 },
-    clerk: { name: 'ほんやさん', sprite: 'clerk', x: 14, y: 2, facing: 'down', line: 'いらっしゃいませ。お探しの ほんが あれば こえを かけてくださいね。' },
+    clerk: { name: 'ほんやさん', sprite: 'clerk', x: 14, y: 2, facing: 'down', line: 'いらっしゃいませ。おさがしの ほんが あれば こえを かけてね。' },
     furnishings: [
       { id: 'entry-rug', kind: 'shop-rug', style: 'bookstore', x: 7, y: 8, w: 4, h: 2, solid: false, layer: 'decal' },
       { id: 'back-books-west', kind: 'bookstore-tall-shelf', style: 'a', x: 1, y: 1, w: 4, h: 1 },
@@ -85,7 +85,7 @@ export const SHOP_INTERIORS: readonly ShopInteriorDefinition[] = [
   {
     id: 'bakery', name: 'パンや', width: 16, height: 12, floor: T.FLOOR_WOOD, doorX: 7,
     outdoorDoor: { x: 61, y: 52 },
-    clerk: { name: 'パンやさん', sprite: 'clerk', x: 12, y: 2, facing: 'down', line: 'いらっしゃいませ。ちょうど クロワッサンが やきあがったところだよ！' },
+    clerk: { name: 'パンやさん', sprite: 'clerk', x: 12, y: 2, facing: 'down', line: 'いらっしゃいませ。ちょうど クロワッサンが やけたところだよ！' },
     furnishings: [
       { id: 'entry-rug', kind: 'shop-rug', style: 'bakery', x: 6, y: 9, w: 4, h: 1, solid: false, layer: 'decal' },
       { id: 'oven', kind: 'bakery-oven', x: 1, y: 1, w: 3, h: 1, name: 'レンガのパンがま', line: 'あたたかい レンガのかまの なかで パンが こんがり やけている。' },
