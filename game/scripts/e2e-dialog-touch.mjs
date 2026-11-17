@@ -195,6 +195,7 @@ try {
       page.on('download', d => { downloads.push(d.suggestedFilename()); void d.cancel(); });
       await page.clock.install({ time: new Date('2026-11-16T00:00:00Z') }); await page.clock.pauseAt(new Date('2026-11-16T00:00:01Z'));
       await page.goto(url.origin + '/?review=1', { waitUntil: 'load' });
+      await page.waitForFunction(() => !!window.__slg?.game);
       await page.evaluate(async scene => {
         const game = window.__slg.game, { canStand } = await import('/src/map/explorer.ts');
         if (!canStand(game.world.areas.get(scene.areaId), scene.player.x, scene.player.y)) throw new Error('fixture pose not standable');
