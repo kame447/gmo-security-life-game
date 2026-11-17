@@ -34,6 +34,11 @@
         #menu { position: relative; right: auto; top: auto; align-self: flex-end; margin: 6px 10px 0; max-width: calc(100% - 20px); flex-wrap: wrap; justify-content: flex-end; gap: 3px; }
         #menu button { padding: 5px; font-size: 11px; }
       }
+      /* 11px の字では 5 つのボタンに 324px 要り、幅 344px 未満で 2 段になって小さい地図に隠れる。境に余裕を持たせて詰める。 */
+      @media (max-width: 359px) {
+        #menu { gap: 2px; }
+        #menu button { padding: 5px 3px; font-size: 10px; }
+      }
       #hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 4px 12px; font-size: 13px;
               pointer-events: none; white-space: nowrap; }
       #toast { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); padding: 6px 14px; font-size: 14px;
