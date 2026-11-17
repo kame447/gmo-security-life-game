@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { songFromQuery } from '../src/audio/bgm';
-import { buildSong, midiToHz, noteToMidi, parseChord, parseMelody, SONGS, TOWN_THEME, type SongSpec } from '../src/audio/song';
+import { buildSong, midiToHz, noteToMidi, parseChord, parseMelody, TOWN_THEME, type SongSpec } from '../src/audio/song';
 
 describe('pitch', () => {
   it.each([['C4', 60], ['A4', 69], ['Bb4', 70], ['F#3', 54], ['E2', 40]])('%s is MIDI %i', (name, midi) => {
@@ -49,17 +48,8 @@ describe('accompaniment patterns', () => {
   });
 });
 
-it('picks the in-game song from ?bgm=', () => {
-  expect(songFromQuery('?bgm=b').id).toBe('b');
-  expect(songFromQuery('?bgm=zzz')).toBe(TOWN_THEME);
-  expect(songFromQuery('')).toBe(TOWN_THEME);
-});
-
-it('offers three candidates with distinct ids', () => {
-  expect(SONGS.map(song => song.id)).toEqual(['a', 'b', 'c']);
-});
-
-describe.each(SONGS.map(song => [song.title, song] as const))('%s', (_title, song) => {
+describe('town theme', () => {
+  const song = TOWN_THEME;
   const loop = song.bars * song.stepsPerBar;
 
   it('has every voice in every bar', () => {

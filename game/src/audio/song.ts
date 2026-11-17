@@ -140,39 +140,11 @@ export function buildSong(spec: SongSpec): Song {
   return { id: spec.id, title: spec.title, mood: spec.mood, bpm: spec.bpm, stepsPerBar, leadDuty: spec.leadDuty, bars: chords.length, events };
 }
 
-// 以下の3曲は比較用の候補。どれも Claude による作曲で、外部の素材は使っていない。
+// 3案の聴き比べ（Issue #63）で案Cを採用した。Claude による作曲で、外部の素材は使っていない。
 
-/** 案A：ヘ長調・4拍子。明るく弾む町の曲。 */
+/** 町の曲：ト長調・4拍子・速め。元気に走り回る曲。 */
 export const TOWN_THEME: Song = buildSong({
-  id: 'a', title: 'まちのうた', mood: '明るく弾む・ふだんの町', bpm: 120, stepsPerBar: 8, leadDuty: 0.25,
-  melody: `
-    A4:1 C5:1 F5:2 E5:1 F5:1 G5:2 | A5:3 G5:1 E5:2 C5:2 | D5:1 F5:1 Bb5:2 A5:1 G5:1 F5:2 | G5:4 R:2 C5:1 D5:1 |
-    F5:2 A5:2 G5:1 F5:1 E5:1 F5:1 | D5:3 F5:1 A5:2 F5:2 | G5:2 Bb5:2 A5:1 G5:1 F5:1 E5:1 | C5:1 E5:1 G5:1 C6:1 Bb5:2 R:2 |
-    D6:3 C6:1 Bb5:2 F5:2 | G5:3 A5:1 Bb5:2 G5:2 | A5:3 G5:1 E5:2 A5:2 | F5:3 E5:1 D5:2 A4:2 |
-    Bb4:1 D5:1 F5:2 Bb5:2 A5:1 G5:1 | G5:3 F5:1 E5:2 G5:2 | F5:4 A5:2 C6:2 | G5:2 E5:2 C5:2 R:2`,
-  chords: 'F Am Bb C F Dm Gm C Bb C Am Dm Bb C F C',
-  bass: 'root:2 fifth:1 root:1 octave:2 fifth:2',
-  harmony: 'R:1 third:1 R:1 fifth:1 R:1 third:1 R:1 root:1',
-  drums: { groove: 'k h s h k k s h', fill: 'k h s h k s s s' },
-});
-
-/** 案B：ハ長調・3拍子。ゆったりした懐かしい曲。 */
-export const WALTZ_THEME: Song = buildSong({
-  id: 'b', title: 'ひだまりワルツ', mood: 'ゆったり・なつかしい', bpm: 96, stepsPerBar: 6, leadDuty: 0.5,
-  melody: `
-    E5:3 D5:1 C5:2 | E5:2 A5:2 G5:2 | F5:3 E5:1 D5:2 | D5:4 R:2 |
-    E5:3 D5:1 C5:2 | B4:2 E5:2 G5:2 | A5:3 G5:1 F5:2 | G5:4 R:2 |
-    A5:3 B5:1 C6:2 | B5:2 G5:2 E5:2 | F5:2 A5:2 C6:2 | G5:4 E5:2 |
-    F5:3 E5:1 D5:2 | D5:2 G5:2 F5:2 | E5:6 | D5:2 B4:2 G4:2`,
-  chords: 'C Am F G C Em F G Am Em F C Dm G C G',
-  bass: 'root:2 R:2 fifth:2',
-  harmony: 'R:2 third:1 fifth:1 octave:1 fifth:1',
-  drums: { groove: 'k . h . h .', fill: 'k . h . s s' },
-});
-
-/** 案C：ト長調・4拍子・速め。元気に走り回る曲。 */
-export const STREET_THEME: Song = buildSong({
-  id: 'c', title: 'わくわくストリート', mood: '元気・速め・冒険', bpm: 144, stepsPerBar: 8, leadDuty: 0.25,
+  id: 'town', title: 'わくわくストリート', mood: '元気・速め・冒険', bpm: 144, stepsPerBar: 8, leadDuty: 0.25,
   melody: `
     G5:1 G5:1 D5:1 G5:1 B5:2 A5:1 G5:1 | E5:1 G5:1 B5:2 A5:2 G5:2 | C6:2 B5:1 A5:1 G5:2 E5:2 | F#5:2 A5:2 D6:3 R:1 |
     G5:1 G5:1 D5:1 G5:1 B5:2 A5:1 G5:1 | B5:2 C6:1 B5:1 A5:2 G5:2 | E5:2 G5:2 C6:2 E6:2 | D6:2 C6:1 B5:1 A5:2 R:2 |
@@ -183,5 +155,3 @@ export const STREET_THEME: Song = buildSong({
   harmony: 'third:1 fifth:1 R:1 fifth:1 third:1 fifth:1 R:1 octave:1',
   drums: { groove: 'k h s h k h s h', fill: 'k h s s k s s s' },
 });
-
-export const SONGS: readonly Song[] = [TOWN_THEME, WALTZ_THEME, STREET_THEME];
