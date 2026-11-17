@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSong, midiToHz, noteToMidi, parseChord, parseMelody, TOWN_THEME, type SongSpec } from '../src/audio/song';
+import { buildSong, midiToHz, noteToMidi, parseChord, parseMelody, SONGS, STREET_THEME, TOWN_THEME, type SongSpec } from '../src/audio/song';
 
 describe('pitch', () => {
   it.each([['C4', 60], ['A4', 69], ['Bb4', 70], ['F#3', 54], ['E2', 40]])('%s is MIDI %i', (name, midi) => {
@@ -48,8 +48,15 @@ describe('accompaniment patterns', () => {
   });
 });
 
-describe('town theme', () => {
-  const song = TOWN_THEME;
+it('plays candidate C in the town', () => {
+  expect(TOWN_THEME).toBe(STREET_THEME);
+});
+
+it('keeps three candidates with distinct ids for the preview page', () => {
+  expect(SONGS.map(song => song.id)).toEqual(['a', 'b', 'c']);
+});
+
+describe.each(SONGS.map(song => [song.title, song] as const))('%s', (_title, song) => {
   const loop = song.bars * song.stepsPerBar;
 
   it('has every voice in every bar', () => {
