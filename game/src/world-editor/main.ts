@@ -357,8 +357,13 @@ window.addEventListener('pointerup',e=>{
   drag=undefined;npcDrag=undefined;pan=undefined;
 });
 window.addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);pinch=undefined;cancelGesture();controls.clear();});
-workspace.addEventListener('dblclick',e=>{if(activeArea!==TOWN_AREA||saveBusy||npcDraft||game)return;const p=areaPoint(e),hit=hitItem(world.areas.get(activeArea)!,p.x,p.y);if(hit?.table==='objects'){const object=objectAt(hit.id);if(object)enterRoom(object);}});
-workspace.addEventListener('wheel',e=>{if(game)return;e.preventDefault();if(e.ctrlKey||e.metaKey)setZoom(camera.zoom+(e.deltaY<0?1:-1),local(e));else{camera.centerX+=e.deltaX*(window.devicePixelRatio||1)/(camera.zoom*canvasView.scale);camera.centerY+=e.deltaY*(window.devicePixelRatio||1)/(camera.zoom*canvasView.scale);}},{passive:false});
+// The side panel sits inside the workspace, so its events bubble here. They must never drive the map.
+const fromPanel=(e:Event)=>!!(e.target as HTMLElement).closest('aside');
+workspace.addEventListener('dblclick',e=>{if(activeArea!==TOWN_AREA||saveBusy||npcDraft||game||fromPanel(e))return;const p=areaPoint(e),hit=hitItem(world.areas.get(activeArea)!,p.x,p.y);if(hit?.table==='objects'){const object=objectAt(hit.id);if(object)enterRoom(object);}});
+workspace.addEventListener('wheel',e=>{if(game)return;
+  // Leave the panel's own scrolling to the browser; only stop ctrl+wheel from zooming the whole page.
+  if(fromPanel(e)){if(e.ctrlKey)e.preventDefault();return;}
+  e.preventDefault();if(e.ctrlKey||e.metaKey)setZoom(camera.zoom+(e.deltaY<0?1:-1),local(e));else{camera.centerX+=e.deltaX*(window.devicePixelRatio||1)/(camera.zoom*canvasView.scale);camera.centerY+=e.deltaY*(window.devicePixelRatio||1)/(camera.zoom*canvasView.scale);}},{passive:false});
 $('#outside').onclick=()=>{if(game)return;if(activeArea!==TOWN_AREA)backToTown();else{const home=world.areas.get(TOWN_AREA)!.objects.find(o=>o.facilityId==='home-family');if(home?.id)enterRoom({...home,id:home.id,areaId:TOWN_AREA});}};
 $('#area-select').onchange=()=>{const next=$<HTMLSelectElement>('#area-select').value;if(saveBusy||npcDraft||game||next===activeArea){$<HTMLSelectElement>('#area-select').value=activeArea;return;}returnToTown=undefined;openArea(next);};
 $('#enter-interior').onclick=()=>{const object=selected?objectAt(selected):undefined;if(object)enterRoom(object);};
