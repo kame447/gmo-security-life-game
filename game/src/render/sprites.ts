@@ -5,6 +5,7 @@ import { DEFAULT_APPEARANCE, normalizeAppearance, appearanceKey, type PlayerAppe
 import { makeCanvas, R, type C2D } from './draw';
 import { buildingRepresentativeColor } from './building-colors';
 import { drawPlayer, PLAYER_H, PLAYER_W } from './player-sprite';
+import { drawNpc, NPC_H, NPC_W } from './npc-sprite';
 import { furnitureAsset, FURNITURE_URLS } from './furniture-images/catalog';
 import { FurnitureImageLoader } from './furniture-images/loader';
 import { paintFurnitureImage } from './furniture-images/paint';
@@ -362,61 +363,10 @@ export function objectSprite(o: ObjectDef): Sprite {
   return sprite;
 }
 
-interface Costume { hair: string; coat: string; pants: string; skin: string; adult?: boolean; hat?: string }
-const costumes: Record<string, Costume> = {
-  mother: { hair: '#5d4438', coat: '#c98178', pants: '#6c7f91', skin: '#edbe98', adult: true },
-  grandma: { hair: '#b5b4a6', coat: '#9986a2', pants: '#6b697b', skin: '#e5bb95', adult: true },
-  friend: { hair: '#5f493b', coat: '#be7756', pants: '#6c8c87', skin: '#edc49c' },
-  guard: { hair: '#7c7770', coat: '#c6b85b', pants: '#62717b', skin: '#dfb48f', adult: true, hat: '#cfb666' },
-  shopkeeper: { hair: '#51453d', coat: '#749e88', pants: '#7b6a5c', skin: '#e4b78c', adult: true },
-  staff: { hair: '#47423d', coat: '#566a86', pants: '#485b74', skin: '#e4bd97', adult: true, hat: '#4b617c' },
-  teacher: { hair: '#605044', coat: '#b69e78', pants: '#687781', skin: '#e7bf99', adult: true },
-  classmate: { hair: '#665145', coat: '#b19a62', pants: '#6d8798', skin: '#edc49a' },
-  clerk: { hair: '#615046', coat: '#70a28d', pants: '#627580', skin: '#edc29a', adult: true },
-};
-
 function drawCharacter(name: string, facing: Facing, frame: 0 | 1 | 2): Sprite {
-  const [canvas, c] = makeCanvas(18, 26);
-  const side = facing === 'left' || facing === 'right', back = facing === 'up';
-  // Drawing in a right-facing coordinate system gives genuinely mirrored profiles.
-  if (facing === 'left') { c.translate(18, 0); c.scale(-1, 1); }
-  const step = frame === 1 ? -1 : frame === 2 ? 1 : 0;
-  if (name === 'cat') {
-    box(c, 3, 15, 12, 7, '#c99c6c'); box(c, side ? 10 : 4, 11, 8, 8, '#dbb385');
-    R(c, ink, side ? 10 : 4, 9, 2, 4); R(c, ink, side ? 16 : 10, 9, 2, 4);
-    if (!back) { R(c, ink, side ? 15 : 6, 14, 1, 1); if (!side) R(c, ink, 10, 14, 1, 1); R(c, '#a66b60', side ? 17 : 8, 16, 1, 1); }
-    R(c, '#8c6e52', 1, 13, 2, 7); R(c, ink, 4, 21 + step, 3, 2); R(c, ink, 12, 21 - step, 3, 2);
-  } else {
-    const p = { ...(costumes[name] ?? { hair: '#777466', coat: '#8d9885', pants: '#6b766b', skin: '#dbb793' }) };
-    const top = p.adult ? 0 : 2, headX = side ? 6 : 4, headW = side ? 8 : 10;
-    const armLeft = side ? 10 : 2, armRight = 14;
-    // Dark outline remains continuous on grass, pavement and indoor floors.
-    box(c, side ? 6 : 4, 12, side ? 7 : 10, 9, p.coat);
-    if (name === 'mother' || name === 'grandma') box(c, 4, 18, 10, 5, p.pants);
-    else { R(c, p.pants, 5, 20, 3, 3); R(c, p.pants, 10, 20, 3, 3); }
-    R(c, ink, 4, 23 + step, 4, 2); R(c, ink, side ? 9 : 10, 23 - step, 4, 2);
-    if (!p.adult) { R(c, p.skin, 5, 22 + step, 2, 1); R(c, p.skin, 11, 22 - step, 2, 1); }
-    R(c, '#dce0ce', 5, 23 + step, 2, 1); R(c, '#dce0ce', 11, 23 - step, 2, 1);
-    if (name === 'shopkeeper') { R(c, '#e1ddbe', 6, 15, 6, 6); R(c, '#b8c1a3', 7, 18, 4, 2); }
-    R(c, ink, armLeft, 15 - step, 3, 6); R(c, p.coat, armLeft + 1, 15 - step, 2, 4);
-    R(c, p.skin, armLeft + 1, 19 - step, 2, 2);
-    if (!side) { R(c, ink, armRight, 15 + step, 2, 6); R(c, p.coat, armRight, 15 + step, 1, 4); R(c, p.skin, armRight, 19 + step, 1, 2); }
-    if (name === 'clerk') { R(c, '#e9e6cd', 5, 14, 8, 2); if (!side && !back) R(c, '#4b7075', 11, 16, 2, 2); }
-    box(c, headX, top + 1, headW, 11, p.skin);
-    R(c, p.hair, headX + 1, top, headW - 2, 5); R(c, ink, headX + 2, top - 1 + 1, headW - 4, 1);
-    R(c, p.hair, headX, top + 3, side ? 3 : 2, 5);
-    if (back) { R(c, p.hair, headX + 1, top + 4, headW - 2, 5); R(c, '#ffffff1a', headX + 2, top + 2, 4, 1); }
-    else {
-      R(c, '#f8d5a6', headX + 3, top + 5, Math.min(side ? 4 : 5, headW - 4), 2);
-      R(c, ink, side ? 12 : 7, top + 7, 1, 2); if (!side) R(c, ink, 11, top + 7, 1, 2);
-      R(c, '#be8465', side ? 13 : 9, top + 10, 1, 1); if (side) R(c, p.skin, 14, top + 8, 1, 2);
-    }
-    if (p.hat) { box(c, headX - 1, top, headW + 2, 4, p.hat); R(c, '#d9caa1', headX, top + 3, headW + (side ? 3 : 0), 1); }
-    if (name === 'grandma') box(c, back ? 11 : 3, top, 4, 4, p.hair);
-    if (name === 'mother') R(c, p.hair, side ? 5 : 4, top + 8, side ? 3 : 2, 6);
-  }
-  const sprite = { canvas, ox: -9, oy: -26 };
-  return sprite;
+  const [canvas, c] = makeCanvas(NPC_W, NPC_H);
+  drawNpc(c, name, facing, frame);
+  return { canvas, ox: -NPC_W / 2, oy: -NPC_H };
 }
 
 export function playerSprite(a: PlayerAppearance, facing: Facing, frame: 0 | 1 | 2, riding = false): Sprite {
