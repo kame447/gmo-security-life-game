@@ -194,7 +194,7 @@ export const ADULT_HEADS: Record<string, Views> = {
   },
 };
 
-/** 頭の上に重ねる図案（帽子・めがね）。'.' は下の絵を残す。 */
+/** 頭の上に重ねる帽子の図案。'.' は下の絵を残す。 */
 const HATS: Record<string, Views> = {
   // 大人の帽子：幅 14。キャンバスの x=2 から置き、つばを頭より 1 ドット広くする。
   cap: {
@@ -239,22 +239,6 @@ const HATS: Record<string, Views> = {
       '.ouuuuuuuYuuo...',
       '.ouuuuuuuuuuUo..',
       '.oUUUUUUUUUUUUUo',
-    ],
-  },
-  // めがね：幅 12。大人の頭と同じ x=3、目の 1 行上（y=5）から置く。縁だけを描き、レンズの中は顔と目を残す。
-  glasses: {
-    front: [
-      '..fff..fff..',
-      '..f.ffff.f..',
-      '..f.f..f.f..',
-      '..fff..fff..',
-    ],
-    back: ['............'],
-    side: [
-      '........fff.',
-      '.....ffff.f.',
-      '........f.f.',
-      '........fff.',
     ],
   },
 };
@@ -630,7 +614,7 @@ const BASE: Palette = {
   e: '#2b1a14', w: '#fbf8f0', m: '#c0574d',
   t: '#f6f2e6', T: '#d9d3c2', y: '#f0b134', W: '#f1e3a6',
   x: '#f6f4ee', k: '#4a3a33', K: '#f2f2ee',
-  r: '#e2566a', R: '#b33a4c', f: '#8a7064',
+  r: '#e2566a', R: '#b33a4c',
 };
 
 /** 主人公の外見で選べない色だけを使う（主人公と同じ見た目にしない）。 */
@@ -665,7 +649,7 @@ const RECIPES: Record<string, Recipe> = {
     },
   },
   teacher: {
-    adult: true, head: ADULT_HEADS.short, body: ADULT_BODIES.cardigan, hats: ['glasses'], legs: 'p',
+    adult: true, head: ADULT_HEADS.short, body: ADULT_BODIES.cardigan, legs: 'p',
     colors: { h: '#605044', H: '#857263', d: '#433730', c: '#b69e78', C: '#957f5c', p: '#687781', P: '#525f68' },
   },
   clerk: {
@@ -762,8 +746,6 @@ export function drawNpc(c: C2D, name: string, facing: Facing, frame: 0 | 1 | 2):
   paint(c, recipe.body[view], colors, 0, recipe.adult ? 12 : 13);
   paint(c, recipe.head[view], colors, headX, 0);
   for (const hat of recipe.hats ?? []) {
-    const grid = HATS[hat][view];
-    if (hat === 'glasses') paint(c, grid, colors, headX, 5);
-    else paint(c, grid, colors, hat === 'cap' ? 2 : 1, 0);
+    paint(c, HATS[hat][view], colors, hat === 'cap' ? 2 : 1, 0);
   }
 }
