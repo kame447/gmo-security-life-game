@@ -3,7 +3,7 @@
  * 経路探索・検証・座標の目印は個別モジュールにあり、ここから再公開する。
  */
 import type { AreaDef, VariantDef } from '../core/types';
-import { createClassroom, createHome, createKonbini, createStation } from './interiors';
+import { createClassroom, createHome, createHomeUpstairs, createKonbini, createStation } from './interiors';
 import { START } from './landmarks';
 import { toRuntime, type AreaRuntime, type World } from './runtime';
 import { createTown, FACILITIES } from './town';
@@ -23,7 +23,7 @@ export const CHILDHOOD_VARIANT: VariantDef = {
 };
 
 /** 読み込むエリアの一覧。新しいエリアはここに定義関数を追加する。 */
-export const AREA_FACTORIES: readonly (() => AreaDef)[] = [createTown, createHome, createClassroom, createKonbini, createStation, createNeighborTown, createNeighborStation];
+export const AREA_FACTORIES: readonly (() => AreaDef)[] = [createTown, createHome, createHomeUpstairs, createClassroom, createKonbini, createStation, createNeighborTown, createNeighborStation];
 
 /** 年代差分で無効化された出入口・調査対象を除き、追加分を足した定義を返す。 */
 function applyVariant(base: AreaDef, variant: VariantDef, isClosed: (facilityId: string) => boolean): AreaDef {

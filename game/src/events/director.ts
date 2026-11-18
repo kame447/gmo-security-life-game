@@ -53,6 +53,23 @@ export class LifeEventDirector implements MapEventSink {
     return { speaker: event.speaker, lines: event.intro.length ? [...event.intro] : [event.prompt ?? ''] };
   }
 
+  /**
+   * 話しかけずに始めるイベント（ストーリーの強制イベントなど）。条件・発生回数はここでは見ない（呼び出し側が判断する）。
+   * 選択肢があれば選択待ちにし、導入の台詞を返す。選択待ちの間や未定義の id なら null。
+   */
+  begin(eventId: string, origin: { areaId: string; interactionId?: string }): { speaker?: string; lines: string[] } | null {
+    if (this.current) return null;
+    const event = this.defs.find(def => def.id === eventId);
+    if (!event) return null;
+    if (!event.choices?.length) {
+      this.state.apply(event.effects);
+      this.state.record(event.id, null);
+      return { speaker: event.speaker, lines: [...event.intro] };
+    }
+    this.current = { event, areaId: origin.areaId, interactionId: origin.interactionId ?? '' };
+    return { speaker: event.speaker, lines: event.intro.length ? [...event.intro] : [event.prompt ?? ''] };
+  }
+
   /** 選択を確定し、影響と履歴を反映して結果の台詞を返す。選択待ちでない・不明な選択肢なら null。 */
   choose(choiceId: string): LifeEventOutcome | null {
     const event = this.current?.event;

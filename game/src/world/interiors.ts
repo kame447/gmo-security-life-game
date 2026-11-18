@@ -6,6 +6,11 @@ import { T } from './tiles';
 /** 屋外から入ったときの屋内の到着位置。出口マットのすぐ北。 */
 export const INTERIOR_ENTRIES = {
   home: { areaId: 'home-family-interior', x: 7, y: 10, facing: 'up' },
+  // Arrive beside the stairs, not in front of them, so a held key cannot bounce the player straight back.
+  /** 1階の階段から2階へ上がったときの位置（2階の階段の左横）。 */
+  homeUpstairs: { areaId: 'home-family-2f', x: 7, y: 1, facing: 'left' },
+  /** 2階の階段から1階へ降りたときの位置（1階の階段の右横）。 */
+  homeDownstairs: { areaId: 'home-family-interior', x: 2, y: 1, facing: 'right' },
   classroom: { areaId: 'school-classroom-interior', x: 8, y: 10, facing: 'up' },
   konbini: { areaId: 'shop-konbini-interior', x: 6, y: 8, facing: 'up' },
   station: { ...STATION_ACCESS.entry },
@@ -30,24 +35,45 @@ function furnish(area: AreaDef, kind: string, x: number, y: number, w: number, h
   area.objects.push(o);
 }
 
+/** 自宅の1階。玄関・リビング・台所と、2階への階段（docs/features/story.md）。 */
 export function createHome(): AreaDef {
-  const a = room('home-family-interior', 'じぶんのいえ', 16, T.FLOOR_WOOD);
+  const a = room('home-family-interior', 'じぶんのいえ 1かい', 16, T.FLOOR_WOOD);
   for (let y = 1; y <= 5; y++) for (let x = 1; x <= 6; x++) a.ground[y * a.width + x] = T.FLOOR_TATAMI;
-  // A partial partition leaves an open passage between the bedroom and family spaces.
+  // A partial partition leaves an open passage between the tatami room and family spaces.
   for (let y = 1; y <= 3; y++) a.ground[y * a.width + 7] = T.WALL_TOP;
   a.ground[4 * a.width + 7] = T.WALL;
-  furnish(a, 'bed', 1, 1, 2, 3); furnish(a, 'desk', 4, 1, 2, 1);
+  furnish(a, 'stairs', 1, 1, 1, 1, false);
   furnish(a, 'bookshelf', 6, 1, 1, 1); furnish(a, 'toybox', 1, 5, 1, 1);
   furnish(a, 'kitchen', 9, 1, 4, 1); furnish(a, 'fridge', 14, 1, 1, 1);
   furnish(a, 'table', 10, 3, 2, 2); furnish(a, 'tv', 1, 7, 2, 1);
   furnish(a, 'sofa', 1, 9, 3, 1); furnish(a, 'rug', 4, 7, 3, 2, false);
   furnish(a, 'lowtable', 5, 8, 2, 1); furnish(a, 'plant', 14, 9, 1, 1);
   furnish(a, 'window', 10, 0, 2, 1, false);
-  a.portals = [{ id: 'home-exit', from: { x: 7, y: 11, w: 2 }, to: toTown(LANDMARKS.homeFront), facilityId: 'home-family' }];
+  a.portals = [
+    { id: 'home-exit', from: { x: 7, y: 11, w: 2 }, to: toTown(LANDMARKS.homeFront), facilityId: 'home-family' },
+    { id: 'home-stairs-up', from: { x: 1, y: 1 }, to: { ...INTERIOR_ENTRIES.homeUpstairs }, facilityId: 'home-family' },
+  ];
   a.interactions = [
     { id: 'home-mother', kind: 'npc', name: 'おかあさん', x: 13, y: 4, sprite: 'mother', facing: 'left', solid: true, eventKey: 'home.mother', lines: ['おかえり！ てを あらったら、おやつにしよう。'] },
     { id: 'home-tablet', kind: 'object', name: 'かぞくのタブレット', x: 5, y: 8, w: 2, solid: true, eventKey: 'home.tablet', lines: ['みんなで つかう タブレットだ。つぎは なにを みようかな。'] },
+  ];
+  return a;
+}
+
+/** 自宅の2階。主人公の部屋で、新しく始めると、ここのベッドの横で目を覚ます。外への出口はなく、階段で1階へ降りる。 */
+export function createHomeUpstairs(): AreaDef {
+  const a = room('home-family-2f', 'じぶんのへや（2かい）', 10, T.FLOOR_WOOD, 8);
+  // room() makes a door mat on the bottom wall; the upstairs room has no outside door.
+  for (let x = 1; x < a.width - 1; x++) a.ground[(a.height - 1) * a.width + x] = T.WALL_TOP;
+  for (let y = 4; y <= 6; y++) for (let x = 1; x <= 4; x++) a.ground[y * a.width + x] = T.FLOOR_TATAMI;
+  furnish(a, 'bed', 1, 1, 2, 3); furnish(a, 'desk', 4, 1, 2, 1);
+  furnish(a, 'bookshelf', 6, 1, 1, 1); furnish(a, 'window', 4, 0, 2, 1, false);
+  furnish(a, 'rug', 2, 5, 3, 2, false); furnish(a, 'plant', 1, 6, 1, 1);
+  furnish(a, 'stairs', 8, 1, 1, 1, false);
+  a.portals = [{ id: 'home-stairs-down', from: { x: 8, y: 1 }, to: { ...INTERIOR_ENTRIES.homeDownstairs }, facilityId: 'home-family' }];
+  a.interactions = [
     { id: 'home-study-desk', kind: 'object', name: 'がくしゅうづくえ', x: 4, y: 1, w: 2, solid: true, eventKey: 'home.desk', lines: ['えんぴつと ノートを そろえた。しゅくだいも がんばろう。'] },
+    { id: 'home-bed', kind: 'object', name: 'ベッド', x: 1, y: 1, w: 2, h: 3, solid: true, eventKey: 'home.bed', lines: ['ふかふかの ベッドだ。けさも ここで めを さました。'] },
   ];
   return a;
 }

@@ -31,6 +31,26 @@ describe('childhood world', () => {
     }
     expect(findPath(town, { x: 86, y: 20 }, LANDMARKS.homeFront)).toBeNull();
   });
+  it('connects the two floors of the home with stairs both ways', () => {
+    const world = buildWorld();
+    const down = world.areas.get('home-family-interior')!, up = world.areas.get('home-family-2f')!;
+    expect(up.def.kind).toBe('indoor');
+    const stairsUp = down.def.portals.find(p => p.to.areaId === up.def.id)!;
+    const stairsDown = up.def.portals.find(p => p.to.areaId === down.def.id)!;
+    expect(stairsUp).toBeDefined(); expect(stairsDown).toBeDefined();
+    expect(up.def.portals.some(p => world.areas.get(p.to.areaId)?.def.kind === 'outdoor')).toBe(false);
+    for (const [area, arrival] of [[up, stairsUp.to], [down, stairsDown.to]] as const) {
+      expect(isSolidTile(area, arrival.x, arrival.y)).toBe(false);
+      expect(area.portalAt.has(arrival.y * area.width + arrival.x)).toBe(false);
+    }
+    expect(findPath(up, stairsUp.to, stairsDown.from)).not.toBeNull();
+    // Holding the key that climbed the stairs must not walk straight back onto them.
+    for (const [area, arrival, back] of [[up, stairsUp.to, stairsDown.from], [down, stairsDown.to, stairsUp.from]] as const) {
+      expect(arrival.y === back.y + 1 && arrival.x === back.x).toBe(false);
+    }
+    expect(findPath(down, stairsDown.to, down.def.portals.find(p => p.id === 'home-exit')!.from)).not.toBeNull();
+    expect(up.def.objects.some(o => o.kind === 'bed')).toBe(true);
+  });
   it('returns every interior exit to the original outdoor door front', () => {
     const world = buildWorld(), town = world.areas.get('town-main')!;
     for (const portal of town.def.portals) {
@@ -38,7 +58,10 @@ describe('childhood world', () => {
       expect(indoor.def.kind).toBe('indoor');
       expect(isSolidTile(indoor, portal.to.x, portal.to.y)).toBe(false);
       expect(indoor.portalAt.has(portal.to.y * indoor.width + portal.to.x)).toBe(false);
-      for (const exit of indoor.def.portals) {
+      // Stairs lead to another indoor floor; every door to the outside returns to this door front.
+      const exits = indoor.def.portals.filter(exit => world.areas.get(exit.to.areaId)?.def.kind === 'outdoor');
+      expect(exits.length).toBeGreaterThan(0);
+      for (const exit of exits) {
         expect(exit.to.areaId).toBe(town.def.id);
         expect(exit.to.x).toBe(portal.from.x);
         expect(exit.to.y).toBe(portal.from.y + 1);
