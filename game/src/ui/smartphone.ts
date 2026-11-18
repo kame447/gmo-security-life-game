@@ -1,9 +1,12 @@
 import type { PhoneApp, PhoneScreen } from '../phone/content';
 import type { PhoneModel } from '../phone/model';
 import { CHAT_SELF } from '../phone/chat/types';
+import type { MailMessage } from '../phone/mail/types';
+import { renderMailDetail, renderMailList, type MailView } from './phone-mail';
 import { renderChatConversation, renderChatList, renderChatMessages, type ChatMessageView, type ChatThreadView } from './phone-chat';
 import './smartphone.css';
 import './phone-chat.css';
+import './phone-mail.css';
 
 const make = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text?: string): HTMLElementTagNameMap[K] => {
   const node = document.createElement(tag);
@@ -14,6 +17,7 @@ const make = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', tex
 const svgNS = 'http://www.w3.org/2000/svg';
 const iconPaths: Record<PhoneApp['icon'], string> = {
   message: 'M6 7h20v14H15l-6 4v-4H6z M10 12h12 M10 16h8',
+  mail: 'M5 9h22v15H5z M5 9l11 9 11-9',
   web: 'M16 4a12 12 0 1 0 0 24 12 12 0 0 0 0-24z M20 11l-2.5 6.5L11 21l3.5-6.5z',
   life: 'M5 15 16 6l11 9 M8 14v12h16V14 M13 26v-7h6v7',
   friends: 'M12 15a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4 25c0-5 3-7 8-7s8 2 8 7 M22 9a4 4 0 0 1 0 8 M22 19c4 0 6 2 6 6',
@@ -191,6 +195,7 @@ export class Smartphone {
     this.body.replaceChildren(); this.body.scrollTop = 0;
     if (!app || !screen) { this.renderHome(); return; }
     if (app.id === 'messages') { this.renderChat(); return; }
+    if (app.id === 'mail') { this.renderMail(); return; }
     this.renderApp(app, screen);
   }
 
@@ -199,7 +204,8 @@ export class Smartphone {
     for (const app of this.model.content.apps) {
       const button = make('button', 'smartphone-app'); button.type = 'button'; button.dataset.app = app.id;
       const tile = make('span', `smartphone-app-icon icon-${app.tone}`); tile.append(appIcon(app.icon));
-      const count = app.id === 'messages' ? this.model.chatUnreadCount : this.model.notifications.filter(notice => notice.appId === app.id).length;
+      const count = app.id === 'messages' ? this.model.chatUnreadCount : app.id === 'mail' ? this.model.mailUnreadCount
+        : this.model.notifications.filter(notice => notice.appId === app.id).length;
       if (count) { const badge = make('span', 'smartphone-badge', String(count)); badge.setAttribute('aria-label', `通知 ${count}件`); tile.append(badge); }
       button.setAttribute('aria-label', app.caption === 'じゅんび中' ? `${app.label}（準備中）` : app.label);
       button.append(tile, make('span', 'smartphone-app-label', app.label));
@@ -256,6 +262,14 @@ export class Smartphone {
       },
     });
     this.body.classList.add('chat-thread-open'); this.body.append(chat.view);
+  }
+
+  private renderMail(): void {
+    const view = (mail: MailMessage): MailView =>
+      ({ id: mail.id, from: mail.from, subject: mail.subject, body: mail.body, time: this.chatTime(mail.atMs), unread: !mail.read });
+    const current = this.model.currentMail;
+    if (current) this.body.append(renderMailDetail(view(current)));
+    else this.body.append(renderMailList(this.model.mails.map(view), id => { this.model.openMail(id); }));
   }
 
   private renderApp(app: PhoneApp, screen: PhoneScreen): void {

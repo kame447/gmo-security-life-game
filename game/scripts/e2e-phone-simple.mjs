@@ -29,14 +29,16 @@ try {
   await page.locator('#phone-device').waitFor({ state: 'visible' });
   const stopped = await position(page); await page.waitForTimeout(150);
   assert.deepEqual(await position(page), stopped, 'exploration stops while the phone is open');
-  assert.equal(await page.locator('.smartphone-app').count(), 5);
+  assert.equal(await page.locator('.smartphone-app').count(), 6);
   assert.equal(await page.locator('[data-app="messages"] .smartphone-badge').innerText(), '2');
   assert.equal(await page.locator('[data-app="messages"]').evaluate(node => node === document.activeElement), true);
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await page.locator('[data-app="mail"]').evaluate(node => node === document.activeElement), true);
   await page.keyboard.press('ArrowRight');
   assert.equal(await page.locator('[data-app="web"]').evaluate(node => node === document.activeElement), true);
   await page.keyboard.press('Enter');
   assert.equal(await page.locator('.smartphone-view-title').innerText(), 'ウェブ');
-  await page.keyboard.press('Backspace'); assert.equal(await page.locator('.smartphone-app').count(), 5);
+  await page.keyboard.press('Backspace'); assert.equal(await page.locator('.smartphone-app').count(), 6);
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.querySelector('#phone-overlay').hidden);
   await page.waitForTimeout(100); assert.deepEqual(await position(page), stopped, 'held movement does not resume');
@@ -54,7 +56,7 @@ try {
     const tap = button.getBoundingClientRect(), icon = button.querySelector('.smartphone-app-icon').getBoundingClientRect();
     return { x: tap.x, y: tap.y, width: tap.width, height: tap.height, iconWidth: icon.width, iconHeight: icon.height };
   }));
-  assert.equal(homeApps.length, 5);
+  assert.equal(homeApps.length, 6);
   for (const app of homeApps) {
     assert.ok(app.iconWidth >= 64 && app.iconWidth <= 70 && app.iconHeight >= 64 && app.iconHeight <= 70,
       `icon must be 64–70px: ${JSON.stringify(app)}`);
