@@ -548,39 +548,46 @@ export const ADULT_BODIES: Record<string, Views> = {
   },
 };
 
-/** ねこ：幅 16。正面・背面は 14 行で y=10、横向きは 12 行で y=12 から置く。頭を大きく、目を光らせて丸みを出す。脚としっぽは別に描く。 */
+/** 長いスカートのすそ：幅 18 × 3 行。脚の上から y=21 に重ね、靴だけを見せる（おかあさん）。 */
+export const LONG_HEM: Views = {
+  front: ['...ozzzzzzzzzzo...', '..ozzZzzzzzzZzzo..', '..oooooooooooooo..'],
+  back: ['...ozzzzzzzzzzo...', '..ozzZzzzzzzZzzo..', '..oooooooooooooo..'],
+  side: ['.....ozzzzzzzo....', '....ozzzzzzZZzo...', '....ooooooooooo...'],
+};
+
+/** ねこ：正面・背面は幅 12 × 14 行で x=3・y=10、横向きは幅 16 × 12 行で x=1・y=12 から置く。頭を大きく、目を光らせて丸みを出す。脚としっぽは別に描く。 */
 export const CAT: Views = {
   front: [
-    '..oo........oo..',
-    '.oppo......oppo.',
-    '.ohpho....ohpho.',
-    '.ohhhoooooohhho.',
-    'ohhhhhdhhdhhhhho',
-    'ohhEehhhhhhEehho',
-    'ohheehhhhhheehho',
-    'ohbhhhhnnhhhhbho',
-    '.ohhhhmhhmhhhho.',
-    '..oohhhhhhhhoo..',
-    '..ohhLLLLLLhho..',
-    '..ohhLLLLLLhho..',
-    '..ohhhLLLLhhho..',
-    '..oohhhhhhhhoo..',
+    '.oo......oo.',
+    'oppo....oppo',
+    'ohpho..ohpho',
+    'ohhhoooohhho',
+    'ohhhdhhdhhho',
+    'ohEehhhhEeho',
+    'oheehhhheeho',
+    'obhhhnnhhhbo',
+    '.ohhmhhmhho.',
+    '..oohhhhoo..',
+    '..ohLLLLho..',
+    '.ohhLLLLhho.',
+    '.ohhhLLhhho.',
+    '.oohhhhhhoo.',
   ],
   back: [
-    '..oo........oo..',
-    '.oHho......ohHo.',
-    '.ohhho....ohhho.',
-    '.ohhhoooooohhho.',
-    'ohhhhhdhhdhhhhho',
-    'ohhhhhhddhhhhhho',
-    'ohhhhhhhhhhhhhho',
-    'ohhhhhhhhhhhhhho',
-    '.ohhhhhhhhhhhho.',
-    '..oohhhhhhhhoo..',
-    '..ohhhdhhdhhho..',
-    '..ohhhhhhhhhho..',
-    '..ohhhdhhdhhho..',
-    '..oohhhhhhhhoo..',
+    '.oo......oo.',
+    'oHho....ohHo',
+    'ohhho..ohhho',
+    'ohhhoooohhho',
+    'ohhhdhhdhhho',
+    'ohhhhddhhhho',
+    'ohhhhhhhhhho',
+    'ohhhhhhhhhho',
+    '.ohhhhhhhho.',
+    '..oohhhhoo..',
+    '..ohhdhhho..',
+    '.ohhhhhhhho.',
+    '.ohhdhhdhho.',
+    '.oohhhhhhoo.',
   ],
   side: [
     '.......oo....oo.',
@@ -609,6 +616,8 @@ interface Recipe {
   head: Views;
   body: Views;
   hats?: readonly string[];
+  /** 脚の上に重ねる長いすそ。 */
+  hem?: Views;
   /** 脚の上の部分の色の記号（ズボン 'p'、素足 's'、ストッキング 'q'）。 */
   legs: string;
   colors: Palette;
@@ -627,7 +636,7 @@ const BASE: Palette = {
 /** 主人公の外見で選べない色だけを使う（主人公と同じ見た目にしない）。 */
 const RECIPES: Record<string, Recipe> = {
   mother: {
-    adult: true, head: ADULT_HEADS.long, body: ADULT_BODIES.skirt, legs: 's',
+    adult: true, head: ADULT_HEADS.long, body: ADULT_BODIES.skirt, hem: LONG_HEM, legs: 's',
     colors: { h: '#5d4438', H: '#86685a', d: '#3f2d25', c: '#e59a8c', C: '#c27466', z: '#6c7f91', Z: '#55667a' },
   },
   grandma: {
@@ -699,7 +708,7 @@ export const NPC_IDS: readonly string[] = [...Object.keys(RECIPES), 'cat'];
 export function npcParts(name: string): { colors: Palette; grids: Grid[] } {
   if (name === 'cat') return { colors: CAT_COLORS, grids: [...Object.values(CAT), ...Object.values(CAT_TAIL)] };
   const recipe = Object.hasOwn(RECIPES, name) ? RECIPES[name] : FALLBACK;
-  const grids = [recipe.head, recipe.body, ...(recipe.hats ?? []).map(hat => HATS[hat])].flatMap(views => Object.values(views));
+  const grids = [recipe.head, recipe.body, ...(recipe.hem ? [recipe.hem] : []), ...(recipe.hats ?? []).map(hat => HATS[hat])].flatMap(views => Object.values(views));
   return { colors: { ...BASE, ...recipe.colors }, grids };
 }
 
@@ -734,9 +743,9 @@ function drawCat(c: C2D, view: View, step: number): void {
     paint(c, CAT.side, CAT_COLORS, 1, 12);
     return;
   }
-  if (view === 'front') paint(c, CAT_TAIL.front, CAT_COLORS, 13, 17);
-  paw(4, step < 0 ? 1 : 0); paw(10, step > 0 ? 1 : 0);
-  paint(c, CAT[view], CAT_COLORS, 1, 10);
+  if (view === 'front') paint(c, CAT_TAIL.front, CAT_COLORS, 12, 16);
+  paw(5, step < 0 ? 1 : 0); paw(9, step > 0 ? 1 : 0);
+  paint(c, CAT[view], CAT_COLORS, 3, 10);
   if (view === 'back') paint(c, CAT_TAIL.back, CAT_COLORS, 7, 20);
 }
 
@@ -749,6 +758,7 @@ export function drawNpc(c: C2D, name: string, facing: Facing, frame: 0 | 1 | 2):
   const colors = { ...BASE, ...recipe.colors };
   const headX = recipe.adult ? 3 : 1;
   legs(c, view, step, colors, recipe.legs, recipe.adult ? 5 : 4);
+  if (recipe.hem) paint(c, recipe.hem[view], colors, 0, 21);
   paint(c, recipe.body[view], colors, 0, recipe.adult ? 12 : 13);
   paint(c, recipe.head[view], colors, headX, 0);
   for (const hat of recipe.hats ?? []) {
