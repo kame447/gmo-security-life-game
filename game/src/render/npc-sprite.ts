@@ -241,17 +241,19 @@ const HATS: Record<string, Views> = {
       '.oUUUUUUUUUUUUUo',
     ],
   },
-  // めがね：幅 12。大人の頭と同じ x=3、目の行（y=6）から置く。
+  // めがね：幅 12。大人の頭と同じ x=3、目の 1 行上（y=5）から置く。縁だけを描き、レンズの中は顔と目を残す。
   glasses: {
     front: [
       '..fff..fff..',
-      '..feffffef..',
+      '..f.ffff.f..',
+      '..f.f..f.f..',
       '..fff..fff..',
     ],
     back: ['............'],
     side: [
       '........fff.',
-      '.....ffffef.',
+      '.....ffff.f.',
+      '........f.f.',
       '........fff.',
     ],
   },
@@ -619,7 +621,7 @@ const BASE: Palette = {
   e: '#2b1a14', w: '#fbf8f0', m: '#c0574d',
   t: '#f6f2e6', T: '#d9d3c2', y: '#f0b134', W: '#f1e3a6',
   x: '#f6f4ee', k: '#4a3a33', K: '#f2f2ee',
-  r: '#e2566a', R: '#b33a4c', f: '#4a4f57',
+  r: '#e2566a', R: '#b33a4c', f: '#8a7064',
 };
 
 /** 主人公の外見で選べない色だけを使う（主人公と同じ見た目にしない）。 */
@@ -751,7 +753,7 @@ export function drawNpc(c: C2D, name: string, facing: Facing, frame: 0 | 1 | 2):
   paint(c, recipe.head[view], colors, headX, 0);
   for (const hat of recipe.hats ?? []) {
     const grid = HATS[hat][view];
-    if (hat === 'glasses') paint(c, grid, colors, headX, 6);
+    if (hat === 'glasses') paint(c, grid, colors, headX, 5);
     else paint(c, grid, colors, hat === 'cap' ? 2 : 1, 0);
   }
 }
