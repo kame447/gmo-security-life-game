@@ -546,47 +546,60 @@ export const ADULT_BODIES: Record<string, Views> = {
   },
 };
 
-/** ねこ：脚は step に合わせて別に描く。 */
+/** ねこ：幅 16。正面・背面は 14 行で y=10、横向きは 12 行で y=12 から置く。頭を大きく、目を光らせて丸みを出す。脚としっぽは別に描く。 */
 export const CAT: Views = {
   front: [
-    '..oo......oo..',
-    '.ohho....ohho.',
-    '.ohHhooooohHo.',
-    '.ohhhhhhhhhho.',
-    'ohhhhhhhhhhhho',
-    'ohhehhhhhhehho',
-    'ohhehhnnhhehho',
-    '.ohhhhhhhhhho.',
-    '..ohhLLLLhho..',
-    '.ohhhLLLLhhho.',
-    '.ohhhhhhhhhho.',
+    '..oo........oo..',
+    '.oppo......oppo.',
+    '.ohpho....ohpho.',
+    '.ohhhoooooohhho.',
+    'ohhhhhdhhdhhhhho',
+    'ohhEehhhhhhEehho',
+    'ohheehhhhhheehho',
+    'ohbhhhhnnhhhhbho',
+    '.ohhhhmhhmhhhho.',
+    '..oohhhhhhhhoo..',
+    '..ohhLLLLLLhho..',
+    '..ohhLLLLLLhho..',
+    '..ohhhLLLLhhho..',
+    '..oohhhhhhhhoo..',
   ],
   back: [
-    '..oo......oo..',
-    '.ohho....ohho.',
-    '.ohHhooooohHo.',
-    '.ohhhhhhhhhho.',
-    'ohhhhhhhhhhhho',
-    'ohhhhhhhhhhhho',
-    'ohhhhhhhhhhhho',
-    '.ohhhhhhhhhho.',
-    '..ohhhhhhhho..',
-    '.ohhhhddhhhho.',
-    '.ohhhhddhhhho.',
+    '..oo........oo..',
+    '.oHho......ohHo.',
+    '.ohhho....ohhho.',
+    '.ohhhoooooohhho.',
+    'ohhhhhdhhdhhhhho',
+    'ohhhhhhddhhhhhho',
+    'ohhhhhhhhhhhhhho',
+    'ohhhhhhhhhhhhhho',
+    '.ohhhhhhhhhhhho.',
+    '..oohhhhhhhhoo..',
+    '..ohhhdhhdhhho..',
+    '..ohhhhhhhhhho..',
+    '..ohhhdhhdhhho..',
+    '..oohhhhhhhhoo..',
   ],
   side: [
-    '.........o...o..',
-    '........oho.oho.',
-    '.o......ohHohHho',
-    'odo.....ohhhhhho',
-    'odo.....ohhhhheo',
-    '.odo....ohhhhhhn',
-    '..odooooohhhhho.',
-    '..ohhhhhhhhhho..',
-    '.ohhhhhhhhLLho..',
-    '.ohhhhhhhhLLho..',
-    '.ohhhhhhhhhhho..',
+    '.......oo....oo.',
+    '.oo...oho...opho',
+    'odo...ohhoooohho',
+    'oho...ohhhhhhhho',
+    '.oho..ohhdhdhhho',
+    '.oho..ohhhhhhEeo',
+    '..ooooohhhhhhheo',
+    '..ohhhohbhhhhhhn',
+    '.ohdhdhohhhhhmho',
+    '.ohhhhhhoooooo..',
+    '.ohhhhhhLLo.....',
+    '..oooooooo......',
   ],
+};
+
+/** 正面のしっぽ（体の後ろ、右側）と背面のしっぽ（体の手前、まんなか）。 */
+const CAT_TAIL: Record<'front' | 'back', Grid> = {
+  front: ['..oo', '.oho', '.oho', 'ohho', 'oho.', 'ohho', '.ooo'],
+  back: ['.oo.', 'oddo', 'ohho', 'ohho', 'oho.'],
 };
 
 interface Recipe {
@@ -682,14 +695,15 @@ export const NPC_IDS: readonly string[] = [...Object.keys(RECIPES), 'cat'];
 
 /** NPC の色と図案。テストで記号の定義漏れや主人公との重なりを確かめるために使う。 */
 export function npcParts(name: string): { colors: Palette; grids: Grid[] } {
-  if (name === 'cat') return { colors: CAT_COLORS, grids: Object.values(CAT) };
+  if (name === 'cat') return { colors: CAT_COLORS, grids: [...Object.values(CAT), ...Object.values(CAT_TAIL)] };
   const recipe = Object.hasOwn(RECIPES, name) ? RECIPES[name] : FALLBACK;
   const grids = [recipe.head, recipe.body, ...(recipe.hats ?? []).map(hat => HATS[hat])].flatMap(views => Object.values(views));
   return { colors: { ...BASE, ...recipe.colors }, grids };
 }
 
 const CAT_COLORS: Palette = {
-  o: '#3b2318', h: '#dbb385', H: '#efd3a8', d: '#a67c52', L: '#f6ead2', n: '#e39a8f', e: '#2b1a14',
+  o: '#4a2c1e', h: '#f0b77a', H: '#f8d6a8', d: '#c98545', L: '#fbf1df', p: '#f2a7a0', b: '#f6a9a3',
+  n: '#e3867f', e: '#2b1a14', E: '#ffffff', m: '#7a4a3a',
 };
 
 /**
@@ -714,12 +728,14 @@ function legs(c: C2D, view: View, step: number, colors: Palette, token: string, 
 function drawCat(c: C2D, view: View, step: number): void {
   const paw = (x: number, lift: number) => paint(c, ['oLLo', 'oooo'], CAT_COLORS, x, 24 - lift);
   if (view === 'side') {
-    paw(2 - step, step === 0 ? 0 : 1); paw(10 + step, 0);
-    paint(c, CAT.side, CAT_COLORS, 1, 13);
-  } else {
-    paw(4, step < 0 ? 1 : 0); paw(10, step > 0 ? 1 : 0);
-    paint(c, CAT[view], CAT_COLORS, 2, 13);
+    paw(3 - step, step === 0 ? 0 : 1); paw(8 + step, 0);
+    paint(c, CAT.side, CAT_COLORS, 1, 12);
+    return;
   }
+  if (view === 'front') paint(c, CAT_TAIL.front, CAT_COLORS, 13, 17);
+  paw(4, step < 0 ? 1 : 0); paw(10, step > 0 ? 1 : 0);
+  paint(c, CAT[view], CAT_COLORS, 1, 10);
+  if (view === 'back') paint(c, CAT_TAIL.back, CAT_COLORS, 7, 20);
 }
 
 export function drawNpc(c: C2D, name: string, facing: Facing, frame: 0 | 1 | 2): void {

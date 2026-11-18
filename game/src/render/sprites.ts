@@ -6,6 +6,7 @@ import { makeCanvas, R, type C2D } from './draw';
 import { buildingRepresentativeColor } from './building-colors';
 import { drawPlayer, PLAYER_H, PLAYER_W } from './player-sprite';
 import { drawNpc, NPC_H, NPC_W } from './npc-sprite';
+import { drawCar } from './car-sprite';
 import { furnitureAsset, FURNITURE_URLS } from './furniture-images/catalog';
 import { FurnitureImageLoader } from './furniture-images/loader';
 import { paintFurnitureImage } from './furniture-images/paint';
@@ -290,12 +291,7 @@ function prop(c: C2D, o: ObjectDef, w: number, h: number): void {
       for (const x of [5, 14, 22]) { R(c, '#f4e4bb', x, 3, 5, 7); R(c, '#aa8a73', x + 1, 5, 3, 1); } return;
     case 'busstop':
       R(c, '#657a7b', 7, 8, 2, 8); box(c, 2, 0, 12, 9, '#f0e6bf', '#527d8b'); R(c, '#b66752', 4, 2, 8, 2); R(c, '#6b8a92', 5, 6, 6, 1); R(c, ink, 4, 15, 8, 1); return;
-    case 'car': {
-      const color = ['#dddcc5', '#6b91a9', '#b56d5a', '#7e9290'][(Number(o.style) || 0) % 4];
-      R(c, ink, 4, 0, 6, 3); R(c, ink, w - 10, 0, 6, 3); R(c, ink, 4, 13, 6, 3); R(c, ink, w - 10, 13, 6, 3);
-      box(c, 0, 2, w, 12, color); box(c, 10, 3, 13, 10, '#78a4b2'); R(c, color, 13, 3, 6, 10);
-      R(c, '#fff1b4', w - 2, 4, 1, 3); R(c, '#fff1b4', w - 2, 10, 1, 2); R(c, '#bc5b50', 1, 4, 1, 3); return;
-    }
+    case 'car': drawCar(c, Number(o.style) || 0); return;
     case 'slide':
       R(c, ink, 3, 8, 3, h - 8); R(c, ink, 12, 8, 3, h - 8);
       R(c, '#d6b768', 4, 9, 1, h - 9); R(c, '#d6b768', 13, 9, 1, h - 9);
