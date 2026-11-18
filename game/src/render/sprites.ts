@@ -3,6 +3,7 @@ import type { ObjectDef } from '../core/types';
 import { TILE, hash2, type Facing } from '../core/coords';
 import { DEFAULT_APPEARANCE, normalizeAppearance, appearanceKey, type PlayerAppearance } from '../core/appearance';
 import { makeCanvas, R, type C2D } from './draw';
+import { drawSignText, hasGlyphs } from './sign-font';
 import { buildingRepresentativeColor } from './building-colors';
 import { drawPlayer, PLAYER_H, PLAYER_W } from './player-sprite';
 import { drawNpc, NPC_H, NPC_W } from './npc-sprite';
@@ -38,8 +39,12 @@ function door(c: C2D, center: number, bottom: number, wide = false): void {
   R(c, '#e3ca79', x + w - 3, bottom - 9, 1, 3);
   R(c, '#d2c5a8', x - 3, bottom - 1, w + 6, 1);
 }
-/** Rasterise locally available fonts once, then threshold alpha for a hard pixel edge. */
+/**
+ * Sign text. Known words use the hand-drawn sign font; anything else falls back to rasterising a local font once,
+ * then thresholding alpha for a hard pixel edge.
+ */
 function label(c: C2D, text: string, center: number, y: number, color = ink): void {
+  if (hasGlyphs(text)) { drawSignText(c, text, center, y + 3, color); return; }
   const [tmp, t] = makeCanvas(text.length * 11 + 4, 13);
   t.font = 'bold 10px sans-serif'; t.textBaseline = 'top'; t.fillStyle = '#fff'; t.fillText(text, 2, 1);
   const pixels = t.getImageData(0, 0, tmp.width, tmp.height).data;
