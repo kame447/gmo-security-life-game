@@ -1,6 +1,6 @@
 # NPC のドット絵
 
-対象: [Issue #15](https://github.com/kame447/gmo-security-life-game/issues/15) の残件「NPC の画風統一」。2026-11-18 に実画面で見た目を確認し、合格しました（車とねこは指摘を受けて描き直した版）。
+対象: [Issue #15](https://github.com/kame447/gmo-security-life-game/issues/15) の残件「NPC の画風統一」。2026-11-18 に実画面で見た目を確認しました。その後の指摘（めがね・おかあさんのスカート・ねこの顔の幅）を直した版は再確認待ちです。
 
 ## 方針
 
