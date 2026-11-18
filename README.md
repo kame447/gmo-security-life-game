@@ -6,7 +6,7 @@
 
 ## ドキュメント
 
-ゲームの目的と体験は [全体企画書](docs/product.md)、開発の進め方は [ロードマップ](docs/roadmap.md) に記載する。
+ゲームの目的と体験は [全体企画書](docs/product.md)、Issue・PRと実装の対応は [開発の現在地](docs/development-status.md)、開発の進め方は [ロードマップ](docs/roadmap.md) に記載する。
 
 システムの責務は [概念設計](docs/architecture.md)、機能ごとの設計は [機能仕様](docs/features/README.md)、分割マップの仕様は [マップと探索](docs/features/map.md)、個別のイベントは [イベント文書](docs/events/README.md) にまとめる。
 
