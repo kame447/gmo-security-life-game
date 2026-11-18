@@ -352,8 +352,7 @@ try {
     }
   }
 
-  // Every portrait width from 320 to 420: the five buttons stay on one row, clear of the minimap, and the center of
-  // 「さいしょから」 is the button itself. The second pass widens every character by 0.5px (about 5%).
+  // Check the current five buttons and the planned sixth "セーブ" button without changing production game state.
   for (const dpr of [1, 2]) {
     for (const touchOn of [false, true]) {
       const context = await browser.newContext({ viewport: { width: 320, height: 640 }, deviceScaleFactor: dpr, hasTouch: touchOn });
@@ -367,40 +366,54 @@ try {
         const isTouchOn = await page.locator('#touch').evaluate(node => node.classList.contains('on'));
         if (isTouchOn !== touchOn) await page.locator('#btn-touch').click();
 
-        for (const wide of [false, true]) {
-          if (wide) await page.addStyleTag({ content: '#menu button { letter-spacing: 0.5px; }' });
-          const bad = [];
-          for (let width = 320; width <= 420; width++) {
-            await page.setViewportSize({ width, height: 640 });
-            await page.waitForFunction(w => window.innerWidth === w, width);
-            await frames(page);
-            const m = await page.evaluate(() => {
-              const buttons = [...document.querySelectorAll('#menu button')].map(el => el.getBoundingClientRect());
-              const map = document.querySelector('#minimap-button').getBoundingClientRect();
-              const reset = document.querySelector('#btn-reset');
-              const r = reset.getBoundingClientRect();
-              return {
-                count: buttons.length,
-                rows: new Set(buttons.map(b => Math.round(b.y))).size,
-                overlap: buttons.reduce((sum, b) => sum +
-                  Math.max(0, Math.min(b.right, map.right) - Math.max(b.x, map.x)) *
-                  Math.max(0, Math.min(b.bottom, map.bottom) - Math.max(b.y, map.y)), 0),
-                inside: buttons.every(b => b.x >= 0 && b.right <= window.innerWidth),
-                hit: document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === reset,
-              };
-            });
-            if (m.count !== 5 || m.rows !== 1 || m.overlap > 0 || !m.inside || !m.hit) {
-              bad.push(`${width}:rows=${m.rows},overlap=${m.overlap.toFixed(0)},inside=${m.inside},hit=${m.hit}`);
+        for (const withSave of [false, true]) {
+          if (withSave) await page.evaluate(() => {
+            const save = document.createElement('button');
+            save.id = 'btn-save';
+            save.className = 'panel';
+            save.type = 'button';
+            save.textContent = 'セーブ';
+            document.querySelector('#menu').insertBefore(save, document.querySelector('#btn-touch'));
+          });
+          for (const wide of [false, true]) {
+            const wideStyle = wide ? await page.addStyleTag({ content: '#menu button { letter-spacing: 0.5px; }' }) : null;
+            const bad = [];
+            for (let width = 320; width <= 420; width++) {
+              await page.setViewportSize({ width, height: 640 });
+              await page.waitForFunction(w => window.innerWidth === w, width);
+              await frames(page);
+              const m = await page.evaluate(() => {
+                const buttons = [...document.querySelectorAll('#menu button')];
+                const rects = buttons.map(el => el.getBoundingClientRect());
+                const map = document.querySelector('#minimap-button').getBoundingClientRect();
+                return {
+                  count: buttons.length,
+                  rows: new Set(rects.map(b => Math.round(b.y))).size,
+                  overlap: rects.reduce((sum, b) => sum +
+                    Math.max(0, Math.min(b.right, map.right) - Math.max(b.x, map.x)) *
+                    Math.max(0, Math.min(b.bottom, map.bottom) - Math.max(b.y, map.y)), 0),
+                  inside: rects.every(b => b.x >= 0 && b.right <= window.innerWidth),
+                  hit: buttons.every((button, i) => {
+                    const r = rects[i];
+                    return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === button;
+                  }),
+                };
+              });
+              if (m.count !== (withSave ? 6 : 5) || m.rows !== 1 || m.overlap > 0 || !m.inside || !m.hit) {
+                bad.push(`${width}:rows=${m.rows},overlap=${m.overlap.toFixed(0)},inside=${m.inside},hit=${m.hit}`);
+              }
             }
+            recordCheck(`width 320-420 d${dpr} touch=${touchOn ? 'on' : 'off'} menu=${withSave ? 6 : 5}${wide ? ' wide-text' : ''}: one row, clear of minimap, all buttons hittable`,
+              bad.length === 0, bad.length ? `${bad.length} widths: ${bad.slice(0, 6).join(' ')}` : '101 widths');
+            if (wideStyle) await wideStyle.evaluate(node => node.remove());
           }
-          recordCheck(`width 320-420 d${dpr} touch=${touchOn ? 'on' : 'off'}${wide ? ' wide-text' : ''}: one row, clear of minimap, reset hittable`,
-            bad.length === 0, bad.length ? `${bad.length} widths: ${bad.slice(0, 6).join(' ')}` : '101 widths');
         }
       } finally {
         await context.close();
       }
     }
   }
+
 } finally {
   await browser.close();
 }

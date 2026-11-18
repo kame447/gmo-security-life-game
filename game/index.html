@@ -34,10 +34,19 @@
         #menu { position: relative; right: auto; top: auto; align-self: flex-end; margin: 6px 10px 0; max-width: calc(100% - 20px); flex-wrap: wrap; justify-content: flex-end; gap: 3px; }
         #menu button { padding: 5px; font-size: 11px; }
       }
-      /* 11px の字では 5 つのボタンに 324px 要り、幅 344px 未満で 2 段になって小さい地図に隠れる。境に余裕を持たせて詰める。 */
+      /* 狭い画面では 5 つのボタンを 1 段に保つ。 */
       @media (max-width: 359px) {
         #menu { gap: 2px; }
         #menu button { padding: 5px 3px; font-size: 10px; }
+      }
+      /* セーブを追加して 6 つになっても、ボタンやミニマップを重ねず 1 段に保つ。 */
+      @media (max-width: 404px) {
+        #menu:has(#btn-save) { gap: 2px; }
+        #menu:has(#btn-save) button { padding: 5px 3px; font-size: 10px; }
+      }
+      @media (max-width: 354px) {
+        #menu:has(#btn-save) { gap: 1px; }
+        #menu:has(#btn-save) button { padding: 5px 1px; font-size: 9.8px; }
       }
       #hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 4px 12px; font-size: 13px;
               pointer-events: none; white-space: nowrap; }
