@@ -63,6 +63,7 @@ export class UiController implements ModalPanelHost {
     const active = this.panels.active;
     const traveling = !!this.travel?.()?.isOpen;
     this.stage.classList.toggle('modal-open', !!active || traveling);
+    this.stage.classList.toggle('dialog-open', !!this.game.dialog);
     for (const entry of this.panels.registrations) {
       if (entry.button) entry.button.disabled = traveling || !!this.minimap?.isOpen || !this.panels.canOpen(entry.id);
     }

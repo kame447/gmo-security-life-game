@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BGM の試聴 | セキュリティ人生シミュレーション</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #1e3734; color: #fff; font: 15px/1.6 "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; }
+      main { width: min(460px, calc(100% - 32px)); padding: 24px 0; }
+      h1 { margin: 0 0 4px; font-size: 20px; }
+      p { margin: 4px 0; color: #d0e3d5; font-size: 13px; }
+      .song { margin-top: 14px; padding: 16px; border: 2px solid #f4ecdc; border-radius: 8px; background: #242a31; }
+      .song h2 { margin: 0; font-size: 17px; }
+      .song.playing { border-color: #ffe08a; }
+      .row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+      button { min-width: 96px; color: #1e493d; background: #f3f8f0; border: 0; border-radius: 6px; padding: 9px 12px; font: inherit; font-weight: bold; cursor: pointer; }
+      .bars { flex: 1; display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+      .bars span { height: 10px; border-radius: 2px; background: #3c4a52; }
+      .bars span.on { background: #ffe08a; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>BGM の候補</h1>
+      <p>3 案を聴き比べられます。本編のマップ探索中に流れるのは案Cです（キーを押すと鳴り始め、M でミュート）。</p>
+      <div id="songs"></div>
+    </main>
+    <script type="module" src="/src/audio/preview.ts"></script>
+  </body>
+</html>
