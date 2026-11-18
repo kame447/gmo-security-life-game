@@ -86,10 +86,6 @@ const shop = new ShopPanel(game.assets, () => { controls.clear(); ui.focusMap();
 ui.registerPanel({ id: 'shop', panel: shop });
 shopEvents = clerkEvents(game, ui, context => shop.open(context));
 const hud = new Hud(game, () => ui.primaryAction());
-// Mail can arrive while exploring; an open inbox already shows it.
-game.phone.onMailArrive(() => {
-  if (game.phone.isOwned && !(game.phone.isOpen && game.phone.currentApp?.id === 'mail')) hud.showToast('メールが とどきました（P）');
-});
 const lifeEventPanel = new LifeEventPanel(game, lifeEvents, () => controls.clear());
 ui.bind({ onReset: () => { game.reset(); save(); } });
 window.addEventListener('keydown', event => bag.handleHudKey(event, ui.mode === 'explore'));
@@ -99,6 +95,10 @@ if (shopReview) game.action();
 game.on(event => {
   if (event.type === 'edge' && world.variant.edgeMessage) hud.showToast(world.variant.edgeMessage);
   if (event.type === 'area-enter') save();
+});
+// Mail can arrive while exploring; an open inbox already shows it.
+game.phone.onMailArrive(() => {
+  if (game.phone.isOwned && !(game.phone.isOpen && game.phone.currentApp?.id === 'mail')) hud.showToast('メールが とどきました（P）');
 });
 window.addEventListener('pagehide', () => { controls.clear(); save(); });
 if (!review.temporary) setInterval(save, 3000);
