@@ -40,13 +40,16 @@
         #menu button { padding: 5px 3px; font-size: 10px; }
       }
       /* セーブを追加して 6 つになっても、ボタンやミニマップを重ねず 1 段に保つ。 */
-      @media (max-width: 404px) {
+      @media (max-width: 420px) {
         #menu:has(#btn-save) { gap: 2px; }
         #menu:has(#btn-save) button { padding: 5px 3px; font-size: 10px; }
       }
       @media (max-width: 354px) {
         #menu:has(#btn-save) { gap: 1px; }
         #menu:has(#btn-save) button { padding: 5px 1px; font-size: 9.8px; }
+      }
+      @media (max-width: 339px) {
+        #menu:has(#btn-save) button { padding-left: 0; padding-right: 0; font-size: 9.5px; }
       }
       #hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 4px 12px; font-size: 13px;
               pointer-events: none; white-space: nowrap; }
