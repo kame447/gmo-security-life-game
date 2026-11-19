@@ -59,11 +59,24 @@ export type ForcedTrigger =
   /** このエリアに入ったとき始まる。 */
   | { kind: 'area'; areaId: string; place: string };
 
+/** その場にいない相手からの知らせ。atAreas の外で始まるときは、スマホに届いたメールとして見せる。 */
+export interface StoryMail {
+  /** 差出人（会話欄の名前に「メール：」を付けて出す）。 */
+  from: string;
+  /** 相手が実際にいる場所。ここで始まったときはメールにせず、その場の会話にする。 */
+  atAreas: readonly string[];
+}
+
 export interface StoryForcedEvent {
   /** events.ts の人生イベントの id。 */
   eventId: string;
   trigger: ForcedTrigger;
+  mail?: StoryMail;
 }
+
+/** 学校の中（先生・同級生がいる場所）。 */
+const AT_SCHOOL = ['school-classroom-interior'] as const;
+const fromSchool = (from: string): StoryMail => ({ from, atAreas: AT_SCHOOL });
 
 export interface StoryStage {
   id: string;
@@ -86,9 +99,9 @@ export const STORY_STAGES: readonly StoryStage[] = [
     id: 'junior-high', name: 'ちゅうがく', limitSeconds: 180, warnSeconds: 30,
     intro: ['ちゅうがくせいの まいにちが はじまった。', 'じかんが たつと、つぎの ステージへ すすむよ。まちを まわって、いろいろな できごとを けいけんしよう。'],
     forced: [
-      { eventId: 'story.jh.entrance', trigger: { kind: 'time', atSeconds: 0 } },
+      { eventId: 'story.jh.entrance', trigger: { kind: 'time', atSeconds: 0 }, mail: fromSchool('ちゅうがっこう') },
       { eventId: 'story.jh.club', trigger: { kind: 'area', areaId: 'school-classroom-interior', place: 'がっこうの きょうしつ' } },
-      { eventId: 'story.jh.exam', trigger: { kind: 'time', atSeconds: 120 } },
+      { eventId: 'story.jh.exam', trigger: { kind: 'time', atSeconds: 120 }, mail: fromSchool('たんにんの せんせい') },
     ],
     milestone: ['……そして、そつぎょうしきの ひ。', 'ちゅうがくを そつぎょうした！ はるからは こうこうせいだ。'],
   },
@@ -96,9 +109,9 @@ export const STORY_STAGES: readonly StoryStage[] = [
     id: 'high-school', name: 'こうこう', limitSeconds: 180, warnSeconds: 30,
     intro: ['こうこうせいの まいにちが はじまった。'],
     forced: [
-      { eventId: 'story.hs.entrance', trigger: { kind: 'time', atSeconds: 0 } },
-      { eventId: 'story.hs.festival', trigger: { kind: 'time', atSeconds: 60 } },
-      { eventId: 'story.hs.career', trigger: { kind: 'time', atSeconds: 130 } },
+      { eventId: 'story.hs.entrance', trigger: { kind: 'time', atSeconds: 0 }, mail: fromSchool('こうこう') },
+      { eventId: 'story.hs.festival', trigger: { kind: 'time', atSeconds: 60 }, mail: fromSchool('クラスの いいんちょう') },
+      { eventId: 'story.hs.career', trigger: { kind: 'time', atSeconds: 130 }, mail: fromSchool('たんにんの せんせい') },
     ],
     milestone: ['……そして、そつぎょうしきの ひ。', 'こうこうを そつぎょうした！', 'このさきの ステージは じゅんびちゅう。しばらく まちを じゆうに あるいてね。'],
   },

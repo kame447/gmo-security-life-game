@@ -27,6 +27,8 @@ import { LifeEventPanel } from './ui/life-event-panel';
 import { Smartphone } from './ui/smartphone';
 import { ShopPanel } from './ui/shop-panel';
 import { StoryHud } from './ui/story-hud';
+import { DialogLogPanel } from './ui/dialog-log-panel';
+import { DialogLog } from './events/dialog-log';
 import { StoryDirector } from './story/director';
 import { STORY_EVENTS } from './story/events';
 import { parseStorySave } from './story/state';
@@ -101,7 +103,13 @@ ui.registerPanel({ id: 'shop', panel: shop });
 shopEvents = clerkEvents(game, ui, context => shop.open(context));
 const hud = new Hud(game, () => ui.primaryAction());
 installBgm(muted => hud.showToast(muted ? 'おんがく：オフ（M）' : 'おんがく：オン（M）'));
-const lifeEventPanel = new LifeEventPanel(game, lifeEvents, outcome => { controls.clear(); story?.onLifeOutcome(outcome); save(); });
+const dialogLog = new DialogLog();
+const dialogLogPanel = new DialogLogPanel(dialogLog, $<HTMLElement>('#stage'), () => { controls.clear(); ui.update(); ui.focusMap(); });
+ui.registerPanel({ id: 'log', panel: dialogLogPanel, open: () => dialogLogPanel.open(), button: dialogLogPanel.button, shortcut: 'KeyL' });
+const lifeEventPanel = new LifeEventPanel(game, lifeEvents, outcome => {
+  dialogLog.choice(outcome.choice.label);
+  controls.clear(); story?.onLifeOutcome(outcome); save();
+});
 story?.attach({
   say: (speaker, lines) => game.say(speaker, lines),
   warp: spawn => game.warp(spawn),
@@ -149,6 +157,7 @@ const loop = startLoop({
     frames.record(now, frame, input, game, renderer);
     avatar.drawPreview(now);
     lifeEventPanel.update();
+    dialogLog.observe(game.dialog);
     storyHud?.update();
     hud.update(now);
     ui.update();

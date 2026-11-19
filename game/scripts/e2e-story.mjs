@@ -123,6 +123,33 @@ try {
     await shot(page, '07-stage');
   });
 
+  await check('news from school away from school arrives as a mail', async () => {
+    await readAll(page);
+    assert.notEqual((await state(page)).area, 'school-classroom-interior');
+    await page.keyboard.press('KeyL');
+    await page.waitForSelector('#dialog-log:not([hidden])');
+    assert.match(await page.locator('#dialog-log').textContent(), /メール：ちゅうがっこう/);
+    await page.keyboard.press('KeyL');
+    await page.waitForSelector('#dialog-log', { state: 'hidden' });
+  });
+
+  await check('the dialog log re-reads the errands and the bicycle choice, and stops the clock while open', async () => {
+    await readAll(page);
+    await page.locator('#btn-log').click();
+    await page.waitForSelector('#dialog-log:not([hidden])');
+    const text = await page.locator('#dialog-log').textContent();
+    assert.match(text, /おつかいを たのめる/);
+    assert.match(text, /・がっこうの せんせい/);
+    assert.match(text, /▶ C：スーパー激安セール/);
+    assert.match(text, /にせの つうはんサイト/);
+    const t0 = await page.evaluate(() => window.__slgStory.stageElapsed);
+    await page.waitForTimeout(800);
+    assert.equal(await page.evaluate(() => window.__slgStory.stageElapsed), t0);
+    await shot(page, '08-dialog-log');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('#dialog-log', { state: 'hidden' });
+  });
+
   await check('the stage clock runs while exploring and resumes after a reload', async () => {
     await readAll(page);
     const t0 = await page.evaluate(() => window.__slgStory.stageElapsed);

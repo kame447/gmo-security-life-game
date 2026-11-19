@@ -6,7 +6,7 @@ import { validateLifeEvents } from '../src/events/life-events';
 import { canStand } from '../src/map/explorer';
 import { Game } from '../src/session/game';
 import { STORY_BEDROOM, STORY_BIKE, STORY_ERRANDS, STORY_STAGES } from '../src/story/config';
-import { StoryDirector } from '../src/story/director';
+import { mailSpeaker, StoryDirector } from '../src/story/director';
 import { STORY_EVENTS } from '../src/story/events';
 import { parseStorySave } from '../src/story/state';
 import { buildWorld } from '../src/world';
@@ -168,6 +168,41 @@ describe('story flow', () => {
     t.game.warp({ areaId: 'school-classroom-interior', x: 8, y: 10, facing: 'up' });
     t.tick(0);
     expect(t.life.pending?.event.id).toBe('story.jh.club');
+  });
+
+  it('delivers news from school as a phone mail when the player is not at school', () => {
+    const t = setup();
+    finishPrologue(t);
+    const exam = STORY_STAGES[0].forced.find(f => f.eventId === 'story.jh.exam')!;
+    expect(exam.mail).toBeDefined();
+    // Away from school (at home): the teacher's words arrive as a mail, including the question.
+    for (let i = 0; i < 5000 && t.life.pending?.event.id !== exam.eventId; i++) {
+      t.tick(0.5);
+      if (t.life.pending && t.life.pending.event.id !== exam.eventId) t.choose(t.life.pending.event.choices![0].id);
+      if (t.life.pending?.event.id !== exam.eventId) t.closeDialogs();
+    }
+    expect(t.game.player.areaId).not.toBe('school-classroom-interior');
+    expect(t.game.dialog?.speaker).toBe(mailSpeaker(exam.mail!.from));
+    expect(t.game.dialog?.lines[0]).toContain('メール');
+    expect(t.life.pending?.speaker).toBe(mailSpeaker(exam.mail!.from));
+    expect(t.notices.some(n => n.includes('メール'))).toBe(true);
+  });
+
+  it('keeps a news event as a spoken scene when it starts at school', () => {
+    const t = setup();
+    finishPrologue(t);
+    t.settle();
+    const exam = STORY_STAGES[0].forced.find(f => f.eventId === 'story.jh.exam')!;
+    t.game.warp({ areaId: exam.mail!.atAreas[0], x: 8, y: 10, facing: 'up' });
+    // Answer the classroom's own event, then wait for the exam notice while staying in the classroom.
+    for (let i = 0; i < 5000 && t.life.pending?.event.id !== exam.eventId; i++) {
+      t.tick(0.5);
+      if (t.life.pending && t.life.pending.event.id !== exam.eventId) t.choose(t.life.pending.event.choices![0].id);
+      if (t.life.pending?.event.id !== exam.eventId) t.closeDialogs();
+    }
+    expect(t.game.player.areaId).toBe(exam.mail!.atAreas[0]);
+    expect(t.game.dialog?.speaker).toBe(STORY_EVENTS.find(e => e.id === exam.eventId)!.speaker);
+    expect(t.life.pending?.speaker).toBeUndefined();
   });
 
   it('resumes from a save and repairs damaged fields', () => {

@@ -254,10 +254,19 @@ export class StoryDirector implements MapEventSink {
   }
 
   private beginForced(forced: StoryForcedEvent): void {
-    const begun = this.lifeEvents.begin(forced.eventId, { areaId: this.host!.areaId() });
+    const areaId = this.host!.areaId();
+    // Someone who is not here cannot be heard: their news arrives on the phone instead.
+    const mail = forced.mail && !forced.mail.atAreas.includes(areaId) ? forced.mail : undefined;
+    const begun = this.lifeEvents.begin(forced.eventId, { areaId, speaker: mail && mailSpeaker(mail.from) });
     if (!begun) return;
     if (this.lifeEvents.pending?.event.id === forced.eventId) this.inProgress = forced.eventId;
     else this.finishForced(forced.eventId);
-    this.host!.say(begun.speaker ?? '', begun.lines);
+    if (mail) this.host!.notice(`${mail.from} から メールが とどいた`);
+    this.host!.say(begun.speaker ?? '', mail ? [MAIL_ARRIVED, ...begun.lines] : begun.lines);
   }
 }
+
+const MAIL_ARRIVED = '（スマホに メールが とどいた。）';
+
+/** メールで届いた知らせの、会話欄に出す名前。 */
+export function mailSpeaker(from: string): string { return `メール：${from}`; }

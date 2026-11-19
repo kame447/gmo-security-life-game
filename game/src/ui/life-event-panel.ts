@@ -66,7 +66,7 @@ export class LifeEventPanel {
   private open(pending: PendingLifeChoice): void {
     const { event } = pending;
     this.active = pending;
-    this.speaker = event.speaker ?? this.game.world.areas.get(pending.areaId)?.interactions
+    this.speaker = pending.speaker ?? event.speaker ?? this.game.world.areas.get(pending.areaId)?.interactions
       .find(i => i.id === pending.interactionId)?.name ?? '';
     // Reuse the existing dialog box for the question; this also keeps the player still.
     this.game.dialog = { speaker: this.speaker, lines: [event.prompt ?? ''], index: 0 };
