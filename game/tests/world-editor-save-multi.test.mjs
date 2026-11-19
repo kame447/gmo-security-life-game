@@ -19,7 +19,10 @@ if (process.argv[2] === '--fault') {
   // A fresh process isolates fault injection from Vite and other node:test files.
   const [root, planFile, fault] = process.argv.slice(3);
   const plan = JSON.parse(await readFile(planFile, 'utf8'));
-  const originalOpen = fs.promises.open, originalRename = fs.promises.rename;
+  const originalOpen = fs.promises.open, originalRename = fs.promises.rename, originalUnlink = fs.promises.unlink;
+  const failRestore = fault === 'restore-rename' || fault === 'recovery-both';
+  const failDelete = fault === 'rollback-unlink' || fault === 'recovery-both';
+  const recoveryFault = failRestore || failDelete;
   let stages = 0, renames = 0, bytesWritten = 0;
   fs.promises.open = async function (file, ...args) {
     const handle = await originalOpen.call(this, file, ...args);
@@ -41,14 +44,25 @@ if (process.argv[2] === '--fault') {
   fs.promises.rename = async function (from, to) {
     if (String(from).endsWith('.tmp')) {
       renames++;
-      if (fault === `rename-${renames}`) throw new Error(`injected rename ${renames}`);
+      if (fault === `rename-${renames}` || (recoveryFault && renames === (fault === 'restore-rename' ? 2 : 3))) throw new Error(`injected rename ${renames}`);
     }
+    if (failRestore && String(from).endsWith('.backup')) throw new Error('injected backup restore rename');
     return originalRename.call(this, from, to);
+  };
+  fs.promises.unlink = async function (file) {
+    if (failDelete && file === path.join(root, DIRECTORY, 'shop-konbini-interior.json')) throw new Error('injected rollback unlink');
+    return originalUnlink.call(this, file);
   };
   syncBuiltinESMExports();
   const { commitLayouts } = await import(writerURL.href);
-  await assert.rejects(commitLayouts(root, async () => plan), /injected/);
-  console.log(JSON.stringify({ fault, stages, renames, bytesWritten }));
+  let recovery;
+  await assert.rejects(commitLayouts(root, async () => plan), error => {
+    if (!recoveryFault) return /injected/.test(error.message);
+    assert.ok(error instanceof AggregateError);
+    recovery = { message: error.message, causes: error.errors.map(cause => cause.message) };
+    return true;
+  });
+  console.log(JSON.stringify({ fault, stages, renames, bytesWritten, recovery }));
 } else {
   let directory, template, plans;
   const { commitLayouts, applyLayout, previewLayout } = await import(writerURL.href);
@@ -181,6 +195,43 @@ if (process.argv[2] === '--fault') {
         else assert.equal(trace.stages, 2);
         await clean(root, beforeBytes);
         assert.equal((await stat(path.join(areas(root), `${HOME}.json`))).mode & 0o777, 0o640);
+      });
+    }
+    for (const fault of ['restore-rename', 'rollback-unlink', 'recovery-both']) {
+      it(`${fault}: 復旧失敗の全対象を案内し、元backupと残存ファイルの状態を保つ`, async () => {
+        const root = await copy(), beforeBytes = await jsonBytes(root), planFile = path.join(root, 'plan.json');
+        const homeFile = `${HOME}.json`, shopFile = 'shop-konbini-interior.json';
+        await chmod(path.join(areas(root), homeFile), 0o640);
+        await writeFile(planFile, JSON.stringify(plans.three.prepared));
+        const result = spawnSync(process.execPath, [filename, '--fault', root, planFile, fault], { encoding: 'utf8', cwd: sourceRoot });
+        assert.equal(result.status, 0, result.stdout + result.stderr);
+        const trace = JSON.parse(result.stdout), restoreFailed = fault !== 'rollback-unlink', deleteFailed = fault !== 'restore-rename';
+        assert.deepEqual(trace.recovery.causes, [
+          `injected rename ${fault === 'restore-rename' ? 2 : 3}`,
+          ...(deleteFailed ? ['injected rollback unlink'] : []),
+          ...(restoreFailed ? ['injected backup restore rename'] : []),
+        ]);
+        const entries = (await readdir(areas(root))).sort(), backups = entries.filter(name => name.endsWith('.backup'));
+        assert.deepEqual(entries, [homeFile, ...(deleteFailed ? [shopFile] : []), ...backups].sort(), 'No other file, lock or stage may remain');
+        assert.equal(backups.length, restoreFailed ? 1 : 0);
+        const planned = id => plans.three.prepared.files.find(file => file.areaId === id).text;
+        const homeBytes = await readFile(path.join(areas(root), homeFile));
+        assert.equal(homeBytes.toString('base64'), restoreFailed ? Buffer.from(planned(HOME)).toString('base64') : beforeBytes[homeFile]);
+        assert.equal((await stat(path.join(areas(root), homeFile))).mode & 0o777, 0o640);
+        const instructions = [];
+        if (deleteFailed) {
+          assert.equal(await readFile(path.join(areas(root), shopFile), 'utf8'), planned('shop-konbini-interior'));
+          assert.equal((await stat(path.join(areas(root), shopFile))).mode & 0o777, 0o600);
+          instructions.push(`新規作成した ${DIRECTORY}/${shopFile} を削除してください`);
+        }
+        if (restoreFailed) {
+          assert.ok(backups[0].startsWith(`${homeFile}.`));
+          assert.equal((await readFile(path.join(areas(root), backups[0]))).toString('base64'), beforeBytes[homeFile]);
+          assert.equal((await stat(path.join(areas(root), backups[0]))).mode & 0o777, 0o640);
+          instructions.push(`${DIRECTORY}/${backups[0]} から ${DIRECTORY}/${homeFile} を復元してください`);
+        }
+        assert.equal(trace.recovery.message, `保存を戻せませんでした。${instructions.join('。')}。`);
+        assert.equal(trace.recovery.message.includes(root), false, 'Recovery instructions expose only paths relative to the game root');
       });
     }
     it('最後の対象に他者lockがあれば、先に得たlockだけを解放し、書込みを始めない', async () => {

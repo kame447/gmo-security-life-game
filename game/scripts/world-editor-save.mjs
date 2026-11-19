@@ -109,16 +109,21 @@ export async function commitLayouts(root, prepare) {
             committed.push(file);
         }
     } catch (error) {
-        const recoveryErrors = [];
+        const recoveryErrors = [], recoveryInstructions = [];
         for (const file of [...committed].reverse()) {
             try {
                 if (file.previous) { await rename(file.backup, file.destination); backups.delete(file.backup); }
                 else await unlink(file.destination);
-            } catch (recovery) { recoveryErrors.push(recovery); }
+            } catch (recovery) {
+                recoveryErrors.push(recovery);
+                recoveryInstructions.push(file.previous
+                    ? `${path.relative(root, file.backup)} から ${file.relativePath} を復元してください`
+                    : `新規作成した ${file.relativePath} を削除してください`);
+            }
         }
         if (recoveryErrors.length) {
             recoveryFailed = true;
-            throw new AggregateError([error, ...recoveryErrors], '保存を戻せませんでした。残したbackupファイルから復旧してください');
+            throw new AggregateError([error, ...recoveryErrors], `保存を戻せませんでした。${recoveryInstructions.join('。')}。`);
         }
         throw error;
     } finally{
