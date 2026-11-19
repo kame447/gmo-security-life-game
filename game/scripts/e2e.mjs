@@ -1,3 +1,4 @@
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
@@ -265,7 +266,7 @@ async function checkCollision(kind) {
   console.log(`PASS ${kind} collision`, JSON.stringify({ fixture, before, blocked, after: await state() }));
 }
 try {
-  await page.goto(url);
+  await page.goto(gameplayUrl(url));
   await ready();
   await page.locator('#btn-reset').click();
   await page.locator('#view').focus();

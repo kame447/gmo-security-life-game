@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
 
 export const base = new URL(process.env.SLG_URL || 'http://127.0.0.1:5288');
@@ -60,7 +61,8 @@ export async function contextFor(browser, size, report, options = {}) {
   page.on('console', message => { if (message.type() === 'error') report.errors.push(message.text()); });
   page.on('download', item => { report.errors.push(`unexpected download: ${item.suggestedFilename()}`); void item.cancel(); });
   await page.clock.install({ time: new Date(epoch) });
-  await page.goto(base.href, { waitUntil: 'load' });
+  await page.goto(gameplayUrl(base.href), { waitUntil: 'load' });
+  await page.waitForFunction(() => !!window.__slg?.game && !!window.__slg?.renderer);
   await page.clock.pauseAt(new Date(epoch + 60000));
   await page.clock.runFor(64);
   await installProbe(page);

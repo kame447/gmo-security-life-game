@@ -1,3 +1,4 @@
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 /** Run outside the sandbox. Every CLI write targets an isolated copy, never the real sample. */
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
@@ -167,7 +168,7 @@ try {
   assert.deepEqual(reloaded, { variant: 'editor-prototype', tree: 3, entrance: 5, returning: 5 });
   pass('restarted GUI and sample Game use exactly the applied geometry');
 
-  await page.goto(normalURL); await page.waitForFunction(() => !!window.__slg?.game);
+  await page.goto(gameplayUrl(normalURL)); await page.waitForFunction(() => !!window.__slg?.game);
   assert.equal(await page.evaluate(() => window.__slg.game.world.variant.id), 'childhood');
   assert.deepEqual(errors, []);
   pass('normal game remains unchanged; no browser exceptions');

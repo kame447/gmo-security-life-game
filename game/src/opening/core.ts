@@ -6,8 +6,9 @@ export const TITLE_BOTTOM = '人生の落とし穴';
 
 export type VariantId = 'a' | 'b' | 'c';
 export const VARIANT_IDS: readonly VariantId[] = ['a', 'b', 'c'];
+export const DEFAULT_VARIANT: VariantId = 'c';
 export function parseVariant(raw: string | null | undefined): VariantId {
-  return raw === 'b' || raw === 'c' ? raw : 'a';
+  return raw === 'a' || raw === 'b' || raw === 'c' ? raw : DEFAULT_VARIANT;
 }
 
 export const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);

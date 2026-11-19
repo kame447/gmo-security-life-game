@@ -29,3 +29,5 @@
 [列車の確認と到着を分担し、既存のエリア変更通知を使う（試作／要検証）](0014-train-arrival-area-enter.md)
 
 [踏切の通行制限と歩行退避（試作／要検証）](crossing-gates-safety.md)
+
+[序章と、制限時間・強制イベントによるステージ進行（提案／要合意）](0015-story-time-limited-stages.md)

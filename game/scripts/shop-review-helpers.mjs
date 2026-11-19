@@ -12,7 +12,7 @@ export const position = page => page.evaluate(() => ({ ...window.__slg.game.play
 export const assets = page => page.evaluate(() => window.__slg.game.assets.snapshot());
 export const phase = page => page.locator('#shop-panel').getAttribute('data-phase');
 export function shopUrl(review = false) {
-  const url = new URL(baseUrl); url.searchParams.delete('shop');
+  const url = new URL(baseUrl); url.searchParams.delete('shop'); url.searchParams.set('skipOpening', '1');
   if (review) { url.searchParams.set('review', '1'); url.searchParams.set('shopReview', '1'); }
   else { url.searchParams.delete('review'); url.searchParams.delete('shopReview'); }
   return url.href;

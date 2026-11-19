@@ -19,7 +19,7 @@ export const LANDMARKS = {
   homeFront: { x: 35, y: 32 }, schoolGate: { x: 101, y: 36 },
   schoolDoorFront: { x: 103, y: 20 }, stationFront: MAIN_STATION_LAYOUT.front,
   parkPlaza: { x: 98, y: 60 }, shoppingStreet: { x: 47, y: 53 },
-  konbiniDoorFront: { x: 54, y: 53 },
+  konbiniDoorFront: { x: 63, y: 73 },
 };
 
 /** 新規開始・「さいしょから」の位置。 */

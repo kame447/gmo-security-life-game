@@ -1,3 +1,4 @@
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 /** Run outside the Codex sandbox: a temporary game copy keeps CLI writes isolated. */
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
@@ -131,7 +132,7 @@ try {
     treeX: window.__slg.game.world.areas.get('demo-outdoor').objects.find(item => item.id === 'demo-tree').x,
   }));
   assert.deepEqual(sample, { variant: 'editor-prototype', area: 'demo-outdoor', treeX: 3 }, 'game uses applied sample');
-  await page.goto(base);
+  await page.goto(gameplayUrl(base));
   await page.waitForFunction(() => !!window.__slg?.game);
   assert.equal(await page.evaluate(() => window.__slg.game.world.variant.id), 'childhood', 'normal game still uses its original world');
   assert.deepEqual(errors, [], 'no browser exceptions');
