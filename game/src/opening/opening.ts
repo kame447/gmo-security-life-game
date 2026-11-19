@@ -23,6 +23,7 @@ export interface OpeningOptions {
   menu: HTMLElement;
   variant: VariantId;
   hasSave: boolean;
+  blockStart?: boolean;
   /** 動きを減らす。演出を再生せず、最後の画面を短い明転で出す。 */
   reducedMotion: boolean;
   onSelect(id: MenuItemId): void;
@@ -39,12 +40,16 @@ export async function startOpening(o: OpeningOptions): Promise<OpeningHandle> {
   const c = o.canvas.getContext('2d')!;
   const env: SceneEnv = { c, w: 0, h: 0, art, logo: makeLogo(1), small: makeLogo(0.7) };
   let menu: MenuState = createMenu(o.hasSave);
+  if (o.blockStart) menu = { ...menu, index: 0, items: menu.items.map(item => ({ ...item, enabled: false })) };
   let phase: Phase = 'playing', t = 0, reveal = 0, last = 0, raf = 0, alive = true;
 
   const buttons = menu.items.map((item, index) => {
     const b = document.createElement('button');
     b.type = 'button'; b.textContent = item.label; b.disabled = !item.enabled; b.dataset.id = item.id;
-    b.addEventListener('click', () => { menu = { ...menu, index }; mark(); o.onSelect(item.id); });
+    b.addEventListener('click', () => {
+      if (!item.enabled) return;
+      menu = { ...menu, index }; mark(); o.onSelect(item.id);
+    });
     // 強調される項目とキーで決定される項目を一致させるため、フォーカスも移す。
     b.addEventListener('pointerenter', () => { if (item.enabled) b.focus({ preventScroll: true }); });
     b.addEventListener('focus', () => { menu = { ...menu, index }; mark(); });

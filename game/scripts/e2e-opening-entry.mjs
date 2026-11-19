@@ -39,8 +39,28 @@ try {
     await page.goto(preview.href);
     await page.waitForFunction(expected => document.querySelector('#opening')?.dataset.variant === expected, variant);
   }
+  const unsafeContext = await browser.newContext({ viewport: { width: 390, height: 720 } });
+  await unsafeContext.addInitScript(() => {
+    localStorage.setItem('slg-map-save-v1', '{not-json');
+  });
+  try {
+    const unsafePage = await unsafeContext.newPage();
+    await unsafePage.goto(base.href);
+    await unsafePage.waitForFunction(() => document.querySelector('#opening')?.dataset.variant === 'c');
+    await unsafePage.locator('#opening-skip').click();
+    await unsafePage.locator('#opening-menu [data-id="new"]').waitFor({ state: 'attached' });
+    assert.equal(await unsafePage.locator('#opening-menu [data-id="new"]').isDisabled(), true);
+    assert.equal(await unsafePage.locator('#opening-menu [data-id="continue"]').isDisabled(), true);
+    assert.equal(await unsafePage.locator('#opening-error').isVisible(), true);
+    await unsafePage.keyboard.press('Enter');
+    assert.equal(await unsafePage.evaluate(() => localStorage.getItem('slg-map-save-v1')), '{not-json');
+    assert.equal(await unsafePage.evaluate(() => Boolean(window.__slg?.game)), false);
+  } finally {
+    await unsafeContext.close();
+  }
+
   assert.deepEqual(errors, []);
-  console.log('PASS opening C by default, new/continue, A/B previews');
+  console.log('PASS opening C by default, new/continue, malformed save guard, A/B previews');
 } finally {
   await browser.close();
 }
