@@ -60,7 +60,7 @@ function isShopCounterTile(area: AreaRuntime, tx: number, ty: number): boolean {
   let hasCounter = false;
   for (const object of area.objects) {
     if (!object.solid || !coversTile(object, tx, ty)) continue;
-    if (object.kind !== 'counter') return false;
+    if (object.kind !== 'counter' && !object.kind.endsWith('-counter')) return false;
     hasCounter = true;
   }
   return hasCounter;

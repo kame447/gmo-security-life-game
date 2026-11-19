@@ -23,14 +23,14 @@ function setupClerkSession(customWorld: World = world) {
   return { game, modals, getFlow: () => flow };
 }
 
-function buildTestRoom(objects: ObjectDef[], interactions: InteractionDef[], groundOverrides: Array<[number, number, number]> = []): World {
+function buildTestRoom(objects: ObjectDef[], interactions: InteractionDef[], groundOverrides: Array<[number, number, number]> = [], areaId = 'test-shop-interior'): World {
   const width = 9, height = 9;
   const ground = new Uint8Array(width * height).fill(T.FLOOR_CLASS);
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
     if (x === 0 || x === width - 1 || y === 0 || y === height - 1) ground[y * width + x] = T.WALL;
   }
   for (const [x, y, tile] of groundOverrides) ground[y * width + x] = tile;
-  const def: AreaDef = { id: 'test-shop-interior', name: 'テスト商店', kind: 'indoor', width, height, ground, objects, portals: [], interactions };
+  const def: AreaDef = { id: areaId, name: 'テスト商店', kind: 'indoor', width, height, ground, objects, portals: [], interactions };
   return {
     areas: new Map([[def.id, toRuntime(def)]]),
     facilities: new Map(),
@@ -74,9 +74,9 @@ describe('registered clerk conversation integration', () => {
 });
 
 describe('across-counter clerk interaction', () => {
-  it('reaches the konbini clerk from across the counter (10,5 facing up) and opens the shop modal', () => {
+  it('reaches the real split-counter konbini clerk from front (10,4 facing up) and opens the shop modal', () => {
     const { game, modals, getFlow } = setupClerkSession();
-    game.player = { areaId: 'shop-konbini-interior', ...feetAtTile(10, 5), facing: 'up' };
+    game.player = { areaId: 'shop-konbini-interior', ...feetAtTile(10, 4), facing: 'up' };
     const before = { ...game.player };
     const target = game.facingInteraction();
     expect(target?.id).toBe('konbini-clerk');
@@ -86,6 +86,33 @@ describe('across-counter clerk interaction', () => {
     expect(game.dialog).toBeNull();
     expect(flow.phase).toBe('greeting');
     expect(flow.greetingLine).toBe(target!.lines[0]);
+    flow.advanceGreeting(); flow.chooseBuy(); flow.reviewPurchase(); flow.confirmPurchase();
+    flow.close();
+    expect(modals.mode).toBe('explore');
+    expect(game.player).toEqual(before);
+    expect(game.assets.quantity('bottled-water')).toBe(1);
+  });
+
+  it.each(['counter', 'konbini-counter'])('reaches the konbini clerk across a %s and opens the shop modal', counterKind => {
+    const clerk: InteractionDef = {
+      id: 'konbini-clerk', kind: 'npc', name: 'てんいんさん', x: 4, y: 2, sprite: 'clerk',
+      facing: 'down', solid: true, eventKey: 'shopping.konbini.clerk', lines: ['いらっしゃいませ。'],
+    };
+    const counterWorld = buildTestRoom(
+      [{ id: 'c-front', kind: counterKind, x: 3, y: 3, w: 3, h: 1, solid: true }],
+      [clerk],
+      [],
+      'shop-konbini-interior',
+    );
+    const { game, modals, getFlow } = setupClerkSession(counterWorld);
+    game.player = { areaId: 'shop-konbini-interior', ...feetAtTile(4, 4), facing: 'up' };
+    const before = { ...game.player };
+    expect(game.facingInteraction()?.id).toBe('konbini-clerk');
+    game.action();
+    const flow = getFlow()!;
+    expect(modals.mode).toBe('shop');
+    expect(game.dialog).toBeNull();
+    expect(flow.phase).toBe('greeting');
     flow.advanceGreeting(); flow.chooseBuy(); flow.reviewPurchase(); flow.confirmPurchase();
     flow.close();
     expect(modals.mode).toBe('explore');
@@ -108,14 +135,15 @@ describe('across-counter clerk interaction', () => {
     }
   });
 
-  it('does not reach the konbini clerk diagonally across the counter or when facing away', () => {
+  it('does not reach the konbini clerk diagonally, across an empty gap, or when facing away', () => {
     const { game, modals } = setupClerkSession();
     for (const [x, y, facing] of [
-      [9, 5, 'up'],
-      [11, 5, 'up'],
-      [10, 5, 'down'],
-      [10, 5, 'left'],
-      [10, 5, 'right'],
+      [9, 4, 'up'],
+      [11, 4, 'up'],
+      [10, 5, 'up'],
+      [10, 4, 'down'],
+      [10, 4, 'left'],
+      [10, 4, 'right'],
     ] as [number, number, Facing][]) {
       game.player = { areaId: 'shop-konbini-interior', ...feetAtTile(x, y), facing };
       expect(game.facingInteraction()).toBeUndefined();

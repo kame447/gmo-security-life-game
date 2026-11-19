@@ -2,6 +2,7 @@ import { hash2 } from '../core/coords';
 import type { AreaDef, FacilityDef, ObjectDef } from '../core/types';
 import { INTERIOR_ENTRIES } from './interiors';
 import { LANDMARKS, MAIN_STATION_LAYOUT } from './landmarks';
+import { SHOP_ENTRANCES } from './shops';
 import { isRoad, isSolidGround, T } from './tiles';
 import { applyRailSwitches, townRailLayout } from './rail-layout';
 import { applyRailProtection } from './rail-protection';
@@ -17,7 +18,7 @@ export const FACILITIES: FacilityDef[] = [
   { id: 'school-gym', kind: 'gym', name: 'たいいくかん', areaId: 'town-main', interior: 'background', state: 'open' },
   { id: 'station', kind: 'station', name: 'まちのえき', areaId: 'town-main', interior: 'full', state: 'open' },
   { id: 'park', kind: 'park', name: 'かわぞいこうえん', areaId: 'town-main', interior: 'interaction', state: 'open' },
-  ...shops.map(([id, name]) => ({ id: `shop-${id}`, kind: id, name, areaId: 'town-main', interior: id === 'konbini' ? 'full' as const : 'interaction' as const, state: 'open' as const })),
+  ...shops.map(([id, name]) => ({ id: `shop-${id}`, kind: id, name, areaId: 'town-main', interior: 'full' as const, state: 'open' as const })),
 ];
 
 /** Pure, deterministic map data. Reference PNG is a design reference, never a runtime asset. */
@@ -173,9 +174,13 @@ export function createTown(): AreaDef {
   object('vending', 50, 53, 1, 1);
   object('board', 37, 36, 2, 1);
   object('postbox', 41, 36, 1, 1);
-  object('shop', 60, 59, 6, 6, 'cafe'); object('house', 70, 59, 5, 4, '3');
+  // The old cafe lot is a background residence, separate from the six linked shops.
+  // Keep its stable ID so saved editor layouts continue to refer to the same object.
+  objects.push({ id: 'town-shop-60-59', kind: 'apartment', x: 60, y: 59, w: 6, h: 6, style: '0',
+    solid: true, facilityId: undefined, layer: 'sorted' });
+  object('house', 70, 59, 5, 4, '3');
   object('apartment', 70, 66, 6, 5, '2');
-  // Relocate konbini to the NE corner of x=56 road and y=76 arterial, keeping the stable town-shop-51-47 ID.
+  // Retain #69's relocated konbini, shop ID, front plaza, paths, and parking.
   object('shop', 60, 67, 6, 6, 'konbini', true, 'shop-konbini', 'town-shop-51-47');
   rect(59, 73, 8, 2, T.PLAZA);
   rect(67, 70, 3, 5, T.PARKING);
@@ -257,6 +262,7 @@ export function createTown(): AreaDef {
       { id: 'home-enter', from: { x: 35, y: 31 }, to: { ...INTERIOR_ENTRIES.home }, facilityId: 'home-family' },
       { id: 'school-enter', from: { x: 103, y: 19, w: 2 }, to: { ...INTERIOR_ENTRIES.classroom }, facilityId: 'school' },
       { id: 'konbini-enter', from: { x: 63, y: 72 }, to: { ...INTERIOR_ENTRIES.konbini }, facilityId: 'shop-konbini' },
+      ...SHOP_ENTRANCES,
       { id: 'station-enter', from: { ...MAIN_STATION_LAYOUT.entrance }, to: { ...INTERIOR_ENTRIES.station }, facilityId: 'station' },
     ],
     interactions: [

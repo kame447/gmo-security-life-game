@@ -42,7 +42,7 @@ try {
     await page.locator('#full-map-close').click();
     for (const [scene, landmark] of [['05-shops', 'shoppingStreet'], ['06-park', 'parkPlaza'], ['07-school', 'schoolDoorFront']]) {
       await page.evaluate(async key => {
-        const { LANDMARKS } = await import('/src/world/landmarks.ts');
+        const { LANDMARKS } = await import('/src/world/index.ts');
         const { TILE } = await import('/src/core/coords.ts');
         const point = LANDMARKS[key];
         window.__slg.game.player = { areaId: 'town-main', x: (point.x + .5) * TILE, y: (point.y + .75) * TILE, facing: 'down' };

@@ -25,8 +25,12 @@ function room(id: string, name: string, width: number, floor: number, height = 1
   return { id, name, kind: 'indoor', width, height, ground, objects: [], interactions: [], portals: [] };
 }
 
-function furnish(area: AreaDef, kind: string, x: number, y: number, w: number, h: number, solid = true): void {
-  const o: ObjectDef = { id: `${area.id}-${kind}-${x}-${y}`, kind, x, y, w, h, solid, layer: solid ? 'sorted' : 'decal' };
+function furnish(area: AreaDef, kind: string, x: number, y: number, w: number, h: number, solid = true, style?: string): void {
+  const o: ObjectDef = {
+    id: `${area.id}-${kind}-${x}-${y}`, kind, x, y, w, h, solid,
+    ...(style ? { style } : {}),
+    layer: solid ? 'sorted' : 'decal',
+  };
   area.objects.push(o);
 }
 
@@ -68,15 +72,24 @@ export function createClassroom(): AreaDef {
 
 export function createKonbini(): AreaDef {
   const a = room('shop-konbini-interior', 'コンビニ', 14, T.FLOOR_CLASS, 10);
-  furnish(a, 'cooler', 1, 1, 2, 1); furnish(a, 'cooler', 4, 1, 2, 1);
-  furnish(a, 'magazine', 9, 1, 2, 1);
-  for (const x of [2, 6]) for (const y of [4, 6]) furnish(a, 'shopshelf', x, y, 2, 1);
-  furnish(a, 'counter', 9, 4, 3, 1);
+  furnish(a, 'shop-floor', 1, 1, 12, 8, false, 'tile');
+  furnish(a, 'shop-rug', 5, 7, 4, 1, false, 'konbini');
+  furnish(a, 'konbini-cooler', 1, 1, 4, 1, true, 'drinks');
+  furnish(a, 'konbini-cooler', 5, 1, 4, 1, true, 'chilled-food');
+  furnish(a, 'konbini-magazine', 9, 1, 4, 1);
+  // Two vertical shelf columns create north-south convenience aisles distinct from island layouts
+  furnish(a, 'konbini-snack-shelf', 2, 3, 2, 2);
+  furnish(a, 'konbini-daily-shelf', 2, 5, 2, 2);
+  furnish(a, 'konbini-food-shelf', 5, 3, 2, 2);
+  furnish(a, 'konbini-food-shelf', 5, 5, 2, 2);
+  furnish(a, 'konbini-ice-freezer', 11, 6, 2, 1);
+  furnish(a, 'konbini-counter', 8, 3, 2, 1);
+  furnish(a, 'konbini-counter', 11, 3, 2, 1, true, 'side');
   a.portals = [{ id: 'konbini-exit', from: { x: 6, y: 9, w: 2 }, to: toTown(LANDMARKS.konbiniDoorFront), facilityId: 'shop-konbini' }];
   a.interactions = [
-    { id: 'konbini-clerk', kind: 'npc', name: 'てんいんさん', x: 10, y: 3, sprite: 'clerk', facing: 'left', solid: true, eventKey: 'shopping.konbini.clerk', lines: ['いらっしゃいませ。おやつも のみものも あるよ。ゆっくり みてね。'] },
-    { id: 'konbini-snacks', kind: 'object', name: 'おかしのたな', x: 2, y: 4, w: 2, solid: true, eventKey: 'shopping.konbini.snacks', lines: ['あまい おかしと、しょっぱい おかし。どっちも おいしそう！'] },
-    { id: 'konbini-drinks', kind: 'object', name: 'のみもののケース', x: 1, y: 1, w: 2, solid: true, eventKey: 'shopping.konbini.drinks', lines: ['おちゃに ジュース、ぎゅうにゅう。つめたく ひえているよ。'] },
+    { id: 'konbini-clerk', kind: 'npc', name: 'てんいんさん', x: 10, y: 3, sprite: 'clerk', facing: 'down', solid: true, eventKey: 'shopping.konbini.clerk', lines: ['いらっしゃいませ。おやつも のみものも あるよ。ゆっくり みてね。'] },
+    { id: 'konbini-snacks', kind: 'object', name: 'おかしのたな', x: 2, y: 3, w: 2, h: 2, solid: true, eventKey: 'shopping.konbini.snacks', lines: ['あまい おかしと、しょっぱい おかし。どっちも おいしそう！'] },
+    { id: 'konbini-drinks', kind: 'object', name: 'のみもののケース', x: 1, y: 1, w: 4, solid: true, eventKey: 'shopping.konbini.drinks', lines: ['おちゃに ジュース、ぎゅうにゅう。つめたく ひえているよ。'] },
   ];
   return a;
 }
