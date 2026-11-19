@@ -79,10 +79,14 @@ export async function commitLayouts(root, prepare) {
         return { ...file, destination, previous, mode: previous ? previous.info.mode & 0o777 : 0o644,
             staged: `${destination}.${randomUUID()}.tmp`, backup: `${destination}.${randomUUID()}.backup` };
     }).sort((a, b) => a.areaId < b.areaId ? -1 : a.areaId > b.areaId ? 1 : 0);
-    const stage = async (file, bytes, mode, owned) => {
+    const stage = async (file, bytes, mode, owned, preserveMode = false) => {
         const handle = await open(file, 'wx', mode);
         owned.add(file);
-        try { await handle.writeFile(bytes); await handle.sync(); }
+        try {
+            await handle.writeFile(bytes);
+            if (preserveMode) await handle.chmod(mode);
+            await handle.sync();
+        }
         finally { await handle.close(); }
     };
     try {
@@ -95,8 +99,8 @@ export async function commitLayouts(root, prepare) {
         }
         await unchanged(root, original);
         for (const file of files) {
-            if (file.previous) await stage(file.backup, file.previous.bytes, file.mode, backups);
-            await stage(file.staged, file.text, file.mode, temporary);
+            if (file.previous) await stage(file.backup, file.previous.bytes, file.mode, backups, true);
+            await stage(file.staged, file.text, file.mode, temporary, !!file.previous);
         }
         await unchanged(root, original);
         for (const file of files) {

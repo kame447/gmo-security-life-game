@@ -40,7 +40,7 @@ describe('trusted real-world editor contract', () => {
   it('keeps the trusted context through a real home edit, undo, redo, export and preview', () => {
     const { document, context } = setup();
     const strictIssues = validateDocument(document);
-    // Three prior konbini collision reports disappear with the redesigned shop layout.
+    // Main's relocated board (object + interaction) and gym-overlapping tree remove three reports.
     expect(strictIssues).toHaveLength(92);
     expect(strictIssues.every(issue => issue.code === 'overlap')).toBe(true);
     expect(() => new EditorSession(document)).toThrow(EditorValidationError);
@@ -89,11 +89,12 @@ describe('trusted real-world editor contract', () => {
 
   it('keeps the original trusted World snapshot when caller-owned data later changes', () => {
     const { document, context } = setup(), session = new EditorSession(document, { context });
-    const sourceTree = context.baselineWorld.areas.get('town-main')!.def.objects.find(o => o.id === 'town-tree-92-17')!;
-    sourceTree.x += 2;
-    // The caller's World is mutable, but the session must keep the original trusted snapshot.
-    expect(session.document.objects.find(o => o.id === sourceTree.id)!.x).toBe(sourceTree.x - 2);
-    expect(session.commit([])).toEqual(session.document);
+    const baseline = session.document;
+    expect(validateDocument(document, context)).toEqual([]);
+    context.baselineWorld.variant.edgeMessage = 'changed only in caller-owned World';
+    expect(validateDocument(document, context)).toContainEqual(expect.objectContaining({ path: 'variant', code: 'metadata' }));
+    expect(session.document.variant).toEqual(document.variant);
+    expect(session.commit([])).toEqual(baseline);
     expect(session.exportChanges().operations).toEqual([]);
   });
 

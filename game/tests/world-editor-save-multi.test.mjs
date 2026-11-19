@@ -15,6 +15,7 @@ const writerURL = new URL('../scripts/world-editor-save.mjs', import.meta.url);
 const HOME = 'home-family-interior', DIRECTORY = 'data/world/areas';
 
 if (process.argv[2] === '--fault') {
+  process.umask(0o077);
   // A fresh process isolates fault injection from Vite and other node:test files.
   const [root, planFile, fault] = process.argv.slice(3);
   const plan = JSON.parse(await readFile(planFile, 'utf8'));
@@ -33,6 +34,7 @@ if (process.argv[2] === '--fault') {
         if (fault === 'sync-second' && number === 2) throw new Error('injected sync after bytes');
         return handle.sync();
       },
+      chmod: mode => handle.chmod(mode),
       close: () => handle.close(),
     };
   };
@@ -111,10 +113,16 @@ if (process.argv[2] === '--fault') {
       it(`${count}ファイルを一度に保存し、新しいVite loaderで文書全文を再読込する`, async () => {
         const root = await copy(true), plan = plans[name];
         await chmod(path.join(areas(root), `${HOME}.json`), 0o640);
-        const result = await commitLayouts(root, async () => plan.prepared);
+        const previousUmask = process.umask(0o077);
+        let result;
+        try { result = await commitLayouts(root, async () => plan.prepared); }
+        finally { process.umask(previousUmask); }
         assert.equal(result.saved, true); assert.equal(result.targets.length, count);
         assert.equal((await stat(path.join(areas(root), `${HOME}.json`))).mode & 0o777, 0o640);
-        for (const file of plan.prepared.files) assert.equal(await readFile(path.join(root, file.relativePath), 'utf8'), file.text);
+        for (const file of plan.prepared.files) {
+          assert.equal(await readFile(path.join(root, file.relativePath), 'utf8'), file.text);
+          if (file.created) assert.equal((await stat(path.join(root, file.relativePath))).mode & 0o777, 0o600);
+        }
         await modules(root, ({ buildWorld, WorldEditorModel, validateWorld, TRAIN_NETWORK }) => {
           const world = buildWorld(); assert.deepEqual(validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() }), []);
           assert.deepEqual(new WorldEditorModel(world).document, plan.expected);
@@ -164,6 +172,7 @@ if (process.argv[2] === '--fault') {
     for (const fault of ['write-second', 'sync-second', 'rename-2', 'rename-3']) {
       it(`${fault}: 既存1・新規2の一部まで進んでも、元の全bytesと不在状態を復元する`, async () => {
         const root = await copy(), beforeBytes = await jsonBytes(root), planFile = path.join(root, 'plan.json');
+        await chmod(path.join(areas(root), `${HOME}.json`), 0o640);
         await writeFile(planFile, JSON.stringify(plans.three.prepared));
         const result = spawnSync(process.execPath, [filename, '--fault', root, planFile, fault], { encoding: 'utf8', cwd: sourceRoot });
         assert.equal(result.status, 0, result.stdout + result.stderr);
@@ -171,6 +180,7 @@ if (process.argv[2] === '--fault') {
         if (fault.startsWith('rename')) assert.equal(trace.renames, Number(fault.at(-1)));
         else assert.equal(trace.stages, 2);
         await clean(root, beforeBytes);
+        assert.equal((await stat(path.join(areas(root), `${HOME}.json`))).mode & 0o777, 0o640);
       });
     }
     it('最後の対象に他者lockがあれば、先に得たlockだけを解放し、書込みを始めない', async () => {

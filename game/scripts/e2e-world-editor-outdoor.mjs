@@ -99,9 +99,9 @@ async function walk(s,target){const route=await s.page.evaluate(async target=>{c
  }
 }
 const playerTile=page=>page.evaluate(()=>{const p=window.__worldEditor.game.player;return{areaId:p.areaId,x:Math.floor(p.x/16),y:Math.floor((p.y-4)/16)};});
-async function visitShop(s,x){await s.click('#play');assert.deepEqual(await playerTile(s.page),{areaId:town,x,y:53});
- await s.page.locator('#workspace').focus();await walk(s,{areaId:town,x,y:52});assert.equal((await playerTile(s.page)).areaId,'shop-konbini-interior');
- const exit=await s.page.evaluate(()=>window.__worldEditor.game.area.def.portals.find(p=>p.id==='konbini-exit'));await walk(s,{areaId:'shop-konbini-interior',...exit.from});assert.deepEqual(await playerTile(s.page),{areaId:town,x,y:53});await s.click('#play');}
+async function visitShop(s,entry,returnTo){const front={areaId:town,x:returnTo.x,y:returnTo.y};await s.click('#play');assert.deepEqual(await playerTile(s.page),front);
+ await s.page.locator('#workspace').focus();await walk(s,{areaId:town,x:entry.x,y:entry.y});assert.equal((await playerTile(s.page)).areaId,'shop-konbini-interior');
+ const exit=await s.page.evaluate(()=>window.__worldEditor.game.area.def.portals.find(p=>p.id==='konbini-exit'));await walk(s,{areaId:'shop-konbini-interior',...exit.from});assert.deepEqual(await playerTile(s.page),front);await s.click('#play');}
 async function roomRoundtrip(s,id,double=false){await select(s,id);const before=await doc(s.page),view=await s.page.evaluate(()=>({...window.__worldEditor.camera})),dirty=await s.page.locator('#dirty').innerText();
  if(double){const p=await point(s.page,id);await s.page.mouse.dblclick(p.x,p.y);}else await s.click('#enter-interior');
  await s.page.waitForFunction(()=>window.__worldEditor.activeArea==='shop-konbini-interior');assert.equal(await s.page.locator('#location').innerText(),'コンビニ');assert.equal(await s.page.locator('#catalog').isHidden(),false);
@@ -122,11 +122,13 @@ try{
  const beforeTree=await object(s.page,treeId);assert.deepEqual([beforeTree.x,beforeTree.y],[15,34]);await drag(s,treeId,17,34);assert.equal((await object(s.page,treeId)).id,treeId);
  let expected=await doc(s.page);const treeTargets=await save(s,[town]);assert.match(treeTargets[0],/新しく作る/);s=await restart(s,expected);pass('S2-2: tree moves two tiles, saves and reloads with its stable ID');
  await s.page.goto(gameplayUrl(`${origin}/`));await s.page.waitForFunction(()=>!!window.__slg?.game);assert.equal(await s.page.evaluate(id=>window.__slg.game.area.objects.find(o=>o.id===id).x,treeId),17);await ready(s);await enterTown(s);pass('normal game uses the saved outdoor tree');
- const beforeShop=await doc(s.page);await drag(s,shopId,50,47);let moved=await doc(s.page);assert.equal(moved.portals.find(p=>p.id==='konbini-enter').from.x,53);assert.equal(moved.portals.find(p=>p.id==='konbini-exit').to.x,53);
+ const beforeShop=await doc(s.page),originalShop=beforeShop.objects.find(o=>o.id===shopId);
+ const movedEntry={...beforeShop.portals.find(p=>p.id==='konbini-enter').from},movedReturn={...beforeShop.portals.find(p=>p.id==='konbini-exit').to};movedEntry.x--;movedReturn.x--;
+ await drag(s,shopId,originalShop.x-1,originalShop.y);let moved=await doc(s.page);assert.deepEqual(moved.portals.find(p=>p.id==='konbini-enter').from,movedEntry);assert.deepEqual(moved.portals.find(p=>p.id==='konbini-exit').to,movedReturn);
  await s.click('#undo');assert.deepEqual(await doc(s.page),beforeShop);await s.click('#redo');assert.deepEqual(await doc(s.page),moved);pass('S2-3: one building drag moves entry/return and one undo restores the entire group');
  await s.page.screenshot({path:path.join(output,'desktop-building-linked.png')});
  await roomRoundtrip(s,shopId,true);pass('S2-10: double-click room entry and return preserve building selection, view and unsaved history');
- await visitShop(s,53);assert.deepEqual(await doc(s.page),moved);pass('S2-4: trial walk enters the shop and returns to the moved door front');
+ await visitShop(s,movedEntry,movedReturn);assert.deepEqual(await doc(s.page),moved);pass('S2-4: trial walk enters the shop and returns to the moved door front');
  expected=await doc(s.page);const shopTargets=await save(s,[town,'shop-konbini-interior']);assert.ok(shopTargets.some(t=>t.includes('shop-konbini-interior')&&t.includes('新しく作る')));s=await restart(s,expected);await enterTown(s);pass('S2-4: confirmed save writes town and shop files and reloads the complete document');
  await drag(s,houseId,32,28);moved=await doc(s.page);assert.deepEqual(moved.start,{areaId:town,x:35,y:33,facing:'down'});
  expected=moved;await save(s,[home,town]);s=await restart(s,expected);
@@ -134,10 +136,10 @@ try{
  const newGameState=await s.page.evaluate(async()=>{const{LANDMARKS}=await import('/src/world/index.ts');const game=window.__slg.game;return{start:game.world.start,front:LANDMARKS.homeFront,player:{x:Math.floor(game.player.x/16),y:Math.floor((game.player.y-4)/16)}};});
  assert.deepEqual(newGameState.start,{areaId:town,x:35,y:33,facing:'down'});assert.deepEqual(newGameState.front,{x:35,y:33});assert.deepEqual(newGameState.player,{x:35,y:33});await s.page.screenshot({path:path.join(output,'desktop-game-new-start.png')});await ready(s);pass('S2-5: moving home south saves a matching landmark, world start and new-game position');
  await drag(s,plantId,13,9);const homePending=await doc(s.page);await enterTown(s);assert.equal((await doc(s.page)).objects.find(o=>o.id===plantId).x,13);
- await drag(s,shopId,51,47);expected=await doc(s.page);assert.equal(expected.objects.find(o=>o.id===plantId).x,13);
+ await drag(s,shopId,originalShop.x,originalShop.y);expected=await doc(s.page);assert.equal(expected.objects.find(o=>o.id===plantId).x,13);
  await save(s,[home,'shop-konbini-interior',town]);s=await restart(s,expected);assert.notDeepEqual(expected,homePending);await enterTown(s);pass('S2-17: unsaved home and town edits share one history and save all three files together');
- await select(s,'town-station-12-59');const fixed=await doc(s.page);for(const id of ['#delete','#duplicate','#rotate'])assert.equal(await s.page.locator(id).isDisabled(),true);assert.match(await s.page.locator('#protection').innerText(),/駅/);
- await drag(s,'town-station-12-59',13,59,false);assert.deepEqual(await doc(s.page),fixed);pass('station selection explains why movement, rotation and deletion are unavailable');
+ await select(s,'town-station-12-59');const fixed=await doc(s.page),station=fixed.objects.find(o=>o.id==='town-station-12-59');for(const id of ['#delete','#duplicate','#rotate'])assert.equal(await s.page.locator(id).isDisabled(),true);assert.match(await s.page.locator('#protection').innerText(),/駅/);
+ await drag(s,'town-station-12-59',station.x+1,station.y,false);assert.deepEqual(await doc(s.page),fixed);pass('station selection explains why movement, rotation and deletion are unavailable');
  await s.click('#props-tab');const added=await place(s,'tree-green',15,34);assert.match(added,/^town-main-tree-[1-9][0-9]*$/);assert.equal((await object(s.page,added)).x,15);
  await s.click('#delete');assert.equal(await object(s.page,added),undefined);await s.click('#undo');assert.equal((await object(s.page,added)).id,added);await s.click('#redo');assert.equal(await object(s.page,added),undefined);pass('outdoor catalog placement/delete/undo/redo retain the issued ID');
  const timings=await s.page.evaluate(()=>window.__worldEditor.validationTimes);assert.ok(timings.length>0);assert.ok(timings.every(ms=>ms<=50),`Validation exceeded 50ms: ${JSON.stringify(timings)}`);console.log('VALIDATION_MS',JSON.stringify(timings));pass('S2-13: candidate derivation and whole-world validation stay within 50ms per changed tile');
@@ -145,10 +147,10 @@ try{
  for(const[name,viewport]of[['portrait',{width:390,height:844}],['landscape',{width:844,height:390}]]){
   const mobile=await session(viewport,true);await ready(mobile);assert.deepEqual(await doc(mobile.page),finalDocument);await enterTown(mobile);await mobile.click('#zoom-out');await mobile.click('#zoom-out');await frames(mobile.page);
   await drag(mobile,treeId,15,34);const treeChanged=await doc(mobile.page);assert.equal(treeChanged.objects.find(o=>o.id===treeId).x,15);pass(`${name} S2-2/S2-15: native two-finger navigation and one-finger two-tile tree drag`);
-  await drag(mobile,shopId,50,47);const changed=await doc(mobile.page);assert.equal(changed.portals.find(p=>p.id==='konbini-enter').from.x,53);assert.equal(changed.portals.find(p=>p.id==='konbini-exit').to.x,53);
+  await drag(mobile,shopId,originalShop.x-1,originalShop.y);const changed=await doc(mobile.page);assert.deepEqual(changed.portals.find(p=>p.id==='konbini-enter').from,movedEntry);assert.deepEqual(changed.portals.find(p=>p.id==='konbini-exit').to,movedReturn);
   await mobile.click('#undo');assert.deepEqual(await doc(mobile.page),treeChanged);await mobile.click('#redo');assert.deepEqual(await doc(mobile.page),changed);pass(`${name} S2-3/S2-15: touch building drag and atomic undo/redo preserve the tree edit`);
   await roomRoundtrip(mobile,shopId);await mobile.page.screenshot({path:path.join(output,`${name}-town-edited.png`)});pass(`${name} S2-10: room button and return keep the selected building and view`);
-  await visitShop(mobile,53);assert.equal(await mobile.page.locator('#save').isDisabled(),true);await mobile.page.screenshot({path:path.join(output,`${name}-town-after-walk.png`)});pass(`${name}: touch trial walk uses the moved shop entry and return`);
+  await visitShop(mobile,movedEntry,movedReturn);assert.equal(await mobile.page.locator('#save').isDisabled(),true);await mobile.page.screenshot({path:path.join(output,`${name}-town-after-walk.png`)});pass(`${name}: touch trial walk uses the moved shop entry and return`);
   for(const[file,bytes]of Object.entries(savedFiles))assert.equal(await readFile(path.join(root,directory,file),'utf8'),bytes);await ready(mobile);assert.deepEqual(await doc(mobile.page),finalDocument);await close(mobile);pass(`${name}: PC-only saving and reload preserve every saved file`);
  }
  assert.deepEqual((await readdir(path.join(source,directory))).filter(n=>n.endsWith('.json')).sort(),[...original.keys()].sort());for(const[name,bytes]of original)assert.equal(await readFile(path.join(source,directory,name),'utf8'),bytes);
