@@ -83,9 +83,12 @@ describe('childhood world', () => {
       expect(reachable, interaction.id).toBe(true);
     }
     expect(shop.interactions.map(i => i.eventKey)).toEqual(['shopping.konbini.clerk', 'shopping.konbini.snacks', 'shopping.konbini.drinks']);
+    const portal = buildWorld().areas.get('town-main')!.def.portals.find(p => p.id === 'konbini-enter')!;
+    expect(portal.from).toEqual({ x: LANDMARKS.konbiniDoorFront.x, y: LANDMARKS.konbiniDoorFront.y - 1 });
     const closed = buildWorld({ ...CHILDHOOD_VARIANT, facilityStates: { 'shop-konbini': 'closed' } });
     expect(closed.areas.get('town-main')!.def.portals.some(p => p.id === 'konbini-enter')).toBe(false);
-    expect(isSolidTile(closed.areas.get('town-main')!, 54, 52)).toBe(true);
+    expect(isSolidTile(closed.areas.get('town-main')!, portal.from.x, portal.from.y)).toBe(true);
+    expect(isSolidTile(closed.areas.get('town-main')!, 54, 52)).toBe(false);
   });
   it('generates identical data for repeated builds and assigns districts', () => {
     const first = buildWorld(), second = buildWorld();
