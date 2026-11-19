@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 
 const target = new URL(process.env.SLG_URL || 'http://127.0.0.1:5173');
 assert.ok(['http:', 'https:'].includes(target.protocol) && ['127.0.0.1', 'localhost', '[::1]'].includes(target.hostname), 'Use a loopback game server');
 assert.equal(target.search, '', 'Store interiors use the normal game, without review fixtures');
-export const STORE_URL = target.href;
+export const STORE_URL = gameplayUrl(target.href);
 export const STORE_VIEWPORTS = [
   { name: 'desktop', width: 1280, height: 800, touch: false },
   { name: 'portrait', width: 390, height: 844, touch: true },

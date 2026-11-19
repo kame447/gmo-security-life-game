@@ -32,12 +32,19 @@ const urls = { [asset.file]: '/assets/student-desk.png' };
 afterEach(() => vi.unstubAllGlobals());
 
 describe('furniture asset catalog', () => {
-  it('binds all 29 existing school/shop props without changing their definitions', () => {
-    const objects = [...createClassroom().objects, ...createKonbini().objects];
-    expect(Object.keys(FURNITURE_BINDINGS)).toHaveLength(29);
-    for (const object of objects) {
+  it('binds all 21 supplied school PNG props; rebuilt konbini furnishings remain procedural', () => {
+    const school = createClassroom().objects;
+    const konbini = createKonbini().objects;
+    expect(Object.keys(FURNITURE_BINDINGS)).toHaveLength(21);
+    expect(FURNITURE_ASSETS).toHaveLength(5);
+    for (const object of school) {
       const before = { ...object };
       expect(furnitureAsset(object), object.id).toBeDefined();
+      expect(object).toEqual(before);
+    }
+    for (const object of konbini) {
+      const before = { ...object };
+      expect(furnitureAsset(object), object.id).toBeUndefined();
       expect(object).toEqual(before);
     }
     expect(new Set(FURNITURE_ASSETS.map(a => a.id)).size).toBe(FURNITURE_ASSETS.length);

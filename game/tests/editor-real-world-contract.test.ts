@@ -40,7 +40,8 @@ describe('trusted real-world editor contract', () => {
   it('keeps the trusted context through a real home edit, undo, redo, export and preview', () => {
     const { document, context } = setup();
     const strictIssues = validateDocument(document);
-    expect(strictIssues).toHaveLength(95);
+    // Three prior konbini collision reports disappear with the redesigned shop layout.
+    expect(strictIssues).toHaveLength(92);
     expect(strictIssues.every(issue => issue.code === 'overlap')).toBe(true);
     expect(() => new EditorSession(document)).toThrow(EditorValidationError);
     expect(() => new EditorSession(document, { context, historyLimit: 0 })).toThrow(RangeError);
@@ -71,11 +72,11 @@ describe('trusted real-world editor contract', () => {
     const plant = session.document.objects.find(o => o.id === 'home-family-interior-plant-14-9')!;
     session.commit([{ type: 'move', table: 'objects', id: plant.id, before: plant, after: { ...plant, x: 13 } }]);
     session.undo();
-    const before = session.document, tree = before.objects.find(o => o.id === 'town-tree-120-17')!;
+    const before = session.document, tree = before.objects.find(o => o.id === 'town-tree-92-17')!;
     const movedIntoOverlap = clone(before);
-    movedIntoOverlap.objects.find(o => o.id === tree.id)!.x = 92;
+    movedIntoOverlap.objects.find(o => o.id === tree.id)!.x = 94;
     expect(codes(movedIntoOverlap, context)).toContain('overlap');
-    expect(() => session.commit([{ type: 'move', table: 'objects', id: tree.id, before: tree, after: { ...tree, x: 92 } }])).toThrow(EditorValidationError);
+    expect(() => session.commit([{ type: 'move', table: 'objects', id: tree.id, before: tree, after: { ...tree, x: 94 } }])).toThrow(EditorValidationError);
     const intruder = { ...tree, id: 'intruder' };
     expect(() => session.commit([{ type: 'add', table: 'objects', id: intruder.id, after: intruder }])).toThrow(EditorValidationError);
     expect(session.document).toEqual(before);
@@ -88,9 +89,10 @@ describe('trusted real-world editor contract', () => {
 
   it('keeps the original trusted World snapshot when caller-owned data later changes', () => {
     const { document, context } = setup(), session = new EditorSession(document, { context });
-    const sourceTree = context.baselineWorld.areas.get('town-main')!.def.objects.find(o => o.id === 'town-tree-120-17')!;
-    sourceTree.x++;
-    expect(validateDocument(document, context).some(issue => issue.code === 'overlap')).toBe(true);
+    const sourceTree = context.baselineWorld.areas.get('town-main')!.def.objects.find(o => o.id === 'town-tree-92-17')!;
+    sourceTree.x += 2;
+    // The caller's World is mutable, but the session must keep the original trusted snapshot.
+    expect(session.document.objects.find(o => o.id === sourceTree.id)!.x).toBe(sourceTree.x - 2);
     expect(session.commit([])).toEqual(session.document);
     expect(session.exportChanges().operations).toEqual([]);
   });
@@ -151,10 +153,10 @@ describe('trusted real-world editor contract', () => {
   });
 
   it.each([
-    ['expanded existing footprint', (d: EditorDocument) => { d.objects.find(o => o.id === 'town-tree-120-17')!.w++; }],
+    ['expanded existing footprint', (d: EditorDocument) => { d.objects.find(o => o.id === 'town-tree-92-17')!.w += 2; }],
     ['extra overlapping object', (d: EditorDocument) => { d.objects.push({ id: 'intruder', areaId: 'town-main', kind: 'tree', x: 120, y: 17, w: 1, h: 1, solid: true }); }],
-    ['moved overlap partner', (d: EditorDocument) => { d.objects.find(o => o.id === 'town-gym-115-14')!.x++; }],
-    ['new wall under an existing object', (d: EditorDocument) => { const a = d.areas.find(a => a.id === 'town-main')!; a.ground[34 * a.width + 30] = T.WALL; }],
+    ['moved overlap partner', (d: EditorDocument) => { d.objects.find(o => o.id === 'town-gym-115-14')!.x = 112; }],
+    ['new wall under an existing object', (d: EditorDocument) => { const a = d.areas.find(a => a.id === 'town-main')!; a.ground[17 * a.width + 92] = T.WALL; }],
   ] as const)('rejects a new overlap despite trusted baseline: %s', (_name, mutate) => {
     const { document, context } = setup(); mutate(document);
     expect(codes(document, context)).toContain('overlap');

@@ -1,5 +1,6 @@
 /** Headless N5 four-area E2E: home, classroom, catalog store, town -> normal game & mobile touch. */
 import assert from 'node:assert/strict';
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 import { execFileSync, spawn } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -159,7 +160,7 @@ async function readyEditor(page) {
 }
 
 async function readyGame(page) {
-  await page.goto(`${origin}/`);
+  await page.goto(gameplayUrl(`${origin}/`));
   await page.waitForFunction(() => !!window.__slg?.game && !window.__slg.renderer.stats.fading);
   await frames(page);
 }

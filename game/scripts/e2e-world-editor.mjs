@@ -1,5 +1,6 @@
 /** Parent/CI runs this headless. All saves and restarts use an isolated game copy. */
 import assert from 'node:assert/strict';
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 import { spawn } from 'node:child_process';
 import { cp,mkdir,mkdtemp,readFile,realpath,symlink,rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -113,7 +114,7 @@ try{
  // Close the live HMR client before intentionally stopping its development server.
  await s.context.close();assert.deepEqual(s.errors,[]);assert.deepEqual(s.blocked,[]);
  await stop();await start();const restarted=await session({width:1280,height:800}),freshPage=restarted.page;
- await freshPage.goto(`${origin}/`);await freshPage.waitForFunction(()=>!!window.__slg?.game);const entry=await freshPage.evaluate(()=>window.__slg.game.area.def.portals.find(p=>p.id==='home-enter'));await walk(freshPage,{...entry.from,areaId:'town-main'},'game');assert.equal(await freshPage.evaluate(()=>window.__slg.game.player.areaId),'home-family-interior');assert.equal(await freshPage.evaluate(id=>window.__slg.game.area.objects.find(o=>o.id===id).x,sofa),2);assert.equal(await freshPage.evaluate(id=>window.__slg.game.area.objects.find(o=>o.id===id).facing,desk),'left');await ready(freshPage);assert.deepEqual(await documentOf(freshPage),pendingDocument);assert.equal(await freshPage.evaluate(()=>window.__worldEditor.model.dirty),0);pass('server restart and real game home entry use the saved arrangement');
+ await freshPage.goto(gameplayUrl(`${origin}/`));await freshPage.waitForFunction(()=>!!window.__slg?.game);const entry=await freshPage.evaluate(()=>window.__slg.game.area.def.portals.find(p=>p.id==='home-enter'));await walk(freshPage,{...entry.from,areaId:'town-main'},'game');assert.equal(await freshPage.evaluate(()=>window.__slg.game.player.areaId),'home-family-interior');assert.equal(await freshPage.evaluate(id=>window.__slg.game.area.objects.find(o=>o.id===id).x,sofa),2);assert.equal(await freshPage.evaluate(id=>window.__slg.game.area.objects.find(o=>o.id===id).facing,desk),'left');await ready(freshPage);assert.deepEqual(await documentOf(freshPage),pendingDocument);assert.equal(await freshPage.evaluate(()=>window.__worldEditor.model.dirty),0);pass('server restart and real game home entry use the saved arrangement');
  await restarted.context.close();assert.deepEqual(restarted.errors,[]);assert.deepEqual(restarted.blocked,[]);
  for(const[name,viewport]of [['portrait',{width:390,height:844}],['landscape',{width:844,height:390}]]){
   const mobile=await session(viewport,true),page=mobile.page;await ready(page);await page.screenshot({path:path.join(output,`${name}-editor.png`)});
@@ -267,7 +268,7 @@ try{
  await stop();await start();
  const verifyRooms=await session({width:1280,height:800}),vp=verifyRooms.page;
  await ready(vp);assert.deepEqual(await documentOf(vp),multiDoc);
- await vp.goto(`${origin}/`);await vp.waitForFunction(()=>!!window.__slg?.game);
+ await vp.goto(gameplayUrl(`${origin}/`));await vp.waitForFunction(()=>!!window.__slg?.game);
  const marks=await vp.evaluate(async()=>({...(await import('/src/world/index.ts')).LANDMARKS}));
  await walk(vp,{...marks.schoolDoorFront,areaId:'town-main'},'game');
  await walk(vp,{x:marks.schoolDoorFront.x,y:marks.schoolDoorFront.y-1,areaId:'town-main'},'game');

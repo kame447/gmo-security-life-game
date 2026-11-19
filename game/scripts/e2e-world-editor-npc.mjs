@@ -1,5 +1,6 @@
 /** Headless NPC regression. Writes and server restarts use only a disposable game copy. */
 import assert from 'node:assert/strict';
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 import {spawn} from 'node:child_process';
 import {cp,mkdir,mkdtemp,readdir,readFile,realpath,rm,symlink} from 'node:fs/promises';
 import path from 'node:path';
@@ -172,7 +173,7 @@ try{
  const beforeDelete=await documentOf(s.page);await s.page.locator('#workspace').focus();await s.page.keyboard.press('Delete');assert.deepEqual(await documentOf(s.page),beforeDelete);pass('player appearance and protected mother deletion are unavailable');
  const expectedMother=await documentOf(s.page),savedMother=await save(s);assert.deepEqual(savedMother.interactions.find(i=>i.id===motherId),(({areaId:_,...npc})=>npc)(editedMother));
  s=await restart(s,expectedMother);pass('saved mother survives server restart with the complete document unchanged');
- await s.page.goto(`${origin}/`);await s.page.waitForFunction(()=>!!window.__slg?.game);
+ await s.page.goto(gameplayUrl(`${origin}/`));await s.page.waitForFunction(()=>!!window.__slg?.game);
  const entry=await s.page.evaluate(()=>window.__slg.game.area.def.portals.find(p=>p.id==='home-enter'));await walk(s,{...entry.from,areaId:'town-main'},'game');
  assert.equal(await s.page.evaluate(()=>window.__slg.game.player.areaId),areaId);
  assert.deepEqual(await s.page.evaluate(id=>window.__slg.game.area.interactions.find(i=>i.id===id),motherId),(({areaId:_,...npc})=>npc)(editedMother));pass('normal game enters the saved home and loads the edited mother');

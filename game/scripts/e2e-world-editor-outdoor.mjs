@@ -1,5 +1,6 @@
 /** Native UI regression. Every save and restart uses a disposable game copy. */
 import assert from 'node:assert/strict';
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 import {spawn} from 'node:child_process';
 import {cp,mkdir,mkdtemp,readdir,readFile,realpath,rm,symlink} from 'node:fs/promises';
 import path from 'node:path';
@@ -120,7 +121,7 @@ try{
  assert.equal(full.overview,true);assert.ok(full.width>=2048&&full.height>=1280&&full.inside&&full.chunks>0);await s.page.screenshot({path:path.join(output,'desktop-town-overview.png')});await s.click('#zoom-in');await frames(s.page);pass('whole-town view keeps the game Renderer and maps its full canvas into the workspace');
  const beforeTree=await object(s.page,treeId);assert.deepEqual([beforeTree.x,beforeTree.y],[15,34]);await drag(s,treeId,17,34);assert.equal((await object(s.page,treeId)).id,treeId);
  let expected=await doc(s.page);const treeTargets=await save(s,[town]);assert.match(treeTargets[0],/新しく作る/);s=await restart(s,expected);pass('S2-2: tree moves two tiles, saves and reloads with its stable ID');
- await s.page.goto(`${origin}/`);await s.page.waitForFunction(()=>!!window.__slg?.game);assert.equal(await s.page.evaluate(id=>window.__slg.game.area.objects.find(o=>o.id===id).x,treeId),17);await ready(s);await enterTown(s);pass('normal game uses the saved outdoor tree');
+ await s.page.goto(gameplayUrl(`${origin}/`));await s.page.waitForFunction(()=>!!window.__slg?.game);assert.equal(await s.page.evaluate(id=>window.__slg.game.area.objects.find(o=>o.id===id).x,treeId),17);await ready(s);await enterTown(s);pass('normal game uses the saved outdoor tree');
  const beforeShop=await doc(s.page);await drag(s,shopId,50,47);let moved=await doc(s.page);assert.equal(moved.portals.find(p=>p.id==='konbini-enter').from.x,53);assert.equal(moved.portals.find(p=>p.id==='konbini-exit').to.x,53);
  await s.click('#undo');assert.deepEqual(await doc(s.page),beforeShop);await s.click('#redo');assert.deepEqual(await doc(s.page),moved);pass('S2-3: one building drag moves entry/return and one undo restores the entire group');
  await s.page.screenshot({path:path.join(output,'desktop-building-linked.png')});
@@ -129,7 +130,7 @@ try{
  expected=await doc(s.page);const shopTargets=await save(s,[town,'shop-konbini-interior']);assert.ok(shopTargets.some(t=>t.includes('shop-konbini-interior')&&t.includes('新しく作る')));s=await restart(s,expected);await enterTown(s);pass('S2-4: confirmed save writes town and shop files and reloads the complete document');
  await drag(s,houseId,32,28);moved=await doc(s.page);assert.deepEqual(moved.start,{areaId:town,x:35,y:33,facing:'down'});
  expected=moved;await save(s,[home,town]);s=await restart(s,expected);
- await s.page.goto(`${origin}/`);await s.page.waitForFunction(()=>!!window.__slg?.game);
+ await s.page.goto(gameplayUrl(`${origin}/`));await s.page.waitForFunction(()=>!!window.__slg?.game);
  const newGameState=await s.page.evaluate(async()=>{const{LANDMARKS}=await import('/src/world/index.ts');const game=window.__slg.game;return{start:game.world.start,front:LANDMARKS.homeFront,player:{x:Math.floor(game.player.x/16),y:Math.floor((game.player.y-4)/16)}};});
  assert.deepEqual(newGameState.start,{areaId:town,x:35,y:33,facing:'down'});assert.deepEqual(newGameState.front,{x:35,y:33});assert.deepEqual(newGameState.player,{x:35,y:33});await s.page.screenshot({path:path.join(output,'desktop-game-new-start.png')});await ready(s);pass('S2-5: moving home south saves a matching landmark, world start and new-game position');
  await drag(s,plantId,13,9);const homePending=await doc(s.page);await enterTown(s);assert.equal((await doc(s.page)).objects.find(o=>o.id===plantId).x,13);

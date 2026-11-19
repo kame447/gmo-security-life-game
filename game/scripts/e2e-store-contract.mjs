@@ -1,5 +1,6 @@
 // Existing map connection regression, including the registered konbini shop. No map/NPC fixtures.
 import assert from 'node:assert/strict';
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { talk, closeTalk } from './store-interior-helpers.mjs';
@@ -58,7 +59,7 @@ async function walkTo(target) {
 }
 
 try {
-  await page.goto(url);
+  await page.goto(gameplayUrl(url));
   await page.waitForFunction(() => !!window.__slg?.game);
   await page.locator('#view').focus();
   const connection = await page.evaluate(async () => {
