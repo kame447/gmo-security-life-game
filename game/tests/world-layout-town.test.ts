@@ -29,7 +29,7 @@ describe('まちの初回配置とワールド単位の保存計画', () => {
     expect(plainArea(layoutArea(JSON.parse(canonicalJSON(layout)), town))).toEqual(plainArea(town));
     expect(layout.objects.map(o => o.id)).toEqual(town.objects.map(o => o.id));
     expect(layout.interactions.filter(i => i.objectId).map(i => [i.id, i.objectId]).sort()).toEqual([
-      ['neighborhood-board', 'town-board-30-34'], ['neighborhood-postbox', 'town-postbox-41-36'],
+      ['neighborhood-board', 'town-board-37-36'], ['neighborhood-postbox', 'town-postbox-41-36'],
       ['park-slide', 'town-slide-106-64'], ['shopping-vending', 'town-vending-50-53'], ['station-busstop', 'town-busstop-50-61'],
     ]);
   });

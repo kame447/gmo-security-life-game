@@ -24,9 +24,9 @@ describe('屋外と部屋を表示するruntime',()=>{
     const derived=withDerived(candidate,model.context),areas=[...new Set([HOME_AREA,...changedAreaIds(model.initial,derived)])],world=model.runtime(derived,areas);
     expect(areas).toEqual([HOME_AREA,'shop-konbini-interior','town-main']);
     expect(world.areas.get(HOME_AREA)!.objects.find(o=>o.id===plant.id)!.x).toBe(13);
-    expect(world.areas.get('town-main')!.objects.find(o=>o.id===shop.id)!.x).toBe(50);
-    expect(world.areas.get('town-main')!.def.portals.find(p=>p.id==='konbini-enter')!.from.x).toBe(53);
-    expect(world.areas.get('shop-konbini-interior')!.def.portals.find(p=>p.id==='konbini-exit')!.to.x).toBe(53);
+    expect(world.areas.get('town-main')!.objects.find(o=>o.id===shop.id)!.x).toBe(59);
+    expect(world.areas.get('town-main')!.def.portals.find(p=>p.id==='konbini-enter')!.from.x).toBe(62);
+    expect(world.areas.get('shop-konbini-interior')!.def.portals.find(p=>p.id==='konbini-exit')!.to.x).toBe(62);
     expect(world.areas.get('school-classroom-interior')).toBeDefined();
     expect(world.areas.get('school-classroom-interior')).toEqual(model.context.baselineWorld.areas.get('school-classroom-interior'));
     expect(model.document).toEqual(model.initial);expect(model.dirty).toBe(0);
