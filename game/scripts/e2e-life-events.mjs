@@ -1,3 +1,4 @@
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 // 人生イベント（選択肢つきの会話）の実画面での確認。開発サーバーが SLG_URL で起動している前提。
 // 位置合わせだけはデバッグ用の window.__slg で行い、会話・選択は実際のキー／クリック／タップで操作する。
 import { chromium } from 'playwright';
@@ -15,7 +16,7 @@ async function openPage(options) {
   const page = await context.newPage();
   page.on('pageerror', error => errors.push(String(error)));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-  await page.goto(url);
+  await page.goto(gameplayUrl(url));
   await page.waitForFunction(() => !!window.__slg?.game);
   await page.locator('#view').focus();
   return page;

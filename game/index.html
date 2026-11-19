@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-    <title>幼少期マップ プロトタイプ</title>
+    <title>回避！人生の落とし穴</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%2385b66d' d='M0 0h16v16H0z'/%3E%3Cpath fill='%23f6d88d' d='M4 8h8v7H4z'/%3E%3Cpath fill='%23bd6455' d='m2 8 6-6 6 6z'/%3E%3C/svg%3E" />
     <style>
       html, body { margin: 0; height: 100%; background: #1b1922; overflow: hidden; overscroll-behavior: none; }
@@ -69,6 +69,29 @@
       #touch [data-dir="right"] { left: 126px; bottom: 80px; }
       #touch [data-act] { right: 22px; bottom: 70px; width: 68px; height: 68px; }
       #touch [data-bike] { right: 28px; bottom: 152px; font-size: 11px; }
+      #opening { position: fixed; inset: 0; z-index: 20; overflow: hidden; background: #0d0a0e;
+                 touch-action: manipulation; --px: 2; }
+      #opening-view { position: absolute; image-rendering: pixelated; image-rendering: crisp-edges; }
+      #opening-skip { position: absolute; right: max(10px, env(safe-area-inset-right)); top: 10px;
+                      min-width: 44px; min-height: 44px; padding: 8px 14px; font: inherit; color: #fff; cursor: pointer; }
+      #opening-menu { position: absolute; left: 50%; transform: translateX(-50%);
+                      bottom: max(calc(var(--px) * 10px), env(safe-area-inset-bottom));
+                      width: min(calc(var(--px) * 150px), calc(100% - 24px));
+                      box-sizing: border-box; padding: 8px; }
+      #opening-menu [data-items] { display: grid; gap: 6px; }
+      #opening-menu button { display: block; width: 100%; min-height: 44px; padding: 6px 10px;
+                             font: inherit; font-size: clamp(16px, calc(var(--px) * 7px), 26px);
+                             color: #fff; background: transparent; border: 2px solid transparent;
+                             border-radius: 6px; text-align: center; cursor: pointer; }
+      #opening-menu button.selected:not(:disabled) { border-color: #ffe08a; background: rgba(255, 224, 138, 0.14); }
+      #opening-menu button.selected:not(:disabled)::before { content: "▶ "; color: #ffe08a; }
+      #opening-menu button:disabled { color: #8c8794; cursor: default; }
+      #opening-error { margin: 8px 0 2px; font-size: 13px; color: #ffdcaa; line-height: 1.6; }
+      #opening-hint { margin: 6px 0 0; text-align: center; font-size: 12px; color: #e8e0cc; }
+      #opening .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden;
+                          clip-path: inset(50%); white-space: nowrap; }
+      #opening :focus-visible { outline: 3px solid #ffe08a; outline-offset: 2px; }
+      @media (pointer: coarse), (max-height: 440px) { #opening-hint { display: none; } }
       #stage.dialog-open #touch { visibility: hidden; }
       [hidden] { display: none !important; }
     </style>
@@ -109,6 +132,16 @@
         <p>↑↓：こうもく　←→：えらぶ　Z / Space / Enter：けってい　Esc：もどす</p>
       </section>
     </div>
-    <script type="module" src="/src/main.ts"></script>
+    <main id="opening" aria-label="タイトル画面">
+      <h1 class="sr-only">回避！人生の落とし穴</h1>
+      <canvas id="opening-view" role="img" aria-label="オープニング"></canvas>
+      <button id="opening-skip" class="panel" type="button">スキップ</button>
+      <nav id="opening-menu" class="panel" aria-label="タイトルメニュー" hidden>
+        <div data-items></div>
+        <p id="opening-error" role="alert" hidden></p>
+        <p id="opening-hint">↑↓：えらぶ　Z / Space：けってい</p>
+      </nav>
+    </main>
+    <script type="module" src="/src/opening/entry.ts"></script>
   </body>
 </html>

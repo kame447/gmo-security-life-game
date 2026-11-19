@@ -1,3 +1,4 @@
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 /** Real rendering observation. Every browser context has its own disposable storage. */
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
@@ -43,7 +44,7 @@ try {
       const page = await context.newPage();
       page.on('pageerror', error => errors.push(String(error)));
       page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-      await page.goto(base.href, { waitUntil: 'networkidle' });
+      await page.goto(gameplayUrl(base.href), { waitUntil: 'networkidle' });
       await page.waitForFunction(() => !!window.__slg?.game && !window.__slg.renderer.stats.fading);
       for (const areaId of areas) {
         const setup = await page.evaluate(async id => {

@@ -1,3 +1,4 @@
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
@@ -95,7 +96,7 @@ async function measureMode(config, mode) {
   const result = { mode, environment: null, scenarios: [], errors: [] };
   try {
     const discovery = await browser.newPage({ viewport: config.viewport, deviceScaleFactor: config.dpr });
-    await discovery.goto(config.url);
+    await discovery.goto(gameplayUrl(config.url));
     await discovery.waitForFunction(() => !!window.__slg?.frames);
     const data = await discovery.evaluate(async () => {
       const [{ PERF_ROUTES }, { LANDMARKS }] = await Promise.all([import('/tests/fixtures/perf-routes.ts'), import('/src/world/index.ts')]);
@@ -191,7 +192,7 @@ async function measureMode(config, mode) {
         }
       }
       try {
-        await page.goto(config.url);
+        await page.goto(gameplayUrl(config.url));
         await page.waitForFunction(() => !!window.__slg?.frames && typeof window.__slg.game.update === 'function');
         await page.locator('#view').focus();
         view = await page.evaluate(() => {

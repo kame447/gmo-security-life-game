@@ -1,3 +1,4 @@
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
@@ -29,7 +30,7 @@ try {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     try {
-      await page.goto(url, { waitUntil: 'networkidle' });
+      await page.goto(gameplayUrl(url), { waitUntil: 'networkidle' });
       await page.waitForFunction(() => !!window.__slg?.game);
       const mini = page.locator('#minimap-button');
       await mini.waitFor({ state: 'visible' });

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 
 export const target = new URL(process.env.SLG_URL || 'http://127.0.0.1:5181');
 if (!['http:', 'https:'].includes(target.protocol) || !['localhost', '127.0.0.1', '[::1]'].includes(target.hostname)) {
@@ -40,7 +41,7 @@ export async function session(browser, size, { temporary = true, seed = '{"revie
   page.on('dialog', async dialog => { issues.push('Unexpected dialog'); await dialog.dismiss(); });
   const url = new URL(target); url.searchParams.delete('bag');
   if (temporary) url.searchParams.set('review', '1'); else url.searchParams.delete('review');
-  await page.goto(url.href, { waitUntil: 'networkidle', timeout: 10000 });
+  await page.goto(gameplayUrl(url.href), { waitUntil: 'networkidle', timeout: 10000 });
   await page.waitForFunction(() => !!window.__slg?.game?.assets?.inventory && !!document.querySelector('#hud')?.textContent.trim());
   return { context, page, issues, close: async () => { assert.deepEqual(issues, []); await context.close(); } };
 }

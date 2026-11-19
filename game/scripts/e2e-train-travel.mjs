@@ -1,3 +1,4 @@
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 /** Run against the #36 boarding-flow preview (gate -> platform -> ride -> arrival). Browser contexts use isolated storage. */
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
@@ -42,7 +43,7 @@ async function contextFor(size, save, extra = {}) {
     blocked.push(url.origin); void socket.close();
   });
   const page = await context.newPage(); observe(page);
-  await page.goto(base.href, { waitUntil: 'networkidle' }); await ready(page);
+  await page.goto(gameplayUrl(base.href), { waitUntil: 'networkidle' }); await ready(page);
   return { context, page };
 }
 async function walkTo(page, target) {
