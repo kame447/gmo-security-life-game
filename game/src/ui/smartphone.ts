@@ -266,7 +266,8 @@ export class Smartphone {
 
   private renderMail(): void {
     const view = (mail: MailMessage): MailView =>
-      ({ id: mail.id, from: mail.from, subject: mail.subject, body: mail.body, time: this.chatTime(mail.atMs), unread: !mail.read });
+      ({ id: mail.id, from: mail.from, fromAddress: mail.fromAddress, to: mail.to, subject: mail.subject, body: mail.body,
+        links: mail.links, time: this.chatTime(mail.atMs), unread: !mail.read });
     const current = this.model.currentMail;
     if (current) this.body.append(renderMailDetail(view(current)));
     else this.body.append(renderMailList(this.model.mails.map(view), id => { this.model.openMail(id); }));

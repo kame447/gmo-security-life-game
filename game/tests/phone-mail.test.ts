@@ -67,6 +67,39 @@ describe('local mail model', () => {
     expect(mail.get('event-3')?.body).toBe('<img src=x onerror=alert(1)>\n2行目です');
   });
 
+  it('keeps the display name, address, recipient and link destinations as separate data', () => {
+    const mail = make();
+    const result = mail.deliver({ ...incoming('event-4'), from: '配送サービス', fromAddress: 'notice@parcel-check.example', to: '自分',
+      links: [{ label: 'お届け先を確認する', href: 'https://parcel-check.example/confirm?id=1' }] });
+    expect(result).toMatchObject({ ok: true, mail: { from: '配送サービス', fromAddress: 'notice@parcel-check.example', to: '自分',
+      links: [{ label: 'お届け先を確認する', href: 'https://parcel-check.example/confirm?id=1' }] } });
+    const restored = new MailModel(MAIL_PROTOTYPE, JSON.parse(JSON.stringify(mail.save())));
+    expect(restored.get('event-4')).toEqual(mail.get('event-4'));
+  });
+
+  it('drops addresses and links outside reserved fictitious names instead of storing real ones', () => {
+    const mail = make();
+    mail.deliver({ ...incoming('event-5'), fromAddress: 'someone@gmail.com', links: [
+      { label: '本物のサイト', href: 'https://www.google.com/' },
+      { label: 'スクリプト', href: 'javascript:alert(1)' },
+      { label: '', href: 'https://ok.example/' },
+      { label: '架空のサイト', href: 'http://shop.test/sale' },
+    ] });
+    expect(mail.get('event-5')).toMatchObject({ fromAddress: '', links: [{ label: '架空のサイト', href: 'http://shop.test/sale' }] });
+  });
+
+  it('loads mail saved before addresses existed with empty address, recipient and links', () => {
+    const save = parseMailSave({ v: 1, messages: [{ id: 'old', from: 'だれか', subject: '件名', body: '本文', atMs: 1, read: true }],
+      pending: [{ id: 'later', from: 'だれか', subject: '件名', body: '本文', remainingMs: 5 }] });
+    expect(save.messages[0]).toEqual({ id: 'old', from: 'だれか', fromAddress: '', to: '', subject: '件名', body: '本文', links: [], atMs: 1, read: true });
+    expect(save.pending[0]).toMatchObject({ id: 'later', fromAddress: '', links: [] });
+  });
+
+  it('gives every provisional mail a fictitious sender address', () => {
+    const mail = make(); mail.advance(1_000_000, 1);
+    for (const item of mail.list()) expect(item.fromAddress).toMatch(/@[a-z0-9.-]+\.example$/);
+  });
+
   it('repairs broken saves and bounds the number and size of mails', () => {
     expect(parseMailSave(null)).toEqual(parseMailSave(undefined));
     expect(parseMailSave({ v: 1, messages: [{ id: 'x', from: '', subject: '', body: 'a', atMs: 0 }], pending: [] }).messages).toEqual([]);

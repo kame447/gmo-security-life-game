@@ -41,6 +41,8 @@ try {
   await page.locator('#btn-phone').click();
   assert.equal(await homeBadge(page).textContent(), '1', 'home shows one unread mail');
   await openInbox(page);
+  assert.equal(await page.locator('.phone-mail-title').textContent(), '受信トレイ');
+  assert.equal(await page.locator('.phone-mail-count').textContent(), '1件のメール・未読1件', 'the inbox footer counts mail and unread');
   const welcome = page.locator('[data-mail="welcome"]');
   assert.ok(await welcome.evaluate(row => row.classList.contains('is-unread')), 'the welcome mail is unread');
   const row = await welcome.evaluate(item => ({ from: item.querySelector('.phone-mail-from')?.textContent,
@@ -50,6 +52,9 @@ try {
   await page.locator('[data-mail-detail="welcome"]').waitFor({ state: 'visible' });
   assert.equal(await page.locator('.phone-mail-detail-subject').textContent(), row.subject);
   assert.ok((await page.locator('.phone-mail-body p').count()) >= 2, 'line breaks become paragraphs');
+  assert.equal(await page.locator('.phone-mail-detail-from').textContent(), row.from);
+  assert.match(await page.locator('.phone-mail-detail-address').textContent() ?? '', /^[^@\s]+@[a-z0-9.-]+\.example$/, 'the real sender address is shown apart from the name');
+  assert.equal(await page.locator('.phone-mail-detail-to').textContent(), '宛先：自分');
   await page.locator('#phone-back').click();
   assert.equal(await page.locator('[data-mail="welcome"]').evaluate(item => item.classList.contains('is-unread')), false, 'opened mail is read');
   await page.locator('#phone-home').click();
@@ -101,6 +106,20 @@ try {
   assert.ok(box && box.height >= 44, 'mail row touch target is at least 44px tall');
   await touchRow.tap();
   await mobile.page.locator('[data-mail-detail="welcome"]').waitFor({ state: 'visible' });
+  await mobile.page.locator('#phone-back').tap();
+  // A link shows its label; tapping reveals the real destination and never navigates.
+  const href = 'https://parcel-check.example/confirm?id=1';
+  await mobile.page.evaluate(href => window.__slg.game.phone.deliverMail({ id: 'e2e-link', from: '配送サービス',
+    fromAddress: 'notice@parcel-check.example', subject: 'リンクの確認', body: '下のリンクを見てください。',
+    links: [{ label: 'お届け先を確認する', href }], atMs: Date.now() }), href);
+  await mobile.page.locator('[data-mail="e2e-link"]').tap();
+  const link = mobile.page.locator('.phone-mail-link'), target = mobile.page.locator('.phone-mail-link-href-url');
+  assert.equal(await link.textContent(), 'お届け先を確認する');
+  assert.equal(await target.isVisible(), false, 'the destination is hidden until the link is activated');
+  const before = mobile.page.url();
+  await link.tap();
+  assert.equal(await target.textContent(), href, 'the real destination is revealed apart from the label');
+  assert.equal(mobile.page.url(), before, 'activating a mail link never navigates');
   await mobile.page.locator('#phone-back').tap();
   await mobile.page.locator('#phone-close').tap();
   assert.equal(await mobile.page.locator('#phone-overlay').isHidden(), true);

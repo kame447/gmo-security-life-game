@@ -1,6 +1,5 @@
-import { cleanChatText, isChatId, isChatTime } from '../chat/codec';
-import { cleanMailBody, parseMailSave } from './codec';
-import { MAIL_LIMITS } from './limits';
+import { isChatId, isChatTime } from '../chat/codec';
+import { cleanMailText, parseMailSave } from './codec';
 import type { IncomingMail, MailContent, MailMessage, MailResult, MailSave } from './types';
 
 /** Pure local inbox: no network, global clock, timers or UI selection. */
@@ -37,14 +36,12 @@ export class MailModel {
   /** Event entry point. IDs deduplicate retained and pending mail. */
   deliver(incoming: IncomingMail): MailResult {
     if (!incoming || !isChatId(incoming.id) || !isChatTime(incoming.atMs)) return { ok: false, reason: 'invalid-mail' };
-    const from = cleanChatText(incoming.from, MAIL_LIMITS.fromCodePoints).trim();
-    const subject = cleanChatText(incoming.subject, MAIL_LIMITS.subjectCodePoints).trim();
-    const body = cleanMailBody(incoming.body);
-    if (!from || !body) return { ok: false, reason: 'empty-text' };
+    const text = cleanMailText(incoming as unknown as Record<string, unknown>);
+    if (!text) return { ok: false, reason: 'empty-text' };
     if (this.state.messages.some(mail => mail.id === incoming.id) || this.state.pending.some(mail => mail.id === incoming.id)) {
       return { ok: false, reason: 'duplicate-id' };
     }
-    const mail: MailMessage = { id: incoming.id, from, subject, body, atMs: incoming.atMs, read: false };
+    const mail: MailMessage = { id: incoming.id, ...text, atMs: incoming.atMs, read: false };
     this.state.messages.push(mail);
     this.received([mail]);
     return { ok: true, mail: structuredClone(mail) };
@@ -59,7 +56,8 @@ export class MailModel {
     for (const mail of pending) {
       mail.remainingMs = Math.max(0, mail.remainingMs - elapsedPlayingMs);
       if (mail.remainingMs > 0) { this.state.pending.push(mail); continue; }
-      const message: MailMessage = { id: mail.id, from: mail.from, subject: mail.subject, body: mail.body, atMs, read: false };
+      const { remainingMs: _, ...text } = mail;
+      const message: MailMessage = { ...text, atMs, read: false };
       this.state.messages.push(message);
       delivered.push(message);
     }

@@ -1,26 +1,41 @@
-.phone-mail-list { padding: 18px 14px 24px; }
-.phone-mail-title { margin: 0 0 14px 4px; color: #18222c; font-size: 23px; }
-.phone-mail-empty { margin: 24px 4px; color: #75808b; font-size: 12px; }
-.phone-mail-row { width: 100%; min-height: 70px; display: flex; align-items: flex-start; gap: 8px; padding: 10px 4px; border: 0; border-bottom: 1px solid #e4e8eb; background: transparent; color: #202832; text-align: left; }
-.phone-mail-row.is-selected, .phone-mail-row:focus-visible { outline: 3px solid #558dd3; outline-offset: -2px; border-radius: 10px; }
-.phone-mail-dot { flex: none; width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; }
-.phone-mail-row.is-unread .phone-mail-dot { background: #d9695f; }
-.phone-mail-summary { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.phone-mail-list { min-height: 100%; display: flex; flex-direction: column; }
+.phone-mail-title { margin: 0; padding: 18px 18px 10px; color: #18222c; font-size: 25px; font-weight: 800; }
+.phone-mail-empty { margin: 24px 18px; color: #75808b; font-size: 12px; }
+.phone-mail-rows { flex: 1; border-top: 1px solid #e4e8eb; }
+.phone-mail-row { width: 100%; min-height: 70px; display: flex; align-items: flex-start; gap: 6px; padding: 10px 16px 10px 6px; border: 0; border-bottom: 1px solid #e4e8eb; background: transparent; color: #202832; text-align: left; }
+.phone-mail-row.is-selected, .phone-mail-row:focus-visible { outline: none; background: #e6eef8; }
+.phone-mail-dot { flex: none; width: 9px; height: 9px; margin-top: 4px; border-radius: 50%; }
+.phone-mail-row.is-unread .phone-mail-dot { background: #2f7de1; }
+.phone-mail-summary { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .phone-mail-head { display: flex; align-items: baseline; gap: 8px; }
-.phone-mail-from { flex: 1; min-width: 0; overflow: hidden; color: #202832; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.phone-mail-row:not(.is-unread) .phone-mail-from { font-weight: 500; }
+.phone-mail-from { flex: 1; min-width: 0; overflow: hidden; color: #202832; font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.phone-mail-row.is-unread .phone-mail-from { font-weight: 700; }
 .phone-mail-time { flex: none; color: #84909c; font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .phone-mail-subject { overflow: hidden; color: #202832; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .phone-mail-row.is-unread .phone-mail-subject { font-weight: 700; }
 .phone-mail-preview { overflow: hidden; color: #75808b; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.phone-mail-count { position: sticky; bottom: 0; margin: 0; padding: 8px 12px; border-top: 1px solid #e4e8eb; background: #f4f6f8; color: #4b5661; font-size: 10px; text-align: center; }
 .phone-mail-detail { padding: 16px 18px 24px; }
 .phone-mail-detail-header { padding-bottom: 12px; border-bottom: 1px solid #e4e8eb; }
-.phone-mail-detail-subject { margin: 0 0 8px; color: #18222c; font-size: 18px; line-height: 1.35; overflow-wrap: anywhere; }
-.phone-mail-detail-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0; }
-.phone-mail-detail-from { min-width: 0; overflow: hidden; color: #4b5661; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.phone-mail-detail-subject { margin: 0 0 12px; color: #18222c; font-size: 18px; line-height: 1.35; overflow-wrap: anywhere; }
+.phone-mail-sender { display: flex; align-items: flex-start; gap: 10px; }
+.phone-mail-avatar { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: #dfe5ec; color: #4b5661; font-size: 14px; font-weight: 700; }
+.phone-mail-sender-info { flex: 1; min-width: 0; }
+.phone-mail-sender-info p { margin: 0; }
+.phone-mail-detail-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.phone-mail-detail-from { min-width: 0; overflow: hidden; color: #202832; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.phone-mail-detail-address { margin-top: 2px !important; color: #4b5661; font-size: 10px; overflow-wrap: anywhere; }
+.phone-mail-detail-to { margin-top: 2px !important; color: #75808b; font-size: 10px; }
 .phone-mail-body { padding-top: 6px; color: #202832; font-size: 12px; line-height: 1.75; overflow-wrap: anywhere; }
 .phone-mail-body p { min-height: 1em; margin: 8px 0 0; }
+.phone-mail-link-item { margin-top: 10px; }
+.phone-mail-link { min-height: 32px; padding: 0; border: 0; background: none; color: #1f6fd1; font: inherit; text-align: left; text-decoration: underline; text-underline-offset: 2px; }
+.phone-mail-link.is-selected, .phone-mail-link:focus-visible { outline: none; border-radius: 3px; background: #e6eef8; box-shadow: 0 0 0 3px #e6eef8; }
+.phone-mail-link-href { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 0 !important; padding: 8px 10px; border-radius: 8px; background: #e9edf1; }
+.phone-mail-link-href[hidden] { display: none; }
+.phone-mail-link-href-label { color: #75808b; font-size: 10px; }
+.phone-mail-link-href-url { color: #202832; font-family: ui-monospace, Menlo, monospace; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 @media (max-height: 600px) {
-  .phone-mail-list { padding-top: 5px; }.phone-mail-title { margin-bottom: 5px; font-size: 19px; }
+  .phone-mail-title { padding-top: 5px; padding-bottom: 5px; font-size: 19px; }
   .phone-mail-row { min-height: 60px; }.phone-mail-detail { padding-top: 5px; }
 }
