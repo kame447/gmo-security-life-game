@@ -85,7 +85,8 @@ try {
       page.on('pageerror', error => report.errors.push(String(error)));
       page.on('console', message => { if (message.type() === 'error') report.errors.push(message.text()); });
       await page.clock.install({ time: new Date(epoch) });
-      await page.goto(gameplayUrl(base.href), { waitUntil: 'load' });
+      await page.goto(gameplayUrl(base.href), { waitUntil: 'networkidle' });
+      await page.waitForFunction(() => !!window.__slg?.game);
       await page.clock.pauseAt(new Date(epoch + 60_000));
       await page.clock.runFor(400);
       // Initial fixture setup only. Every trip and conflicting input below uses the actual UI.
@@ -142,7 +143,9 @@ try {
         report.passed.push(`${size.name} ${from.stationId} -> ${to.stationId}: full-ride exclusivity, one arrival, state and save`);
       }
       const beforeReload = await state(page);
-      await page.reload({ waitUntil: 'load' }); await page.clock.runFor(400);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.clock.runFor(400);
+      await page.waitForFunction(() => !!window.__slg?.game);
       assert.deepEqual(await state(page), beforeReload);
       await page.locator('#view').focus();
       await page.keyboard.press('KeyP');
