@@ -1,0 +1,26 @@
+.phone-web { padding: 16px 16px 24px; color: #202832; }
+.phone-web-home { min-height: 70%; display: flex; flex-direction: column; justify-content: center; gap: 18px; }
+.phone-web-logo { margin: 0; color: #2f6fc1; font-size: 30px; font-weight: 800; letter-spacing: 2px; text-align: center; }
+.phone-web-form { display: flex; gap: 6px; }
+.phone-web-input { flex: 1; min-width: 0; min-height: 42px; box-sizing: border-box; padding: 8px 14px; border: 1px solid #cfd8e0; border-radius: 22px; background: #fff; color: #202832; font: inherit; font-size: 13px; user-select: text; -webkit-user-select: text; touch-action: manipulation; }
+.phone-web-input:focus-visible { outline: 2px solid #558dd3; }
+.phone-web-submit { flex: none; min-width: 52px; min-height: 42px; padding: 0 10px; border: 0; border-radius: 22px; background: #3989d2; color: #fff; font-size: 12px; font-weight: 700; }
+.phone-web-submit:disabled { background: #b7c6d4; }
+.phone-web-submit.is-selected, .phone-web-submit:focus-visible { outline: 3px solid #9cc0ea; outline-offset: 1px; }
+.phone-web-count { margin: 12px 4px 4px; color: #75808b; font-size: 11px; }
+.phone-web-results { border-top: 1px solid #e4e8eb; }
+.phone-web-result { width: 100%; display: flex; flex-direction: column; gap: 2px; padding: 10px 4px; border: 0; border-bottom: 1px solid #e4e8eb; background: transparent; text-align: left; }
+.phone-web-result.is-selected, .phone-web-result:focus-visible { outline: none; background: #e6eef8; }
+.phone-web-result-title { color: #1f5fb8; font-size: 14px; font-weight: 700; }
+.phone-web-result-address { overflow: hidden; color: #2e7d4f; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.phone-web-result-summary { color: #4b5661; font-size: 11px; line-height: 1.5; }
+.phone-web-address { margin: 0 0 12px; padding: 7px 12px; border-radius: 16px; background: #e9edf1; color: #4b5661; font-family: ui-monospace, Menlo, monospace; font-size: 11px; overflow-wrap: anywhere; }
+.phone-web-page { font-size: 12px; line-height: 1.75; overflow-wrap: anywhere; }
+.phone-web-title { margin: 0 0 6px; color: #18222c; font-size: 18px; line-height: 1.35; }
+.phone-web-page p { margin: 6px 0 0; }
+.phone-web-link { display: block; min-height: 32px; margin-top: 8px; padding: 0; border: 0; background: none; color: #1f6fd1; font: inherit; text-align: left; text-decoration: underline; text-underline-offset: 2px; }
+.phone-web-link.is-selected, .phone-web-link:focus-visible { outline: none; border-radius: 3px; background: #e6eef8; box-shadow: 0 0 0 3px #e6eef8; }
+@media (max-height: 600px) {
+  .phone-web { padding-top: 6px; }
+  .phone-web-home { gap: 10px; }.phone-web-logo { font-size: 22px; }
+}
