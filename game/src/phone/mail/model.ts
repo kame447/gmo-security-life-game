@@ -1,0 +1,83 @@
+import { isChatId, isChatTime } from '../chat/codec';
+import { cleanMailText, parseMailSave } from './codec';
+import type { IncomingMail, MailContent, MailMessage, MailResult, MailSave } from './types';
+
+/** Pure local inbox: no network, global clock, timers or UI selection. */
+export class MailModel {
+  private state: MailSave;
+  /** Pending delays as of the last arrival; saves stay identical between arrivals. */
+  private checkpoint: MailSave['pending'];
+  private readonly content: MailContent;
+  private readonly listeners = new Set<() => void>();
+  private readonly arrivals = new Set<(mail: MailMessage) => void>();
+
+  constructor(content: MailContent, saved?: unknown) {
+    this.content = structuredClone(content);
+    this.state = parseMailSave(saved, this.content);
+    this.checkpoint = structuredClone(this.state.pending);
+  }
+  /** Newest first. */
+  list(): MailMessage[] { return structuredClone(this.state.messages).reverse(); }
+  get(id: string): MailMessage | null { return structuredClone(this.state.messages.find(mail => mail.id === id) ?? null); }
+  get unreadCount(): number { return this.state.messages.filter(mail => !mail.read).length; }
+  save(): MailSave { return parseMailSave({ ...this.state, pending: this.checkpoint }, this.content); }
+  /** Emitted after delivery and reads, not on every countdown decrement. */
+  onChange(listener: () => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
+  /** Emitted once per newly received mail, after onChange. */
+  onArrive(listener: (mail: MailMessage) => void): () => void { this.arrivals.add(listener); return () => this.arrivals.delete(listener); }
+  private bounded(): void { this.state = parseMailSave(this.state, this.content); }
+  private received(mails: MailMessage[]): void {
+    this.bounded();
+    this.checkpoint = structuredClone(this.state.pending);
+    for (const listener of this.listeners) listener();
+    for (const mail of mails) for (const listener of this.arrivals) listener(structuredClone(mail));
+  }
+
+  /** Event entry point. IDs deduplicate retained and pending mail. */
+  deliver(incoming: IncomingMail): MailResult {
+    if (!incoming || !isChatId(incoming.id) || !isChatTime(incoming.atMs)) return { ok: false, reason: 'invalid-mail' };
+    const text = cleanMailText(incoming as unknown as Record<string, unknown>);
+    if (!text) return { ok: false, reason: 'empty-text' };
+    if (this.state.messages.some(mail => mail.id === incoming.id) || this.state.pending.some(mail => mail.id === incoming.id)) {
+      return { ok: false, reason: 'duplicate-id' };
+    }
+    const mail: MailMessage = { id: incoming.id, ...text, atMs: incoming.atMs, read: false };
+    this.state.messages.push(mail);
+    this.received([mail]);
+    return { ok: true, mail: structuredClone(mail) };
+  }
+
+  /** Count down active play time only; call with 0 while paused or hidden. Mail that comes due waits for deliverDue(). */
+  advance(elapsedPlayingMs: number): void {
+    if (!Number.isFinite(elapsedPlayingMs) || elapsedPlayingMs < 0) return;
+    for (const mail of this.state.pending) mail.remainingMs = Math.max(0, mail.remainingMs - elapsedPlayingMs);
+  }
+
+  /**
+   * Deliver mail whose play time has run out. Callers use discrete moments (area change, opening the phone),
+   * never a frame or save, so a save and the reload after it always see the same inbox.
+   */
+  deliverDue(atMs: number): number {
+    if (!isChatTime(atMs)) return 0;
+    const delivered: MailMessage[] = [];
+    const pending = this.state.pending;
+    this.state.pending = [];
+    for (const mail of pending) {
+      if (mail.remainingMs > 0) { this.state.pending.push(mail); continue; }
+      const { remainingMs: _, ...text } = mail;
+      const message: MailMessage = { ...text, atMs, read: false };
+      this.state.messages.push(message);
+      delivered.push(message);
+    }
+    if (delivered.length) this.received(delivered);
+    return delivered.length;
+  }
+
+  markRead(id: string): boolean {
+    const mail = this.state.messages.find(item => item.id === id);
+    if (!mail || mail.read) return false;
+    mail.read = true;
+    for (const listener of this.listeners) listener();
+    return true;
+  }
+}

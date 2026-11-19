@@ -6,6 +6,9 @@ import { CHAT_PROTOTYPE } from '../data/chat-prototype';
 import { ChatModel } from './chat/model';
 import { CHAT_LIMITS } from './chat/limits';
 import type { ChatMessage, ChatResult, ChatThreadSummary, IncomingMessage } from './chat/types';
+import { MAIL_PROTOTYPE } from '../data/mail-prototype';
+import { MailModel } from './mail/model';
+import type { IncomingMail, MailMessage, MailResult } from './mail/types';
 
 export { parsePhoneSave } from './save';
 export type { PhoneSave } from './save';
@@ -26,6 +29,9 @@ export class PhoneModel {
   private chatWasActive = false;
   private chatChangedInProgress = false;
   private includeChatInSave: boolean;
+  private readonly mailModel: MailModel;
+  private mailOpen: string | null = null;
+  private includeMailInSave: boolean;
   private readonly clock: () => number;
   private readonly epochClock: () => number;
   private environment: PhoneEnvironment;
@@ -43,6 +49,9 @@ export class PhoneModel {
     this.chatModel = new ChatModel(CHAT_PROTOTYPE, saved.chat);
     this.includeChatInSave = saved.chat !== undefined;
     this.chatModel.onChange(() => this.onChatChange());
+    this.mailModel = new MailModel(MAIL_PROTOTYPE, saved.mail);
+    this.includeMailInSave = saved.mail !== undefined;
+    this.mailModel.onChange(() => { this.includeMailInSave = true; this.changed(); });
     this.syncUsage();
   }
   get content(): PhoneContent { return structuredClone(this.data); }
@@ -62,13 +71,20 @@ export class PhoneModel {
   get chatUnreadCount(): number { return this.chatThreads.reduce((sum, thread) => sum + thread.unreadCount, 0); }
   get chatTextLimit(): number { return CHAT_LIMITS.textCodePoints; }
   chatMessages(threadId: string): readonly ChatMessage[] { return this.chatModel.messages(threadId); }
+  /** Newest first. */
+  get mails(): readonly MailMessage[] { return this.mailModel.list(); }
+  get currentMail(): MailMessage | null { return this.mailOpen ? this.mailModel.get(this.mailOpen) : null; }
+  get mailUnreadCount(): number { return this.mailModel.unreadCount; }
   save(): PhoneSave {
     this.syncUsage();
     const epoch = this.usage.config.offlineUsage === 'consume-if-active' ? this.epochClock() : undefined;
     return { v: 1, owned: this.owned, dataBudget: this.usage.save(epoch),
-      ...(this.includeChatInSave ? { chat: this.chatModel.save() } : {}) };
+      ...(this.includeChatInSave ? { chat: this.chatModel.save() } : {}),
+      ...(this.includeMailInSave ? { mail: this.mailModel.save() } : {}) };
   }
   onChange(listener: () => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
+  /** Fires once per received mail, after the change signal, whether or not the phone is open. */
+  onMailArrive(listener: (mail: MailMessage) => void): () => void { return this.mailModel.onArrive(listener); }
   private changed(): void { for (const listener of this.listeners) listener(); }
   private onChatChange(): void {
     this.includeChatInSave = true;
@@ -87,10 +103,19 @@ export class PhoneModel {
     // Set the anchor before callbacks: a save listener can re-enter syncUsage().
     this.chatLastTick = now;
     this.chatWasActive = this.environment.visible && !this.environment.paused;
-    if (elapsed > 0) this.chatModel.advance(elapsed, this.epochClock());
+    if (elapsed > 0) {
+      this.chatModel.advance(elapsed, this.epochClock());
+      this.mailModel.advance(elapsed);
+    }
   }
   /** The clock, rather than frame count or capped simulation dt, determines usage. */
-  tick(environment: Partial<PhoneEnvironment> = {}): void { this.environment = { ...this.environment, ...environment }; this.syncUsage(); }
+  tick(environment: Partial<PhoneEnvironment> = {}): void {
+    const previousArea = this.environment.areaId;
+    this.environment = { ...this.environment, ...environment };
+    this.syncUsage();
+    // Scheduled mail arrives on an area change, not mid-frame, so it never lands between a save and a reload.
+    if (previousArea && this.environment.areaId !== previousArea) this.mailModel.deliverDue(this.epochClock());
+  }
   setVisible(visible: boolean): void { this.tick({ visible }); }
   setPaused(paused: boolean): void { this.tick({ paused }); }
   /** A future progression event may call this; no recharge event is chosen here. */
@@ -106,7 +131,7 @@ export class PhoneModel {
     if (activeId) {
       const next = this.data.apps.find(item => item.id === activeId);
       if (!next || !this.history.every(id => next.screens.some(screen => screen.id === id))) {
-        this.app = null; this.history = []; this.chatThread = null;
+        this.app = null; this.history = []; this.chatThread = null; this.mailOpen = null;
       } else this.app = next;
     }
     this.changed();
@@ -116,7 +141,7 @@ export class PhoneModel {
   setOwned(owned: boolean): void {
     if (typeof owned !== 'boolean' || this.owned === owned) return;
     this.owned = owned;
-    if (!owned) { this.opened = false; this.app = null; this.history = []; this.chatThread = null; }
+    if (!owned) { this.opened = false; this.app = null; this.history = []; this.chatThread = null; this.mailOpen = null; }
     this.syncUsage();
     this.changed();
   }
@@ -124,9 +149,10 @@ export class PhoneModel {
     if (!this.owned || this.opened) return false;
     this.opened = true;
     this.syncUsage();
+    this.mailModel.deliverDue(this.epochClock());
     this.app = null;
     this.history = [];
-    this.chatThread = null;
+    this.chatThread = null; this.mailOpen = null;
     this.changed();
     return true;
   }
@@ -136,12 +162,12 @@ export class PhoneModel {
     this.syncUsage();
     this.app = null;
     this.history = [];
-    this.chatThread = null;
+    this.chatThread = null; this.mailOpen = null;
     this.changed();
   }
   home(): void {
     if (!this.opened || !this.app) return;
-    this.app = null; this.history = []; this.chatThread = null; this.changed();
+    this.app = null; this.history = []; this.chatThread = null; this.mailOpen = null; this.changed();
   }
   launch(appId: string): boolean {
     const app = this.data.apps.find(item => item.id === appId);
@@ -150,7 +176,7 @@ export class PhoneModel {
         !app.screens.some(screen => screen.id === app.startScreenId)) return false;
     this.app = app;
     this.history = [app.startScreenId];
-    this.chatThread = null;
+    this.chatThread = null; this.mailOpen = null;
     this.changed();
     return true;
   }
@@ -172,7 +198,7 @@ export class PhoneModel {
         !app.screens.some(screen => screen.id === app.startScreenId) ||
         !app.screens.some(screen => screen.id === notice.screenId)) return false;
     this.app = app;
-    this.chatThread = null;
+    this.chatThread = null; this.mailOpen = null;
     this.history = notice.screenId === app.startScreenId ? [app.startScreenId] : [app.startScreenId, notice.screenId];
     this.changed();
     return true;
@@ -181,6 +207,7 @@ export class PhoneModel {
     if (!this.opened) return;
     if (!this.app) { this.close(); return; }
     if (this.app.id === 'messages' && this.chatThread) { this.chatThread = null; this.changed(); return; }
+    if (this.app.id === 'mail' && this.mailOpen) { this.mailOpen = null; this.changed(); return; }
     if (this.history.length > 1) this.history.pop();
     else { this.app = null; this.history = []; }
     this.changed();
@@ -198,6 +225,18 @@ export class PhoneModel {
     this.syncUsage();
     if (!this.networkAllowed) return { ok: false, reason: 'network-unavailable' };
     return this.chatModel.sendMessage(this.chatThread, text, this.epochClock());
+  }
+
+  openMail(id: string): boolean {
+    if (!this.opened || this.app?.id !== 'mail' || !this.mailModel.get(id)) return false;
+    this.mailOpen = id;
+    if (!this.mailModel.markRead(id)) this.changed();
+    return true;
+  }
+
+  /** Future in-game events can deliver mail; it arrives even while the phone is closed. */
+  deliverMail(mail: IncomingMail): MailResult {
+    return this.mailModel.deliver(mail);
   }
 
   /** Future in-game events can deliver local data without exposing mutable state. */
