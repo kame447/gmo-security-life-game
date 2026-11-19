@@ -105,11 +105,17 @@ export class PhoneModel {
     this.chatWasActive = this.environment.visible && !this.environment.paused;
     if (elapsed > 0) {
       this.chatModel.advance(elapsed, this.epochClock());
-      this.mailModel.advance(elapsed, this.epochClock());
+      this.mailModel.advance(elapsed);
     }
   }
   /** The clock, rather than frame count or capped simulation dt, determines usage. */
-  tick(environment: Partial<PhoneEnvironment> = {}): void { this.environment = { ...this.environment, ...environment }; this.syncUsage(); }
+  tick(environment: Partial<PhoneEnvironment> = {}): void {
+    const previousArea = this.environment.areaId;
+    this.environment = { ...this.environment, ...environment };
+    this.syncUsage();
+    // Scheduled mail arrives on an area change, not mid-frame, so it never lands between a save and a reload.
+    if (previousArea && this.environment.areaId !== previousArea) this.mailModel.deliverDue(this.epochClock());
+  }
   setVisible(visible: boolean): void { this.tick({ visible }); }
   setPaused(paused: boolean): void { this.tick({ paused }); }
   /** A future progression event may call this; no recharge event is chosen here. */
@@ -143,6 +149,7 @@ export class PhoneModel {
     if (!this.owned || this.opened) return false;
     this.opened = true;
     this.syncUsage();
+    this.mailModel.deliverDue(this.epochClock());
     this.app = null;
     this.history = [];
     this.chatThread = null; this.mailOpen = null;

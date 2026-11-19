@@ -21,31 +21,39 @@ describe('local mail model', () => {
     const mail = make();
     const changed = vi.fn(), arrived = vi.fn();
     mail.onChange(changed); mail.onArrive(arrived);
-    expect(mail.advance(0, 5000)).toBe(0);
-    expect(mail.advance(29_999, 5000)).toBe(0);
+    // Delivery is only when it is due *and* deliverDue runs; reaching the time alone delivers nothing.
+    const step = (elapsed: number, atMs: number) => { mail.advance(elapsed); return mail.deliverDue(atMs); };
+    expect(step(0, 5000)).toBe(0);
+    expect(step(29_999, 5000)).toBe(0);
     expect(changed).not.toHaveBeenCalled();
-    expect(mail.advance(1, 6000)).toBe(1);
+    mail.advance(1);
+    expect(mail.list().map(item => item.id)).toEqual(['welcome']);
+    expect(mail.deliverDue(6000)).toBe(1);
     expect(mail.list()[0]).toMatchObject({ id: 'library-1', from: 'まちの図書館', atMs: 6000, read: false });
     expect(arrived).toHaveBeenCalledTimes(1);
     expect(arrived.mock.calls[0][0]).toMatchObject({ id: 'library-1' });
     expect(changed).toHaveBeenCalledTimes(1);
-    expect(mail.advance(60_000, 7000)).toBe(1);
+    expect(step(60_000, 7000)).toBe(1);
     expect(mail.list().map(item => item.id)).toEqual(['street-1', 'library-1', 'welcome']);
-    expect(mail.advance(1_000_000, 8000)).toBe(0);
+    expect(step(1_000_000, 8000)).toBe(0);
     expect(arrived).toHaveBeenCalledTimes(2);
   });
 
   it('saves pending delays as of the last arrival, so saves stay identical while the countdown runs', () => {
-    const first = make(); first.advance(20_000, 1000);
+    const step = (model: MailModel, elapsed: number, atMs: number) => { model.advance(elapsed); return model.deliverDue(atMs); };
+    const first = make(); first.advance(20_000);
     expect(first.save()).toEqual(make().save());
     const restarted = new MailModel(MAIL_PROTOTYPE, JSON.parse(JSON.stringify(first.save())));
-    expect(restarted.advance(29_999, 9_000_000)).toBe(0);
-    first.advance(10_000, 2000);
+    expect(step(restarted, 29_999, 9_000_000)).toBe(0);
+    // Due but not yet delivered: the save still matches the fresh state.
+    first.advance(10_000);
+    expect(first.save()).toEqual(make().save());
+    expect(first.deliverDue(2000)).toBe(1);
     expect(first.save().pending).toEqual([expect.objectContaining({ id: 'street-1', remainingMs: 60_000 })]);
     const restored = new MailModel(MAIL_PROTOTYPE, JSON.parse(JSON.stringify(first.save())));
-    expect(restored.advance(0, 9_000_000)).toBe(0);
-    expect(restored.advance(59_999, 9_000_000)).toBe(0);
-    expect(restored.advance(1, 9_000_001)).toBe(1);
+    expect(step(restored, 0, 9_000_000)).toBe(0);
+    expect(step(restored, 59_999, 9_000_000)).toBe(0);
+    expect(step(restored, 1, 9_000_001)).toBe(1);
   });
 
   it('accepts event mail, rejects duplicates and empty text, and marks read once', () => {
@@ -96,7 +104,7 @@ describe('local mail model', () => {
   });
 
   it('gives every provisional mail a fictitious sender address', () => {
-    const mail = make(); mail.advance(1_000_000, 1);
+    const mail = make(); mail.advance(1_000_000); mail.deliverDue(1);
     for (const item of mail.list()) expect(item.fromAddress).toMatch(/@[a-z0-9.-]+\.example$/);
   });
 
@@ -138,11 +146,27 @@ describe('mail in the phone', () => {
     const phone = new PhoneModel(PHONE_CONTENT, { initialOwned: true, environment: outdoors, clock: () => now, epochClock: () => 1_700_000_000_000 });
     const arrived = vi.fn(); phone.onMailArrive(arrived);
     phone.setPaused(true); now = 60_000; phone.tick();
-    phone.setVisible(false); phone.setPaused(false); now = 120_000; phone.tick();
+    phone.setVisible(false); phone.setPaused(false); now = 120_000; phone.tick({ areaId: 'home' });
     expect(arrived).not.toHaveBeenCalled();
     phone.setVisible(true); now = 150_000; phone.tick();
+    expect(arrived).not.toHaveBeenCalled();
+    phone.tick({ areaId: 'town' });
     expect(arrived).toHaveBeenCalledTimes(1);
     expect(phone.mails[0]).toMatchObject({ id: 'library-1', atMs: 1_700_000_000_000 });
+  });
+
+  it('delivers due mail only on an area change or when the phone opens, never in a frame or a save', () => {
+    let now = 0;
+    const phone = new PhoneModel(PHONE_CONTENT, { initialOwned: true, environment: outdoors, clock: () => now, epochClock: () => 1_700_000_000_000 });
+    const arrived = vi.fn(); phone.onMailArrive(arrived);
+    now = 30_000; phone.tick(); phone.tick({ areaId: 'town' });
+    const saved = JSON.stringify(phone.save());
+    now = 31_000; phone.tick();
+    expect(JSON.stringify(phone.save())).toBe(saved);
+    expect(arrived).not.toHaveBeenCalled();
+    expect(phone.open()).toBe(true);
+    expect(arrived).toHaveBeenCalledTimes(1);
+    expect(phone.mailUnreadCount).toBe(2);
   });
 
   it('saves the inbox only after it changes and restores unread state; old saves still load', () => {

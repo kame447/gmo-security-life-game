@@ -47,14 +47,22 @@ export class MailModel {
     return { ok: true, mail: structuredClone(mail) };
   }
 
-  /** Deliver scheduled mail after active play time; call with 0 while paused or hidden. */
-  advance(elapsedPlayingMs: number, atMs: number): number {
-    if (!Number.isFinite(elapsedPlayingMs) || elapsedPlayingMs < 0 || !isChatTime(atMs)) return 0;
+  /** Count down active play time only; call with 0 while paused or hidden. Mail that comes due waits for deliverDue(). */
+  advance(elapsedPlayingMs: number): void {
+    if (!Number.isFinite(elapsedPlayingMs) || elapsedPlayingMs < 0) return;
+    for (const mail of this.state.pending) mail.remainingMs = Math.max(0, mail.remainingMs - elapsedPlayingMs);
+  }
+
+  /**
+   * Deliver mail whose play time has run out. Callers use discrete moments (area change, opening the phone),
+   * never a frame or save, so a save and the reload after it always see the same inbox.
+   */
+  deliverDue(atMs: number): number {
+    if (!isChatTime(atMs)) return 0;
     const delivered: MailMessage[] = [];
     const pending = this.state.pending;
     this.state.pending = [];
     for (const mail of pending) {
-      mail.remainingMs = Math.max(0, mail.remainingMs - elapsedPlayingMs);
       if (mail.remainingMs > 0) { this.state.pending.push(mail); continue; }
       const { remainingMs: _, ...text } = mail;
       const message: MailMessage = { ...text, atMs, read: false };
