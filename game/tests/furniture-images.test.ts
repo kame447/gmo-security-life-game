@@ -11,6 +11,7 @@ async function fixtureTools() {
   const fsModule: string = 'node:fs/promises', osModule: string = 'node:os', pathModule: string = 'node:path';
   const fs = await import(/* @vite-ignore */ fsModule) as {
     mkdtemp(prefix: string): Promise<string>;
+    realpath(path: string): Promise<string>;
     mkdir(dir: string, options: { recursive: boolean }): Promise<unknown>;
     copyFile(from: string, to: string): Promise<void>;
     writeFile(file: string, data: string | Uint8Array): Promise<void>;
@@ -32,12 +33,19 @@ const urls = { [asset.file]: '/assets/student-desk.png' };
 afterEach(() => vi.unstubAllGlobals());
 
 describe('furniture asset catalog', () => {
-  it('binds all 29 existing school/shop props without changing their definitions', () => {
-    const objects = [...createClassroom().objects, ...createKonbini().objects];
-    expect(Object.keys(FURNITURE_BINDINGS)).toHaveLength(29);
-    for (const object of objects) {
+  it('binds all 21 supplied school PNG props; rebuilt konbini furnishings remain procedural', () => {
+    const school = createClassroom().objects;
+    const konbini = createKonbini().objects;
+    expect(Object.keys(FURNITURE_BINDINGS)).toHaveLength(21);
+    expect(FURNITURE_ASSETS).toHaveLength(5);
+    for (const object of school) {
       const before = { ...object };
       expect(furnitureAsset(object), object.id).toBeDefined();
+      expect(object).toEqual(before);
+    }
+    for (const object of konbini) {
+      const before = { ...object };
+      expect(furnitureAsset(object), object.id).toBeUndefined();
       expect(object).toEqual(before);
     }
     expect(new Set(FURNITURE_ASSETS.map(a => a.id)).size).toBe(FURNITURE_ASSETS.length);
@@ -191,9 +199,10 @@ describe('safe canvas replacement', () => {
 
 describe('Vite assets outside game root', () => {
   it.each([false, true])('serves and builds the production catalog (PNG supplied: %s)', async supplied => {
-    const { mkdtemp, mkdir, copyFile, writeFile, readdir, readFile, rm, tmpdir, path } = await fixtureTools();
+    const { mkdtemp, realpath, mkdir, copyFile, writeFile, readdir, readFile, rm, tmpdir, path } = await fixtureTools();
     // Isolated repository layout: never create a fixture inside the real assets/.
-    const fixture = await mkdtemp(path.join(tmpdir(), 'slg-furniture-'));
+    const tempDir = await realpath(tmpdir());
+    const fixture = await mkdtemp(path.join(tempDir, 'slg-furniture-'));
     const root = path.join(fixture, 'game');
     const moduleDir = path.join(root, 'src/render/furniture-images');
     const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP1sAAAAASUVORK5CYII='), c => c.charCodeAt(0));
@@ -241,7 +250,7 @@ describe('Vite assets outside game root', () => {
       }
     } finally {
       // Only remove the exact mkdtemp child, checked against the intended temp directory.
-      const relative = path.relative(path.resolve(tmpdir()), path.resolve(fixture));
+      const relative = path.relative(tempDir, path.resolve(fixture));
       if (!relative.startsWith('slg-furniture-') || relative.includes(path.sep)) throw new Error('Unsafe fixture cleanup');
       await rm(fixture, { recursive: true, force: true });
     }

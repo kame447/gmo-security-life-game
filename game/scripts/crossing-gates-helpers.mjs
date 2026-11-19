@@ -70,6 +70,8 @@ export async function contextFor(browser, size, report, options = {}) {
 }
 
 export async function installProbe(page) {
+  // load can finish before entry.ts's dynamic import, including reloads with a paused game clock.
+  await page.waitForFunction(() => !!window.__slg?.game && !!window.__slg?.renderer);
   await page.evaluate(async () => {
     const { crossingState, getCrossings } = await import('/src/town-train/crossings.ts');
     const { TownTrainService } = await import('/src/town-train/service.ts');
