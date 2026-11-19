@@ -132,7 +132,7 @@ function isAccessible(a: AreaRuntime, r: TileRect, seen: Set<number>): boolean {
  * 改札は歩いて通れない（操作の対象が solid）。行き先を選んだあとの移動（改札の前 → ホーム、ホーム → 改札の前）を、
  * 到達性の検証だけが辿れる辺として加える。実際の移動は乗車側が行う。
  */
-function stationGateLinks(world: World): RailLink[] {
+export function stationGateLinks(world: World): RailLink[] {
   const links: RailLink[] = [];
   for (const id of STATION_FLOW_IDS) {
     const flow = getStationFlow(id);

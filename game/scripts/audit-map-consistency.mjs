@@ -555,7 +555,9 @@ export async function auditGameDir(gameDir, label = 'working-tree') {
     for (const o of area.objects) {
       for (const inter of area.interactions) {
         if (!rectsOverlap(o, inter)) continue;
-        // Same-entity visual prop + interaction trigger (non-npc) or floor decal (rug) under furniture is intentional
+        // Non-solid floor decals have no collision; the actor and the merchandise may stand on them.
+        // Keep genuine solid-object and trigger overlaps subject to the usual audit.
+        if (o.solid === false && o.layer === 'decal' && o.kind === 'shop-floor') continue;
         if (inter.kind !== 'npc' && (sameRect(o, inter) || (!o.solid && o.kind === 'rug'))) continue;
         addFinding({
           id: `${areaId}:obj-inter-overlap:${o.id ?? o.kind}+${inter.id}@${inter.x},${inter.y}`,

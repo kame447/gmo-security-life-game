@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ja">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><title>まち・へやの編集</title></head>
+<body>
+  <header>
+    <button id="outside">← まちへ</button><strong id="location">じぶんのいえ</strong><select id="area-select" aria-label="エリアをえらぶ"></select>
+    <nav aria-label="編集の操作">
+      <button id="undo" title="元に戻す">↶ 元に戻す</button><button id="redo" title="やり直す">↷ やり直す</button>
+      <button id="zoom-out" aria-label="縮小">−</button><output id="zoom">300%</output><button id="zoom-in" aria-label="拡大">＋</button>
+      <button id="overview" hidden>全体</button>
+      <details id="layers"><summary>補助の層</summary><div>
+        <label><input type="checkbox" data-layer="collision">当たり</label>
+        <label><input type="checkbox" data-layer="portals">出入口</label>
+        <label><input type="checkbox" data-layer="reachable">歩ける範囲</label>
+        <label><input type="checkbox" data-layer="grid">マス目</label>
+        <label><input type="checkbox" data-layer="ids">ID</label>
+        <label id="landmarks-layer" hidden><input type="checkbox" data-layer="landmarks">目印</label>
+      </div></details>
+      <button id="npc-list-toggle" type="button" aria-expanded="false">人物一覧 (0)</button>
+      <button id="play">▶ 歩いて確かめる</button><button id="save" disabled>保存する</button>
+      <output id="dirty">未保存 0</output>
+    </nav>
+  </header>
+  <main id="workspace" tabindex="0" aria-label="ゲームの絵で編集する作業空間">
+    <canvas id="scene" aria-label="実際のゲームの描画"></canvas><canvas id="overlay" aria-hidden="true"></canvas>
+    <aside id="properties" hidden>
+      <strong id="object-name"></strong><p id="object-position"></p>
+      <div id="selection-actions"><button id="rotate">回す</button><button id="duplicate">複製</button><button id="delete">消す</button></div>
+      <section id="building-properties" hidden><p id="building-links"></p><button id="enter-interior">中を編集する</button></section>
+      <section id="npc-properties" hidden>
+        <p id="npc-role"></p>
+        <label>名前<input id="npc-name" type="text"></label>
+        <label>向き<select id="npc-facing"><option value="down">手前</option><option value="left">左</option><option value="up">奥</option><option value="right">右</option></select></label>
+        <label>見た目<input id="npc-sprite" type="text" readonly></label>
+        <div id="npc-sprites" role="group" aria-label="人の見た目"></div>
+        <label><span id="npc-lines-label">ふだんの会話（1行ずつ）</span><textarea id="npc-lines" rows="4"></textarea></label>
+        <div><button id="npc-apply" disabled>変更を反映</button><button id="npc-revert" disabled>取り消す</button></div>
+        <p id="npc-event-note"></p><ul id="npc-events"></ul>
+        <label>イベントキー<input id="npc-event-key" type="text" readonly></label>
+      </section>
+      <p id="protection"></p><details id="object-details"><summary>くわしく</summary><p id="object-id"></p><pre id="object-json"></pre></details>
+      <section id="npc-list-section" aria-labelledby="npc-list-title" hidden>
+        <h3 id="npc-list-title">このエリアの人（0）</h3>
+        <p id="npc-list-empty" hidden></p>
+        <ul id="npc-list"></ul>
+      </section>
+    </aside>
+    <section id="walk-dialog" hidden aria-live="polite"><strong></strong><p></p></section>
+    <div id="play-controls" hidden aria-label="試し歩き">
+      <button data-direction="up" aria-label="上へ">▲</button><button data-direction="left" aria-label="左へ">◀</button>
+      <button data-direction="down" aria-label="下へ">▼</button><button data-direction="right" aria-label="右へ">▶</button>
+      <button id="walk-action">A</button>
+    </div>
+    <output id="status" role="status"></output>
+  </main>
+  <footer id="catalog">
+    <nav aria-label="カタログ"><button id="furniture-tab" aria-pressed="true">家具</button><button id="surface-tab" aria-pressed="false">ゆか・かべ</button><button id="props-tab" hidden aria-pressed="false">まちの物</button><button id="buildings-tab" hidden aria-pressed="false">たてもの</button><button id="people-tab" aria-pressed="false">人</button>
+      <select id="category" aria-label="家具の種類"><option value="all">すべて</option></select><button id="stop-placement" hidden>配置をやめる</button></nav>
+    <div id="catalog-items" aria-label="ドット絵のカタログ"></div>
+  </footer>
+  <dialog id="save-confirm"><h2>配置を保存する</h2><p id="save-target"></p><ul id="save-files"></ul><ol id="changes"></ol>
+    <p id="save-error" role="alert"></p><button id="save-cancel">もどる</button><button id="save-download">差分をダウンロード</button><button id="save-commit">保存を確定</button>
+  </dialog>
+  <script type="module" src="/src/world-editor/main.ts"></script>
+</body>
+</html>

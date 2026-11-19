@@ -15,14 +15,20 @@ permissions:
   contents: read
 
 jobs:
-  browser-e2e:
+  browser-scenarios:
+    name: browser-e2e (${{ matrix.group }})
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [world-editor, rail-route, rail-other, gameplay]
     defaults:
       run:
         working-directory: game
         shell: bash
     env:
+      SLG_E2E_GROUP: ${{ matrix.group }}
       SLG_URL: http://127.0.0.1:5173
       # e2e-editor.mjs starts its own isolated server; do not reuse 5173.
       SLG_EDITOR_PORT: 5186
@@ -66,8 +72,25 @@ jobs:
 
           shopt -s nullglob
           scripts=(scripts/e2e.mjs scripts/e2e-*.mjs)
-          failed=0
+          selected=()
           for script in "${scripts[@]}"; do
+            case "$script" in
+              scripts/e2e-world-editor*.mjs) script_group=world-editor ;;
+              scripts/e2e-rail-structure.mjs) script_group=rail-route ;;
+              scripts/e2e-crossing-gates.mjs|scripts/e2e-train-travel.mjs|scripts/e2e-town-train.mjs|scripts/e2e-station-main-integration.mjs) script_group=rail-other ;;
+              *) script_group=gameplay ;;
+            esac
+            if [[ "$script_group" == "$SLG_E2E_GROUP" ]]; then
+              selected+=("$script")
+            fi
+          done
+          if (( ${#selected[@]} == 0 )); then
+            echo "No browser scenarios selected for $SLG_E2E_GROUP" >&2
+            exit 1
+          fi
+          echo "Running ${#selected[@]} scenarios in $SLG_E2E_GROUP"
+          failed=0
+          for script in "${selected[@]}"; do
             name="${script##*/}"
             name="${name%.mjs}"
             mkdir -p "$output_dir/$name"
@@ -84,7 +107,17 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: browser-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          name: browser-e2e-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/slg-e2e
           if-no-files-found: warn
           retention-days: 7
+
+  browser-e2e:
+    if: always()
+    needs: browser-scenarios
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every scenario group to succeed
+        env:
+          SCENARIOS_RESULT: ${{ needs.browser-scenarios.result }}
+        run: test "$SCENARIOS_RESULT" = success
