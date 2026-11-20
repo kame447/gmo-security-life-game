@@ -33,7 +33,7 @@ export const STORY_ERRANDS: readonly StoryErrand[] = [
   { id: 'school', place: 'がっこうの せんせい', eventKey: 'school.teacher', speaker: 'せんせい',
     lines: ['あら、おかあさんからの プリントね。とどけてくれて ありがとう。', 'あたらしい がっこうせいかつ、たのしみだね。'] },
   { id: 'konbini', place: 'コンビニの てんいんさん', eventKey: 'shopping.konbini.clerk', speaker: 'てんいんさん', item: 'bread',
-    lines: ['いらっしゃいませ。おかあさんが よやくしていた パンですね。', 'はい、どうぞ。いつも ありがとうございます。'] },
+    lines: ['いらっしゃいませ。おつかい？ えらいね。', 'パンを ひとつね。はい、どうぞ。'] },
   { id: 'park', place: 'こうえんの ともだち', eventKey: 'park.friend', speaker: 'ともだち',
     lines: ['おっ、きたきた！ あしたの あつまる じかん？', 'わかった、9じに えきまえね！ つたえてくれて ありがと。'] },
   { id: 'station', place: 'えきまえの えきいんさん', eventKey: 'station.staff', speaker: 'えきいんさん',
@@ -67,16 +67,29 @@ export interface StoryMail {
   atAreas: readonly string[];
 }
 
+/** その場所でしか起きない出来事。時刻になってもそこにいなければ、メールで呼ばれ、着いたときに始まる。 */
+export interface StoryVenue {
+  areas: readonly string[];
+  /** 案内に出す場所の名前。 */
+  place: string;
+  /** 呼び出しのメールの差出人と本文。 */
+  from: string;
+  call: string;
+}
+
 export interface StoryForcedEvent {
   /** events.ts の人生イベントの id。 */
   eventId: string;
   trigger: ForcedTrigger;
   mail?: StoryMail;
+  venue?: StoryVenue;
 }
 
 /** 学校の中（先生・同級生がいる場所）。 */
 const AT_SCHOOL = ['school-classroom-interior'] as const;
 const fromSchool = (from: string): StoryMail => ({ from, atAreas: AT_SCHOOL });
+/** 入学式・試験・進路の相談など、学校で行う行事。 */
+const atSchool = (from: string, call: string): StoryVenue => ({ areas: AT_SCHOOL, place: 'がっこうの きょうしつ', from, call });
 
 export interface StoryStage {
   id: string;
@@ -99,9 +112,9 @@ export const STORY_STAGES: readonly StoryStage[] = [
     id: 'junior-high', name: 'ちゅうがく', limitSeconds: 180, warnSeconds: 30,
     intro: ['ちゅうがくせいの まいにちが はじまった。', 'じかんが たつと、つぎの ステージへ すすむよ。まちを まわって、いろいろな できごとを けいけんしよう。'],
     forced: [
-      { eventId: 'story.jh.entrance', trigger: { kind: 'time', atSeconds: 0 }, mail: fromSchool('ちゅうがっこう') },
+      { eventId: 'story.jh.entrance', trigger: { kind: 'time', atSeconds: 0 }, venue: atSchool('ちゅうがっこう', 'にゅうがくしきを おこないます。がっこうの きょうしつに きてください。') },
       { eventId: 'story.jh.club', trigger: { kind: 'area', areaId: 'school-classroom-interior', place: 'がっこうの きょうしつ' } },
-      { eventId: 'story.jh.exam', trigger: { kind: 'time', atSeconds: 120 }, mail: fromSchool('たんにんの せんせい') },
+      { eventId: 'story.jh.exam', trigger: { kind: 'time', atSeconds: 120 }, venue: atSchool('たんにんの せんせい', 'きまつテストの おしらせが あります。がっこうの きょうしつに きてください。') },
     ],
     milestone: ['……そして、そつぎょうしきの ひ。', 'ちゅうがくを そつぎょうした！ はるからは こうこうせいだ。'],
   },
@@ -109,9 +122,9 @@ export const STORY_STAGES: readonly StoryStage[] = [
     id: 'high-school', name: 'こうこう', limitSeconds: 180, warnSeconds: 30,
     intro: ['こうこうせいの まいにちが はじまった。'],
     forced: [
-      { eventId: 'story.hs.entrance', trigger: { kind: 'time', atSeconds: 0 }, mail: fromSchool('こうこう') },
+      { eventId: 'story.hs.entrance', trigger: { kind: 'time', atSeconds: 0 }, venue: atSchool('こうこう', 'にゅうがくしきを おこないます。がっこうの きょうしつに きてください。') },
       { eventId: 'story.hs.festival', trigger: { kind: 'time', atSeconds: 60 }, mail: fromSchool('クラスの いいんちょう') },
-      { eventId: 'story.hs.career', trigger: { kind: 'time', atSeconds: 130 }, mail: fromSchool('たんにんの せんせい') },
+      { eventId: 'story.hs.career', trigger: { kind: 'time', atSeconds: 130 }, venue: atSchool('たんにんの せんせい', 'しんろの そうだんを します。がっこうの きょうしつに きてください。') },
     ],
     milestone: ['……そして、そつぎょうしきの ひ。', 'こうこうを そつぎょうした！', 'このさきの ステージは じゅんびちゅう。しばらく まちを じゆうに あるいてね。'],
   },

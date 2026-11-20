@@ -166,43 +166,48 @@ describe('story flow', () => {
     finishPrologue(t);
     t.settle();
     t.game.warp({ areaId: 'school-classroom-interior', x: 8, y: 10, facing: 'up' });
-    t.tick(0);
+    // The entrance ceremony held for the classroom comes first.
+    for (let i = 0; i < 10 && !t.life.pending; i++) { t.tick(0); if (!t.life.pending) t.closeDialogs(); }
+    expect(t.life.state.experienced('story.jh.entrance')).toBe(true);
     expect(t.life.pending?.event.id).toBe('story.jh.club');
   });
 
-  it('delivers news from school as a phone mail when the player is not at school', () => {
+  it('calls the player to school by mail and holds school events until they get there', () => {
     const t = setup();
     finishPrologue(t);
     const exam = STORY_STAGES[0].forced.find(f => f.eventId === 'story.jh.exam')!;
-    expect(exam.mail).toBeDefined();
-    // Away from school (at home): the teacher's words arrive as a mail, including the question.
-    for (let i = 0; i < 5000 && t.life.pending?.event.id !== exam.eventId; i++) {
-      t.tick(0.5);
+    expect(exam.venue).toBeDefined();
+    // Away from school (at home): run past the exam time; only a summons mail arrives.
+    for (let i = 0; i < 300; i++) { t.tick(0.5); t.closeDialogs(); }
+    expect(t.story.stageElapsed).toBeGreaterThan((exam.trigger as { atSeconds: number }).atSeconds);
+    expect(t.life.state.experienced(exam.eventId)).toBe(false);
+    expect(t.notices.some(n => n.includes(`${exam.venue!.from} から メール`))).toBe(true);
+    expect(t.story.status().detail).toContain(exam.venue!.place);
+    // At school, the held events start as spoken scenes.
+    t.game.warp({ areaId: exam.venue!.areas[0], x: 8, y: 10, facing: 'up' });
+    for (let i = 0; i < 50 && t.life.pending?.event.id !== exam.eventId; i++) {
+      t.tick(0);
       if (t.life.pending && t.life.pending.event.id !== exam.eventId) t.choose(t.life.pending.event.choices![0].id);
       if (t.life.pending?.event.id !== exam.eventId) t.closeDialogs();
     }
-    expect(t.game.player.areaId).not.toBe('school-classroom-interior');
-    expect(t.game.dialog?.speaker).toBe(mailSpeaker(exam.mail!.from));
-    expect(t.game.dialog?.lines[0]).toContain('メール');
-    expect(t.life.pending?.speaker).toBe(mailSpeaker(exam.mail!.from));
-    expect(t.notices.some(n => n.includes('メール'))).toBe(true);
+    expect(t.life.pending?.event.id).toBe(exam.eventId);
+    expect(t.game.dialog?.speaker).toBe(STORY_EVENTS.find(e => e.id === exam.eventId)!.speaker);
+    expect(t.life.state.experienced('story.jh.entrance')).toBe(true);
   });
 
-  it('keeps a news event as a spoken scene when it starts at school', () => {
+  it("delivers a classmate's news as a phone mail when the player is not at school", () => {
     const t = setup();
     finishPrologue(t);
-    t.settle();
-    const exam = STORY_STAGES[0].forced.find(f => f.eventId === 'story.jh.exam')!;
-    t.game.warp({ areaId: exam.mail!.atAreas[0], x: 8, y: 10, facing: 'up' });
-    // Answer the classroom's own event, then wait for the exam notice while staying in the classroom.
-    for (let i = 0; i < 5000 && t.life.pending?.event.id !== exam.eventId; i++) {
+    const festival = STORY_STAGES[1].forced.find(f => f.eventId === 'story.hs.festival')!;
+    expect(festival.mail).toBeDefined();
+    for (let i = 0; i < 5000 && t.life.pending?.event.id !== festival.eventId; i++) {
       t.tick(0.5);
-      if (t.life.pending && t.life.pending.event.id !== exam.eventId) t.choose(t.life.pending.event.choices![0].id);
-      if (t.life.pending?.event.id !== exam.eventId) t.closeDialogs();
+      if (t.life.pending && t.life.pending.event.id !== festival.eventId) t.choose(t.life.pending.event.choices![0].id);
+      if (t.life.pending?.event.id !== festival.eventId) t.closeDialogs();
     }
-    expect(t.game.player.areaId).toBe(exam.mail!.atAreas[0]);
-    expect(t.game.dialog?.speaker).toBe(STORY_EVENTS.find(e => e.id === exam.eventId)!.speaker);
-    expect(t.life.pending?.speaker).toBeUndefined();
+    expect(t.game.player.areaId).not.toBe('school-classroom-interior');
+    expect(t.game.dialog?.speaker).toBe(mailSpeaker(festival.mail!.from));
+    expect(t.life.pending?.speaker).toBe(mailSpeaker(festival.mail!.from));
   });
 
   it('resumes from a save and repairs damaged fields', () => {

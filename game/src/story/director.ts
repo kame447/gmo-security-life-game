@@ -51,6 +51,8 @@ export class StoryDirector implements MapEventSink {
   private inProgress: string | null = null;
   /** Area-triggered forced events whose area was entered. */
   private readonly armed = new Set<string>();
+  /** Venue events whose summons mail has been sent. */
+  private readonly called = new Set<string>();
   private warned = false;
   private milestoneQueued = false;
 
@@ -103,10 +105,11 @@ export class StoryDirector implements MapEventSink {
       }
       case 'return-home': return { title: 'おつかい おわり', detail: 'いえに かえって おかあさんに はなしかけよう', warn: false };
       case 'stage': case 'stage-ending': {
-        const next = this.stage.forced.find(f => f.trigger.kind === 'area' && !s.forcedDone.includes(f.eventId));
+        const place = this.stage.forced.filter(f => !s.forcedDone.includes(f.eventId))
+          .map(f => f.trigger.kind === 'area' ? f.trigger.place : this.called.has(f.eventId) ? f.venue?.place : undefined).find(Boolean);
         const remaining = this.remaining;
         return { title: this.stage.name, remainingSeconds: remaining, warn: remaining <= this.stage.warnSeconds,
-          detail: s.phase === 'stage-ending' ? 'じかんぎれ' : next?.trigger.kind === 'area' ? `つぎの できごと：${next.trigger.place}` : 'まちを じゆうに すごそう' };
+          detail: s.phase === 'stage-ending' ? 'じかんぎれ' : place ? `つぎの できごと：${place}` : 'まちを じゆうに すごそう' };
       }
       case 'finished': return { title: 'つづきは じゅんびちゅう', detail: 'まちを じゆうに あるこう', warn: false };
     }
@@ -192,6 +195,7 @@ export class StoryDirector implements MapEventSink {
     s.stageElapsed = 0;
     s.forcedDone = [];
     this.armed.clear();
+    this.called.clear();
     this.warned = false;
     this.milestoneQueued = false;
     if (index > 0) this.host?.warp(STORY_BEDROOM);
@@ -208,7 +212,20 @@ export class StoryDirector implements MapEventSink {
   private dueForced(): StoryForcedEvent | undefined {
     const s = this.state;
     return this.stage.forced.find(f => !s.forcedDone.includes(f.eventId) && (s.phase === 'stage-ending' ||
-      (f.trigger.kind === 'time' ? s.stageElapsed >= f.trigger.atSeconds : this.armed.has(f.eventId))));
+      (f.trigger.kind === 'time' ? s.stageElapsed >= f.trigger.atSeconds && this.atVenue(f) : this.armed.has(f.eventId))));
+  }
+
+  private atVenue(f: StoryForcedEvent): boolean { return !f.venue || f.venue.areas.includes(this.host!.areaId()); }
+
+  /** A due venue event the player is away from: call them there by mail, once. */
+  private summon(): Narration | undefined {
+    const s = this.state;
+    const f = this.stage.forced.find(f => f.venue && f.trigger.kind === 'time' && s.stageElapsed >= f.trigger.atSeconds &&
+      !s.forcedDone.includes(f.eventId) && !this.called.has(f.eventId) && !this.atVenue(f));
+    if (!f?.venue) return undefined;
+    this.called.add(f.eventId);
+    this.host!.notice(`${f.venue.from} から メールが とどいた`);
+    return { speaker: mailSpeaker(f.venue.from), lines: [MAIL_ARRIVED, f.venue.call] };
   }
 
   /**
@@ -232,6 +249,8 @@ export class StoryDirector implements MapEventSink {
     if (s.phase !== 'stage' && s.phase !== 'stage-ending') return;
     const forced = this.dueForced();
     if (forced) { this.beginForced(forced); return; }
+    const call = s.phase === 'stage' ? this.summon() : undefined;
+    if (call) { this.queue.push(call); return; }
     if (s.phase === 'stage-ending') {
       if (this.milestoneQueued) return;
       this.milestoneQueued = true;

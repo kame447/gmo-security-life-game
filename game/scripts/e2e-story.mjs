@@ -123,7 +123,7 @@ try {
     await shot(page, '07-stage');
   });
 
-  await check('news from school away from school arrives as a mail', async () => {
+  await check('away from school, a mail calls the player to the school event', async () => {
     await readAll(page);
     assert.notEqual((await state(page)).area, 'school-classroom-interior');
     await page.keyboard.press('KeyL');
