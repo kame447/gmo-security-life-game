@@ -9,6 +9,8 @@ export interface WebPage {
   /** Shown in the address bar. Restricted to reserved hostnames (.example/.test/.invalid). */
   address: string;
   title: string;
+  /** Site name shown above a search result, like "まちの図書館". Falls back to the hostname. */
+  site?: string;
   /** One line under the title in search results. */
   summary: string;
   /** Extra words a search should find this page by. Not shown. */

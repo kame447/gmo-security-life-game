@@ -1,26 +1,74 @@
-.phone-web { padding: 16px 16px 24px; color: #202832; }
-.phone-web-home { min-height: 70%; display: flex; flex-direction: column; justify-content: center; gap: 18px; }
-.phone-web-logo { margin: 0; color: #2f6fc1; font-size: 30px; font-weight: 800; letter-spacing: 2px; text-align: center; }
-.phone-web-form { display: flex; gap: 6px; }
-.phone-web-input { flex: 1; min-width: 0; min-height: 42px; box-sizing: border-box; padding: 8px 14px; border: 1px solid #cfd8e0; border-radius: 22px; background: #fff; color: #202832; font: inherit; font-size: 13px; user-select: text; -webkit-user-select: text; touch-action: manipulation; }
-.phone-web-input:focus-visible { outline: 2px solid #558dd3; }
-.phone-web-submit { flex: none; min-width: 52px; min-height: 42px; padding: 0 10px; border: 0; border-radius: 22px; background: #3989d2; color: #fff; font-size: 12px; font-weight: 700; }
-.phone-web-submit:disabled { background: #b7c6d4; }
-.phone-web-submit.is-selected, .phone-web-submit:focus-visible { outline: 3px solid #9cc0ea; outline-offset: 1px; }
-.phone-web-count { margin: 12px 4px 4px; color: #75808b; font-size: 11px; }
-.phone-web-results { border-top: 1px solid #e4e8eb; }
-.phone-web-result { width: 100%; display: flex; flex-direction: column; gap: 2px; padding: 10px 4px; border: 0; border-bottom: 1px solid #e4e8eb; background: transparent; text-align: left; }
-.phone-web-result.is-selected, .phone-web-result:focus-visible { outline: none; background: #e6eef8; }
-.phone-web-result-title { color: #1f5fb8; font-size: 14px; font-weight: 700; }
-.phone-web-result-address { overflow: hidden; color: #2e7d4f; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.phone-web-result-summary { color: #4b5661; font-size: 11px; line-height: 1.5; }
-.phone-web-address { margin: 0 0 12px; padding: 7px 12px; border-radius: 16px; background: #e9edf1; color: #4b5661; font-family: ui-monospace, Menlo, monospace; font-size: 11px; overflow-wrap: anywhere; }
+.phone-web { min-height: 100%; box-sizing: border-box; padding: 16px 14px 24px; background: #fff; color: #202124; font-family: Arial, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+.phone-web-icon { width: 20px; height: 20px; fill: currentColor; flex: none; }
+
+/* Logo: one color per letter, in the order of the real thing's multicolor logo. */
+.phone-web-logo { margin: 0; font-family: "Avenir Next", "Futura", "Century Gothic", Arial, sans-serif; font-weight: 600; letter-spacing: -1px; line-height: 1; text-align: center; }
+.phone-web-logo-0, .phone-web-logo-3 { color: #4285f4; }
+.phone-web-logo-1, .phone-web-logo-5 { color: #ea4335; }
+.phone-web-logo-2 { color: #fbbc05; }
+.phone-web-logo-4 { color: #34a853; }
+.phone-web-logo-large { font-size: 44px; }
+.phone-web-logo-small { font-size: 22px; }
+
+.phone-web-home { display: flex; flex-direction: column; justify-content: center; gap: 22px; padding-bottom: 25%; }
+.phone-web-form { display: flex; flex-direction: column; gap: 14px; }
+.phone-web-box { display: flex; align-items: center; gap: 6px; min-height: 44px; box-sizing: border-box; padding: 0 6px 0 14px; border: 1px solid #dfe1e5; border-radius: 24px; background: #fff; color: #9aa0a6; box-shadow: 0 1px 6px rgb(32 33 36 / 18%); }
+.phone-web-box:focus-within { border-color: transparent; box-shadow: 0 1px 6px rgb(32 33 36 / 28%); }
+.phone-web-input { flex: 1; min-width: 0; min-height: 40px; padding: 0; border: 0; outline: none; background: transparent; color: #202124; font: inherit; font-size: 14px; user-select: text; -webkit-user-select: text; touch-action: manipulation; }
+.phone-web-input::-webkit-search-cancel-button { display: none; }
+.phone-web-clear, .phone-web-header .phone-web-submit { display: grid; place-items: center; flex: none; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: none; color: #70757a; }
+.phone-web-header .phone-web-submit { color: #4285f4; }
+.phone-web-clear:disabled { visibility: hidden; }
+.phone-web-header .phone-web-submit:disabled { color: #c4c7c5; }
+.phone-web-clear:focus-visible, .phone-web-clear.is-selected, .phone-web-header .phone-web-submit:focus-visible, .phone-web-header .phone-web-submit.is-selected { outline: none; background: #e8eaed; }
+
+.phone-web-buttons { display: flex; justify-content: center; gap: 10px; }
+.phone-web-buttons button { min-height: 36px; padding: 0 14px; border: 1px solid #f8f9fa; border-radius: 4px; background: #f8f9fa; color: #3c4043; font: inherit; font-size: 13px; }
+.phone-web-buttons button:disabled { color: #9aa0a6; }
+.phone-web-buttons button.is-selected, .phone-web-buttons button:focus-visible { outline: none; border-color: #dadce0; box-shadow: 0 1px 1px rgb(0 0 0 / 10%); }
+
+/* Results */
+.phone-web-header { display: flex; flex-direction: column; gap: 12px; margin: -4px -14px 0; padding: 0 14px; border-bottom: 1px solid #ebebeb; }
+.phone-web-header .phone-web-box { padding-left: 16px; padding-right: 2px; box-shadow: 0 1px 4px rgb(32 33 36 / 14%); }
+.phone-web-tabs { display: flex; gap: 18px; }
+.phone-web-tab { padding: 4px 2px 9px; color: #5f6368; font-size: 13px; }
+.phone-web-tab.is-current { border-bottom: 3px solid #1a73e8; color: #1a73e8; font-weight: 700; }
+.phone-web-count { margin: 10px 2px 6px; color: #70757a; font-size: 12px; }
+.phone-web-result { width: 100%; display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; padding: 12px; border: 0; border-radius: 12px; background: #fff; box-shadow: 0 0 0 1px #ebebeb; text-align: left; font: inherit; }
+.phone-web-result.is-selected, .phone-web-result:focus-visible { outline: none; background: #f1f6fe; box-shadow: 0 0 0 2px #a8c7fa; }
+.phone-web-result-source { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.phone-web-favicon { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border: 1px solid #ecedef; border-radius: 50%; color: #fff; font-size: 12px; font-weight: 700; }
+.phone-web-favicon-0 { background: #1a73e8; }
+.phone-web-favicon-1 { background: #188038; }
+.phone-web-favicon-2 { background: #e37400; }
+.phone-web-favicon-3 { background: #a142f4; }
+.phone-web-favicon-4 { background: #d93025; }
+.phone-web-result-names { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.phone-web-result-site { color: #202124; font-size: 12px; }
+.phone-web-result-address { overflow: hidden; color: #4d5156; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.phone-web-result-title { margin-top: 2px; color: #1a0dab; font-size: 16px; line-height: 1.35; }
+.phone-web-result-summary { color: #4d5156; font-size: 12px; line-height: 1.55; }
+.phone-web-result-summary b { color: #202124; font-weight: 700; }
+.phone-web-empty { margin: 6px 2px; color: #202124; font-size: 12px; line-height: 1.7; }
+.phone-web-tips-title { margin: 12px 0 2px; }
+.phone-web-tips { margin: 0; padding-left: 20px; }
+
+/* Page */
+.phone-web-address { margin: 0 0 14px; padding: 8px 14px; border-radius: 18px; background: #f1f3f4; color: #3c4043; font-family: ui-monospace, Menlo, monospace; font-size: 11px; overflow-wrap: anywhere; }
 .phone-web-page { font-size: 12px; line-height: 1.75; overflow-wrap: anywhere; }
 .phone-web-title { margin: 0 0 6px; color: #18222c; font-size: 18px; line-height: 1.35; }
 .phone-web-page p { margin: 6px 0 0; }
-.phone-web-link { display: block; min-height: 32px; margin-top: 8px; padding: 0; border: 0; background: none; color: #1f6fd1; font: inherit; text-align: left; text-decoration: underline; text-underline-offset: 2px; }
-.phone-web-link.is-selected, .phone-web-link:focus-visible { outline: none; border-radius: 3px; background: #e6eef8; box-shadow: 0 0 0 3px #e6eef8; }
+.phone-web-link { display: block; min-height: 32px; margin-top: 8px; padding: 0; border: 0; background: none; color: #1a0dab; font: inherit; text-align: left; text-decoration: underline; text-underline-offset: 2px; }
+.phone-web-link.is-selected, .phone-web-link:focus-visible { outline: none; border-radius: 3px; background: #e8f0fe; box-shadow: 0 0 0 3px #e8f0fe; }
+
 @media (max-height: 600px) {
   .phone-web { padding-top: 6px; }
-  .phone-web-home { gap: 10px; }.phone-web-logo { font-size: 22px; }
+  .phone-web-home { gap: 12px; padding-bottom: 0; }
+  .phone-web-logo-large { font-size: 30px; }
+  /* Logo beside the box, so more results fit on a short screen. */
+  .phone-web-header { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 6px 12px; margin-top: 0; }
+  .phone-web-header .phone-web-form { min-width: 0; }
+  .phone-web-header .phone-web-box { min-height: 38px; }
+  .phone-web-tabs { grid-column: 1 / -1; }
+  .phone-web-tab { padding-top: 0; padding-bottom: 6px; }
 }

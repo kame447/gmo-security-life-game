@@ -43,7 +43,8 @@ try {
   await page.locator('[data-web-view="results"]').waitFor();
   const first = page.locator('.phone-web-result').first();
   assert.equal(await first.locator('.phone-web-result-title').textContent(), 'まちの図書館', 'katakana finds the hiragana-keyword page');
-  assert.equal(await first.locator('.phone-web-result-address').textContent(), 'https://town-library.example/');
+  assert.equal(await first.locator('.phone-web-result-site').textContent(), 'まちの図書館');
+  assert.equal(await first.locator('.phone-web-result-address').textContent(), 'https://town-library.example');
   await first.click();
   await page.locator('[data-web-view="page"]').waitFor();
   assert.equal(await page.locator('.phone-web-address').textContent(), 'https://town-library.example/');
@@ -66,6 +67,19 @@ try {
   await page.locator('.phone-web-title', { hasText: 'ページが見つかりません' }).waitFor();
   assert.equal(await page.locator('.phone-web-address').textContent(), 'https://ekimae-street.example/map', 'missing page still shows its address');
   console.log('PASS Enter submits and a missing page shows its real address');
+
+  // The lucky button skips the result list; back then shows the list it skipped.
+  await page.locator('#phone-home').click(); await openWeb(page);
+  assert.equal(await page.locator('.phone-web-lucky').isDisabled(), true, 'empty lucky search cannot be sent');
+  await page.locator('.phone-web-input').fill('おはなし会');
+  await page.locator('.phone-web-lucky').click();
+  await page.locator('.phone-web-title', { hasText: 'おはなし会のくわしい案内' }).waitFor();
+  await page.locator('#phone-back').click(); assert.equal(await view(page), 'results');
+  assert.equal(await page.locator('.phone-web-result-summary b').first().textContent(), 'おはなし会', 'query words are bold in snippets');
+  await page.locator('.phone-web-clear').click();
+  assert.equal(await page.locator('.phone-web-input').inputValue(), '');
+  assert.equal(await page.locator('.phone-web-submit').isDisabled(), true, 'cleared box cannot be sent');
+  console.log('PASS lucky search, bold query words and clear button');
 
   // Typed letters stay in the box: Z, H and Backspace are phone shortcuts outside text boxes.
   await page.locator('#phone-home').click(); await openWeb(page);

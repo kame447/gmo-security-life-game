@@ -280,6 +280,11 @@ export class Smartphone {
   private renderWeb(): void {
     const view = renderWeb(this.model.webView, {
       search: query => { if (!this.model.webSearch(query)) this.showNetworkError(view); },
+      lucky: query => {
+        if (!this.model.webSearch(query)) { this.showNetworkError(view); return; }
+        const results = this.model.webView;
+        if (results.kind === 'results' && results.results[0]) this.model.webOpen(results.results[0].address);
+      },
       open: href => { if (!this.model.webOpen(href)) this.showNetworkError(view); },
     });
     this.body.append(view);

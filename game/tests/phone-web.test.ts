@@ -3,7 +3,7 @@ import { WEB_PROTOTYPE } from '../src/data/web-prototype';
 import { PHONE_BUDGET_PROTOTYPE } from '../src/phone/budget-config';
 import { PHONE_CONTENT } from '../src/phone/content';
 import { PhoneModel } from '../src/phone/model';
-import { normalizeSearchText, searchPages, WEB_LIMITS, WebModel } from '../src/phone/web/model';
+import { matchRanges, normalizeSearchText, searchPages, WEB_LIMITS, WebModel } from '../src/phone/web/model';
 import type { WebPage } from '../src/phone/web/types';
 
 const page = (address: string, title: string, extra: Partial<WebPage> = {}): WebPage =>
@@ -31,6 +31,22 @@ describe('in-game web search', () => {
     expect(searchPages(pages, 'あめ かさ').map(item => item.address)).toEqual(['https://c.example/', 'https://a.example/']);
     expect(searchPages(pages, '   ')).toEqual([]);
     expect(searchPages(pages, 'ない')).toEqual([]);
+  });
+
+  it('finds query words in the original text for bolding', () => {
+    expect(matchRanges('今月のおはなし会のおしらせ', 'おはなし会')).toEqual([[3, 8]]);
+    expect(matchRanges('トショカンと本', 'としょかん ほん 本')).toEqual([[0, 5], [6, 7]]);
+    expect(matchRanges('ＡＢＣabc', 'abc')).toEqual([[0, 6]]);
+    expect(matchRanges('あめあめ', 'あめ あ')).toEqual([[0, 4]]);
+    expect(matchRanges('なにもない', 'そら')).toEqual([]);
+    expect(matchRanges('😀ねこ', 'ねこ')).toEqual([[2, 4]]);
+  });
+
+  it('uses the site name, or the hostname when there is none', () => {
+    const model = new WebModel({ pages: [page('https://a.example/x', 'ページ', { site: 'えーサイト' }), page('https://b.example/', 'ページ2')] });
+    model.search('ページ');
+    const view = model.view;
+    expect(view.kind === 'results' && view.results.map(item => item.site)).toEqual(['えーサイト', 'b.example']);
   });
 
   it('caps the number of results', () => {

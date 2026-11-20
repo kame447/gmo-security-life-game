@@ -10,6 +10,32 @@ export function normalizeSearchText(text: string): string {
   return text.normalize('NFKC').toLowerCase().replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
 }
 
+/** Where each query word appears in text, as [start, end) offsets into the original text, merged and sorted. For bolding snippets. */
+export function matchRanges(text: string, query: string): [number, number][] {
+  const terms = normalizeSearchText(query).split(/\s+/).filter(Boolean);
+  // Normalize one character at a time, so each normalized index maps back to an original index.
+  let normalized = ''; const origin: number[] = [];
+  for (let index = 0; index < text.length;) {
+    const ch = String.fromCodePoint(text.codePointAt(index)!), next = index + ch.length;
+    for (const part of normalizeSearchText(ch)) { normalized += part; for (let k = 0; k < part.length; k++) origin.push(index); }
+    index = next;
+  }
+  origin.push(text.length);
+  const ranges: [number, number][] = [];
+  for (const term of terms) {
+    for (let at = normalized.indexOf(term); at >= 0; at = normalized.indexOf(term, at + term.length)) {
+      ranges.push([origin[at], origin[at + term.length]]);
+    }
+  }
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const range of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1]); else merged.push([...range]);
+  }
+  return merged;
+}
+
 /** Every word must appear somewhere in the page. Title hits rank first, then keywords, then the rest; ties keep data order. */
 export function searchPages(pages: readonly WebPage[], query: string): WebPage[] {
   const terms = normalizeSearchText(query).split(/\s+/).filter(Boolean);
@@ -41,7 +67,8 @@ function cleanPages(content: WebContent): WebPage[] {
       const href = cleanMailHref(link.href), label = cleanChatText(link.label, 40).trim();
       return href && label ? [{ label, href }] : [];
     });
-    pages.push({ address, title, summary: cleanChatText(page.summary, 80).trim(), keywords: page.keywords.map(word => cleanChatText(word, 40)),
+    const site = cleanChatText(page.site ?? '', 30).trim() || new URL(address).hostname;
+    pages.push({ address, title, site, summary: cleanChatText(page.summary, 80).trim(), keywords: page.keywords.map(word => cleanChatText(word, 40)),
       paragraphs: page.paragraphs.map(text => cleanChatText(text, 400)), links });
     seen.add(address);
   }
