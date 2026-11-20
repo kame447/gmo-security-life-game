@@ -207,11 +207,11 @@ async function openArea(s, areaId) {
 }
 
 async function selectFromList(s, id) {
-  const pressed = await s.page.locator('#npc-list-toggle').getAttribute('aria-expanded');
-  if (pressed !== 'true') await s.click('#npc-list-toggle');
+  const pressed = await s.page.locator('#entity-list-toggle').getAttribute('aria-expanded');
+  if (pressed !== 'true') await s.click('#entity-list-toggle');
   await s.click(`[data-npc-list-id="${id}"]`);
   await frames(s.page);
-  if (s.touch) await s.click('#npc-list-toggle');
+  if (s.touch) await s.click('#entity-list-toggle');
 }
 
 async function point(page, id) {
@@ -702,9 +702,9 @@ try {
     await readyEditor(mobile.page);
     await openArea(mobile, 'school-classroom-interior');
     if (label === 'portrait') {
-      await mobile.click('#npc-list-toggle');
+      await mobile.click('#entity-list-toggle');
       const overflow = await mobile.page.evaluate(() => {
-        const props = document.querySelector('#properties'), list = document.querySelector('#npc-list');
+        const props = document.querySelector('#properties'), list = document.querySelector('#entity-list');
         const items = Array.from(list.querySelectorAll('.npc-row')).map(b => b.getBoundingClientRect());
         return {
           propsScrollW: props.scrollWidth,
@@ -715,7 +715,7 @@ try {
       });
       assert.ok(overflow.propsScrollW <= overflow.propsClientW, JSON.stringify(overflow));
       assert.ok(overflow.propsRight <= 390 && overflow.maxItemRight <= 390, JSON.stringify(overflow));
-      await mobile.click('#npc-list-toggle');
+      await mobile.click('#entity-list-toggle');
     }
 
     await selectFromList(mobile, 'school-teacher');

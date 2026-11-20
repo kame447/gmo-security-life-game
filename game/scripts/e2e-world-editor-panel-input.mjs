@@ -41,8 +41,8 @@ async function open(viewport, touch = false) {
   await page.waitForFunction(() => window.__worldEditor?.renderer.stats.chunksDrawn > 0);
   // Open the list of people and pick the first one: the panel now holds the form, the sprite picker and the list.
   const click = selector => touch ? page.locator(selector).tap() : page.locator(selector).click();
-  if (await page.locator('#npc-list-toggle').getAttribute('aria-expanded') !== 'true') await click('#npc-list-toggle');
-  await click('#npc-list button');
+  if (await page.locator('#entity-list-toggle').getAttribute('aria-expanded') !== 'true') await click('#entity-list-toggle');
+  await click('#entity-list [data-npc-list-id]');
   await page.locator('#npc-properties').waitFor({ state: 'visible' });
   await page.locator('#properties').evaluate(panel => { panel.scrollTop = 0; });
   await frames(page);
@@ -169,7 +169,7 @@ try {
       await page.locator('#area-select').selectOption('town-main');
       await page.waitForFunction(() => window.__worldEditor.activeArea === 'town-main');
       await frames(page);
-      const target = await center(page, '#npc-list-title');
+      const target = await center(page, '#entity-list-title');
       // Put the family home exactly behind the panel's heading.
       await page.evaluate(({ x, y }) => {
         const app = window.__worldEditor, home = app.model.runtime().areas.get('town-main').objects.find(object => object.facilityId === 'home-family');
@@ -231,7 +231,7 @@ try {
       const r = await page.locator('#workspace').boundingBox(), p = await page.locator('#properties').boundingBox();
       // Close the panel first so that the map is exposed, then drag below where the person stands.
       await page.keyboard.press('Escape');
-      await s.click('#npc-list-toggle');
+      await s.click('#entity-list-toggle');
       await frames(page);
       const before = await view(page);
       await swipe({ x: r.x + 30, y: r.y + r.height - 40 }, 60, -80);
