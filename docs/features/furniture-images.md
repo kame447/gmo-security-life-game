@@ -1,6 +1,6 @@
 # PNG家具素材とCanvas描画の併用
 
-関連：親Issue #7、内装改善Issue #15、Draft PR #60。
+関連：親Issue #7、内装改善Issue #15、PR #60、統合先 PR #65。
 
 ## 状態と範囲
 
@@ -8,7 +8,8 @@ Phase 1は素材カタログ、画像読み込み、安全なCanvas置換と単�
 Phase 2では学校の5種類のみ `sprites.ts` の `objectSprite()` に接続済み。
 従来描画を先にキャッシュし、共有Loaderで読み込み、同じCanvasへ置換する。
 素材IDをキャッシュキーに含め、未登録家具と分離する。コンビニのPNGは未接続。
-学校18×12・コンビニ14×10、家具・NPC・出入口の配置、会話、eventKey、衝突、保存は変更しない。
+PR #65 で作り直したコンビニは店舗用のコード描画を使うため、存在しなくなった旧家具ID8件と未提供PNG4種類のカタログ項目を外す。学校の5種類・21個の対応は維持する。回転した旧家具は向きに対応したコード描画を使う。
+PNG描画への切り替えでは、学校18×12・コンビニ14×10の広さ、家具・NPC・出入口の配置、会話、eventKey、衝突、保存は変更しない。
 この文書の画像寸法は採用した初期の組み込み契約であり、マップ全体の最終仕様を決めるものではない。
 
 ## 素材の保存先と契約
@@ -16,7 +17,7 @@ Phase 2では学校の5種類のみ `sprites.ts` の `objectSprite()` に接続�
 実行用PNGはリポジトリ直下の `assets/images/objects/props/interiors/` に一度だけ保存する。
 編集元は `assets/sources/images/objects/props/interiors/` に分離する。
 素材ごとに作者・生成ツールとプロンプト・加工・出典・利用条件・再配布可否・クレジットを記録する。
-画像の実データは利用者から後日提供する。Phase 1で画像や仮のゲーム素材は追加しない。
+学校の5種類は提供済みで、実行用カタログと配信の対象にする。
 
 | 相対ファイル名 | PNG寸法（px） |
 | --- | --- |
@@ -25,10 +26,6 @@ Phase 2では学校の5種類のみ `sprites.ts` の `objectSprite()` に接続�
 | school/classroom-shelf.png | 32×16 |
 | school/blackboard.png | 128×16 |
 | school/window.png | 32×16 |
-| konbini/product-shelf.png | 32×16 |
-| konbini/cooler.png | 32×16 |
-| konbini/magazine-rack.png | 32×16 |
-| konbini/counter.png | 48×16 |
 
 16pxタイル基準・家具ごとに独立したPNG・透過対応。透過余白を含めて表の寸法にする。
 原寸で左上に描画し、画像の自動拡縮・切り抜き・オフセット・はみ出しは初期契約に含めない。
@@ -36,7 +33,7 @@ Phase 2では学校の5種類のみ `sprites.ts` の `objectSprite()` に接続�
 
 ## モジュールと読み込み
 
-- `catalog.ts`：素材ID・相対ファイル名・寸法、既存家具ID29件との対応。
+- `catalog.ts`：素材ID・相対ファイル名・寸法、学校の既存家具ID21件との対応。
   他の室内にも素材と対応を追加できる。IDが一致しても占有寸法が変わっていれば割り当てない。
 - `loader.ts`：URL単位で進行中・成功・失敗の読み込みを共有する。
   `decodePng()`はHTTP成功、PNG署名、ブラウザのデコード、実寸取得を行うDOMアダプター。

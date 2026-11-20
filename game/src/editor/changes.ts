@@ -1,51 +1,138 @@
-import { canonicalJSON, checkEntity, fail, idCheck, locationless, parseDocument, shape } from './schema.ts';
-import { EDITOR_TABLES, EditorValidationError, type ChangeSet, type EditOperation, type EditorDocument, type EditorEntity, type EditorTable, type ValidationIssue } from './types.ts';
+import { canonicalCopy, canonicalJSON, checkEntity, fail, idCheck, locationless, parseDocument, shape } from './schema.ts';
+import { EDITOR_TABLES, EditorValidationError, type ChangeSet, type EditOperation, type EditorDocument, type EditorEntity, type EditorTable, type EditorValidationContext, type ValidationIssue } from './types.ts';
 
 const equal = (a: unknown, b: unknown) => canonicalJSON(a) === canonicalJSON(b);
 
-export function parseChangeSet(raw: unknown): ChangeSet {
+/** Derive only the application-declared fields, before validating a draft's references. */
+export function withDerived(document: EditorDocument, context?: EditorValidationContext): EditorDocument {
+  const rule=context?.derived;
+  if(!rule)return document;
+  if(Object.keys(rule).some(key=>!['startPortalId','placedNpcEventKeys'].includes(key)) ||
+      (rule.placedNpcEventKeys!==undefined&&rule.placedNpcEventKeys!==true))
+    fail('context.derived','metadata','Unknown derived metadata declaration');
+  const next=structuredClone(document);
+  if(rule.startPortalId!==undefined){
+    const portal=next.portals.find(portal=>portal.id===rule.startPortalId);
+    if(!portal)return fail('context.derived.startPortalId','reference','The declared start portal does not exist');
+    next.start=structuredClone(portal.to);
+  }
+  if(rule.placedNpcEventKeys){
+    const source=new Map([...context!.baselineWorld.areas.values()].flatMap(area=>area.def.interactions.map(item=>[item.id,item] as const)));
+    for(const item of next.interactions){
+      const original=source.get(item.id);
+      if(original ? original.eventKey!==item.eventKey : item.kind!=='npc'||item.eventKey!==`npc.${item.id}`)
+        fail(`interactions.${item.id}.eventKey`,'reference','Preserve the source event key or use the new NPC own key');
+    }
+    next.catalogs.eventKeys=[...new Set(next.interactions.map(item=>item.eventKey))].sort();
+  }
+  return next;
+}
+
+/** Copy validated editor snapshots; bulk numeric layers need no per-cell structured cloning. */
+export function cloneDocument(document: EditorDocument): EditorDocument {
+  const areas = document.areas.map(({ ground, surfaces, ...area }) => ({
+    ...structuredClone(area), ground: ground.slice(),
+    ...(surfaces ? { surfaces: { ...structuredClone({ ...surfaces, cells: [] }), cells: surfaces.cells.slice() } } : {}),
+  }));
+  return { ...structuredClone({ ...document, areas: [] }), areas };
+}
+
+/** Read-only derived view for validators; nested authoring data is never mutated. */
+export function withDerivedView(document: EditorDocument, context?: EditorValidationContext): EditorDocument {
+  const rule=context?.derived;
+  if(!rule)return document;
+  if(Object.keys(rule).some(key=>!['startPortalId','placedNpcEventKeys'].includes(key)) ||
+      (rule.placedNpcEventKeys!==undefined&&rule.placedNpcEventKeys!==true))
+    fail('context.derived','metadata','Unknown derived metadata declaration');
+  const next={...document,catalogs:{...document.catalogs}};
+  if(rule.startPortalId!==undefined){
+    const portal=next.portals.find(portal=>portal.id===rule.startPortalId);
+    if(!portal)return fail('context.derived.startPortalId','reference','The declared start portal does not exist');
+    next.start=structuredClone(portal.to);
+  }
+  if(rule.placedNpcEventKeys){
+    const source=new Map([...context!.baselineWorld.areas.values()].flatMap(area=>area.def.interactions.map(item=>[item.id,item] as const)));
+    for(const item of next.interactions){
+      const original=source.get(item.id);
+      if(original ? original.eventKey!==item.eventKey : item.kind!=='npc'||item.eventKey!==`npc.${item.id}`)
+        fail(`interactions.${item.id}.eventKey`,'reference','Preserve the source event key or use the new NPC own key');
+    }
+    next.catalogs.eventKeys=[...new Set(next.interactions.map(item=>item.eventKey))].sort();
+  }
+  return next;
+}
+
+/** Read derived fields through the same non-mutating validation path. */
+export function deriveMetadata(document: EditorDocument, context?: EditorValidationContext): { start: EditorDocument['start']; eventKeys: string[] } {
+  const derived=withDerivedView(document,context);
+  return {start:derived.start,eventKeys:derived.catalogs.eventKeys};
+}
+
+/** True when both values are arrays of identical finite numbers (canonicalJSON-equivalent). */
+export function sameFiniteNumbers(a: unknown, b: unknown): boolean {
+  if (a === b && Array.isArray(a)) {
+    for (let i = 0; i < a.length; i++) {
+      const v = a[i];
+      if (typeof v !== 'number' || !Number.isFinite(v)) return false;
+    }
+    return true;
+  }
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const av = a[i], bv = b[i];
+    if (typeof av !== 'number' || typeof bv !== 'number' || !Number.isFinite(av) || !Number.isFinite(bv) || av !== bv) {
+      return false;
+    }
+  }
+  return true;
+}
+
+
+const checkOperations = (value: unknown, path: string, issues: ValidationIssue[]) => {
+  if (!Array.isArray(value) || value.length > 10000) { issues.push({ path, code: 'schema', message: 'Expected at most 10000 operations' }); return; }
+  value.forEach((rawOp: unknown, n) => {
+    const p = `${path}[${n}]`;
+    if (!rawOp || typeof rawOp !== 'object' || Array.isArray(rawOp)) { issues.push({ path: p, code: 'schema', message: 'Expected operation' }); return; }
+    const op = rawOp as Record<string, unknown>;
+    if (!EDITOR_TABLES.includes(op.table as EditorTable) || !['add', 'delete', 'update', 'move'].includes(op.type as string)) {
+      issues.push({ path: p, code: 'schema', message: 'Unknown table or operation type' }); return;
+    }
+    const table = op.table as EditorTable;
+    const check = (v: unknown, field: string, errors: ValidationIssue[]) => checkEntity(table, v, field, errors);
+    shape({ type: () => {}, table: () => {}, id: idCheck,
+      ...(op.type === 'add' ? {} : { before: check }),
+      ...(op.type === 'delete' ? {} : { after: check }),
+    })(op, p, issues);
+  });
+};
+export function parseChangeSet(raw: unknown, context?: EditorValidationContext): ChangeSet {
   const issues: ValidationIssue[] = [];
+  let baseDocument: EditorDocument | undefined;
   const addIssue = (path: string, message: string) => { issues.push({ path, code: 'schema', message }); };
   shape({
     schemaVersion: (v, p) => { if (v !== 1) addIssue(p, 'Expected change-set schemaVersion 1'); },
     documentId: idCheck,
     baseDocument: (v, p) => {
-      try { parseDocument(v); } catch (error) {
+      try { baseDocument = parseDocument(v, context); } catch (error) {
         if (!(error instanceof EditorValidationError)) throw error;
         issues.push(...error.issues.map(i => ({ ...i, path: `${p}.${i.path}` })));
       }
     },
-    operations: (value, path) => {
-      if (!Array.isArray(value) || value.length > 10000) { addIssue(path, 'Expected at most 10000 operations'); return; }
-      value.forEach((rawOp: unknown, n) => {
-        const p = `${path}[${n}]`;
-        if (!rawOp || typeof rawOp !== 'object' || Array.isArray(rawOp)) { addIssue(p, 'Expected operation'); return; }
-        const op = rawOp as Record<string, unknown>;
-        if (!EDITOR_TABLES.includes(op.table as EditorTable) || !['add', 'delete', 'update', 'move'].includes(op.type as string)) {
-          addIssue(p, 'Unknown table or operation type'); return;
-        }
-        const table = op.table as EditorTable;
-        const check = (v: unknown, field: string, errors: ValidationIssue[]) => checkEntity(table, v, field, errors);
-        shape({ type: () => {}, table: () => {}, id: idCheck,
-          ...(op.type === 'add' ? {} : { before: check }),
-          ...(op.type === 'delete' ? {} : { after: check }),
-        })(op, p, issues);
-      });
-    },
+    operations: (value, path) => checkOperations(value, path, issues),
   })(raw, '$', issues);
   if (issues.length) throw new EditorValidationError(issues);
-  const copy: ChangeSet = JSON.parse(canonicalJSON(raw));
-  copy.baseDocument = parseDocument(copy.baseDocument);
+  const copy: ChangeSet = canonicalCopy(raw as ChangeSet);
+  copy.baseDocument = baseDocument!;
   if (copy.documentId !== copy.baseDocument.id) fail('documentId', 'conflict', 'Change set belongs to another document');
   return copy;
 }
 
 /** Pure transaction: validate the complete candidate before returning; never mutates the input. */
-function applyParsed(document: EditorDocument, changes: ChangeSet): EditorDocument {
+function applyParsed(document: EditorDocument, changes: ChangeSet, context?: EditorValidationContext): EditorDocument {
   if (document.id !== changes.documentId || !equal(document, changes.baseDocument)) {
     fail('baseDocument', 'conflict', 'Source data changed; reload and re-export the edit before applying');
   }
-  const draft = structuredClone(document);
+  const draft = cloneDocument(document);
   for (const [n, op] of changes.operations.entries()) {
     const path = `operations[${n}]`, list = draft[op.table] as EditorEntity[];
     const index = list.findIndex(entity => entity.id === op.id);
@@ -65,27 +152,35 @@ function applyParsed(document: EditorDocument, changes: ChangeSet): EditorDocume
     else if (op.type === 'add') list.push(structuredClone(op.after));
     else list[index] = structuredClone(op.after);
   }
-  return parseDocument(draft);
+  return parseDocument(withDerivedView(draft, context), context);
 }
 
-export function applyChangeSet(document: unknown, changes: unknown): EditorDocument {
-  return applyParsed(parseDocument(document), parseChangeSet(changes));
+export function applyChangeSet(document: unknown, changes: unknown, context?: EditorValidationContext): EditorDocument {
+  return applyParsed(parseDocument(document, context), parseChangeSet(changes, context), context);
 }
 
 /** GUI entry point; a multi-object gesture is one atomic transaction and one undo step. */
-export function createChangeSet(document: unknown, operations: readonly EditOperation[]): ChangeSet {
-  const baseDocument = parseDocument(document);
-  const changes = parseChangeSet({ schemaVersion: 1, documentId: baseDocument.id, baseDocument, operations });
-  applyParsed(baseDocument, changes);
-  return changes;
+export function createChangeSet(document: unknown, operations: readonly EditOperation[], context?: EditorValidationContext): ChangeSet {
+  return prepareChangeSet(document, operations, context).changes;
+}
+
+/** Internal transaction result: history can use the candidate already validated during creation. */
+export function prepareChangeSet(document: unknown, operations: readonly EditOperation[], context?: EditorValidationContext): { changes: ChangeSet; document: EditorDocument } {
+  const baseDocument = parseDocument(document, context);
+  const changes = parseChangeSet({ schemaVersion: 1, documentId: baseDocument.id, baseDocument, operations }, context);
+  return { changes, document: applyParsed(baseDocument, changes, context) };
 }
 
 /** Stable ID-based output, independent of insertion order or JSON property order. */
-export function diffDocuments(before: unknown, after: unknown): ChangeSet {
-  const base = parseDocument(before), next = parseDocument(after);
+export function diffDocuments(before: unknown, after: unknown, context?: EditorValidationContext): ChangeSet {
+  const base = parseDocument(before, context), next = parseDocument(after, context);
   const metadata = (document: EditorDocument) => {
-    const { areas: _, facilities: __, objects: ___, interactions: ____, portals: _____, ...rest } = document;
-    return rest;
+    const derived=withDerivedView(document,context),rule=context?.derived;
+    if(rule?.startPortalId!==undefined&&!equal(document.start,derived.start))fail('start','derived','Start must match the declared portal destination');
+    if(rule?.placedNpcEventKeys&&!equal(document.catalogs.eventKeys,derived.catalogs.eventKeys))fail('catalogs.eventKeys','derived','Event keys must match the current interactions');
+    const { areas: _, facilities: __, objects: ___, interactions: ____, portals: _____, start, catalogs, ...rest } = document;
+    return {...rest,...(rule?.startPortalId!==undefined?{}:{start}),catalogs:{sprites:catalogs.sprites,
+      ...(rule?.placedNpcEventKeys?{}:{eventKeys:catalogs.eventKeys})}};
   };
   if (!equal(metadata(base), metadata(next))) fail('$', 'metadata', 'Document identity, tileSize, start and catalogs are authored separately in schema v1');
   const operations: EditOperation[] = [];
@@ -104,25 +199,32 @@ export function diffDocuments(before: unknown, after: unknown): ChangeSet {
     }
     for (const [id, entity] of updated) if (!old.has(id)) operations.push({ type: 'add', table, id, after: entity } as EditOperation);
   }
-  return createChangeSet(base, operations);
+  // Both documents and every generated entity were validated above. Copy the generated
+  // protocol payload for independent ownership, then keep the full transaction checks.
+  const issues: ValidationIssue[] = [];
+  checkOperations(operations, '$.operations', issues);
+  if (issues.length) throw new EditorValidationError(issues);
+  const changes: ChangeSet = canonicalCopy({ schemaVersion: 1, documentId: base.id, baseDocument: base, operations });
+  applyParsed(base, changes, context);
+  return changes;
 }
 
-export function serializeChangeSet(raw: unknown): string {
-  const changes = parseChangeSet(raw);
-  applyParsed(changes.baseDocument, changes);
+export function serializeChangeSet(raw: unknown, context?: EditorValidationContext): string {
+  const changes = parseChangeSet(raw, context);
+  applyParsed(changes.baseDocument, changes, context);
   return canonicalJSON(changes);
 }
-export function loadChangeSet(json: string): ChangeSet {
+export function loadChangeSet(json: string, context?: EditorValidationContext): ChangeSet {
   let raw: unknown;
   try { raw = JSON.parse(json); } catch { return fail('$', 'json', 'Invalid change-set JSON'); }
-  const changes = parseChangeSet(raw);
-  applyParsed(changes.baseDocument, changes);
+  const changes = parseChangeSet(raw, context);
+  applyParsed(changes.baseDocument, changes, context);
   return changes;
 }
 
 export interface ChangePreview { changes: ChangeSet; document: EditorDocument; before: string; after: string; summary: string[] }
-export function previewChangeSet(document: unknown, raw: unknown): ChangePreview {
-  const base = parseDocument(document), changes = parseChangeSet(raw), next = applyParsed(base, changes);
+export function previewChangeSet(document: unknown, raw: unknown, context?: EditorValidationContext): ChangePreview {
+  const base = parseDocument(document, context), changes = parseChangeSet(raw, context), next = applyParsed(base, changes, context);
   return { changes, document: next, before: canonicalJSON(base), after: canonicalJSON(next),
     summary: changes.operations.map(op => `${op.type} ${op.table}/${op.id}`) };
 }

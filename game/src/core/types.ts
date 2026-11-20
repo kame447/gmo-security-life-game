@@ -46,6 +46,10 @@ export interface ObjectDef {
   /** decal は地面の直後に描き、前後関係の並べ替えに参加しない。 */
   layer?: 'decal' | 'sorted';
   facilityId?: string;
+  /** Furniture front; omitted means down. Non-catalog objects ignore this field. */
+  facing?: Facing;
+  /** Explicitly opt into catalog artwork. Legacy kind alone never selects it. */
+  catalogId?: string;
 }
 
 export interface PortalDef {
@@ -76,6 +80,13 @@ export interface InteractionDef {
   lines: string[];
 }
 
+export interface AreaSurfaces {
+  /** A cell n selects palette[n-1]; zero keeps the existing ground artwork. */
+  palette: string[];
+  /** One entry per ground cell, in row order. */
+  cells: Uint8Array;
+}
+
 export interface AreaDef {
   id: string;
   name: string;
@@ -88,6 +99,7 @@ export interface AreaDef {
   portals: PortalDef[];
   interactions: InteractionDef[];
   districts?: DistrictDef[];
+  surfaces?: AreaSurfaces;
 }
 
 /** 年代差分。基底マップは変えず、施設状態・出入口・NPC の有効／追加だけを差し替える。 */

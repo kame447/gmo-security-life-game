@@ -2,19 +2,22 @@
  * ワールドの組み立て口。エリア定義の登録、年代差分の適用、実行時索引への変換を行う。
  * 経路探索・検証・座標の目印は個別モジュールにあり、ここから再公開する。
  */
-import type { AreaDef, VariantDef } from '../core/types';
+import type { AreaDef, SpawnPoint, VariantDef } from '../core/types';
 import { createClassroom, createHome, createHomeUpstairs, createKonbini, createStation } from './interiors';
-import { START } from './landmarks';
+import { START as GENERATED_START } from './landmarks';
+import { resolveLandmarks } from './landmark-resolve';
+import { applyAreaLayout } from './layouts';
 import { toRuntime, type AreaRuntime, type World } from './runtime';
 import { createTown, FACILITIES } from './town';
+import { SHOP_AREA_FACTORIES } from './shops';
 import { createNeighborStation, createNeighborTown, NEIGHBOR_FACILITIES } from './towns/neighbor';
 
-export { LANDMARKS, START, STATION_ACCESS } from './landmarks';
+export { STATION_ACCESS } from './landmarks';
 export { districtAt, isSolidTile, type AreaRuntime, type World } from './runtime';
 export { findPath } from './path';
 export { getStationFlow, type StationFlow, type StationPlatform } from './station-flow';
 export { RAIL_DIRECTIONS, RAIL_ORDER, headingOf, trackRowOf, type RailDirection, type RailHeading } from './rail-geometry';
-export { validateWorld, type RailPoint, type RailLink, type WorldValidationOptions } from './validate';
+export { validateWorld, stationGateLinks, type RailPoint, type RailLink, type WorldValidationOptions } from './validate';
 
 export const CHILDHOOD_VARIANT: VariantDef = {
   id: 'childhood',
@@ -23,7 +26,15 @@ export const CHILDHOOD_VARIANT: VariantDef = {
 };
 
 /** 読み込むエリアの一覧。新しいエリアはここに定義関数を追加する。 */
-export const AREA_FACTORIES: readonly (() => AreaDef)[] = [createTown, createHome, createHomeUpstairs, createClassroom, createKonbini, createStation, createNeighborTown, createNeighborStation];
+export const AREA_FACTORIES: readonly (() => AreaDef)[] = [
+  createTown, createHome, createHomeUpstairs, createClassroom, createKonbini,
+  ...SHOP_AREA_FACTORIES,
+  createStation, createNeighborTown, createNeighborStation,
+];
+
+/** 生成用の定数とは分け、配置を適用した出口から公開用の目印と開始位置を導く。 */
+export const LANDMARKS = resolveLandmarks(AREA_FACTORIES.map(create => applyAreaLayout(create())));
+export const START: SpawnPoint = { ...GENERATED_START, ...LANDMARKS.homeFront };
 
 /** 年代差分で無効化された出入口・調査対象を除き、追加分を足した定義を返す。 */
 function applyVariant(base: AreaDef, variant: VariantDef, isClosed: (facilityId: string) => boolean): AreaDef {
@@ -40,7 +51,7 @@ export function buildWorld(variant: VariantDef = CHILDHOOD_VARIANT): World {
   const isClosed = (id: string) => facilities.get(id)?.state === 'closed';
   const areas = new Map<string, AreaRuntime>();
   for (const create of AREA_FACTORIES) {
-    const runtime = toRuntime(applyVariant(create(), variant, isClosed));
+    const runtime = toRuntime(applyVariant(applyAreaLayout(create()), variant, isClosed));
     areas.set(runtime.def.id, runtime);
   }
   return { areas, facilities, start: { ...START }, variant };

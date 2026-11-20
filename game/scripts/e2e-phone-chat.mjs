@@ -1,3 +1,4 @@
+import { gameplayUrl } from './lib/gameplay-url.mjs';
 /** Real UI flow in disposable browser contexts; no external network or user save access. */
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -19,7 +20,7 @@ async function newPage(options, url) {
   page.on('pageerror', error => errors.push(String(error)));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   page.on('dialog', async dialog => { errors.push(`Unexpected dialog: ${dialog.message()}`); await dialog.dismiss(); });
-  await page.goto(url.href);
+  await page.goto(gameplayUrl(url.href));
   await page.waitForFunction(() => !!window.__slg?.game && !!document.querySelector('#hud')?.textContent.trim());
   return { context, page };
 }

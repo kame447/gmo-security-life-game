@@ -50,7 +50,7 @@ const page = await context.newPage();
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));
 try {
-  await page.goto(`${url}/?story=1`, { waitUntil: 'networkidle' });
+  await page.goto(`${url}/?story=1&skipOpening=1`, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => !!window.__slg?.game && !!window.__slgStory);
   await page.locator('#view').focus();
 
@@ -157,7 +157,7 @@ try {
     const t1 = await page.evaluate(() => window.__slgStory.stageElapsed);
     assert.ok(t1 > t0, `clock should advance (${t0} -> ${t1})`);
     await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
-    await page.goto(url, { waitUntil: 'networkidle' });
+    await page.goto(`${url}/?skipOpening=1`, { waitUntil: 'networkidle' });
     await page.waitForFunction(() => !!window.__slgStory);
     const resumed = await page.evaluate(() => ({ phase: window.__slgStory.phase, elapsed: window.__slgStory.stageElapsed, phone: window.__slg.game.phone.isOwned }));
     assert.equal(resumed.phase, 'stage');

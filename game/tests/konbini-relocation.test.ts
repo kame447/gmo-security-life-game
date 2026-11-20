@@ -58,8 +58,10 @@ describe('konbini relocation (Candidate E)', () => {
     expect(town.ground[71 * town.width + 67]).toBe(T.PARKING);
     expect(town.objects.find(o => o.kind === 'car' && o.x === 67 && o.y === 71)).toBeDefined();
 
-    // Existing cafe, house, apartment, and park paths around Candidate E remain intact
-    expect(town.objects.find(o => o.id === 'town-shop-60-59')).toMatchObject({ x: 60, y: 59, w: 6, h: 6, style: 'cafe' });
+    // #65 changes the old nonfunctional cafe at 60,59 into an unlinked apartment, preserving its ID.
+    expect(town.objects.find(o => o.id === 'town-shop-60-59')).toMatchObject({
+      x: 60, y: 59, w: 6, h: 6, kind: 'apartment', style: '0', facilityId: undefined,
+    });
     expect(town.objects.find(o => o.id === 'town-house-70-59')).toMatchObject({ x: 70, y: 59, w: 5, h: 4 });
     expect(town.objects.find(o => o.id === 'town-apartment-70-66')).toMatchObject({ x: 70, y: 66, w: 6, h: 5 });
 
