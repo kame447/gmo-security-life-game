@@ -169,6 +169,8 @@ try {
       await page.locator('#area-select').selectOption('town-main');
       await page.waitForFunction(() => window.__worldEditor.activeArea === 'town-main');
       await frames(page);
+      await page.locator('#entity-list-title').scrollIntoViewIfNeeded();
+      await frames(page);
       const target = await center(page, '#entity-list-title');
       // Put the family home exactly behind the panel's heading.
       await page.evaluate(({ x, y }) => {
