@@ -196,7 +196,7 @@
     ],
     "height": 12,
     "kind": "indoor",
-    "name": "じぶんのいえ",
+    "name": "じぶんのいえ 1かい",
     "width": 16
   },
   "areaId": "home-family-interior",
@@ -228,47 +228,9 @@
       "w": 2,
       "x": 5,
       "y": 8
-    },
-    {
-      "eventKey": "home.desk",
-      "id": "home-study-desk",
-      "kind": "object",
-      "lines": [
-        "えんぴつと ノートを そろえた。しゅくだいも がんばろう。"
-      ],
-      "name": "がくしゅうづくえ",
-      "objectId": "home-family-interior-desk-4-1",
-      "solid": true,
-      "w": 2,
-      "x": 4,
-      "y": 1
     }
   ],
   "objects": [
-    {
-      "catalogId": "bed-single",
-      "facing": "down",
-      "h": 3,
-      "id": "home-family-interior-bed-1-1",
-      "kind": "bed",
-      "layer": "sorted",
-      "solid": true,
-      "w": 2,
-      "x": 1,
-      "y": 1
-    },
-    {
-      "catalogId": "desk-study",
-      "facing": "down",
-      "h": 1,
-      "id": "home-family-interior-desk-4-1",
-      "kind": "desk",
-      "layer": "sorted",
-      "solid": true,
-      "w": 2,
-      "x": 4,
-      "y": 1
-    },
     {
       "catalogId": "bookshelf-tall",
       "facing": "down",
@@ -424,6 +386,16 @@
       "w": 2,
       "x": 12,
       "y": 1
+    },
+    {
+      "h": 1,
+      "id": "home-family-interior-stairs-1-1",
+      "kind": "stairs",
+      "layer": "decal",
+      "solid": false,
+      "w": 1,
+      "x": 1,
+      "y": 1
     }
   ],
   "portals": [
@@ -441,11 +413,24 @@
         "x": 35,
         "y": 32
       }
+    },
+    {
+      "from": {
+        "x": 1,
+        "y": 1
+      },
+      "id": "home-stairs-up",
+      "to": {
+        "areaId": "home-family-2f",
+        "facing": "left",
+        "x": 7,
+        "y": 1
+      }
     }
   ],
   "schemaVersion": 1,
   "source": {
-    "fingerprint": "sha256:b5084458f9db5698bdd99dd710da8e6854131b0005d9a20c5d666f8dc9cb1a8c",
+    "fingerprint": "sha256:9a7a1f3fc8cb08db8a1b799974c8016710cdc3cf4b51b338a5da2f400c224c31",
     "generator": "createHome"
   }
 }

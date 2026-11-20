@@ -12,6 +12,8 @@
 - **中断**：選択中に「さいしょから」を押すと、経験として記録せずに中断する。次に話しかけると再び発生する。
 - **定義の検証**：起動時に定義の不備（id の重複、選択肢が 1 つだけ、存在しないイベント・選択肢を参照する条件など）を検出し、起動を止める。
 - **操作**：キーボード（↑↓／W・S、Z・Space・Enter、数字キー）、マウス、タップ。スマホ幅では選択肢を会話欄の上に全幅で表示し、タッチ操作のボタンを隠す。
+- **会話の記録**：会話欄に出した台詞（まだ読んでいない先の行は含めない）と選んだ選択肢を、表示した順に残す。探索中に L キーまたは「かいわ」ボタンで一覧を開き、↑↓でスクロール、L・Esc・「とじる」で閉じる。開いている間は移動とストーリーの時間を止める。残すのは新しいものから300行（仮値）で、保存はせず再読み込みで消える。会話の途中では開けない。
+- **話し手の差し替え**：話しかけずに始めるイベントは、会話欄の名前を呼び出し側が差し替えられる（ストーリーのメールでの知らせに使う）。
 
 ## 仮のサンプル（幼少期・採用未決定）
 
@@ -40,6 +42,7 @@
 | 進行（きっかけの判定・選択・反映） | `game/src/events/director.ts` |
 | 仮サンプル | `game/src/events/samples/childhood.ts` |
 | 選択肢の表示と入力 | `game/src/ui/life-event-panel.ts`・`life-event.css` |
-| テスト | `game/tests/life-events.test.ts`、`game/scripts/e2e-life-events.mjs` |
+| 会話の記録 | `game/src/events/dialog-log.ts`、`game/src/ui/dialog-log-panel.ts`・`dialog-log.css` |
+| テスト | `game/tests/life-events.test.ts`、`game/tests/dialog-log.test.ts`、`game/scripts/e2e-life-events.mjs` |
 
 イベントの内容はデータとして定義し、進行処理や描画処理に個別イベントの分岐を書かない（[概念設計](../architecture.md)）。

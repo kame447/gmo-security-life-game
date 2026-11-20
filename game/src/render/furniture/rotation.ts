@@ -27,6 +27,13 @@ const RUG_RULE: RotationRule = Object.freeze({
   reason: '',
 });
 
+/** 階段は上下階の出入口と重なるため、向きを固定する。 */
+const STAIRS_RULE: RotationRule = Object.freeze({
+  placement: 'floor',
+  directions: Object.freeze(['down'] as Facing[]),
+  reason: '階段は出入口と重なるため回せません',
+});
+
 const FLOOR_RULE: RotationRule = Object.freeze({
   placement: 'floor',
   directions: FOUR_DIRECTIONS,
@@ -71,6 +78,7 @@ export const LEGACY_ROTATION_RULES: ReadonlyMap<string, RotationRule> = new Map<
   ['blackboard', WALL_RULE],
   ['window', WALL_RULE],
   ['window-wall', WALL_RULE],
+  ['stairs', STAIRS_RULE],
 ]);
 
 export const isSidewaysFacing = (facing?: Facing): boolean => facing === 'left' || facing === 'right';

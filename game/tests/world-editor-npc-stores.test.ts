@@ -73,7 +73,7 @@ describe('N1.5 店を含む全エリアの人物確認', () => {
       area => !isEditableArea(initial, area.id) && areaNpcs(initial, area.id).length > 0,
     );
     expect(readonlyPopulated.map(area => area.id)).toEqual(['town-neighbor']);
-    expect(editableAreas).toHaveLength(12);
+    expect(editableAreas).toHaveLength(13);
 
     const counts = Object.fromEntries(editableAreas.map(area => [area.id, areaNpcs(initial, area.id).length]));
     expect(counts['town-main']).toBe(6);

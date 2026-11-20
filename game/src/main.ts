@@ -26,19 +26,33 @@ import { Hud } from './ui/hud';
 import { LifeEventPanel } from './ui/life-event-panel';
 import { Smartphone } from './ui/smartphone';
 import { ShopPanel } from './ui/shop-panel';
+import { StoryHud } from './ui/story-hud';
+import { DialogLogPanel } from './ui/dialog-log-panel';
+import { DialogLog } from './events/dialog-log';
+import { StoryDirector } from './story/director';
+import { STORY_EVENTS } from './story/events';
+import { parseStorySave } from './story/state';
 import { buildWorld } from './world';
 
 const world = buildWorld();
 let train: TrainTravelPanel | undefined;
 // 人生イベントは試作段階。まだ永続保存には対応していない。
-const lifeEvents = new LifeEventDirector(CHILDHOOD_SAMPLE_EVENTS);
+const lifeEvents = new LifeEventDirector([...CHILDHOOD_SAMPLE_EVENTS, ...STORY_EVENTS]);
 const review = bagReviewOptions(window.location.search);
 const shopReview = review.temporary && new URLSearchParams(window.location.search).get('shopReview') === '1';
 let shopEvents: MapEventSink | undefined;
 const phoneOptions = { initialPhoneOwned: PHONE_INITIAL_OWNED, phoneDataConfig: PHONE_BUDGET_PROTOTYPE };
-const game = new Game(world, { ...phoneOptions, save: review.temporary ? undefined : loadSave(world, phoneOptions), sink: {
+const saved = review.temporary ? undefined : loadSave(world, phoneOptions);
+// Story (docs/features/story.md): resumes from a story save; `?story=1` starts a new one in place of a free-play save.
+// The opening's 「はじめから」 is meant to start it once the title screen is connected to the game.
+const storySaved = parseStorySave(saved?.story);
+const story = storySaved ? StoryDirector.resume(storySaved, lifeEvents)
+  : !review.temporary && new URLSearchParams(window.location.search).get('story') === '1' ? StoryDirector.newGame(lifeEvents) : undefined;
+const game = new Game(world, { ...phoneOptions, save: story && !storySaved ? undefined : saved,
+  ...(story ? { initialPhoneOwned: false, start: story.startPoint,
+    portalGuard: portal => story.canUsePortal(portal), canRide: () => story.canRide } : {}), sink: {
   // clerk-event-routing.test.ts evaluates this expression with only shopEvents and lifeEvents bound.
-  onMapEvent: event => lifeEvents.onMapEvent(event) ?? shopEvents?.onMapEvent(event)
+  onMapEvent: event => (typeof story !== 'undefined' ? story?.onMapEvent(event) : undefined) ?? lifeEvents.onMapEvent(event) ?? shopEvents?.onMapEvent(event)
     ?? (typeof train !== 'undefined' && train.tryOpen(event) ? { lines: [] } : undefined),
 } });
 if (review.temporary) applyBagReviewFixture(game.assets);
@@ -52,6 +66,7 @@ const frames = new FrameRecorder();
 function save() {
   if (review.temporary) return;
   const data = game.serialize();
+  if (story) data.story = story.save();
   // A draft is visible immediately, but autosave must preserve the last confirmed appearance.
   const confirmed = avatar.confirmedAppearance;
   if (confirmed) data.appearance = confirmed;
@@ -88,10 +103,28 @@ ui.registerPanel({ id: 'shop', panel: shop });
 shopEvents = clerkEvents(game, ui, context => shop.open(context));
 const hud = new Hud(game, () => ui.primaryAction());
 installBgm(muted => hud.showToast(muted ? 'おんがく：オフ（M）' : 'おんがく：オン（M）'));
-const lifeEventPanel = new LifeEventPanel(game, lifeEvents, () => controls.clear());
+const dialogLog = new DialogLog();
+const dialogLogPanel = new DialogLogPanel(dialogLog, $<HTMLElement>('#stage'), () => { controls.clear(); ui.update(); ui.focusMap(); });
+ui.registerPanel({ id: 'log', panel: dialogLogPanel, open: () => dialogLogPanel.open(), button: dialogLogPanel.button, shortcut: 'KeyL' });
+const lifeEventPanel = new LifeEventPanel(game, lifeEvents, outcome => {
+  dialogLog.choice(outcome.choice.label);
+  controls.clear(); story?.onLifeOutcome(outcome); save();
+});
+story?.attach({
+  say: (speaker, lines) => game.say(speaker, lines),
+  warp: spawn => game.warp(spawn),
+  areaId: () => game.player.areaId,
+  setPhoneOwned: owned => game.phone.setOwned(owned),
+  changeMoney: delta => game.assets.changeMoney(delta).ok,
+  addItem: id => game.assets.addItem(id, 1).ok,
+  notice: text => hud.showToast(text),
+});
+const storyHud = story && new StoryHud(story, !storySaved);
 ui.bind({ onReset: () => { game.reset(); save(); } });
 window.addEventListener('keydown', event => bag.handleHudKey(event, ui.mode === 'explore'));
 exposeDebug(game, renderer, frames);
+// Verification hook for scripts/e2e-story.mjs (read-only use; does not change the game).
+if (story) (window as unknown as { __slgStory?: StoryDirector }).__slgStory = story;
 if (shopReview) game.action();
 
 game.on(event => {
@@ -112,7 +145,10 @@ resize();
 const loop = startLoop({
   beforeFrame: () => { if (dpr !== window.devicePixelRatio) resize(); },
   input: () => ui.movementInput(),
-  update: (dt, input) => { if (!minimap.isOpen) game.update(dt, input); },
+  update: (dt, input) => {
+    if (!minimap.isOpen) game.update(dt, input);
+    story?.tick(dt, ui.mode === 'explore' && !game.dialog && !lifeEventPanel.isOpen && !lifeEvents.pending && !document.hidden);
+  },
   draw: now => renderer.draw(game, now / 1000),
   measuring: () => frames.recording,
   afterFrame: (now, frame, input) => {
@@ -121,6 +157,8 @@ const loop = startLoop({
     frames.record(now, frame, input, game, renderer);
     avatar.drawPreview(now);
     lifeEventPanel.update();
+    dialogLog.observe(game.dialog);
+    storyHud?.update();
     hud.update(now);
     ui.update();
     bag.update(ui.mode === 'explore');
