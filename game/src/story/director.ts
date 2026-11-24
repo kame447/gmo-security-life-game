@@ -7,10 +7,11 @@
  * - 個別の行き先・ステージ・イベントの中身は config.ts / events.ts のデータに置く。
  */
 import type { MapEvent, MapEventSink, PortalDef, SpawnPoint } from '../core/types';
+import { shopCatalog } from '../data/shop-catalogs';
 import type { LifeEventDirector, LifeEventOutcome } from '../events/director';
 import {
-  STORY_BEDROOM, STORY_BIKE, STORY_ERRANDS, STORY_HOME_EXIT_PORTAL, STORY_MOTHER_KEY, STORY_MOTHER_NAME,
-  STORY_SELF_NAME, STORY_STAGES, type StoryForcedEvent, type StoryStage,
+  STORY_BEDROOM, STORY_BIKE, STORY_ERRAND_ALLOWANCE_YEN, STORY_ERRANDS, STORY_HOME_EXIT_PORTAL, STORY_HOME_FACILITY, STORY_MOTHER_KEY, STORY_MOTHER_NAME,
+  STORY_SELF_NAME, STORY_STAGES, type StoryErrand, type StoryForcedEvent, type StoryStage,
 } from './config';
 import { bikeOwned, newStoryState, phoneGiven, type StorySave } from './state';
 
@@ -22,8 +23,18 @@ export interface StoryHost {
   setPhoneOwned(owned: boolean): void;
   changeMoney(deltaYen: number): boolean;
   addItem(itemId: string): boolean;
+  /** 所持金（円）。 */
+  money(): number;
+  /** 持ち物にある品の数。 */
+  itemCount(itemId: string): number;
   /** 短いお知らせ（残り時間の警告など）。 */
   notice(text: string): void;
+}
+
+/** ミニマップの目的地の印（施設 id）。 */
+export interface MapGoals {
+  readonly pending: readonly string[];
+  readonly done: readonly string[];
 }
 
 export interface StoryStatus {
@@ -89,6 +100,19 @@ export class StoryDirector implements MapEventSink {
   get errandsDone(): readonly string[] { return this.state.errandsDone; }
   get forcedDone(): readonly string[] { return this.state.forcedDone; }
 
+  /** ミニマップに印を出す施設：お使いの残りと済んだ行き先、お使いの後は自宅。それ以外の段階では出さない。 */
+  mapGoals(): MapGoals | undefined {
+    const s = this.state;
+    if (s.phase === 'errands') {
+      return {
+        pending: STORY_ERRANDS.filter(e => !s.errandsDone.includes(e.id)).map(e => e.facilityId),
+        done: STORY_ERRANDS.filter(e => s.errandsDone.includes(e.id)).map(e => e.facilityId),
+      };
+    }
+    if (s.phase === 'return-home') return { pending: [STORY_HOME_FACILITY], done: STORY_ERRANDS.map(e => e.facilityId) };
+    return undefined;
+  }
+
   canUsePortal(portal: Readonly<PortalDef>): boolean {
     return !(this.state.phase === 'meet-mother' && portal.id === STORY_HOME_EXIT_PORTAL);
   }
@@ -129,14 +153,30 @@ export class StoryDirector implements MapEventSink {
     if (s.phase !== 'errands') return;
     const errand = STORY_ERRANDS.find(item => item.eventKey === e.eventKey && !s.errandsDone.includes(item.id));
     if (!errand) return;
+    // A purchase errand goes through the clerk's shop screen; it is done once the item is in the bag (see tick).
+    // Without enough money the clerk hands it over in conversation, so the errand cannot get stuck.
+    if (errand.buy && this.host && this.host.money() >= (errandPrice(errand) ?? Infinity)) return;
+    const item = errand.buy?.itemId ?? errand.item;
+    if (item) this.host?.addItem(item);
+    this.completeErrand(errand);
+    return { speaker: errand.speaker, lines: [...errand.lines] };
+  }
+
+  private completeErrand(errand: StoryErrand): void {
+    const s = this.state;
+    if (s.errandsDone.includes(errand.id)) return;
     s.errandsDone.push(errand.id);
-    if (errand.item) this.host?.addItem(errand.item);
-    const lines = [...errand.lines];
     if (s.errandsDone.length === STORY_ERRANDS.length) {
       s.phase = 'return-home';
       this.queue.push({ speaker: STORY_SELF_NAME, lines: ['これで おつかいは ぜんぶ おわり！ いえに かえって、おかあさんに ほうこくしよう。'] });
     }
-    return { speaker: errand.speaker, lines };
+  }
+
+  /** The purchase errand whose item has reached the bag (bought on the shop screen). */
+  private boughtErrand(): StoryErrand | undefined {
+    const s = this.state;
+    if (s.phase !== 'errands') return undefined;
+    return STORY_ERRANDS.find(e => e.buy && !s.errandsDone.includes(e.id) && this.host!.itemCount(e.buy.itemId) > 0);
   }
 
   private talkToMother(areaId: string): { speaker?: string; lines: string[] } | void {
@@ -144,11 +184,13 @@ export class StoryDirector implements MapEventSink {
     if (s.phase === 'meet-mother') {
       s.phase = 'errands';
       this.host?.setPhoneOwned(true);
+      this.host?.changeMoney(STORY_ERRAND_ALLOWANCE_YEN);
       return { speaker: STORY_MOTHER_NAME, lines: [
         'おはよう。きょうから ちゅうがくせいだね。',
         'はい、これ。にゅうがくの おいわいに スマホを よういしたよ。（スマホを もらった！ P キーで ひらける）',
         'さっそくだけど、おつかいを たのめる？ まちを ひとまわり すれば、どこに なにが あるか わかるよ。',
         ...STORY_ERRANDS.map(e => `・${e.place}`),
+        `かいものの おかねも わたしておくね。（${STORY_ERRAND_ALLOWANCE_YEN}えん もらった）`,
         'じゅんばんは じゆう。ぜんぶ おわったら かえってきてね。',
       ] };
     }
@@ -245,6 +287,12 @@ export class StoryDirector implements MapEventSink {
       else next.after?.();
       return;
     }
+    const bought = this.boughtErrand();
+    if (bought?.buy) {
+      this.queue.push({ speaker: STORY_SELF_NAME, lines: bought.buy.done });
+      this.completeErrand(bought);
+      return;
+    }
     const s = this.state;
     if (s.phase !== 'stage' && s.phase !== 'stage-ending') return;
     const forced = this.dueForced();
@@ -289,3 +337,10 @@ const MAIL_ARRIVED = '（スマホに メールが とどいた。）';
 
 /** メールで届いた知らせの、会話欄に出す名前。 */
 export function mailSpeaker(from: string): string { return `メール：${from}`; }
+
+/** 買う用事の品の値段（店の品ぞろえから引く）。品ぞろえに無ければ undefined。 */
+export function errandPrice(errand: StoryErrand): number | undefined {
+  if (!errand.buy) return undefined;
+  const { itemId, catalogId } = errand.buy;
+  return shopCatalog(catalogId)?.offers.find(offer => offer.itemId === itemId)?.priceYen;
+}

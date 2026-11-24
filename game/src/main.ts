@@ -6,6 +6,7 @@ import { clerkEvents } from './app/clerk-events';
 import { prepareShopReview } from './app/shop-review';
 import type { MapEventSink } from './core/types';
 import { loadSave, writeSave } from './app/save-store';
+import { newGameRequested } from './app/start-mode';
 import { installBgm } from './audio/bgm';
 import { LifeEventDirector } from './events/director';
 import { CHILDHOOD_SAMPLE_EVENTS } from './events/samples/childhood';
@@ -43,11 +44,12 @@ const shopReview = review.temporary && new URLSearchParams(window.location.searc
 let shopEvents: MapEventSink | undefined;
 const phoneOptions = { initialPhoneOwned: PHONE_INITIAL_OWNED, phoneDataConfig: PHONE_BUDGET_PROTOTYPE };
 const saved = review.temporary ? undefined : loadSave(world, phoneOptions);
-// Story (docs/features/story.md): resumes from a story save; `?story=1` starts a new one in place of a free-play save.
-// The opening's 「はじめから」 is meant to start it once the title screen is connected to the game.
+// Story (docs/features/story.md): resumes from a story save. Otherwise the title screen's 「はじめから」 (which clears the save
+// first) or `?story=1` starts a new one in place of a free-play save.
 const storySaved = parseStorySave(saved?.story);
+const startNewStory = !review.temporary && (newGameRequested() || new URLSearchParams(window.location.search).get('story') === '1');
 const story = storySaved ? StoryDirector.resume(storySaved, lifeEvents)
-  : !review.temporary && new URLSearchParams(window.location.search).get('story') === '1' ? StoryDirector.newGame(lifeEvents) : undefined;
+  : startNewStory ? StoryDirector.newGame(lifeEvents) : undefined;
 const game = new Game(world, { ...phoneOptions, save: story && !storySaved ? undefined : saved,
   ...(story ? { initialPhoneOwned: false, start: story.startPoint,
     portalGuard: portal => story.canUsePortal(portal), canRide: () => story.canRide } : {}), sink: {
@@ -80,7 +82,7 @@ const avatar = new AvatarPanel(game, commit => {
 });
 const minimap: Minimap = new Minimap(game, (): boolean => ui.mode === 'explore',
   () => { controls.clear(); ui.update(); },
-  () => { controls.clear(); ui.update(); ui.focusMap(); });
+  () => { controls.clear(); ui.update(); ui.focusMap(); }, () => story?.mapGoals());
 const ui: UiController = new UiController(game, controls, canvas, minimap, () => train);
 ui.registerPanel({ id: 'avatar', panel: avatar, open: () => avatar.open(), button: $<HTMLButtonElement>('#btn-avatar') });
 const closeBag = () => { controls.clear(); ui.update(); ui.focusMap(); };
@@ -117,6 +119,8 @@ story?.attach({
   setPhoneOwned: owned => game.phone.setOwned(owned),
   changeMoney: delta => game.assets.changeMoney(delta).ok,
   addItem: id => game.assets.addItem(id, 1).ok,
+  money: () => game.assets.moneyYen,
+  itemCount: id => game.assets.quantity(id),
   notice: text => hud.showToast(text),
 });
 const storyHud = story && new StoryHud(story, !storySaved);

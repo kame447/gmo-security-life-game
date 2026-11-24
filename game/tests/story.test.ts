@@ -5,8 +5,8 @@ import { CHILDHOOD_SAMPLE_EVENTS } from '../src/events/samples/childhood';
 import { validateLifeEvents } from '../src/events/life-events';
 import { canStand } from '../src/map/explorer';
 import { Game } from '../src/session/game';
-import { STORY_BEDROOM, STORY_BIKE, STORY_ERRANDS, STORY_STAGES } from '../src/story/config';
-import { mailSpeaker, StoryDirector } from '../src/story/director';
+import { STORY_BEDROOM, STORY_BIKE, STORY_ERRAND_ALLOWANCE_YEN, STORY_ERRANDS, STORY_STAGES, type StoryErrand } from '../src/story/config';
+import { errandPrice, mailSpeaker, StoryDirector } from '../src/story/director';
 import { STORY_EVENTS } from '../src/story/events';
 import { parseStorySave } from '../src/story/state';
 import { buildWorld } from '../src/world';
@@ -21,7 +21,8 @@ function setup(saved?: ReturnType<StoryDirector['save']>, gameSave?: unknown) {
   story.attach({
     say: (s, l) => game.say(s, l), warp: sp => game.warp(sp), areaId: () => game.player.areaId,
     setPhoneOwned: o => game.phone.setOwned(o), changeMoney: d => game.assets.changeMoney(d).ok,
-    addItem: id => game.assets.addItem(id, 1).ok, notice: t => { notices.push(t); },
+    addItem: id => game.assets.addItem(id, 1).ok, money: () => game.assets.moneyYen,
+    itemCount: id => game.assets.quantity(id), notice: t => { notices.push(t); },
   });
   /** One frame of the real loop: the story only advances while nothing is on screen. */
   const tick = (dt = 0.1) => story.tick(dt, !game.dialog && !life.pending);
@@ -50,14 +51,29 @@ function setup(saved?: ReturnType<StoryDirector['save']>, gameSave?: unknown) {
     }
     throw new Error(`no reachable interaction for ${eventKey}`);
   };
-  return { life, story, game, notices, tick, settle, closeDialogs, choose, talk };
+  /** Do one errand: talk to its person, or for a purchase errand buy the item as the shop screen would. */
+  const errand = (item: StoryErrand) => {
+    if (item.buy) {
+      // The story leaves the clerk to the shop screen (not wired here, so the clerk's usual line shows).
+      talk(item.eventKey);
+      expect(story.errandsDone).not.toContain(item.id);
+      closeDialogs();
+      expect(game.assets.apply({ moneyDeltaYen: -errandPrice(item)!, itemDeltas: [{ itemId: item.buy.itemId, quantityDelta: 1 }] }).ok).toBe(true);
+      settle();
+      return;
+    }
+    talk(item.eventKey); closeDialogs();
+  };
+  return { life, story, game, notices, tick, settle, closeDialogs, choose, talk, errand };
 }
+
+const notebookPrice = errandPrice(STORY_ERRANDS.find(e => e.buy)!)!;
 
 /** Walk the prologue until the first stage starts (choosing the given bicycle site). */
 function finishPrologue(t: ReturnType<typeof setup>, site = 'site-a') {
   t.settle();
   t.talk('home.mother'); t.closeDialogs();
-  for (const errand of STORY_ERRANDS) { t.talk(errand.eventKey); t.closeDialogs(); }
+  for (const errand of STORY_ERRANDS) t.errand(errand);
   t.settle();
   t.talk('home.mother');
   t.choose(site);
@@ -96,21 +112,65 @@ describe('story flow', () => {
     expect(t.game.dialog?.lines[0]).toContain('あとは');
     t.closeDialogs();
     for (const [i, errand] of STORY_ERRANDS.entries()) {
-      t.talk(errand.eventKey);
-      expect(t.game.dialog?.speaker).toBe(errand.speaker);
-      t.closeDialogs();
+      if (errand.buy) t.errand(errand);
+      else {
+        t.talk(errand.eventKey);
+        expect(t.game.dialog?.speaker).toBe(errand.speaker);
+        t.closeDialogs();
+      }
       expect(t.story.errandsDone).toHaveLength(i + 1);
     }
-    expect(t.game.assets.snapshot().items.some(item => item.itemId === 'bread')).toBe(true);
+    expect(t.game.assets.quantity('notebook')).toBe(1);
     expect(t.story.phase).toBe('return-home');
     expect(t.story.canRide).toBe(false);
+  });
+
+  it('hands the notebook over in conversation when the money is short, so the errand cannot get stuck', () => {
+    const t = setup();
+    t.settle();
+    t.talk('home.mother'); t.closeDialogs();
+    expect(t.game.assets.changeMoney(-t.game.assets.moneyYen).ok).toBe(true);
+    const konbini = STORY_ERRANDS.find(e => e.buy)!;
+    t.talk(konbini.eventKey);
+    expect(t.game.dialog?.speaker).toBe(konbini.speaker);
+    t.closeDialogs();
+    expect(t.story.errandsDone).toContain(konbini.id);
+    expect(t.game.assets.quantity('notebook')).toBe(1);
+  });
+
+  it('gives the errand money with the phone, and the notebook price is on the konbini shelf', () => {
+    const t = setup();
+    const before = t.game.assets.moneyYen;
+    t.settle();
+    t.talk('home.mother'); t.closeDialogs();
+    expect(t.game.assets.moneyYen).toBe(before + STORY_ERRAND_ALLOWANCE_YEN);
+    expect(notebookPrice).toBeGreaterThan(0);
+    expect(notebookPrice).toBeLessThanOrEqual(STORY_ERRAND_ALLOWANCE_YEN);
+  });
+
+  it('marks the remaining errands and then the home on the minimap', () => {
+    const t = setup();
+    t.settle();
+    expect(t.story.mapGoals()).toBeUndefined();
+    t.talk('home.mother');
+    t.closeDialogs();
+    const facilities = new Set(t.game.world.facilities.keys());
+    for (const errand of STORY_ERRANDS) expect(facilities.has(errand.facilityId), errand.id).toBe(true);
+    expect(t.story.mapGoals()).toEqual({ pending: STORY_ERRANDS.map(e => e.facilityId), done: [] });
+    t.talk(STORY_ERRANDS[0].eventKey);
+    t.closeDialogs();
+    expect(t.story.mapGoals()?.done).toEqual([STORY_ERRANDS[0].facilityId]);
+    expect(t.story.mapGoals()?.pending).not.toContain(STORY_ERRANDS[0].facilityId);
+    for (const errand of STORY_ERRANDS.slice(1)) t.errand(errand);
+    expect(t.story.mapGoals()?.pending).toEqual(['home-family']);
+    expect(facilities.has('home-family')).toBe(true);
   });
 
   it('buys the bicycle at the fair site with the change left over', () => {
     const t = setup();
     const before = t.game.assets.moneyYen;
     finishPrologue(t, 'site-a');
-    expect(t.game.assets.moneyYen).toBe(before + STORY_BIKE.budgetYen - STORY_BIKE.fairPriceYen);
+    expect(t.game.assets.moneyYen).toBe(before + STORY_ERRAND_ALLOWANCE_YEN - notebookPrice + STORY_BIKE.budgetYen - STORY_BIKE.fairPriceYen);
     expect(t.story.phase).toBe('stage');
     expect(t.story.stage.id).toBe(STORY_STAGES[0].id);
     expect(t.story.canRide).toBe(true);
@@ -121,7 +181,7 @@ describe('story flow', () => {
     const before = t.game.assets.moneyYen;
     t.settle();
     t.talk('home.mother'); t.closeDialogs();
-    for (const errand of STORY_ERRANDS) { t.talk(errand.eventKey); t.closeDialogs(); }
+    for (const errand of STORY_ERRANDS) t.errand(errand);
     t.settle();
     t.talk('home.mother');
     t.choose(STORY_BIKE.fakeChoiceId);
@@ -129,7 +189,7 @@ describe('story flow', () => {
     for (let i = 0; i < 30; i++) { if (t.game.dialog) { said.push(...t.game.dialog.lines); t.closeDialogs(); } t.tick(0); }
     expect(said.join()).toContain('にせの つうはんサイト');
     expect(t.story.save().bikeChoice).toBe(STORY_BIKE.fakeChoiceId);
-    expect(t.game.assets.moneyYen).toBe(before);
+    expect(t.game.assets.moneyYen).toBe(before + STORY_ERRAND_ALLOWANCE_YEN - notebookPrice);
     expect(t.story.canRide).toBe(true);
   });
 

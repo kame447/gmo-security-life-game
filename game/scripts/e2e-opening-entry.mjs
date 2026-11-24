@@ -23,6 +23,9 @@ try {
   await page.locator('#opening-menu [data-id="new"]').click();
   await page.waitForFunction(() => !!window.__slg?.game);
   assert.equal(await page.locator('#opening').isHidden(), true);
+  // 「はじめから」は序章を新しく始め、2階の自室から目覚める（docs/features/story.md）。
+  assert.equal(await page.evaluate(() => window.__slg.game.player.areaId), 'home-family-2f');
+  assert.equal(await page.evaluate(() => window.__slgStory?.phase), 'meet-mother');
 
   await page.waitForFunction(() => !!localStorage.getItem('slg-map-save-v1'), { timeout: 10000 });
   await page.reload();
@@ -32,6 +35,9 @@ try {
   await page.locator('#opening-menu [data-id="continue"]').click();
   await page.waitForFunction(() => !!window.__slg?.game);
   assert.equal(await page.locator('#opening').isHidden(), true);
+  // 「つづきから」は保存した序章に戻る。
+  assert.equal(await page.evaluate(() => window.__slg.game.player.areaId), 'home-family-2f');
+  assert.ok(await page.evaluate(() => !!window.__slgStory));
 
   for (const variant of ['a', 'b']) {
     const preview = new URL('opening-preview.html', base);

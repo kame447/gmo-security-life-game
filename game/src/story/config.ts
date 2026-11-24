@@ -10,6 +10,8 @@ export const STORY_BEDROOM: Readonly<SpawnPoint> = { areaId: 'home-family-2f', x
 
 /** 序章で、母親と話す前は通れない出入口（玄関）。 */
 export const STORY_HOME_EXIT_PORTAL = 'home-exit';
+/** お使いを終えたあとミニマップで示す自宅の施設。 */
+export const STORY_HOME_FACILITY = 'home-family';
 
 /** 母親（1階）の eventKey。スマホを渡す・お使いを頼む・自転車の購入を始める相手。 */
 export const STORY_MOTHER_KEY = 'home.mother';
@@ -22,21 +24,32 @@ export interface StoryErrand {
   place: string;
   /** 話しかける相手（既存の NPC の eventKey）。 */
   eventKey: string;
+  /** ミニマップに印を出す施設（world/town.ts の FACILITIES の id）。 */
+  facilityId: string;
   speaker: string;
   lines: readonly string[];
   /** 用事で受け取る品（data/items.ts の id）。所持できないときは受け取らずに達成とする。 */
   item?: string;
+  /**
+   * 店員から始める買い物の画面（docs/features/shopping.md）で買う品。持ち物に入ったら達成とする。
+   * 所持金が足りないときは、lines の会話で品をもらって達成とし、行き止まりにしない。
+   */
+  buy?: { itemId: string; catalogId: string; done: readonly string[] };
 }
+
+/** お使いの始めに母親から預かるお金（円、仮値）。買う用事の代金にあてる。 */
+export const STORY_ERRAND_ALLOWANCE_YEN = 200;
 
 /** お使いの行き先（仮）。順番は自由。 */
 export const STORY_ERRANDS: readonly StoryErrand[] = [
-  { id: 'school', place: 'がっこうの せんせい', eventKey: 'school.teacher', speaker: 'せんせい',
+  { id: 'school', place: 'がっこうの せんせい', eventKey: 'school.teacher', facilityId: 'school', speaker: 'せんせい',
     lines: ['あら、おかあさんからの プリントね。とどけてくれて ありがとう。', 'あたらしい がっこうせいかつ、たのしみだね。'] },
-  { id: 'konbini', place: 'コンビニの てんいんさん', eventKey: 'shopping.konbini.clerk', speaker: 'てんいんさん', item: 'bread',
-    lines: ['いらっしゃいませ。おつかい？ えらいね。', 'パンを ひとつね。はい、どうぞ。'] },
-  { id: 'park', place: 'こうえんの ともだち', eventKey: 'park.friend', speaker: 'ともだち',
+  { id: 'konbini', place: 'コンビニで ノートを かう', eventKey: 'shopping.konbini.clerk', facilityId: 'shop-konbini', speaker: 'てんいんさん',
+    buy: { itemId: 'notebook', catalogId: 'konbini', done: ['ノートを かえた！ これで コンビニの おつかいは おわり。'] },
+    lines: ['いらっしゃいませ。おつかい？ えらいね。', 'おかねが たりない？ じゃあ ノートは おまけしておくね。こんどから きをつけてね。'] },
+  { id: 'park', place: 'こうえんの ともだち', eventKey: 'park.friend', facilityId: 'park', speaker: 'ともだち',
     lines: ['おっ、きたきた！ あしたの あつまる じかん？', 'わかった、9じに えきまえね！ つたえてくれて ありがと。'] },
-  { id: 'station', place: 'えきまえの えきいんさん', eventKey: 'station.staff', speaker: 'えきいんさん',
+  { id: 'station', place: 'えきまえの えきいんさん', eventKey: 'station.staff', facilityId: 'station', speaker: 'えきいんさん',
     lines: ['じこくひょうを とりにきたのかな？ はい、どうぞ。', 'でんしゃを つかえば、となりまちにも いけるよ。'] },
 ];
 

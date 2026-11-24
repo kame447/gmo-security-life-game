@@ -95,13 +95,35 @@ try {
     assert.equal(await page.locator('#menu button', { hasText: 'スマホ' }).isDisabled().catch(() => false), false);
   });
 
-  await check('every errand is done by talking to its person', async () => {
-    for (const key of ['school.teacher', 'shopping.konbini.clerk', 'park.friend', 'station.staff']) {
+  await check('the errands are done by talking to their people, and the notebook is bought on the shop screen', async () => {
+    // The minimap marks every remaining errand (docs/features/story.md: お使い).
+    await page.evaluate(() => { window.__slg.game.player = { areaId: 'town-main', x: 30 * 16 + 8, y: 30 * 16 + 15, facing: 'down' }; });
+    await page.waitForFunction(() => document.querySelector('#minimap-button canvas')?.dataset.goalPending?.split(' ').length === 4);
+    await shot(page, '05a-minimap-errands');
+    for (const key of ['school.teacher', 'park.friend', 'station.staff']) {
       await face(page, key);
       await page.keyboard.press('KeyZ');
       await readAll(page);
     }
+    assert.equal((await state(page)).phase, 'errands');
+    const before = await page.evaluate(() => window.__slg.game.assets.moneyYen);
+    await face(page, 'shopping.konbini.clerk');
+    await page.keyboard.press('KeyZ');
+    await page.locator('#shop-panel').waitFor({ state: 'visible' });
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await page.locator('.shop-product.is-selected .shop-product-name').innerText(), 'ノート');
+    await page.keyboard.press('Enter');
+    await page.locator('#shop-confirm').click();
+    await page.waitForFunction(() => window.__slg.game.assets.quantity('notebook') === 1);
+    await shot(page, '05b-shop-notebook');
+    await page.keyboard.press('Escape');
+    await page.locator('#shop-panel').waitFor({ state: 'hidden' });
+    assert.equal(await page.evaluate(() => window.__slg.game.assets.moneyYen), before - 160);
+    await page.waitForFunction(() => window.__slg.game.dialog?.lines[0]?.includes('ノートを かえた'));
+    await readAll(page);
     assert.equal((await state(page)).phase, 'return-home');
+    await page.evaluate(() => { window.__slg.game.player = { areaId: 'town-main', x: 30 * 16 + 8, y: 30 * 16 + 15, facing: 'down' }; });
+    await page.waitForFunction(() => document.querySelector('#minimap-button canvas')?.dataset.goalPending === 'home-family');
     await shot(page, '05-errands-done');
   });
 
