@@ -63,9 +63,9 @@ async function runPreflight() {
     assert.deepEqual(storeProblems, []);
 
     const model = new WorldEditorModel(world);
-    assert.equal(model.initial.areas.length, 13);
+    assert.equal(model.initial.areas.length, 14);
     const editableAreas = model.initial.areas.filter(a => isEditableArea(model.initial, a.id));
-    assert.equal(editableAreas.length, 12);
+    assert.equal(editableAreas.length, 13);
     const readonlyAreas = model.initial.areas.filter(a => !isEditableArea(model.initial, a.id));
     assert.deepEqual(readonlyAreas.map(a => [a.id, areaNpcs(model.initial, a.id).length]), [['town-neighbor', 1]]);
     const totalNpcs = editableAreas.reduce((sum, a) => sum + areaNpcs(model.initial, a.id).length, 0);

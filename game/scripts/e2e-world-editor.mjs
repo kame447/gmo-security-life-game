@@ -82,11 +82,11 @@ try{
  const r=new Renderer(canvas);r.resize(host.clientWidth,host.clientHeight,devicePixelRatio);r.draw({area:app.model.runtime().areas.get('home-family-interior'),player:{x:8,y:14,facing:'down'},appearance:DEFAULT_APPEARANCE,moving:false,walkTime:0,dialog:{},camera:{...app.camera},hidePlayer:true,instant:true},0);
  const a=actual.getContext('2d').getImageData(0,0,actual.width,actual.height).data,b=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;return{equal:a.length===b.length&&a.every((v,i)=>v===b[i]),length:a.length};});assert.equal(pixels.equal,true);assert.ok(pixels.length>1000);pass('editor pixels equal an independent game Renderer');
  await page.screenshot({path:path.join(output,'desktop-editor.png')});
- const sofa='home-family-interior-sofa-1-9',desk='home-family-interior-desk-4-1';
+ const sofa='home-family-interior-sofa-1-9',desk='home-family-interior-lowtable-5-8';
  await move(page,sofa,2,9);assert.equal((await documentOf(page)).objects.find(o=>o.id===sofa).x,2);pass('sprite drag commits at a tile');
  await page.locator('#undo').click();assert.equal((await documentOf(page)).objects.find(o=>o.id===sofa).x,1);await page.locator('#redo').click();assert.equal((await documentOf(page)).objects.find(o=>o.id===sofa).x,2);pass('move undo and redo');
  await select(page,desk);assert.equal(await page.locator('#delete').isDisabled(),true);await page.keyboard.press('Delete');assert.ok((await documentOf(page)).objects.some(o=>o.id===desk));pass('linked furniture deletion is disabled');
- await move(page,desk,4,2);await page.locator('#rotate').click();const rotated=await documentOf(page),d=rotated.objects.find(o=>o.id===desk),interaction=rotated.interactions.find(i=>i.id==='home-study-desk');assert.deepEqual([d.x,d.y,d.w,d.h],[4,2,1,2]);assert.deepEqual([interaction.x,interaction.y,interaction.w,interaction.h],[4,2,1,2]);pass('desk rotation and interaction move atomically');
+ await move(page,desk,4,2);await page.locator('#rotate').click();const rotated=await documentOf(page),d=rotated.objects.find(o=>o.id===desk),interaction=rotated.interactions.find(i=>i.id==='home-tablet');assert.deepEqual([d.x,d.y,d.w,d.h],[4,2,1,2]);assert.deepEqual([interaction.x,interaction.y,interaction.w,interaction.h],[4,2,1,2]);pass('desk rotation and interaction move atomically');
  await page.locator('[data-catalog-id="chair-wood"]').click();const chair=await page.evaluate(()=>window.__worldEditor.ghost.object.id);let p=await tilePoint(page,8,6);await page.mouse.click(p.x,p.y);assert.ok((await documentOf(page)).objects.some(o=>o.id===chair));pass('catalog placement uses the game artwork');
  await page.locator('#rotate').click();assert.equal((await documentOf(page)).objects.find(o=>o.id===chair).facing,'left');await page.locator('#duplicate').click();const copied=await page.evaluate(()=>window.__worldEditor.ghost.object.id);p=await tilePoint(page,9,6);await page.mouse.click(p.x,p.y);assert.notEqual(copied,chair);await page.locator('#delete').click();assert.ok(!(await documentOf(page)).objects.some(o=>o.id===copied));await page.locator('#undo').click();assert.ok((await documentOf(page)).objects.some(o=>o.id===copied));await page.locator('#redo').click();pass('rotation duplicate delete undo redo');
  await page.locator('[data-catalog-id="chair-wood"]').click();const invalid=await page.evaluate(()=>window.__worldEditor.ghost.object.id);p=await tilePoint(page,7,10);await page.mouse.click(p.x,p.y);assert.ok(!(await documentOf(page)).objects.some(o=>o.id===invalid));pass('arrival obstruction is refused');
@@ -131,8 +131,8 @@ try{
  }
  const roomsSession=await session({width:1280,height:800}),rp=roomsSession.page;await ready(rp);
  const areaValues=await rp.locator('#area-select option').evaluateAll(opts=>opts.map(o=>o.value));
- assert.equal(areaValues.length,13);
- assert.deepEqual(areaValues.filter(v=>v!=='town-main'),['home-family-interior','school-classroom-interior','shop-bakery-interior','shop-bookstore-interior','shop-cafe-interior','shop-candy-interior','shop-greengrocer-interior','shop-konbini-interior','shop-pharmacy-interior','station-main-interior','station-neighbor-interior','town-neighbor']);
+ assert.equal(areaValues.length,14);
+ assert.deepEqual(areaValues.filter(v=>v!=='town-main'),['home-family-2f','home-family-interior','school-classroom-interior','shop-bakery-interior','shop-bookstore-interior','shop-cafe-interior','shop-candy-interior','shop-greengrocer-interior','shop-konbini-interior','shop-pharmacy-interior','station-main-interior','station-neighbor-interior','town-neighbor']);
  // Edit school-classroom-interior: place & 4-dir rotate chair-wood, check wall item lock reason, rotate legacy sdesk & tdesk, paint floor.
  await rp.locator('#area-select').selectOption('school-classroom-interior');
  await rp.waitForFunction(()=>window.__worldEditor.activeArea==='school-classroom-interior');
