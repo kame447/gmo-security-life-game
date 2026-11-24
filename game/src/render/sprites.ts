@@ -211,6 +211,10 @@ function furnishing(c: C2D, kind: string, w: number, h: number): boolean {
       box(c, 0, 0, w, h, '#355f50', wood); R(c, '#c6cbb1', 10, 4, 24, 1); R(c, '#c6cbb1', 12, 7, 16, 1);
       for (let x = 44; x < 76; x += 8) { R(c, '#aebfa6', x, 4, 5, 1); R(c, '#aebfa6', x + 2, 3, 1, 7); }
       R(c, '#d7b983', 0, h - 3, w, 3); R(c, '#f3edce', w - 19, h - 4, 5, 2); R(c, '#9f7162', w - 10, h - 5, 6, 3); return true;
+    case 'stairs':
+      // Steps rising toward the top wall: darker treads further up.
+      for (let i = 0; i < 4; i++) { R(c, ['#7d5a3f', '#946c4b', '#ab815b', '#c0976c'][i], 0, i * 4, w, 4); R(c, '#5c4130', 0, i * 4 + 3, w, 1); }
+      R(c, '#5c4130', 0, 0, 1, h); R(c, '#5c4130', w - 1, 0, 1, h); return true;
     case 'window': glass(c, 1, 0, w - 2, h - 2); R(c, '#e9d4ab', 1, 0, 4, h - 1); R(c, '#e9d4ab', w - 5, 0, 4, h - 1); return true;
     default: return false;
   }

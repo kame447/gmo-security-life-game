@@ -3,7 +3,7 @@
  * 経路探索・検証・座標の目印は個別モジュールにあり、ここから再公開する。
  */
 import type { AreaDef, SpawnPoint, VariantDef } from '../core/types';
-import { createClassroom, createHome, createKonbini, createStation } from './interiors';
+import { createClassroom, createHome, createHomeUpstairs, createKonbini, createStation } from './interiors';
 import { START as GENERATED_START } from './landmarks';
 import { resolveLandmarks } from './landmark-resolve';
 import { applyAreaLayout } from './layouts';
@@ -27,7 +27,7 @@ export const CHILDHOOD_VARIANT: VariantDef = {
 
 /** 読み込むエリアの一覧。新しいエリアはここに定義関数を追加する。 */
 export const AREA_FACTORIES: readonly (() => AreaDef)[] = [
-  createTown, createHome, createClassroom, createKonbini,
+  createTown, createHome, createHomeUpstairs, createClassroom, createKonbini,
   ...SHOP_AREA_FACTORIES,
   createStation, createNeighborTown, createNeighborStation,
 ];

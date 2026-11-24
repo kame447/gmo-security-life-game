@@ -3,7 +3,7 @@
  * 会話・外見・保存は扱わず、起きたことは MapEvent として通知する。
  */
 import { DIR, TILE, feetAtTile, pxToTile, type Facing } from '../core/coords';
-import type { InteractionDef, MapEvent, SpawnPoint } from '../core/types';
+import type { InteractionDef, MapEvent, PortalDef, SpawnPoint } from '../core/types';
 import type { AreaRuntime, World } from '../world';
 import { T, isSolidGround } from '../world/tiles';
 import { crossingTime, watchCrossingClock } from '../town-train/crossing-clock';
@@ -73,6 +73,8 @@ export class MapExplorer {
   /** On the bicycle. Outdoors only; not saved. */
   riding = false;
   private edgeContact: string | null = null;
+  /** Returns false for a door the story has not opened yet; the player stops in front of it. */
+  portalGuard?: (portal: PortalDef) => boolean;
   private escape: { crossingId: string; points: { x: number; y: number }[] } | null = null;
   private retreatedThisFrame = false;
 
@@ -172,6 +174,7 @@ export class MapExplorer {
       const step = Math.min(1, remaining);
       const next = this.nextPosition(input.dir, step);
       if (!next) break;
+      if (this.blockedPortalAt(next)) break;
       this.player.x = next.x;
       this.player.y = next.y;
       this.moving = true;
@@ -211,6 +214,20 @@ export class MapExplorer {
       }
     }
     return null;
+  }
+
+  /** A guarded portal acts as a wall and is reported once per contact, like the map edge. */
+  private blockedPortalAt(next: { x: number; y: number }): boolean {
+    if (!this.portalGuard) return false;
+    const { tx, ty } = feetTile({ ...this.player, ...next });
+    const portal = this.area.portalAt.get(ty * this.area.width + tx);
+    if (!portal || this.portalGuard(portal)) return false;
+    const key = `${this.player.areaId}:portal:${portal.id}`;
+    if (key !== this.edgeContact) {
+      this.edgeContact = key;
+      this.emit({ type: 'portal-blocked', areaId: this.player.areaId, portalId: portal.id });
+    }
+    return true;
   }
 
   private enterPortal(): boolean {

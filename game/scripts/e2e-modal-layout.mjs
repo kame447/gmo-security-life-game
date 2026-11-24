@@ -38,7 +38,7 @@ try {
     // Reuse real launch buttons when installed; add test-only buttons for missing features.
     await page.evaluate(ensureLaunchButtons);
     await page.evaluate(ensureLaunchButtons); // A second call must not duplicate real or test buttons.
-    assert.equal(await page.locator('#menu button').count(), 5);
+    assert.equal(await page.locator('#menu button').count(), 6); // みため・もちもの・スマホ・かいわ・タッチそうさ・さいしょから
     if (await page.locator('#touch').getAttribute('aria-hidden') === 'true') await page.locator('#btn-touch').click();
     assert.equal(await page.locator('#touch').getAttribute('aria-hidden'), 'false');
 

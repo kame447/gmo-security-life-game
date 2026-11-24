@@ -2,6 +2,7 @@ import type { Facing } from '../core/coords';
 import type { Game } from '../session/game';
 import type { AreaRuntime } from '../world';
 import { AreaMapCache, fitProjection, localProjection, playerMapPoint, projectPoint, type AreaMap, type MapProjection } from './model';
+import { drawGoalMark, layoutGoalMarks, type MinimapGoals } from './goals';
 import { drawFacilityIcon, layoutFacilityIcons, layoutFacilityLabels } from './markers';
 import './minimap.css';
 
@@ -28,6 +29,8 @@ export class Minimap {
     private readonly canOpen: () => boolean,
     private readonly onOpen: () => void,
     private readonly onClose: () => void,
+    /** 目的地の印（お使いの行き先など）。無ければ印を出さない。 */
+    private readonly goals: () => MinimapGoals | undefined = () => undefined,
   ) {
     this.cache = new AreaMapCache(game.world.facilities);
     this.button = document.createElement('button');
@@ -117,7 +120,8 @@ export class Minimap {
       }
     }
     const player = this.game.player;
-    const frame = `${player.areaId}:${player.x}:${player.y}:${player.facing}:${this.opened}`;
+    const goals = this.goals();
+    const frame = `${player.areaId}:${player.x}:${player.y}:${player.facing}:${this.opened}:${goals?.pending.join(',')}:${goals?.done.join(',')}`;
     if (frame === this.lastFrame) return;
     this.lastFrame = frame;
     const position = playerMapPoint(player);
@@ -125,7 +129,7 @@ export class Minimap {
     const projection = this.opened
       ? fitProjection(this.map!.width, this.map!.height, canvas.width, canvas.height, 18)
       : localProjection(this.map!.width, this.map!.height, canvas.width, canvas.height, position);
-    this.draw(canvas, projection, position.x, position.y, player.facing);
+    this.draw(canvas, projection, position.x, position.y, player.facing, goals);
   }
 
   private raster(area: AreaRuntime, map: AreaMap): HTMLCanvasElement {
@@ -146,7 +150,7 @@ export class Minimap {
     return image;
   }
 
-  private draw(canvas: HTMLCanvasElement, projection: MapProjection, x: number, y: number, facing: Facing): void {
+  private draw(canvas: HTMLCanvasElement, projection: MapProjection, x: number, y: number, facing: Facing, goals?: MinimapGoals): void {
     const context = canvas.getContext('2d')!;
     context.fillStyle = '#243034';
     context.fillRect(0, 0, canvas.width, canvas.height);
@@ -177,6 +181,11 @@ export class Minimap {
       }
     }
     for (const icon of icons) drawFacilityIcon(context, icon.marker, icon.anchor, iconPixel);
+    const goalRadius = this.opened ? 14 : 11;
+    const marks = layoutGoalMarks(this.map!.markers, goals, projection, canvas.width, canvas.height, goalRadius + 4);
+    for (const mark of marks) drawGoalMark(context, mark, goalRadius);
+    canvas.dataset.goalPending = marks.filter(m => m.state === 'pending').map(m => m.id).join(' ');
+    canvas.dataset.goalDone = marks.filter(m => m.state === 'done').map(m => m.id).join(' ');
     context.save();
     context.translate(point.x, point.y);
     context.rotate(ANGLES[facing]);

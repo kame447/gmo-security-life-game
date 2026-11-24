@@ -24,6 +24,8 @@ export interface SaveData {
   assets?: AssetSnapshot;
   /** Optional for saves from before the phone prototype. */
   phone?: PhoneSave;
+  /** Story progress (story/state.ts validates it). Kept raw here; absent for free-play saves. */
+  story?: unknown;
 }
 
 const FACINGS: readonly unknown[] = ['up', 'down', 'left', 'right'];
@@ -47,5 +49,6 @@ export function parseSave(raw: unknown, world: World, initialPhoneOwned = PHONE_
     : positionAt(world.start);
   return { v: 1, variantId: world.variant.id, ...player,
     appearance: normalizeAppearance(s.appearance), assets: normalizeAssets(s.assets),
-    phone: parsePhoneSave(s.phone, initialPhoneOwned, config) };
+    phone: parsePhoneSave(s.phone, initialPhoneOwned, config),
+    ...(s.story !== undefined ? { story: s.story } : {}) };
 }

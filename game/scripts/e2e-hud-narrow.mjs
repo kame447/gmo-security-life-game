@@ -192,7 +192,7 @@ try {
           }
           const otherOverlapArea = otherOverlaps.reduce((sum, item) => sum + item.area, 0);
 
-          const allButtonsVisible = measured.buttons.length === 5 && measured.buttons.every(b => b.visible);
+          const allButtonsVisible = measured.buttons.length === 6 && measured.buttons.every(b => b.visible);
           const allButtonsInViewport = measured.buttons.every(b => insideViewport(b.rect, profile) && b.scrollWidth <= b.clientWidth + 1);
           const minimapInViewport = measured.minimap.visible && insideViewport(measured.minimap.rect, profile);
           const minFontPx = Math.min(...measured.buttons.map(b => b.fontSize));
@@ -399,11 +399,11 @@ try {
                   }),
                 };
               });
-              if (m.count !== (withSave ? 6 : 5) || m.rows !== 1 || m.overlap > 0 || !m.inside || !m.hit) {
+              if (m.count !== (withSave ? 7 : 6) || m.rows !== 1 || m.overlap > 0 || !m.inside || !m.hit) {
                 bad.push(`${width}:rows=${m.rows},overlap=${m.overlap.toFixed(0)},inside=${m.inside},hit=${m.hit}`);
               }
             }
-            recordCheck(`width 320-420 d${dpr} touch=${touchOn ? 'on' : 'off'} menu=${withSave ? 6 : 5}${wide ? ' wide-text' : ''}: one row, clear of minimap, all buttons hittable`,
+            recordCheck(`width 320-420 d${dpr} touch=${touchOn ? 'on' : 'off'} menu=${withSave ? 7 : 6}${wide ? ' wide-text' : ''}: one row, clear of minimap, all buttons hittable`,
               bad.length === 0, bad.length ? `${bad.length} widths: ${bad.slice(0, 6).join(' ')}` : '101 widths');
             if (wideStyle) await wideStyle.evaluate(node => node.remove());
           }

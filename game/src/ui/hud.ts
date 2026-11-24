@@ -42,7 +42,7 @@ export class Hud {
     }
     const target = game.facingInteraction();
     this.hint.hidden = !!game.dialog;
-    const idle = game.riding ? RIDING_HINT : game.area.def.kind === 'outdoor' ? `${IDLE_HINT}　B：じてんしゃ` : IDLE_HINT;
+    const idle = game.riding ? RIDING_HINT : game.area.def.kind === 'outdoor' && game.canRide ? `${IDLE_HINT}　B：じてんしゃ` : IDLE_HINT;
     this.hint.textContent = target ? `${target.name}　Z / Space / Enter：しらべる・はなす` : idle;
     if (now >= this.toastUntil) this.toast.hidden = true;
   }
