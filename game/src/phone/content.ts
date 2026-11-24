@@ -11,8 +11,8 @@ export interface PhoneScreen {
 export interface PhoneApp {
   id: string;
   label: string;
-  icon: 'message' | 'web' | 'life' | 'friends' | 'data';
-  tone: 'mint' | 'blue' | 'peach' | 'lilac' | 'slate';
+  icon: 'message' | 'mail' | 'web' | 'life' | 'friends' | 'data';
+  tone: 'mint' | 'coral' | 'blue' | 'peach' | 'lilac' | 'slate';
   caption: string;
   requiresNetwork?: boolean;
   startScreenId: string;
@@ -29,6 +29,10 @@ export const PHONE_CONTENT: PhoneContent = {
         links: [{ label: 'サンプル', summary: 'こんにちは', screenId: 'example' }] },
       { id: 'example', title: 'サンプルのおたより', subtitle: 'メッセージ', layout: 'message',
         paragraphs: ['こんにちは。'], links: [] },
+    ] },
+    // The inbox itself comes from PhoneModel.mails; this screen only anchors navigation.
+    { id: 'mail', label: 'メール', icon: 'mail', tone: 'coral', caption: '', startScreenId: 'inbox', screens: [
+      { id: 'inbox', title: 'メール', subtitle: '', layout: 'list', paragraphs: [], links: [] },
     ] },
     { id: 'web', label: 'ウェブ', icon: 'web', tone: 'blue', caption: 'みてみる', requiresNetwork: true, startScreenId: 'home', screens: [
       { id: 'home', title: 'ウェブ', subtitle: 'ゲームのなかのページ', layout: 'web',
