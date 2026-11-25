@@ -109,7 +109,7 @@ describe('実ワールド全エリアの既存NPC回帰（N1）', () => {
       }
     }
     expect(totalNpcs).toBeGreaterThanOrEqual(10);
-    expect(initial.areas).toHaveLength(13);
+    expect(initial.areas).toHaveLength(14);
     expect(editableNpcs).toBe(16);
     expect(totalNpcs).toBe(17);
     expect(editableNpcAreaIds()).toEqual(initial.areas.filter(area => isEditableArea(initial, area.id)).map(area => area.id));

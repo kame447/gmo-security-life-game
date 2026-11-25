@@ -1,6 +1,7 @@
 /** C案を既定とするタイトル画面。本編を始めるまでセーブを変更しない。 */
 import { bagReviewOptions } from '../app/bag-review';
 import { loadSave } from '../app/save-store';
+import { requestStart } from '../app/start-mode';
 import { PHONE_BUDGET_PROTOTYPE } from '../phone/budget-config';
 import { PHONE_INITIAL_OWNED } from '../phone/config';
 import { buildWorld } from '../world';
@@ -60,6 +61,7 @@ if (params.get('skipOpening') === '1' || bagReviewOptions(location.search).tempo
       }
     }
     entering = true;
+    requestStart(mode);
     handle?.destroy();
     stage.hidden = true;
     try { await import('../main'); }

@@ -84,6 +84,7 @@ describe('legacy and indoor rotation contract', () => {
     const factories = new Map(AREA_FACTORIES.map(create => { const def = create(); return [def.id, def]; }));
     const indoorAreas = [...world.areas.values()].filter(area => area.def.kind === 'indoor');
     expect(indoorAreas.map(area => area.def.id).sort()).toEqual([
+      'home-family-2f',
       'home-family-interior',
       'school-classroom-interior',
       'shop-bakery-interior',

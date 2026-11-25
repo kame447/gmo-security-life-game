@@ -95,7 +95,7 @@ describe('配置から導く目印と開始位置', () => {
     const world = buildWorld({ ...CHILDHOOD_VARIANT, disabledPortals: ['home-exit'], facilityStates: { school: 'closed' } });
     expect(world.start).toEqual(START);
     expect(world.start).toMatchObject({ x: 35, y: 33 });
-    expect(world.areas.get('home-family-interior')!.def.portals).toEqual([]);
+    expect(world.areas.get('home-family-interior')!.def.portals.map(p => p.id)).toEqual(['home-stairs-up']);
     expect(world.areas.get('school-classroom-interior')!.def.portals).toEqual([]);
     world.start.y++;
     expect(START.y).toBe(33);

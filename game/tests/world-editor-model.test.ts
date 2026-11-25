@@ -8,7 +8,7 @@ import { assertHomeWorldEdit as assertInteriorEdit } from '../src/world-editor/p
 describe('WYSIWYGの操作と保存の契約',()=>{
   it('一般家具は削除・Undo/Redoでき、保護家具と結び付きは保存口でも拒否する',()=>{
     const world=buildWorld(),model=new WorldEditorModel(world);
-    const sofa='home-family-interior-sofa-1-9',desk='home-family-interior-desk-4-1';
+    const sofa='home-family-interior-sofa-1-9',desk='home-family-interior-lowtable-5-8';
     expect(()=>model.remove(desk)).toThrow('結び付');expect(model.dirty).toBe(0);
     model.remove(sofa);expect(model.object(sofa)).toBeUndefined();model.session.undo();expect(model.object(sofa)).toBeDefined();model.session.redo();
     const saved=JSON.parse(prepareSave({areaId:HOME_AREA,changes:model.session.exportChanges()},world).text);
@@ -17,16 +17,16 @@ describe('WYSIWYGの操作と保存の契約',()=>{
     expect(()=>assertInteriorEdit(model.initial,bad,HOME_AREA)).toThrow();
   });
   it('机の移動と調べる場所は1段のUndoに入り、回転後も足元を合わせる',()=>{
-    const model=new WorldEditorModel(buildWorld()),id='home-family-interior-desk-4-1';
-    model.move(id,4,2);
-    expect(model.document.interactions.find(i=>i.id==='home-study-desk')).toMatchObject({x:4,y:2,w:2,h:1});
-    model.session.undo();expect(model.object(id)).toMatchObject({x:4,y:1});
-    model.session.redo();expect(model.object(id)).toMatchObject({x:4,y:2});
+    const model=new WorldEditorModel(buildWorld()),id='home-family-interior-lowtable-5-8';
+    model.move(id,5,9);
+    expect(model.document.interactions.find(i=>i.id==='home-tablet')).toMatchObject({x:5,y:9,w:2,h:1});
+    model.session.undo();expect(model.object(id)).toMatchObject({x:5,y:8});
+    model.session.redo();expect(model.object(id)).toMatchObject({x:5,y:9});
     // The rotation transaction uses the same link update for all catalog footprints.
     const linked=model.object(id)!;
     model.commit(model.candidate({...linked,catalogId:'sofa-2seat',facing:'down',solid:true,layer:'sorted'}));
     model.rotate(id);
-    expect(model.document.interactions.find(i=>i.id==='home-study-desk')).toMatchObject({x:4,y:2,w:1,h:2});
+    expect(model.document.interactions.find(i=>i.id==='home-tablet')).toMatchObject({x:5,y:9,w:1,h:2});
     expect(validateWorld(model.runtime(),{railLinks:TRAIN_NETWORK.railLinks()})).toEqual([]);
   });
   it('削除・Undo・未確定の取消後も発行済みIDを使い回さない',()=>{
