@@ -21,7 +21,7 @@ describe('部屋の局所方針と全体ガードの移行',()=>{
       expect(()=>check(before,changed,HOME_AREA)).toThrow();}
   });
   it('保護家具の削除・リンク変更は両方が拒否し、家具/調べる足元の同時移動は通す',()=>{
-    const{before}=fixture(),id='home-family-interior-desk-4-1';
+    const{before}=fixture(),id='home-family-interior-lowtable-5-8';
     for(const check of checks){
       const removed=structuredClone(before);removed.objects=removed.objects.filter(o=>o.id!==id);
       expect(()=>check(before,removed,HOME_AREA)).toThrow();

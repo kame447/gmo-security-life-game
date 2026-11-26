@@ -12,6 +12,8 @@ export interface PendingLifeChoice {
   /** 話しかけた相手（名前の解決に使う）。 */
   areaId: string;
   interactionId: string;
+  /** 会話欄に出す名前を差し替えるとき（メールで届いた知らせの差出人など）。省略時は event.speaker。 */
+  speaker?: string;
 }
 
 export interface LifeEventOutcome {
@@ -51,6 +53,24 @@ export class LifeEventDirector implements MapEventSink {
     }
     this.current = { event, areaId: e.areaId, interactionId: e.interactionId };
     return { speaker: event.speaker, lines: event.intro.length ? [...event.intro] : [event.prompt ?? ''] };
+  }
+
+  /**
+   * 話しかけずに始めるイベント（ストーリーの強制イベントなど）。条件・発生回数はここでは見ない（呼び出し側が判断する）。
+   * 選択肢があれば選択待ちにし、導入の台詞を返す。選択待ちの間や未定義の id なら null。
+   */
+  begin(eventId: string, origin: { areaId: string; interactionId?: string; speaker?: string }): { speaker?: string; lines: string[] } | null {
+    if (this.current) return null;
+    const event = this.defs.find(def => def.id === eventId);
+    if (!event) return null;
+    const speaker = origin.speaker ?? event.speaker;
+    if (!event.choices?.length) {
+      this.state.apply(event.effects);
+      this.state.record(event.id, null);
+      return { speaker, lines: [...event.intro] };
+    }
+    this.current = { event, areaId: origin.areaId, interactionId: origin.interactionId ?? '', speaker: origin.speaker };
+    return { speaker, lines: event.intro.length ? [...event.intro] : [event.prompt ?? ''] };
   }
 
   /** 選択を確定し、影響と履歴を反映して結果の台詞を返す。選択待ちでない・不明な選択肢なら null。 */

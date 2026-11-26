@@ -8,7 +8,7 @@ describe('read-only inventory and fidelity measurements', () => {
   it('inventories all current areas with explicit IDs and separately derived collision cells', () => {
     const world = buildWorld(), before = structuredClone(world), report = inventoryMap(world);
     expect(report.areas.map(a => [a.areaId, a.objects.sourceId, a.objects.auxiliary, a.portals.sourceId])).toEqual([
-      ['home-family-interior', 15, 0, 1], ['school-classroom-interior', 21, 0, 1],
+      ['home-family-2f', 7, 0, 1], ['home-family-interior', 14, 0, 2], ['school-classroom-interior', 21, 0, 1],
       ['shop-bakery-interior', 10, 0, 1], ['shop-bookstore-interior', 10, 0, 1],
       ['shop-cafe-interior', 23, 0, 1], ['shop-candy-interior', 6, 0, 1],
       ['shop-greengrocer-interior', 9, 0, 1], ['shop-konbini-interior', 12, 0, 1],
@@ -17,11 +17,11 @@ describe('read-only inventory and fidelity measurements', () => {
       ['town-neighbor', 11, 0, 1],
     ]);
     expect(report.areas.reduce((n, a) => n + a.facilities.sourceId, 0)).toBe(13);
-    expect(report.areas.reduce((n, a) => n + a.decals.sourceId, 0)).toBe(21);
+    expect(report.areas.reduce((n, a) => n + a.decals.sourceId, 0)).toBe(25);
     // F5 preserves town-shop-60-59 while changing its kind to apartment.
-    expect(report.areas.reduce((n, a) => n + a.coordinatePatternObjectIds, 0)).toBe(315);
-    expect(report.areas.reduce((n, a) => n + a.groundSolidCells.auxiliary, 0)).toBe(3046);
-    expect(report.areas.reduce((n, a) => n + a.runtimeSolidCells.auxiliary, 0)).toBe(5602);
+    expect(report.areas.reduce((n, a) => n + a.coordinatePatternObjectIds, 0)).toBe(321);
+    expect(report.areas.reduce((n, a) => n + a.groundSolidCells.auxiliary, 0)).toBe(3078);
+    expect(report.areas.reduce((n, a) => n + a.runtimeSolidCells.auxiliary, 0)).toBe(5636);
     expect(report.duplicateSourceIds).toEqual([]);
     expect(world).toEqual(before);
   });
@@ -48,10 +48,10 @@ describe('read-only inventory and fidelity measurements', () => {
     expect(report.facilitiesEqual).toBe(true);
     expect(report.areaIterationOrderChanged).toBe(true);
     expect(report.facilityIterationOrderChanged).toBe(true);
-    expect(report.normalizedOrderChanges).toHaveLength(25);
+    expect(report.normalizedOrderChanges).toHaveLength(26);
     expect(report.backendAccepted).toBe(false);
     // Shape validation now accepts numeric styles; raw, unlinked data is still rejected for overlaps.
-    expect(report.backendIssues).toHaveLength(233);
+    expect(report.backendIssues).toHaveLength(239);
     expect(report.backendIssues.every(issue => issue.code === 'overlap')).toBe(true);
     expect(world).toEqual(before);
   });

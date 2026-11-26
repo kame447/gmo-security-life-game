@@ -47,11 +47,11 @@ describe('実ゲームの配置JSON',()=>{
   it('初回移行は元のID・会話・出入口を保ち、台所を新しい品に分割する',()=>{
     const source=createHome(),layout=areaLayout(HOME_AREA)!;
     expect(layout.interactions.filter(i=>i.objectId).map(i=>[i.id,i.objectId]).sort()).toEqual([
-      ['home-study-desk','home-family-interior-desk-4-1'],['home-tablet','home-family-interior-lowtable-5-8']]);
+      ['home-tablet','home-family-interior-lowtable-5-8']]);
     const restored=layoutArea(layout,source);
     expect(restored.interactions).toEqual(source.interactions);expect(restored.portals).toEqual(source.portals);
     expect(restored.ground).toEqual(source.ground);
-    for(const o of source.objects){const next=restored.objects.find(p=>p.id===o.id)!;expect(next).toMatchObject({id:o.id,kind:o.kind,x:o.x,y:o.y});expect(next.catalogId).toBeTruthy();}
+    for(const o of source.objects){const next=restored.objects.find(p=>p.id===o.id)!;expect(next).toMatchObject({id:o.id,kind:o.kind,x:o.x,y:o.y});if(o.kind!=='stairs')expect(next.catalogId).toBeTruthy();}
     expect(restored.objects.filter(o=>!source.objects.some(p=>p.id===o.id)).map(o=>o.id).sort()).toEqual([
       `${HOME_AREA}-cabinet-low-1`,`${HOME_AREA}-kitchen-stove-1`]);
     const preview=new WorldEditorModel(buildWorld()).runtime();

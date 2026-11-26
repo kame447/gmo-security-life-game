@@ -126,7 +126,9 @@ export type MapEvent =
   | { type: 'interact'; areaId: string; interactionId: string; eventKey: string }
   | { type: 'portal'; portalId: string; fromAreaId: string; toAreaId: string; facilityId?: string }
   | { type: 'area-enter'; areaId: string }
-  | { type: 'edge'; areaId: string; side: Facing };
+  | { type: 'edge'; areaId: string; side: Facing }
+  /** 進行上まだ使えない出入口に当たった（例：序章で母親と話す前の玄関）。応答の台詞を会話として表示する。 */
+  | { type: 'portal-blocked'; areaId: string; portalId: string };
 
 /** イベント管理側が実装する受け口。会話を差し替えたいときは lines を返す。 */
 export interface MapEventSink {

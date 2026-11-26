@@ -1,0 +1,43 @@
+/* 会話の記録。会話欄（#dialog）と同じ .panel の見た目で、画面の中央に重ねる。 */
+#dialog-log { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6;
+              width: min(560px, calc(100% - 28px)); max-height: min(520px, calc(100% - 40px));
+              display: flex; flex-direction: column; padding: 10px 12px; color: #fff; background: rgba(27, 25, 34, 0.95); }
+#dialog-log[hidden] { display: none; }
+#dialog-log h1 { margin: 0 0 6px; font-size: 15px; color: #ffe08a; }
+#dialog-log .dialog-log-list { list-style: none; margin: 0; padding: 0 4px 0 0; overflow-y: auto; flex: 1 1 auto;
+                               min-height: 0; font-size: 14px; line-height: 1.6; }
+#dialog-log .dialog-log-list:focus-visible { outline: 2px solid #ffe08a; outline-offset: 2px; }
+#dialog-log .dialog-log-line + .dialog-log-line { margin-top: 2px; }
+#dialog-log .who { font-size: 12px; color: #ffe08a; margin-top: 8px; }
+#dialog-log .dialog-log-choice { color: #9fd8ff; margin: 4px 0; }
+#dialog-log .dialog-log-empty { margin: 8px 0; opacity: 0.8; }
+#dialog-log .dialog-log-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+                                 margin-top: 8px; font-size: 12px; opacity: 0.9; }
+#dialog-log .dialog-log-footer button { font: inherit; cursor: pointer; background: #e8e0cc; color: #242a31;
+                                        border: 0; border-radius: 4px; padding: 4px 12px; }
+/* 「かいわ」ボタンでメニューが 6 つになっても、狭い画面で 1 段に保ちミニマップと重ねない
+   （fix/hud-narrow-one-row の #btn-save と同じ詰め方）。 */
+/* 狭い画面でも上のボタンを 1 段に保つ（e2e-hud-narrow）。「かいわ」で 6 個、セーブも入ると 7 個になる。 */
+@media (max-width: 420px) {
+  #menu:has(#btn-log) { gap: 2px; }
+  #menu:has(#btn-log) button { padding: 5px 3px; font-size: 10px; }
+  #menu:has(#btn-log):has(#btn-save) { gap: 1px; }
+  #menu:has(#btn-log):has(#btn-save) button { padding: 5px 1px; }
+}
+@media (max-width: 354px) {
+  #menu:has(#btn-log) { gap: 1px; }
+  #menu:has(#btn-log) button { padding: 5px 1px; }
+}
+@media (max-width: 339px) {
+  #menu:has(#btn-log) button { padding-left: 0; padding-right: 0; }
+}
+@media (max-width: 389px) {
+  #menu:has(#btn-log):has(#btn-save) button { padding-left: 0; padding-right: 0; font-size: 9.5px; }
+}
+@media (max-width: 349px) {
+  #menu:has(#btn-log):has(#btn-save) button { font-size: 9px; }
+}
+@media (max-width: 640px) {
+  #dialog-log .dialog-log-list { font-size: 13px; }
+  #dialog-log .dialog-log-footer span { display: none; }
+}

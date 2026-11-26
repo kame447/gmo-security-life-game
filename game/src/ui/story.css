@@ -1,0 +1,16 @@
+/* ストーリーの表示。現在地（#hud）の下に、同じ .panel の見た目で置く。 */
+#story-hud { position: absolute; left: 10px; top: 46px; padding: 4px 10px; font-size: 13px; line-height: 1.5;
+             pointer-events: none; max-width: min(420px, calc(100% - 40px)); }
+#story-hud .story-title { color: #ffe08a; font-variant-numeric: tabular-nums; }
+#story-hud.warn { border-color: #ff9a7a; }
+#story-hud.warn .story-title { color: #ffb39b; }
+#stage.modal-open #story-hud { visibility: hidden; }
+@media (max-width: 640px) {
+  #story-hud { position: relative; left: auto; top: auto; margin: 6px 10px 0; font-size: 11px; }
+}
+
+/* 目覚めの明転：黒い画面がゆっくり明るくなる。 */
+#story-fade { position: absolute; inset: 0; background: #000; pointer-events: none; z-index: 5;
+              animation: story-wake 1.8s ease-in forwards; }
+@keyframes story-wake { 0%, 25% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { #story-fade { animation-duration: 0.3s; } }
