@@ -1,17 +1,20 @@
 /**
  * ストーリーの進行（docs/features/story.md）：序章（目覚め → スマホ → お使い → 自転車の購入）と、
- * 制限時間・強制イベントによるステージ進行。DOM に依存せず、画面・ゲームとは StoryHost を通じてやり取りする。
+ * 必須イベントを順に解放するステージ進行（中学生 → … → 老後）。DOM に依存せず、画面・ゲームとは StoryHost を通じてやり取りする。
  *
- * - マップの通知（MapEventSink）は人生イベント・買い物より先に受け取り、序章の相手だけを横取りする。
- * - 会話・選択肢・画面が開いている間は、時間も進行も止める（tick の exploring が false）。
+ * - ステージ全体の制限時間はない。必須イベントを経験すると次が解放され、すべて終えると節目が解放される。
+ *   次のステージへは、プレイヤーが自室のベッドで進むと決めたときだけ移る。
+ * - マップの通知（MapEventSink）は人生イベント・買い物より先に受け取り、序章の相手とベッドだけを横取りする。
+ * - 会話・選択肢・画面が開いている間は、進行も時間も止める（tick の exploring が false）。
  * - 個別の行き先・ステージ・イベントの中身は config.ts / events.ts のデータに置く。
  */
 import type { MapEvent, MapEventSink, PortalDef, SpawnPoint } from '../core/types';
 import { shopCatalog } from '../data/shop-catalogs';
 import type { LifeEventDirector, LifeEventOutcome } from '../events/director';
 import {
-  STORY_BEDROOM, STORY_BIKE, STORY_ERRAND_ALLOWANCE_YEN, STORY_ERRANDS, STORY_HOME_EXIT_PORTAL, STORY_HOME_FACILITY, STORY_MOTHER_KEY, STORY_MOTHER_NAME,
-  STORY_SELF_NAME, STORY_STAGES, type StoryErrand, type StoryForcedEvent, type StoryStage,
+  STORY_ADVANCE_EVENT, STORY_ADVANCE_GO, STORY_BED_KEY, STORY_BEDROOM, STORY_BIKE, STORY_ERRAND_ALLOWANCE_YEN, STORY_ERRANDS,
+  STORY_HOME_EXIT_PORTAL, STORY_HOME_FACILITY, STORY_LOOKBACK, STORY_MOTHER_KEY, STORY_MOTHER_NAME, STORY_SELF_NAME, STORY_STAGES,
+  type StoryErrand, type StoryNotice, type StoryStage, type StoryStep,
 } from './config';
 import { bikeOwned, newStoryState, phoneGiven, type StorySave } from './state';
 
@@ -27,8 +30,10 @@ export interface StoryHost {
   money(): number;
   /** 持ち物にある品の数。 */
   itemCount(itemId: string): number;
-  /** 短いお知らせ（残り時間の警告など）。 */
+  /** 短いお知らせ。 */
   notice(text: string): void;
+  /** スマホの受信トレイに知らせを届ける。同じ id は二度届かない（受信トレイ側で弾く）。 */
+  deliverMail(id: string, mail: StoryNotice): void;
 }
 
 /** ミニマップの目的地の印（施設 id）。 */
@@ -42,37 +47,27 @@ export interface StoryStatus {
   title: string;
   /** 二行目：次にすること。 */
   detail: string;
-  /** 本編中だけ。残り時間（秒）。 */
-  remainingSeconds?: number;
-  /** 残りわずか。 */
-  warn: boolean;
 }
 
 type Narration = { speaker: string; lines: readonly string[]; after?: () => void };
 
-const WAKE_LINES = ['……ふぁあ。あさだ。', 'きょうから ちゅうがくせい。1かいで おかあさんが よんでいる。', '（かいだんは へやの みぎうえ。）'];
+const WAKE_LINES = ['……ふぁあ。朝だ。', '今日から中学生。1階でお母さんが呼んでいる。', '（階段は部屋の右上。）'];
 
 export class StoryDirector implements MapEventSink {
   private state: StorySave;
   private host?: StoryHost;
   private readonly queue: Narration[] = [];
-  /** Runs once the narration currently on screen has been read. */
   private pendingAfter?: () => void;
-  /** A forced event whose choices are still open. */
+  /** A story event whose choices are still open. */
   private inProgress: string | null = null;
-  /** Area-triggered forced events whose area was entered. */
-  private readonly armed = new Set<string>();
-  /** Venue events whose summons mail has been sent. */
-  private readonly called = new Set<string>();
-  private warned = false;
-  private milestoneQueued = false;
+  /** Notices already handed to the inbox in this session (the inbox itself also drops duplicates after a reload). */
+  private readonly delivered = new Set<string>();
 
   private constructor(state: StorySave, private readonly lifeEvents: LifeEventDirector, fresh: boolean) {
     this.state = state;
     if (fresh) this.queue.push({ speaker: STORY_SELF_NAME, lines: WAKE_LINES });
     // A reload between buying the bicycle and the first stage resumes at the stage.
     if (state.phase === 'return-home' && state.bikeChoice) this.queue.push(this.bikeArrival());
-    if (state.phase === 'stage') this.warned = this.remaining <= this.stage.warnSeconds;
   }
 
   /** 「はじめから」：2階の自室で目覚めるところから始める。 */
@@ -92,15 +87,25 @@ export class StoryDirector implements MapEventSink {
 
   get phase(): StorySave['phase'] { return this.state.phase; }
   get stage(): StoryStage { return STORY_STAGES[this.state.stageIndex]; }
-  get stageElapsed(): number { return this.state.stageElapsed; }
-  get remaining(): number { return Math.max(0, this.stage.limitSeconds - this.state.stageElapsed); }
   /** 新しく始めたとき・「さいしょから」の位置。 */
   get startPoint(): Readonly<SpawnPoint> { return STORY_BEDROOM; }
   get canRide(): boolean { return bikeOwned(this.state); }
   get errandsDone(): readonly string[] { return this.state.errandsDone; }
-  get forcedDone(): readonly string[] { return this.state.forcedDone; }
+  get stepsDone(): readonly string[] { return this.state.stepsDone; }
+  get choices(): Readonly<Record<string, string>> { return this.state.choices; }
 
-  /** ミニマップに印を出す施設：お使いの残りと済んだ行き先、お使いの後は自宅。それ以外の段階では出さない。 */
+  /** 現在のステージで、次に起きる必須イベント（条件に合わないものは飛ばす）。すべて終えていれば undefined。 */
+  get currentStep(): StoryStep | undefined {
+    const s = this.state;
+    if (s.phase !== 'stage') return undefined;
+    return this.stage.steps.find(step => !s.stepsDone.includes(step.eventId) && this.applies(step));
+  }
+
+  private applies(step: StoryStep): boolean {
+    return !step.when || step.when.choiceIds.includes(this.state.choices[step.when.eventId]);
+  }
+
+  /** ミニマップに印を出す施設：お使いの残りと済んだ行き先、次の出来事の場所、節目の後は自宅。 */
   mapGoals(): MapGoals | undefined {
     const s = this.state;
     if (s.phase === 'errands') {
@@ -110,6 +115,9 @@ export class StoryDirector implements MapEventSink {
       };
     }
     if (s.phase === 'return-home') return { pending: [STORY_HOME_FACILITY], done: STORY_ERRANDS.map(e => e.facilityId) };
+    if (s.phase === 'milestone') return { pending: [STORY_HOME_FACILITY], done: [] };
+    const step = this.currentStep;
+    if (step?.trigger.kind === 'place' && step.trigger.place.facilityId) return { pending: [step.trigger.place.facilityId], done: [] };
     return undefined;
   }
 
@@ -121,34 +129,35 @@ export class StoryDirector implements MapEventSink {
 
   status(): StoryStatus {
     const s = this.state;
+    const stageTitle = `${this.stage.name}（${s.stageIndex + 1}/${STORY_STAGES.length}）`;
     switch (s.phase) {
-      case 'meet-mother': return { title: 'じょしょう', detail: '1かいの おかあさんに はなしかけよう', warn: false };
+      case 'meet-mother': return { title: '序章', detail: '1階のお母さんに話しかけよう' };
       case 'errands': {
         const left = STORY_ERRANDS.filter(e => !s.errandsDone.includes(e.id));
-        return { title: `おつかい ${s.errandsDone.length}/${STORY_ERRANDS.length}`, detail: `つぎ：${left.map(e => e.place).join('・')}`, warn: false };
+        return { title: `お使い ${s.errandsDone.length}/${STORY_ERRANDS.length}`, detail: `次：${left.map(e => e.place).join('・')}` };
       }
-      case 'return-home': return { title: 'おつかい おわり', detail: 'いえに かえって おかあさんに はなしかけよう', warn: false };
-      case 'stage': case 'stage-ending': {
-        const place = this.stage.forced.filter(f => !s.forcedDone.includes(f.eventId))
-          .map(f => f.trigger.kind === 'area' ? f.trigger.place : this.called.has(f.eventId) ? f.venue?.place : undefined).find(Boolean);
-        const remaining = this.remaining;
-        return { title: this.stage.name, remainingSeconds: remaining, warn: remaining <= this.stage.warnSeconds,
-          detail: s.phase === 'stage-ending' ? 'じかんぎれ' : place ? `つぎの できごと：${place}` : 'まちを じゆうに すごそう' };
+      case 'return-home': return { title: 'お使い完了', detail: '家に帰ってお母さんに話しかけよう' };
+      case 'stage': {
+        const step = this.currentStep;
+        const detail = step?.trigger.kind === 'place' ? `次の出来事：${step.trigger.place.name}へ行こう` : '自由に過ごそう（そのうち連絡が来る）';
+        return { title: stageTitle, detail };
       }
-      case 'finished': return { title: 'つづきは じゅんびちゅう', detail: 'まちを じゆうに あるこう', warn: false };
+      case 'milestone': return { title: stageTitle, detail: '自室のベッドで休むと、次の時期へ進める' };
+      case 'finished': return { title: 'おしまい', detail: '町を自由に歩ける' };
     }
   }
 
   onMapEvent(e: MapEvent): { speaker?: string; lines: string[] } | void {
     const s = this.state;
     if (e.type === 'portal-blocked' && e.portalId === STORY_HOME_EXIT_PORTAL && s.phase === 'meet-mother') {
-      return { speaker: STORY_MOTHER_NAME, lines: ['ちょっと まって！ でかける まえに、こっちに きて。'] };
-    }
-    if (e.type === 'area-enter') {
-      for (const f of this.stage.forced) if (f.trigger.kind === 'area' && f.trigger.areaId === e.areaId) this.armed.add(f.eventId);
-      return;
+      return { speaker: STORY_MOTHER_NAME, lines: ['ちょっと待って！ 出かける前に、こっちに来て。'] };
     }
     if (e.type !== 'interact') return;
+    if (e.eventKey === STORY_BED_KEY && s.phase === 'milestone') {
+      const begun = this.lifeEvents.begin(STORY_ADVANCE_EVENT, { areaId: e.areaId });
+      if (begun) { this.inProgress = STORY_ADVANCE_EVENT; return { speaker: begun.speaker, lines: begun.lines }; }
+      return;
+    }
     if (e.eventKey === STORY_MOTHER_KEY) return this.talkToMother(e.areaId);
     if (s.phase !== 'errands') return;
     const errand = STORY_ERRANDS.find(item => item.eventKey === e.eventKey && !s.errandsDone.includes(item.id));
@@ -168,7 +177,7 @@ export class StoryDirector implements MapEventSink {
     s.errandsDone.push(errand.id);
     if (s.errandsDone.length === STORY_ERRANDS.length) {
       s.phase = 'return-home';
-      this.queue.push({ speaker: STORY_SELF_NAME, lines: ['これで おつかいは ぜんぶ おわり！ いえに かえって、おかあさんに ほうこくしよう。'] });
+      this.queue.push({ speaker: STORY_SELF_NAME, lines: ['これでお使いは全部終わり！ 家に帰って、お母さんに報告しよう。'] });
     }
   }
 
@@ -186,12 +195,12 @@ export class StoryDirector implements MapEventSink {
       this.host?.setPhoneOwned(true);
       this.host?.changeMoney(STORY_ERRAND_ALLOWANCE_YEN);
       return { speaker: STORY_MOTHER_NAME, lines: [
-        'おはよう。きょうから ちゅうがくせいだね。',
-        'はい、これ。にゅうがくの おいわいに スマホを よういしたよ。（スマホを もらった！ P キーで ひらける）',
-        'さっそくだけど、おつかいを たのめる？ まちを ひとまわり すれば、どこに なにが あるか わかるよ。',
+        'おはよう。今日から中学生だね。',
+        'はい、これ。入学のお祝いにスマホを用意したよ。（スマホをもらった！ P キーで開ける）',
+        'さっそくだけど、お使いを頼める？ 町をひと回りすれば、どこに何があるか分かるよ。',
         ...STORY_ERRANDS.map(e => `・${e.place}`),
-        `かいものの おかねも わたしておくね。（${STORY_ERRAND_ALLOWANCE_YEN}えん もらった）`,
-        'じゅんばんは じゆう。ぜんぶ おわったら かえってきてね。',
+        `買い物のお金も渡しておくね。（${STORY_ERRAND_ALLOWANCE_YEN}円もらった）`,
+        '順番は自由。全部終わったら帰ってきてね。',
       ] };
     }
     if (s.phase === 'errands') {
@@ -207,26 +216,35 @@ export class StoryDirector implements MapEventSink {
   /** 人生イベントの選択が確定したとき（LifeEventPanel の onResolved から呼ぶ）。 */
   onLifeOutcome(outcome: LifeEventOutcome): void {
     const s = this.state;
-    if (outcome.event.id === STORY_BIKE.eventId && s.phase === 'return-home' && !s.bikeChoice) {
+    const id = outcome.event.id;
+    if (id === STORY_BIKE.eventId && s.phase === 'return-home' && !s.bikeChoice) {
       s.bikeChoice = outcome.choice.id;
+      s.choices[id] = outcome.choice.id;
       const fake = outcome.choice.id === STORY_BIKE.fakeChoiceId;
       // Budget in, price out. On the fake site the rest of the budget goes to the real shop, so nothing is left.
       this.host?.changeMoney(fake ? 0 : STORY_BIKE.budgetYen - STORY_BIKE.fairPriceYen);
       if (fake) this.queue.push({ speaker: STORY_MOTHER_NAME, lines: [
-        'えっ、じてんしゃが とどかない？ その サイト、みせて。',
-        '……かいしゃの じゅうしょも でんわばんごうも のっていないね。ねだんも ふしぜんに やすい。',
-        'これは にせの つうはんサイトかも しれない。はらった おかねは とりもどせないことが おおいの。',
-        'かう まえに、かいしゃじょうほう・れんらくさき・くちコミを たしかめようね。こまったら すぐ おとなに そうだんして。',
-        'じてんしゃは、のこりの おかねで いっしょに まちの じてんしゃやさんで かおう。',
+        'えっ、自転車が届かない？ そのサイト、見せて。',
+        '……会社の住所も電話番号も載っていないね。値段も不自然に安い。',
+        'これは偽の通販サイトかもしれない。払ったお金は取り戻せないことが多いの。',
+        '買う前に、会社の情報・連絡先・口コミを確かめようね。困ったらすぐ大人に相談して。',
+        '自転車は、残りのお金で一緒に町の自転車屋さんで買おう。',
       ] });
       this.queue.push(this.bikeArrival());
       return;
     }
-    if (outcome.event.id === this.inProgress) this.finishForced(outcome.event.id);
+    if (id === STORY_ADVANCE_EVENT) {
+      if (this.inProgress === id) this.inProgress = null;
+      if (s.phase === 'milestone' && outcome.choice.id === STORY_ADVANCE_GO) this.advance();
+      return;
+    }
+    if (id !== this.inProgress) return;
+    s.choices[id] = outcome.choice.id;
+    this.finishStep(id);
   }
 
   private bikeArrival(): Narration {
-    return { speaker: STORY_SELF_NAME, lines: ['じてんしゃを てにいれた！ そとで B キー（タッチそうさは「じてんしゃ」）で のれるよ。'],
+    return { speaker: STORY_SELF_NAME, lines: ['自転車を手に入れた！ 外で B キー（タッチ操作は「じてんしゃ」）で乗れるよ。'],
       after: () => this.startStage(0) };
   }
 
@@ -234,50 +252,50 @@ export class StoryDirector implements MapEventSink {
     const s = this.state;
     s.phase = 'stage';
     s.stageIndex = index;
-    s.stageElapsed = 0;
-    s.forcedDone = [];
-    this.armed.clear();
-    this.called.clear();
-    this.warned = false;
-    this.milestoneQueued = false;
+    s.stepsDone = [];
+    s.stepElapsed = 0;
     if (index > 0) this.host?.warp(STORY_BEDROOM);
     this.queue.push({ speaker: STORY_SELF_NAME, lines: this.stage.intro });
-    this.host?.notice(`${this.stage.name} の ステージ が はじまった`);
+    this.host?.notice(`「${this.stage.name}」が始まった`);
   }
 
-  private finishForced(eventId: string): void {
-    if (!this.state.forcedDone.includes(eventId)) this.state.forcedDone.push(eventId);
+  /** The player chose to move on at the bed: milestone scene, then the next stage or the look-back at the end. */
+  private advance(): void {
+    const s = this.state;
+    const next = s.stageIndex + 1;
+    if (next < STORY_STAGES.length) {
+      this.queue.push({ speaker: STORY_SELF_NAME, lines: this.stage.milestone, after: () => this.startStage(next) });
+      return;
+    }
+    const memories = STORY_LOOKBACK.map(item => item.lines[s.choices[item.eventId]]).filter((line): line is string => !!line);
+    this.queue.push({ speaker: STORY_SELF_NAME, lines: [...this.stage.milestone, '振り返ると、いろいろなことがあった。', ...memories,
+      'おしまい。遊んでくれてありがとう！（このあとも町を自由に歩けます）'], after: () => { s.phase = 'finished'; } });
+  }
+
+  private finishStep(eventId: string): void {
+    const s = this.state;
+    if (!s.stepsDone.includes(eventId)) s.stepsDone.push(eventId);
+    s.stepElapsed = 0;
     if (this.inProgress === eventId) this.inProgress = null;
   }
 
-  /** The forced events that should start now, in definition order. */
-  private dueForced(): StoryForcedEvent | undefined {
-    const s = this.state;
-    return this.stage.forced.find(f => !s.forcedDone.includes(f.eventId) && (s.phase === 'stage-ending' ||
-      (f.trigger.kind === 'time' ? s.stageElapsed >= f.trigger.atSeconds && this.atVenue(f) : this.armed.has(f.eventId))));
-  }
-
-  private atVenue(f: StoryForcedEvent): boolean { return !f.venue || f.venue.areas.includes(this.host!.areaId()); }
-
-  /** A due venue event the player is away from: call them there by mail, once. */
-  private summon(): Narration | undefined {
-    const s = this.state;
-    const f = this.stage.forced.find(f => f.venue && f.trigger.kind === 'time' && s.stageElapsed >= f.trigger.atSeconds &&
-      !s.forcedDone.includes(f.eventId) && !this.called.has(f.eventId) && !this.atVenue(f));
-    if (!f?.venue) return undefined;
-    this.called.add(f.eventId);
-    this.host!.notice(`${f.venue.from} から メールが とどいた`);
-    return { speaker: mailSpeaker(f.venue.from), lines: [MAIL_ARRIVED, f.venue.call] };
+  private beginStep(step: StoryStep): void {
+    const host = this.host!;
+    const begun = this.lifeEvents.begin(step.eventId, { areaId: host.areaId() });
+    if (!begun) return;
+    if (this.lifeEvents.pending?.event.id === step.eventId) this.inProgress = step.eventId;
+    else this.finishStep(step.eventId);
+    host.say(begun.speaker ?? '', begun.lines);
   }
 
   /**
    * 毎フレーム呼ぶ。exploring は「探索中（会話・選択肢・画面がどれも開いていない）」。
-   * 探索中だけ時間を進め、お知らせ・強制イベント・節目の演出を一つずつ始める。
+   * 探索中だけ、お知らせ・必須イベント・節目の演出を一つずつ始める。
    */
   tick(dt: number, exploring: boolean): void {
     const host = this.host;
     if (!host || !exploring) return;
-    // A forced event cancelled before choosing (e.g. "さいしょから") will start again.
+    // An event cancelled before choosing (e.g. "さいしょから") will start again.
     if (this.inProgress && !this.lifeEvents.pending) this.inProgress = null;
     if (this.pendingAfter) { const after = this.pendingAfter; this.pendingAfter = undefined; after(); }
     if (this.inProgress) return;
@@ -294,49 +312,26 @@ export class StoryDirector implements MapEventSink {
       return;
     }
     const s = this.state;
-    if (s.phase !== 'stage' && s.phase !== 'stage-ending') return;
-    const forced = this.dueForced();
-    if (forced) { this.beginForced(forced); return; }
-    const call = s.phase === 'stage' ? this.summon() : undefined;
-    if (call) { this.queue.push(call); return; }
-    if (s.phase === 'stage-ending') {
-      if (this.milestoneQueued) return;
-      this.milestoneQueued = true;
-      const nextIndex = s.stageIndex + 1;
-      this.queue.push({ speaker: STORY_SELF_NAME, lines: this.stage.milestone, after: () => {
-        if (nextIndex < STORY_STAGES.length) this.startStage(nextIndex);
-        else s.phase = 'finished';
-      } });
+    if (s.phase !== 'stage') return;
+    const step = this.currentStep;
+    if (!step) {
+      s.phase = 'milestone';
+      host.notice('節目を迎えた。ベッドで休むと次へ進める');
+      this.queue.push({ speaker: STORY_SELF_NAME, lines: this.stage.unlocked });
       return;
     }
-    if (Number.isFinite(dt) && dt > 0) s.stageElapsed = Math.min(this.stage.limitSeconds, s.stageElapsed + dt);
-    if (!this.warned && this.remaining <= this.stage.warnSeconds) {
-      this.warned = true;
-      host.notice(`${this.stage.name} の のこり じかんが すくない！`);
+    if (step.notice && !this.delivered.has(step.eventId)) {
+      this.delivered.add(step.eventId);
+      host.deliverMail(`story.${step.eventId}`, step.notice);
     }
-    if (this.remaining <= 0) {
-      s.phase = 'stage-ending';
-      host.notice('じかんぎれ！');
+    if (step.trigger.kind === 'place') {
+      if (step.trigger.place.areaIds.includes(host.areaId())) this.beginStep(step);
+      return;
     }
-  }
-
-  private beginForced(forced: StoryForcedEvent): void {
-    const areaId = this.host!.areaId();
-    // Someone who is not here cannot be heard: their news arrives on the phone instead.
-    const mail = forced.mail && !forced.mail.atAreas.includes(areaId) ? forced.mail : undefined;
-    const begun = this.lifeEvents.begin(forced.eventId, { areaId, speaker: mail && mailSpeaker(mail.from) });
-    if (!begun) return;
-    if (this.lifeEvents.pending?.event.id === forced.eventId) this.inProgress = forced.eventId;
-    else this.finishForced(forced.eventId);
-    if (mail) this.host!.notice(`${mail.from} から メールが とどいた`);
-    this.host!.say(begun.speaker ?? '', mail ? [MAIL_ARRIVED, ...begun.lines] : begun.lines);
+    if (Number.isFinite(dt) && dt > 0) s.stepElapsed += dt;
+    if (s.stepElapsed >= step.trigger.afterSeconds) this.beginStep(step);
   }
 }
-
-const MAIL_ARRIVED = '（スマホに メールが とどいた。）';
-
-/** メールで届いた知らせの、会話欄に出す名前。 */
-export function mailSpeaker(from: string): string { return `メール：${from}`; }
 
 /** 買う用事の品の値段（店の品ぞろえから引く）。品ぞろえに無ければ undefined。 */
 export function errandPrice(errand: StoryErrand): number | undefined {

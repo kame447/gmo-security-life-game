@@ -122,6 +122,7 @@ story?.attach({
   money: () => game.assets.moneyYen,
   itemCount: id => game.assets.quantity(id),
   notice: text => hud.showToast(text),
+  deliverMail: (id, mail) => { game.phone.deliverMail({ ...mail, links: mail.links?.map(link => ({ ...link })), id, atMs: Date.now() }); },
 });
 const storyHud = story && new StoryHud(story, !storySaved);
 ui.bind({ onReset: () => { game.reset(); save(); } });
