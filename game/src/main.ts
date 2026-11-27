@@ -28,9 +28,11 @@ import { LifeEventPanel } from './ui/life-event-panel';
 import { Smartphone } from './ui/smartphone';
 import { ShopPanel } from './ui/shop-panel';
 import { StoryHud } from './ui/story-hud';
+import { PlayfieldViewport } from './ui/playfield-viewport';
 import { DialogLogPanel } from './ui/dialog-log-panel';
 import { DialogLog } from './events/dialog-log';
 import { StoryDirector } from './story/director';
+import { storyMapGoals } from './story/map-goals';
 import { STORY_EVENTS } from './story/events';
 import { parseStorySave } from './story/state';
 import { buildWorld } from './world';
@@ -82,7 +84,7 @@ const avatar = new AvatarPanel(game, commit => {
 });
 const minimap: Minimap = new Minimap(game, (): boolean => ui.mode === 'explore',
   () => { controls.clear(); ui.update(); },
-  () => { controls.clear(); ui.update(); ui.focusMap(); }, () => story?.mapGoals());
+  () => { controls.clear(); ui.update(); ui.focusMap(); }, () => storyMapGoals(story));
 const ui: UiController = new UiController(game, controls, canvas, minimap, () => train);
 ui.registerPanel({ id: 'avatar', panel: avatar, open: () => avatar.open(), button: $<HTMLButtonElement>('#btn-avatar') });
 const closeBag = () => { controls.clear(); ui.update(); ui.focusMap(); };
@@ -143,16 +145,12 @@ game.phone.onMailArrive(() => {
 window.addEventListener('pagehide', () => { controls.clear(); save(); });
 if (!review.temporary) setInterval(save, 3000);
 
-let dpr = 0;
-function resize() {
-  dpr = window.devicePixelRatio || 1;
-  renderer.resize(window.innerWidth, window.innerHeight, dpr);
-}
-window.addEventListener('resize', resize);
-resize();
+const playfield = new PlayfieldViewport($<HTMLElement>('#stage'), $<HTMLElement>('.bag-quick-hud'),
+  (width, height, density) => renderer.resize(width, height, density));
+playfield.update(game.area.def.kind === 'indoor');
 
 const loop = startLoop({
-  beforeFrame: () => { if (dpr !== window.devicePixelRatio) resize(); },
+  beforeFrame: () => playfield.update(game.area.def.kind === 'indoor'),
   input: () => ui.movementInput(),
   update: (dt, input) => {
     if (!minimap.isOpen) game.update(dt, input);

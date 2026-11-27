@@ -1,12 +1,18 @@
-/* ストーリーの表示。現在地（#hud）の下に、同じ .panel の見た目で置く。 */
-#story-hud { position: absolute; left: 10px; top: 46px; padding: 4px 10px; font-size: 13px; line-height: 1.5;
-             pointer-events: none; max-width: min(420px, calc(100% - 40px)); }
+/* ストーリーの表示。現在地の下、ミニマップの左側に置く。 */
+#story-hud { position: absolute; left: 10px; top: 46px; padding: 6px 10px; font-size: 13px; line-height: 1.5;
+             pointer-events: none; max-width: min(420px, calc(100% - 196px)); box-sizing: border-box; }
 #story-hud .story-title { color: #ffe08a; font-variant-numeric: tabular-nums; }
+#story-hud .story-tasks { display: grid; gap: 3px; padding: 0; margin: 4px 0 0; list-style: none; }
+#story-hud .story-tasks li { display: grid; grid-template-columns: 1em minmax(0, 1fr); gap: 5px; align-items: start; }
+#story-hud .story-task-mark { color: #ffe08a; }
+#story-hud .is-done { color: #b7c3b7; }
+#story-hud .is-done .story-task-mark { color: #b7c3b7; }
+#story-hud .is-done .story-task-label { text-decoration: line-through; }
 #story-hud.warn { border-color: #ff9a7a; }
 #story-hud.warn .story-title { color: #ffb39b; }
-#stage.modal-open #story-hud { visibility: hidden; }
+#stage.modal-open #story-hud, #stage.map-open #story-hud { visibility: hidden; }
 @media (max-width: 640px) {
-  #story-hud { position: relative; left: auto; top: auto; margin: 6px 10px 0; font-size: 11px; }
+  #story-hud { top: 80px; padding: 5px 7px; max-width: calc(100% - 158px); font-size: 11px; }
 }
 
 /* 目覚めの明転：黒い画面がゆっくり明るくなる。 */
