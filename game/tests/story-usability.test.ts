@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DialogController } from '../src/events/dialog';
+import { DialogController, type DialogState } from '../src/events/dialog';
 import { LifeEventDirector } from '../src/events/director';
 import { STORY_ERRANDS, STORY_MOTHER_KEY, type StoryErrand } from '../src/story/config';
 import { StoryDirector } from '../src/story/director';
@@ -8,11 +8,14 @@ import { storyMapGoals } from '../src/story/map-goals';
 import { newStoryState, parseStorySave } from '../src/story/state';
 import { storyTasks } from '../src/ui/story-hud';
 
-function openMotherDialog(story: StoryDirector, dialog: DialogController): void {
+function openMotherDialog(story: StoryDirector, dialog: DialogController): DialogState {
   const reply = story.onMapEvent({ type: 'interact', areaId: 'home-family-interior',
     interactionId: 'mother', eventKey: STORY_MOTHER_KEY });
   if (!reply) throw new Error('The mother did not respond');
-  expect(dialog.open(reply.speaker ?? '', reply.lines)).toBe(true);
+  if (!dialog.open(reply.speaker ?? '', reply.lines) || !dialog.current) {
+    throw new Error('The mother dialog did not open');
+  }
+  return dialog.current;
 }
 
 function startIntroduction() {
@@ -99,9 +102,9 @@ describe('spoken errand introduction', () => {
     expect(story.errandsRevealed).toBeUndefined();
     expectGuidance(story, STORY_ERRANDS);
 
-    openMotherDialog(story, dialog);
-    expect(dialog.current?.lines[0]).toContain('あとは');
-    story.observeDialog(dialog.current);
+    const revisit = openMotherDialog(story, dialog);
+    expect(revisit.lines[0]).toContain('あとは');
+    story.observeDialog(revisit);
     expect(story.errandsRevealed).toBeUndefined();
     expectGuidance(story, STORY_ERRANDS);
     dialog.advance();
