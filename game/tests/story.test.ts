@@ -92,6 +92,21 @@ function finishPrologue(t: ReturnType<typeof setup>, site = 'site-a') {
 }
 
 describe('story flow', () => {
+  it('resumes story and possessions at an old stair landing without restarting progression', () => {
+    const t = setup();
+    finishPrologue(t);
+    const progress = structuredClone(t.story.save());
+    const saved = { ...t.game.serialize(), areaId: 'home-family-interior', x: 40, y: 30,
+      facing: 'right' as const, story: progress };
+    const resumed = setup(progress, saved);
+    expect(resumed.story.save()).toEqual(progress);
+    expect(resumed.game.player).toEqual({ areaId: 'home-family-interior', x: 40, y: 30, facing: 'right' });
+    expect(resumed.game.assets.snapshot()).toEqual(t.game.assets.snapshot());
+    expect(resumed.game.appearance).toEqual(t.game.appearance);
+    expect(resumed.game.phone.isOwned).toBe(t.game.phone.isOwned);
+    resumed.talk('home.mother');
+    expect(resumed.game.dialog?.speaker).toBe('おかあさん');
+  });
   it('defines valid story events', () => {
     expect(validateLifeEvents([...CHILDHOOD_SAMPLE_EVENTS, ...STORY_EVENTS])).toEqual([]);
     for (const stage of STORY_STAGES) for (const f of stage.steps) expect(STORY_EVENTS.some(e => e.id === f.eventId), f.eventId).toBe(true);
