@@ -29,6 +29,7 @@ import { Smartphone } from './ui/smartphone';
 import { ShopPanel } from './ui/shop-panel';
 import { StoryHud } from './ui/story-hud';
 import { PlayfieldViewport } from './ui/playfield-viewport';
+import { StoryResultPanel } from './ui/story-result-panel';
 import { DialogLogPanel } from './ui/dialog-log-panel';
 import { DialogLog } from './events/dialog-log';
 import { StoryDirector } from './story/director';
@@ -114,6 +115,13 @@ const lifeEventPanel = new LifeEventPanel(game, lifeEvents, outcome => {
   dialogLog.choice(outcome.choice.label);
   controls.clear(); story?.onLifeOutcome(outcome); save();
 });
+const storyResult = story ? new StoryResultPanel($<HTMLElement>('#stage'), () => {
+  controls.clear(); ui.update(); ui.focusMap();
+}) : undefined;
+if (storyResult && story) {
+  ui.registerPanel({ id: 'result', panel: storyResult, open: () => storyResult.open(story.evaluate()),
+    shortcut: 'KeyR', canOpen: () => story.phase === 'finished' });
+}
 story?.attach({
   say: (speaker, lines) => game.say(speaker, lines),
   warp: spawn => game.warp(spawn),
@@ -125,8 +133,16 @@ story?.attach({
   itemCount: id => game.assets.quantity(id),
   notice: text => hud.showToast(text),
   deliverMail: (id, mail) => { game.phone.deliverMail({ ...mail, links: mail.links?.map(link => ({ ...link })), id, atMs: Date.now() }); },
+  showResult: evaluation => {
+    save();
+    if (storyResult) ui.openPanel('result', () => storyResult.open(evaluation));
+  },
 });
 const storyHud = story && new StoryHud(story, !storySaved);
+if (storyResult) {
+  $<HTMLElement>('#story-hud').append(storyResult.button);
+  storyResult.button.addEventListener('click', () => { ui.openPanel('result'); });
+}
 ui.bind({ onReset: () => { game.reset(); save(); } });
 window.addEventListener('keydown', event => bag.handleHudKey(event, ui.mode === 'explore'));
 exposeDebug(game, renderer, frames);
@@ -167,6 +183,10 @@ const loop = startLoop({
     dialogLog.observe(game.dialog);
     story?.observeDialog(game.dialog);
     storyHud?.update();
+    if (storyResult) {
+      storyResult.button.hidden = story?.phase !== 'finished';
+      storyResult.button.disabled = ui.mode !== 'explore';
+    }
     hud.update(now);
     ui.update();
     bag.update(ui.mode === 'explore');
