@@ -43,8 +43,8 @@ export const SCORE_TUNING = {
   /** お金の点数の目盛り（円）。これより小さい額は点数にほとんど効かない。 */
   moneyUnitYen: 10_000,
   /** つながり・成長が満点になる合計。 */
-  tiesFull: 10,
-  growthFull: 10,
+  tiesFull: 20,
+  growthFull: 20,
   /** 判断の点数（安全・ふつう・危ない）。 */
   judgment: { safe: 100, normal: 50, risky: 0 } as Readonly<Record<Judgment, number>>,
   /** 各軸の中の重み（合計で割る）。 */

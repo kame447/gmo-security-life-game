@@ -6,7 +6,7 @@ import { validateLifeEvents } from '../src/events/life-events';
 import { canStand } from '../src/map/explorer';
 import { Game } from '../src/session/game';
 import { STORY_ADVANCE_EVENT, STORY_BEDROOM, STORY_BIKE, STORY_ERRAND_ALLOWANCE_YEN, STORY_ERRANDS, STORY_STAGES, type StoryErrand } from '../src/story/config';
-import { errandPrice, StoryDirector } from '../src/story/director';
+import { errandPrice, meetsCondition, StoryDirector } from '../src/story/director';
 import { STORY_EVENTS } from '../src/story/events';
 import { parseStorySave } from '../src/story/state';
 import { evaluateLife, moneyPoints } from '../src/story/score';
@@ -237,17 +237,21 @@ describe('story flow', () => {
       expect(said.join()).toMatch(/【セキュリティ】\d+点/);
       expect(t.mails.length).toBeGreaterThan(0);
       // The career choice in high school decides the next stage's events.
-      // Security choices branch too: damage leads to a later response event and changes the career.
-      if (pick === 'first') {
-        expect(seen).toEqual(expect.arrayContaining(['story.young.university', 'story.jh.account-recovery', 'story.hs.photo-followup',
-          'story.young.card-fraud', 'story.middle.training']));
-        expect(seen).not.toContain('story.middle.promotion');
-      } else {
-        expect(seen).toEqual(expect.arrayContaining(['story.young.first-job', 'story.middle.promotion']));
-        expect(seen).not.toContain('story.young.university');
-        expect(seen).not.toContain('story.jh.account-recovery');
-      }
+      // Risky security choices come first, so the first pass meets every later consequence; the safe pass meets none.
+      const consequences = ['story.hs.contact-spam', 'story.hs.phone-hijack', 'story.hs.photo-followup', 'story.univ.secret-question',
+        'story.univ.shared-pc-aftermath', 'story.univ.pc-infected', 'story.univ.card-fraud', 'story.univ.footprint', 'story.work.account-frozen',
+        'story.work.account-takeover', 'story.work.bank-fraud', 'story.work.invoice-aftermath', 'story.later.training',
+        'story.later.home-loan-denied', 'story.later.refund-aftermath'];
+      if (pick === 'first') expect(seen).toEqual(expect.arrayContaining(consequences));
+      else for (const id of consequences) expect(seen, id).not.toContain(id);
     }
+  });
+
+  it('leaks company data only when the reused password was also left unchanged after the leak notice', () => {
+    const takeover = STORY_STAGES.flatMap(stage => stage.steps).find(step => step.eventId === 'story.work.account-takeover')!;
+    expect(meetsCondition(takeover.when!, { 'story.jh.first-account': 'reuse', 'story.hs.leak-notice': 'ignore' })).toBe(true);
+    expect(meetsCondition(takeover.when!, { 'story.jh.first-account': 'reuse', 'story.hs.leak-notice': 'change' })).toBe(false);
+    expect(meetsCondition(takeover.when!, { 'story.jh.first-account': 'unique', 'story.hs.leak-notice': 'ignore' })).toBe(false);
   });
 
   it('waits at the milestone until the player chooses to move on at the bed', () => {
@@ -276,8 +280,8 @@ describe('story flow', () => {
   });
 
   it('scores daily and security choices on two axes (Issue #62)', () => {
-    const careful = evaluateLife({ 'story.jh.game-account': 'refuse', 'story.adult.usb': 'report', 'story.jh.club': 'culture' }, 500_000, STORY_EVENTS);
-    const careless = evaluateLife({ 'story.jh.game-account': 'tell', 'story.jh.account-recovery': 'giveup', 'story.adult.usb': 'plug' }, 500_000, STORY_EVENTS);
+    const careful = evaluateLife({ 'story.univ.captcha': 'close', 'story.work.usb': 'report', 'story.jh.club': 'culture' }, 500_000, STORY_EVENTS);
+    const careless = evaluateLife({ 'story.univ.captcha': 'follow', 'story.univ.pc-infected': 'pay', 'story.work.usb': 'plug' }, 500_000, STORY_EVENTS);
     expect(careful.security).toMatchObject({ judgment: 100, damage: 100, response: 100 });
     expect(careless.security).toMatchObject({ judgment: 0, damage: 0, response: 0 });
     expect(careless.securityMemories).toHaveLength(3);

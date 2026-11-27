@@ -15,7 +15,7 @@ import type { LifeEventDirector, LifeEventOutcome } from '../events/director';
 import {
   STORY_ADVANCE_EVENT, STORY_ADVANCE_GO, STORY_BED_KEY, STORY_BEDROOM, STORY_BIKE, STORY_ERRAND_ALLOWANCE_YEN, STORY_ERRANDS,
   STORY_HOME_EXIT_PORTAL, STORY_HOME_FACILITY, STORY_MOTHER_KEY, STORY_MOTHER_NAME, STORY_SELF_NAME, STORY_STAGES,
-  type StoryErrand, type StoryNotice, type StoryStage, type StoryStep,
+  type StoryCondition, type StoryErrand, type StoryNotice, type StoryStage, type StoryStep,
 } from './config';
 import { STORY_EVENTS } from './events';
 import { evaluateLife, resultLines, type LifeEvaluation, type StoryChoiceDef } from './score';
@@ -105,7 +105,7 @@ export class StoryDirector implements MapEventSink {
   }
 
   private applies(step: StoryStep): boolean {
-    return !step.when || step.when.choiceIds.includes(this.state.choices[step.when.eventId]);
+    return !step.when || meetsCondition(step.when, this.state.choices);
   }
 
   /** ミニマップに印を出す施設：お使いの残りと済んだ行き先、次の出来事の場所、節目の後は自宅。 */
@@ -352,6 +352,13 @@ export class StoryDirector implements MapEventSink {
     if (Number.isFinite(dt) && dt > 0) s.stepElapsed += dt;
     if (s.stepElapsed >= step.trigger.afterSeconds) this.beginStep(step);
   }
+}
+
+/** 分岐の条件を、これまでの選択（イベント id → 選択肢 id）で判定する。 */
+export function meetsCondition(c: StoryCondition, choices: Readonly<Record<string, string>>): boolean {
+  if ('all' in c) return c.all.every(item => meetsCondition(item, choices));
+  if ('any' in c) return c.any.some(item => meetsCondition(item, choices));
+  return c.choiceIds.includes(choices[c.eventId]);
 }
 
 /** 買う用事の品の値段（店の品ぞろえから引く）。品ぞろえに無ければ undefined。 */
