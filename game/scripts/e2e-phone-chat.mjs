@@ -1,9 +1,13 @@
 import { gameplayUrl } from './lib/gameplay-url.mjs';
 /** Real UI flow in disposable browser contexts; no external network or user save access. */
 import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 const base = new URL(process.env.SLG_URL || 'http://127.0.0.1:5173');
+const shots = process.env.SLG_SHOTS;
+if (shots) await mkdir(shots, { recursive: true });
+const shot = async (page, name) => { if (shots) await page.screenshot({ path: shots + '/' + name + '.png' }); };
 const normal = new URL(base); normal.searchParams.delete('review');
 const review = new URL(base); review.searchParams.set('review', '1');
 const errors = [], blocked = [];
@@ -145,6 +149,39 @@ try {
   });
   assert.equal(scroll.top, 0); assert.ok(scroll.bottom > 0 && scroll.max > 0, 'conversation can scroll');
   console.log('PASS input bounds, control characters and scrollable conversation');
+
+  await page.locator('#phone-back').click();
+  await openThread(page, 'family');
+  const outgoing = text => page.locator('[data-direction="outgoing"]').filter({ hasText: text });
+  const firstText = 'いま町を歩いてるよ。';
+  const secondText = '帰ったらまた話そう。';
+  const unansweredText = 'またあとでね。';
+  await page.evaluate(() => window.__slg.game.phone.setPaused(true));
+  await input.fill(firstText); await input.press('Enter');
+  assert.equal(await outgoing(firstText).locator('.phone-chat-read-receipt').count(), 0, 'a pending send has no receipt');
+  await page.evaluate(() => window.__slg.game.phone.setPaused(false));
+  await outgoing(firstText).locator('.phone-chat-read-receipt').waitFor({ state: 'visible' });
+  assert.equal(await outgoing(firstText).locator('.phone-chat-read-receipt').textContent(), '既読');
+  assert.equal(await page.locator('[data-direction="incoming"] .phone-chat-read-receipt').count(), 0, 'incoming messages never show a recipient receipt');
+
+  await page.evaluate(() => window.__slg.game.phone.setPaused(true));
+  await input.fill(secondText); await page.locator('.phone-chat-send').click();
+  assert.equal(await outgoing(firstText).locator('.phone-chat-read-receipt').count(), 1, 'a later send keeps the earlier receipt');
+  assert.equal(await outgoing(secondText).locator('.phone-chat-read-receipt').count(), 0, 'an earlier reply does not acknowledge a later send');
+  await page.evaluate(() => window.__slg.game.phone.setPaused(false));
+  await outgoing(secondText).locator('.phone-chat-read-receipt').waitFor({ state: 'visible' });
+  await input.fill(unansweredText); await page.locator('.phone-chat-send').click();
+  assert.equal(await page.evaluate(() => window.__slg.game.phone.save().chat.threads.find(thread => thread.id === 'family').pending.length), 0, 'the fixed reply script has ended');
+  assert.equal(await outgoing(unansweredText).locator('.phone-chat-read-receipt').count(), 0, 'a send without a reply has no receipt');
+  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+  await page.reload(); await page.waitForFunction(() => !!window.__slg?.game);
+  await openMessages(page); await openThread(page, 'family');
+  assert.equal(await outgoing(firstText).locator('.phone-chat-read-receipt').textContent(), '既読');
+  assert.equal(await outgoing(secondText).locator('.phone-chat-read-receipt').textContent(), '既読');
+  assert.equal(await outgoing(unansweredText).locator('.phone-chat-read-receipt').count(), 0, 'reload preserves the distinction between replied and unreplied sends');
+  assert.equal(await page.locator('[data-direction="incoming"] .phone-chat-read-receipt').count(), 0);
+  await shot(page, 'desktop-restored');
+  console.log('PASS read receipts appear only after replies and survive normal save/reload');
   await context.close();
 
   const mobile = await newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, review);
@@ -156,9 +193,20 @@ try {
   const button = mobile.page.locator('.phone-chat-send'), box = await button.boundingBox();
   assert.ok(box && box.width >= 44 && box.height >= 44, 'send touch target is at least 44px');
   const touchReplies = await mobile.page.locator('[data-direction="incoming"]').count();
+  await mobile.page.evaluate(() => window.__slg.game.phone.setPaused(true));
   await button.tap();
   await mobile.page.locator('[data-direction="outgoing"] .phone-chat-bubble').filter({ hasText: 'タッチ送信' }).first().waitFor({ state: 'visible' });
+  assert.equal(await mobile.page.locator('.phone-chat-read-receipt').count(), 0, 'touch send waits for a reply before showing read');
+  await mobile.page.evaluate(() => window.__slg.game.phone.setPaused(false));
   await mobile.page.waitForFunction(count => document.querySelectorAll('[data-direction="incoming"]').length > count, touchReplies);
+  const touchReceipt = mobile.page.locator('[data-direction="outgoing"] .phone-chat-read-receipt');
+  assert.equal(await touchReceipt.textContent(), '既読');
+  const receiptBox = await touchReceipt.boundingBox();
+  const bubbleBox = await mobile.page.locator('[data-direction="outgoing"] .phone-chat-bubble').boundingBox();
+  assert.ok(receiptBox && bubbleBox && receiptBox.x >= 0 && receiptBox.x + receiptBox.width <= bubbleBox.x, 'receipt remains beside the outgoing bubble on a phone');
+  assert.equal(await mobile.page.locator('[data-direction="incoming"] .phone-chat-read-receipt').count(), 0);
+  await shot(mobile.page, 'portrait-replied');
+  console.log('PASS touch read receipt appears after the reply and fits beside the bubble');
   await mobile.page.locator('#phone-back').tap();
   await mobile.page.locator('#phone-home').tap();
   assert.ok(await mobile.page.locator('[data-app="messages"]').isVisible());

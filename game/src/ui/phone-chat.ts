@@ -62,12 +62,17 @@ export interface ChatComposerOptions {
 /** Update only the transcript, leaving the composer and any active IME intact. */
 export function renderChatMessages(scroll: HTMLElement, messages: readonly ChatMessageView[]): void {
   const items = document.createDocumentFragment();
-  for (const message of messages) {
+  // A reply in the local conversation acknowledges the outgoing messages before it.
+  let lastIncoming = -1;
+  for (let i = 0; i < messages.length; i++) if (!messages[i].outgoing) lastIncoming = i;
+  for (const [index, message] of messages.entries()) {
     const item = make('div', `phone-chat-message ${message.outgoing ? 'is-outgoing' : 'is-incoming'}`);
     item.dataset.chatMessage = message.id; item.dataset.direction = message.outgoing ? 'outgoing' : 'incoming';
     const bubble = make('span', 'phone-chat-bubble', message.text);
-    const time = make('time', 'phone-chat-message-time', message.time);
-    item.append(bubble, time); items.append(item);
+    const meta = make('span', 'phone-chat-message-meta');
+    if (message.outgoing && index < lastIncoming) meta.append(make('span', 'phone-chat-read-receipt', '既読'));
+    meta.append(make('time', 'phone-chat-message-time', message.time));
+    item.append(bubble, meta); items.append(item);
   }
   scroll.replaceChildren(items);
 }
