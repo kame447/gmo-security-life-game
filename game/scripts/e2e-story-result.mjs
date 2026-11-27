@@ -75,22 +75,33 @@ async function faceBed(page) {
   await page.locator('#view').focus();
 }
 
+async function advanceDialogUntil(page, selector) {
+  for (let i = 0; i < 60; i++) {
+    // 会話の切れ目では次の描画を待つ。Zの連打でベッドを調べ直したり、選択肢を確定したりしない。
+    const current = await page.waitForFunction(selector => {
+      if (document.querySelector(selector)?.hidden === false) return { ready: true };
+      const dialog = window.__slg.game.dialog;
+      return dialog ? { ready: false, dialog, index: dialog.index } : false;
+    }, selector);
+    try {
+      if (await current.evaluate(state => state.ready)) return;
+      await page.keyboard.press('KeyZ');
+      await page.waitForFunction(({ current, selector }) => {
+        const dialog = window.__slg.game.dialog;
+        return document.querySelector(selector)?.hidden === false ||
+          dialog !== current.dialog || dialog?.index !== current.index;
+      }, { current, selector });
+    } finally { await current.dispose(); }
+  }
+  throw new Error('dialog did not reach ' + selector);
+}
+
 async function finishAtBed(page) {
   await faceBed(page);
   await page.keyboard.press('KeyZ');
-  for (let i = 0; i < 30; i++) {
-    if (await page.locator('#life-choice').isVisible()) break;
-    await page.keyboard.press('KeyZ');
-    await page.waitForTimeout(50);
-  }
-  await page.locator('#life-choice').waitFor({ state: 'visible' });
+  await advanceDialogUntil(page, '#life-choice');
   await page.keyboard.press('Digit1');
-  for (let i = 0; i < 50; i++) {
-    if (await page.locator('#story-result').isVisible()) return;
-    if (await page.evaluate(() => !!window.__slg.game.dialog)) await page.keyboard.press('KeyZ');
-    await page.waitForTimeout(50);
-  }
-  await page.locator('#story-result').waitFor({ state: 'visible' });
+  await advanceDialogUntil(page, '#story-result');
 }
 
 try {
