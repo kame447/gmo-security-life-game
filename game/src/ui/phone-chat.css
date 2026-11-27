@@ -18,6 +18,9 @@
 .phone-chat-messages { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; padding: 16px 14px; background: #e4ecf1; }
 .phone-chat-message { display: flex; align-items: flex-end; gap: 5px; margin-bottom: 12px; }
 .phone-chat-message.is-outgoing { flex-direction: row-reverse; }
+.phone-chat-message-meta { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.phone-chat-message.is-outgoing .phone-chat-message-meta { align-items: flex-end; }
+.phone-chat-read-receipt { color: #62727f; font-size: 10px; line-height: 1.3; white-space: nowrap; }
 .phone-chat-bubble { max-width: 75%; padding: 9px 12px; border-radius: 14px 14px 14px 4px; background: #fff; color: #202832; font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; white-space: pre-wrap; }
 .phone-chat-message.is-outgoing .phone-chat-bubble { border-radius: 14px 14px 4px 14px; background: #9edc9a; }
 .phone-chat-composer { flex: none; display: flex; align-items: center; gap: 8px; padding: 9px 10px; background: #f4f5f7; }
