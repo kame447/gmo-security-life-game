@@ -7,15 +7,18 @@
  * - マップの通知（MapEventSink）は人生イベント・買い物より先に受け取り、序章の相手とベッドだけを横取りする。
  * - 会話・選択肢・画面が開いている間は、進行も時間も止める（tick の exploring が false）。
  * - 個別の行き先・ステージ・イベントの中身は config.ts / events.ts のデータに置く。
+ * - 最後に、選んだ選択肢と所持金から評価（Issue #62、score.ts）を計算して振り返る。結果画面はまだないため会話欄に出す。
  */
 import type { MapEvent, MapEventSink, PortalDef, SpawnPoint } from '../core/types';
 import { shopCatalog } from '../data/shop-catalogs';
 import type { LifeEventDirector, LifeEventOutcome } from '../events/director';
 import {
   STORY_ADVANCE_EVENT, STORY_ADVANCE_GO, STORY_BED_KEY, STORY_BEDROOM, STORY_BIKE, STORY_ERRAND_ALLOWANCE_YEN, STORY_ERRANDS,
-  STORY_HOME_EXIT_PORTAL, STORY_HOME_FACILITY, STORY_LOOKBACK, STORY_MOTHER_KEY, STORY_MOTHER_NAME, STORY_SELF_NAME, STORY_STAGES,
+  STORY_HOME_EXIT_PORTAL, STORY_HOME_FACILITY, STORY_MOTHER_KEY, STORY_MOTHER_NAME, STORY_SELF_NAME, STORY_STAGES,
   type StoryErrand, type StoryNotice, type StoryStage, type StoryStep,
 } from './config';
+import { STORY_EVENTS } from './events';
+import { evaluateLife, resultLines, type LifeEvaluation, type StoryChoiceDef } from './score';
 import { bikeOwned, newStoryState, phoneGiven, type StorySave } from './state';
 
 /** ストーリーが操作するゲーム側の窓口。 */
@@ -240,7 +243,22 @@ export class StoryDirector implements MapEventSink {
     }
     if (id !== this.inProgress) return;
     s.choices[id] = outcome.choice.id;
+    const money = (outcome.choice as StoryChoiceDef).score?.moneyYen;
+    if (money) this.addMoney(money);
     this.finishStep(id);
+  }
+
+  /** Money can be lost only down to zero. */
+  private addMoney(deltaYen: number): void {
+    const host = this.host;
+    if (!host) return;
+    const delta = Math.max(deltaYen, -host.money());
+    if (delta) host.changeMoney(delta);
+  }
+
+  /** 人生の評価（Issue #62）。保存せず、選択の履歴と所持金から都度計算する。 */
+  evaluate(): LifeEvaluation {
+    return evaluateLife(this.state.choices, this.host?.money() ?? 0, STORY_EVENTS);
   }
 
   private bikeArrival(): Narration {
@@ -255,6 +273,7 @@ export class StoryDirector implements MapEventSink {
     s.stepsDone = [];
     s.stepElapsed = 0;
     if (index > 0) this.host?.warp(STORY_BEDROOM);
+    if (this.stage.incomeYen) this.addMoney(this.stage.incomeYen);
     this.queue.push({ speaker: STORY_SELF_NAME, lines: this.stage.intro });
     this.host?.notice(`「${this.stage.name}」が始まった`);
   }
@@ -267,9 +286,11 @@ export class StoryDirector implements MapEventSink {
       this.queue.push({ speaker: STORY_SELF_NAME, lines: this.stage.milestone, after: () => this.startStage(next) });
       return;
     }
-    const memories = STORY_LOOKBACK.map(item => item.lines[s.choices[item.eventId]]).filter((line): line is string => !!line);
-    this.queue.push({ speaker: STORY_SELF_NAME, lines: [...this.stage.milestone, '振り返ると、いろいろなことがあった。', ...memories,
-      'おしまい。遊んでくれてありがとう！（このあとも町を自由に歩けます）'], after: () => { s.phase = 'finished'; } });
+    this.queue.push({ speaker: STORY_SELF_NAME, lines: this.stage.milestone });
+    const pages = resultLines(this.evaluate());
+    pages.forEach((lines, i) => this.queue.push({ speaker: '人生の振り返り', lines: i === pages.length - 1
+      ? [...lines, 'おしまい。遊んでくれてありがとう！（このあとも町を自由に歩けます）'] : lines,
+      after: i === pages.length - 1 ? () => { s.phase = 'finished'; } : undefined }));
   }
 
   private finishStep(eventId: string): void {

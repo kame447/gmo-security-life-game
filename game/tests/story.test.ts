@@ -9,6 +9,7 @@ import { STORY_ADVANCE_EVENT, STORY_BEDROOM, STORY_BIKE, STORY_ERRAND_ALLOWANCE_
 import { errandPrice, StoryDirector } from '../src/story/director';
 import { STORY_EVENTS } from '../src/story/events';
 import { parseStorySave } from '../src/story/state';
+import { evaluateLife, moneyPoints } from '../src/story/score';
 import { buildWorld } from '../src/world';
 
 function setup(saved?: ReturnType<StoryDirector['save']>, gameSave?: unknown) {
@@ -232,11 +233,20 @@ describe('story flow', () => {
       }
       expect(t.story.phase).toBe('finished');
       expect(t.story.stage.id).toBe(STORY_STAGES.at(-1)!.id);
-      expect(said.join()).toContain('振り返ると');
+      expect(said.join()).toMatch(/【日常】幸福度 \d+点/);
+      expect(said.join()).toMatch(/【セキュリティ】\d+点/);
       expect(t.mails.length).toBeGreaterThan(0);
       // The career choice in high school decides the next stage's events.
-      if (pick === 'first') expect(seen).toContain('story.young.university');
-      else { expect(seen).toContain('story.young.first-job'); expect(seen).not.toContain('story.young.university'); }
+      // Security choices branch too: damage leads to a later response event and changes the career.
+      if (pick === 'first') {
+        expect(seen).toEqual(expect.arrayContaining(['story.young.university', 'story.jh.account-recovery', 'story.hs.photo-followup',
+          'story.young.card-fraud', 'story.middle.training']));
+        expect(seen).not.toContain('story.middle.promotion');
+      } else {
+        expect(seen).toEqual(expect.arrayContaining(['story.young.first-job', 'story.middle.promotion']));
+        expect(seen).not.toContain('story.young.university');
+        expect(seen).not.toContain('story.jh.account-recovery');
+      }
     }
   });
 
@@ -263,6 +273,17 @@ describe('story flow', () => {
     t.settle();
     expect(t.story.stage.id).toBe(STORY_STAGES[1].id);
     expect(t.game.player.areaId).toBe(STORY_BEDROOM.areaId);
+  });
+
+  it('scores daily and security choices on two axes (Issue #62)', () => {
+    const careful = evaluateLife({ 'story.jh.game-account': 'refuse', 'story.adult.usb': 'report', 'story.jh.club': 'culture' }, 500_000, STORY_EVENTS);
+    const careless = evaluateLife({ 'story.jh.game-account': 'tell', 'story.jh.account-recovery': 'giveup', 'story.adult.usb': 'plug' }, 500_000, STORY_EVENTS);
+    expect(careful.security).toMatchObject({ judgment: 100, damage: 100, response: 100 });
+    expect(careless.security).toMatchObject({ judgment: 0, damage: 0, response: 0 });
+    expect(careless.securityMemories).toHaveLength(3);
+    expect(careful.daily.ties).toBeGreaterThan(careless.daily.ties);
+    // Money: more is better, but each yen counts for less.
+    expect(moneyPoints(1_000_000) - moneyPoints(500_000)).toBeLessThan(moneyPoints(500_000) - moneyPoints(0));
   });
 
   it('resumes from a save, and an old timed save restarts its stage', () => {

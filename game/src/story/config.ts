@@ -130,6 +130,8 @@ export interface StoryStage {
   name: string;
   /** ステージの始まりに出す台詞。 */
   intro: readonly string[];
+  /** ステージの始まりに入る収入（円、仮値）。仕事・年金など。 */
+  incomeYen?: number;
   steps: readonly StoryStep[];
   /** 必須イベントをすべて経験したときの台詞（節目の解放）。 */
   unlocked: readonly string[];
@@ -157,6 +159,7 @@ export const STORY_STAGES: readonly StoryStage[] = [
         notice: school('中学校', '入学式のお知らせ', '新入生のみなさん、入学おめでとうございます。\n入学式を行いますので、中学校の教室に来てください。') },
       { eventId: 'story.jh.club', trigger: { kind: 'place', place: STORY_PLACES.juniorHigh } },
       { eventId: 'story.jh.game-account', trigger: { kind: 'anywhere', afterSeconds: 30 } },
+      { eventId: 'story.jh.account-recovery', when: { eventId: 'story.jh.game-account', choiceIds: ['tell'] }, trigger: { kind: 'anywhere', afterSeconds: 15 } },
       { eventId: 'story.jh.career', trigger: { kind: 'place', place: STORY_PLACES.juniorHigh },
         notice: school('担任の先生', '進路相談のお知らせ', '3年生になりました。高校の志望校を決める時期です。\n放課後、教室で進路相談をします。') },
       { eventId: 'story.jh.exam', trigger: { kind: 'place', place: STORY_PLACES.highSchool },
@@ -175,6 +178,7 @@ export const STORY_STAGES: readonly StoryStage[] = [
       { eventId: 'story.hs.club-culture', when: { eventId: 'story.jh.club', choiceIds: ['culture'] }, trigger: { kind: 'place', place: STORY_PLACES.highSchool } },
       { eventId: 'story.hs.part-time', when: { eventId: 'story.jh.club', choiceIds: ['none'] }, trigger: { kind: 'place', place: STORY_PLACES.konbini } },
       { eventId: 'story.hs.photo', trigger: { kind: 'anywhere', afterSeconds: 30 } },
+      { eventId: 'story.hs.photo-followup', when: { eventId: 'story.hs.photo', choiceIds: ['public'] }, trigger: { kind: 'anywhere', afterSeconds: 15 } },
       { eventId: 'story.hs.career', trigger: { kind: 'place', place: STORY_PLACES.highSchool },
         notice: school('担任の先生', '進路希望調査', '卒業後の進路を決める時期です。\n放課後、教室で面談をします。') },
     ],
@@ -195,6 +199,8 @@ export const STORY_STAGES: readonly StoryStage[] = [
         notice: { from: 'カード会社 サポート', fromAddress: 'support@card-security-check.example', subject: '【重要】カードの利用を停止しました',
           body: '不正利用の可能性があるため、カードの利用を一時停止しました。\n24時間以内に下のリンクからカード番号と暗証番号を入力し、本人確認をしてください。',
           links: [{ label: '本人確認はこちら', href: 'https://card-security-check.example/login' }] } },
+      { eventId: 'story.young.card-fraud', when: { eventId: 'story.young.phishing', choiceIds: ['link'] }, trigger: { kind: 'anywhere', afterSeconds: 15 },
+        notice: { from: 'カード会社', fromAddress: 'info@card.example', subject: 'ご利用明細のお知らせ', body: '今月のご利用明細ができました。\nカード会社の公式アプリから確認してください。' } },
       { eventId: 'story.young.job-hunt', when: { eventId: 'story.hs.career', choiceIds: ['university'] },
         trigger: { kind: 'place', place: STORY_PLACES.university } },
       { eventId: 'story.young.work-trouble', when: { eventId: 'story.hs.career', choiceIds: ['work'] },
@@ -204,58 +210,49 @@ export const STORY_STAGES: readonly StoryStage[] = [
     milestone: ['……数年がたった。', '仕事にも慣れ、一人前の社会人になった。'],
   },
   {
-    id: 'adult', name: '社会人',
-    intro: ['社会人としての毎日が続いている。'],
+    id: 'adult', name: '社会人', incomeYen: 1_000_000,
+    intro: ['社会人としての毎日が続いている。（これまでの給料から、貯金が 1,000,000円 増えた）'],
     steps: [
       { eventId: 'story.adult.usb', trigger: { kind: 'place', place: STORY_PLACES.office },
         notice: office('総務部', '朝礼のお知らせ', '明日の朝礼は本社で行います。遅れないように来てください。') },
       { eventId: 'story.adult.login-alert', trigger: { kind: 'anywhere', afterSeconds: 30 },
         notice: { from: 'まちマーケット', fromAddress: 'no-reply@machi-market.example', subject: '新しい端末からのログイン',
           body: 'あなたのアカウントに、新しい端末からログインがありました。\n心当たりがない場合は、アプリからパスワードを変更してください。' } },
+      { eventId: 'story.adult.account-fraud', when: { eventId: 'story.adult.login-alert', choiceIds: ['ignore'] }, trigger: { kind: 'anywhere', afterSeconds: 15 } },
       { eventId: 'story.adult.partner', trigger: { kind: 'place', place: STORY_PLACES.cafe } },
     ],
     unlocked: UNLOCKED,
     milestone: ['……時は流れ、働き盛りの年代になった。'],
   },
   {
-    id: 'middle', name: '働き盛り',
-    intro: ['仕事では部下ができ、家でも任されることが増えた。'],
+    id: 'middle', name: '働き盛り', incomeYen: 1_500_000,
+    intro: ['仕事でも家でも、任されることが増えた。（これまでの給料から、貯金が 1,500,000円 増えた）'],
     steps: [
+      { eventId: 'story.middle.promotion', when: { eventId: 'story.adult.usb', choiceIds: ['report'] }, trigger: { kind: 'place', place: STORY_PLACES.office } },
+      { eventId: 'story.middle.training', when: { eventId: 'story.adult.usb', choiceIds: ['plug'] }, trigger: { kind: 'place', place: STORY_PLACES.office } },
       { eventId: 'story.middle.child-game', when: { eventId: 'story.adult.partner', choiceIds: ['marry'] },
         trigger: { kind: 'place', place: STORY_PLACES.home } },
       { eventId: 'story.middle.hobby', when: { eventId: 'story.adult.partner', choiceIds: ['career'] },
         trigger: { kind: 'place', place: STORY_PLACES.cafe } },
       { eventId: 'story.middle.invoice', trigger: { kind: 'place', place: STORY_PLACES.office },
         notice: office('部下', '振込先の件で相談です', '取引先から「振込先の口座が変わった」とメールが来ました。\n今日中に振り込んでほしいそうです。会社で相談させてください。') },
+      { eventId: 'story.middle.invoice-aftermath', when: { eventId: 'story.middle.invoice', choiceIds: ['pay'] }, trigger: { kind: 'place', place: STORY_PLACES.office } },
       { eventId: 'story.middle.parents', trigger: { kind: 'place', place: STORY_PLACES.home } },
     ],
     unlocked: UNLOCKED,
     milestone: ['……そして定年の日。', '長く勤めた会社を退職した。'],
   },
   {
-    id: 'senior', name: '老後',
-    intro: ['仕事を退き、ゆっくりした毎日が始まった。'],
+    id: 'senior', name: '老後', incomeYen: 500_000,
+    intro: ['仕事を退き、ゆっくりした毎日が始まった。（退職金と年金で、貯金が 500,000円 増えた）'],
     steps: [
       { eventId: 'story.senior.reunion', trigger: { kind: 'place', place: STORY_PLACES.cafe } },
       { eventId: 'story.senior.refund-call', trigger: { kind: 'anywhere', afterSeconds: 30 } },
+      { eventId: 'story.senior.refund-aftermath', when: { eventId: 'story.senior.refund-call', choiceIds: ['atm'] }, trigger: { kind: 'anywhere', afterSeconds: 15 } },
       { eventId: 'story.senior.checkup', trigger: { kind: 'place', place: STORY_PLACES.pharmacy } },
       { eventId: 'story.senior.grandchild', trigger: { kind: 'place', place: STORY_PLACES.home } },
     ],
     unlocked: ['やりたかったことは、ひととおりできた。', '自室のベッドで休むと、これまでの人生を振り返る。'],
     milestone: ['……長い人生だった。'],
   },
-];
-
-/**
- * 最後に振り返る出来事（仮）。選んだ選択肢に応じた一文を出す。最終評価（Issue #62）は未決定で、点数は付けない。
- */
-export const STORY_LOOKBACK: readonly { eventId: string; lines: Readonly<Record<string, string>> }[] = [
-  { eventId: STORY_BIKE.eventId, lines: { 'site-a': '初めての買い物で、店の情報を確かめてから自転車を買った。', 'site-b': '初めての買い物で、店の情報を確かめてから自転車を買った。', 'site-c': '初めての買い物で、偽の通販サイトにだまされた。あの経験は忘れない。' } },
-  { eventId: 'story.jh.club', lines: { sports: '中学では運動部で汗を流した。', culture: '中学では文化部で仲間と好きなことを深めた。', none: '中学では放課後に町を歩き回った。' } },
-  { eventId: 'story.hs.career', lines: { university: '高校を出て、大学へ進んだ。', work: '高校を出て、すぐに働き始めた。' } },
-  { eventId: 'story.young.phishing', lines: { link: 'カード会社を装ったメールにだまされ、カードを止めることになった。', official: '怪しいメールは開かず、公式のアプリで確かめた。', ignore: '怪しいメールには反応しなかった。' } },
-  { eventId: 'story.adult.usb', lines: { plug: '拾ったUSBメモリを挿してしまい、会社で大騒ぎになった。', report: '拾ったUSBメモリは、自分で開かずに担当の部署へ届けた。' } },
-  { eventId: 'story.adult.partner', lines: { marry: '大切な人と家族になった。', career: '仕事と自分の時間を大切に生きた。' } },
-  { eventId: 'story.middle.invoice', lines: { call: '振込先の変更は、電話で取引先に確かめて詐欺を防いだ。', pay: '振込先の変更をそのまま信じて、会社のお金をだまし取られた。' } },
-  { eventId: 'story.senior.refund-call', lines: { family: '「お金が戻る」という電話は、家族に相談して詐欺だと分かった。', atm: '「お金が戻る」という電話を信じて、ATMで振り込んでしまった。' } },
 ];
