@@ -1,15 +1,10 @@
 /**
- * ストーリーの表示（docs/features/story.md）：いまの段階と次にすること、本編の残り時間、目覚めの明転。
+ * ストーリーの表示（docs/features/story.md）：いまの段階と次にすること、目覚めの明転。
  * 進行の判断は story/director.ts が持ち、ここは毎フレーム状態を描き直すだけ。
  */
 import type { StoryDirector } from '../story/director';
 import { $ } from './dom';
 import './story.css';
-
-export function formatRemaining(seconds: number): string {
-  const total = Math.max(0, Math.ceil(seconds));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-}
 
 export class StoryHud {
   private readonly root = document.createElement('div');
@@ -38,15 +33,13 @@ export class StoryHud {
 
   update(): void {
     const status = this.story.status();
-    const time = status.remainingSeconds === undefined ? '' : `　のこり ${formatRemaining(status.remainingSeconds)}`;
-    const text = `${status.title}${time}\n${status.detail}`;
+    const text = `${status.title}\n${status.detail}`;
     // Only touch the DOM when the text changes so the live region is not re-announced every frame.
     if (text !== this.text) {
       this.text = text;
-      this.title.textContent = `${status.title}${time}`;
+      this.title.textContent = status.title;
       this.detail.textContent = status.detail;
     }
-    this.root.classList.toggle('warn', status.warn);
     if (this.bikeButton) this.bikeButton.hidden = !this.story.canRide;
   }
 }

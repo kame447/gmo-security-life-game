@@ -30,4 +30,6 @@
 
 [踏切の通行制限と歩行退避（試作／要検証）](crossing-gates-safety.md)
 
-[序章と、制限時間・強制イベントによるステージ進行（提案／要合意）](0015-story-time-limited-stages.md)
+[序章と、制限時間・強制イベントによるステージ進行（制限時間は 0016 で置き換え）](0015-story-time-limited-stages.md)
+
+[ステージ全体の制限時間をやめ、必須イベントの解放と自分で選ぶ節目で進める](0016-story-milestone-unlock.md)

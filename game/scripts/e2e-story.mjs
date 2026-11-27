@@ -55,11 +55,11 @@ try {
   await page.locator('#view').focus();
 
   await check('wakes up in the upstairs bedroom with no phone and no bicycle', async () => {
-    await page.waitForFunction(() => document.querySelector('#story-hud')?.textContent?.includes('おかあさんに はなしかけよう'));
+    await page.waitForFunction(() => document.querySelector('#story-hud')?.textContent?.includes('お母さんに話しかけよう'));
     assert.equal((await state(page)).area, 'home-family-2f');
     // The touch pad itself is off on desktop; the bicycle button carries its own hidden attribute.
     assert.equal(await page.locator('#touch [data-bike]').evaluate(b => b.hidden), true);
-    await page.waitForFunction(() => window.__slg.game.dialog?.lines[0]?.includes('あさだ'));
+    await page.waitForFunction(() => window.__slg.game.dialog?.lines[0]?.includes('朝だ'));
     await page.waitForTimeout(1900); // let the wake-up fade finish for the screenshot
     await shot(page, '01-wake');
     await readAll(page);
@@ -80,7 +80,7 @@ try {
     await hold(page, 'ArrowDown', 700);
     const s = await state(page);
     assert.equal(s.area, 'home-family-interior');
-    assert.equal(s.dialog?.speaker, 'おかあさん');
+    assert.equal(s.dialog?.speaker, '母');
     await shot(page, '03-door-blocked');
     await readAll(page);
   });
@@ -91,7 +91,7 @@ try {
     await page.waitForFunction(() => window.__slg.game.phone.isOwned);
     await shot(page, '04-phone');
     await readAll(page);
-    assert.match((await state(page)).hud, /おつかい 0\/4/);
+    assert.match((await state(page)).hud, /お使い 0\/4/);
     assert.equal(await page.locator('#menu button', { hasText: 'スマホ' }).isDisabled().catch(() => false), false);
   });
 
@@ -119,7 +119,7 @@ try {
     await page.keyboard.press('Escape');
     await page.locator('#shop-panel').waitFor({ state: 'hidden' });
     assert.equal(await page.evaluate(() => window.__slg.game.assets.moneyYen), before - 160);
-    await page.waitForFunction(() => window.__slg.game.dialog?.lines[0]?.includes('ノートを かえた'));
+    await page.waitForFunction(() => window.__slg.game.dialog?.lines[0]?.includes('ノートを買えた'));
     await readAll(page);
     assert.equal((await state(page)).phase, 'return-home');
     await page.evaluate(() => { window.__slg.game.player = { areaId: 'town-main', x: 30 * 16 + 8, y: 30 * 16 + 15, facing: 'down' }; });
@@ -139,51 +139,40 @@ try {
     await page.waitForFunction(() => window.__slgStory.phase === 'stage', null, { timeout: 5000 });
     await readAll(page);
     const s = await state(page);
-    assert.match(s.hud, /ちゅうがく\s*のこり \d:\d\d/);
+    assert.match(s.hud, /中学生（1\/\d）\s*次の出来事：中学校の教室/);
     assert.equal(await page.locator('#touch [data-bike]').evaluate(b => b.hidden), false);
     assert.match(await page.locator('#hint').textContent(), /B：じてんしゃ|しらべる/);
     await shot(page, '07-stage');
   });
 
-  await check('away from school, a mail calls the player to the school event', async () => {
+  await check('the school notice arrives in the phone inbox, not in the conversation', async () => {
     await readAll(page);
     assert.notEqual((await state(page)).area, 'school-classroom-interior');
-    await page.keyboard.press('KeyL');
-    await page.waitForSelector('#dialog-log:not([hidden])');
-    assert.match(await page.locator('#dialog-log').textContent(), /メール：ちゅうがっこう/);
-    await page.keyboard.press('KeyL');
-    await page.waitForSelector('#dialog-log', { state: 'hidden' });
+    const mails = await page.evaluate(() => window.__slg.game.phone.mails.map(m => m.subject));
+    assert.ok(mails.includes('入学式のお知らせ'), mails.join());
   });
 
-  await check('the dialog log re-reads the errands and the bicycle choice, and stops the clock while open', async () => {
+  await check('the dialog log re-reads the errands and the bicycle choice', async () => {
     await readAll(page);
     await page.locator('#btn-log').click();
     await page.waitForSelector('#dialog-log:not([hidden])');
     const text = await page.locator('#dialog-log').textContent();
-    assert.match(text, /おつかいを たのめる/);
-    assert.match(text, /・がっこうの せんせい/);
+    assert.match(text, /お使いを頼める/);
+    assert.match(text, /・中学校の先生/);
     assert.match(text, /▶ C：スーパー激安セール/);
-    assert.match(text, /にせの つうはんサイト/);
-    const t0 = await page.evaluate(() => window.__slgStory.stageElapsed);
-    await page.waitForTimeout(800);
-    assert.equal(await page.evaluate(() => window.__slgStory.stageElapsed), t0);
+    assert.match(text, /偽の通販サイト/);
     await shot(page, '08-dialog-log');
     await page.keyboard.press('Escape');
     await page.waitForSelector('#dialog-log', { state: 'hidden' });
   });
 
-  await check('the stage clock runs while exploring and resumes after a reload', async () => {
+  await check('the stage resumes after a reload', async () => {
     await readAll(page);
-    const t0 = await page.evaluate(() => window.__slgStory.stageElapsed);
-    await page.waitForTimeout(1500);
-    const t1 = await page.evaluate(() => window.__slgStory.stageElapsed);
-    assert.ok(t1 > t0, `clock should advance (${t0} -> ${t1})`);
     await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
     await page.goto(`${url}/?skipOpening=1`, { waitUntil: 'networkidle' });
     await page.waitForFunction(() => !!window.__slgStory);
-    const resumed = await page.evaluate(() => ({ phase: window.__slgStory.phase, elapsed: window.__slgStory.stageElapsed, phone: window.__slg.game.phone.isOwned }));
+    const resumed = await page.evaluate(() => ({ phase: window.__slgStory.phase, phone: window.__slg.game.phone.isOwned }));
     assert.equal(resumed.phase, 'stage');
-    assert.ok(resumed.elapsed >= t1 - 0.01);
     assert.equal(resumed.phone, true);
   });
 
