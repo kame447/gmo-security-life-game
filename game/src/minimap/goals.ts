@@ -1,8 +1,8 @@
 /**
  * ミニマップの目的地の印（docs/features/story.md の「お使い」：未達成の行き先をミニマップの印で示し、達成済みは印を変える）。
- * 何を目的地にするかは呼び出し側（ストーリー）が施設 id で渡す。ここは位置の計算と描画だけを受け持つ。
+ * 呼び出し側（ストーリー）が施設 id と相手・エリアを渡し、targets.ts が位置を解決する。ここは印の配置と描画を受け持つ。
  */
-import type { FacilityMarker, MapPoint, MapProjection } from './model';
+import type { MapPoint, MapProjection } from './model';
 import { projectPoint } from './model';
 
 export interface MinimapGoals {
@@ -10,7 +10,16 @@ export interface MinimapGoals {
   readonly pending: readonly string[];
   /** 済んだ目的地の施設 id。 */
   readonly done: readonly string[];
+  /** 施設の先にいる相手、または出来事が起きるエリア。 */
+  readonly targets?: readonly MinimapTarget[];
 }
+
+export type MinimapTarget = { readonly id: string } & (
+  | { readonly eventKey: string }
+  | { readonly areaIds: readonly string[] }
+);
+
+export interface GoalLocation extends MapPoint { readonly id: string }
 
 export interface GoalMark {
   readonly id: string;
@@ -25,7 +34,7 @@ export interface GoalMark {
  * 現在のエリアにある目的地の印の位置。まだの目的地は範囲外でも端に寄せて示し、済んだ目的地は範囲内のときだけ示す。
  * 同じ施設が両方に含まれるときは、まだの方を優先する。
  */
-export function layoutGoalMarks(markers: readonly FacilityMarker[], goals: MinimapGoals | undefined, projection: MapProjection,
+export function layoutGoalMarks(markers: readonly GoalLocation[], goals: MinimapGoals | undefined, projection: MapProjection,
   width: number, height: number, inset: number): GoalMark[] {
   if (!goals) return [];
   const pending = new Set(goals.pending);
