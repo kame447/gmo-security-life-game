@@ -1,15 +1,17 @@
 name: Browser E2E
 
+# 2026-11-28：締切前の PR #87 のため、利用者の指示で一時的に自動実行を止めている（手動実行だけ可）。戻すときは下のコメントを外す。
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'game/**'
-      - '.github/workflows/e2e.yml'
-  pull_request:
-    paths:
-      - 'game/**'
-      - '.github/workflows/e2e.yml'
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'game/**'
+  #     - '.github/workflows/e2e.yml'
+  # pull_request:
+  #   paths:
+  #     - 'game/**'
+  #     - '.github/workflows/e2e.yml'
 
 permissions:
   contents: read
