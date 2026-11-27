@@ -21,15 +21,17 @@ class FakeElement {
   readonly listeners = new Map<string, Listener[]>();
   readonly children: FakeElement[] = [];
   readonly focus = vi.fn();
+  readonly attributes = new Map<string, string>();
   parentElement: FakeElement | null = null;
   disabled = false;
+  hidden = false;
   constructor(readonly control = false) {}
   addEventListener(name: string, listener: Listener): void {
     const listeners = this.listeners.get(name) ?? [];
     listeners.push(listener); this.listeners.set(name, listeners);
   }
   fire(name: string, event: object = {}): void { for (const listener of this.listeners.get(name) ?? []) listener(event); }
-  setAttribute(): void {}
+  setAttribute(name: string, value: string): void { this.attributes.set(name, value); }
   setPointerCapture(): void {}
   append(child: FakeElement): void { child.parentElement = this; this.children.push(child); }
   querySelectorAll(): FakeElement[] { return this.children; }
@@ -40,6 +42,9 @@ function setup(minimap?: Minimap, travel?: () => ModalPanel | undefined) {
   const stage = new FakeElement(), menu = new FakeElement(), canvas = new FakeElement(), touch = new FakeElement();
   const toggle = new FakeElement(true), reset = new FakeElement(true);
   const direction = new FakeElement(true); direction.dataset.dir = 'up'; touch.children.push(direction);
+  const right = new FakeElement(true); right.dataset.dir = 'right'; touch.children.push(right);
+  const accelerate = new FakeElement(true); accelerate.dataset.accelerate = '1'; touch.children.push(accelerate);
+  const bicycle = new FakeElement(true); bicycle.dataset.bike = '1'; touch.children.push(bicycle);
   const elements: Record<string, FakeElement> = { '#stage': stage, '#menu': menu, '#touch': touch, '#btn-touch': toggle, '#btn-reset': reset };
   const win = new FakeElement();
   const doc = new FakeElement() as FakeElement & { querySelector(selector: string): FakeElement | null };
@@ -48,12 +53,13 @@ function setup(minimap?: Minimap, travel?: () => ModalPanel | undefined) {
   vi.stubGlobal('document', doc);
   vi.stubGlobal('HTMLElement', FakeElement);
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
-  const game = { dialog: null as object | null, action: vi.fn() };
+  const game = { dialog: null as object | null, riding: false, action: vi.fn(), toggleBicycle: vi.fn(() => true) };
+  game.toggleBicycle.mockImplementation(() => { game.riding = !game.riding; return true; });
   const controls = new Controls();
   const ui = new UiController(game as unknown as Game, controls, canvas as unknown as HTMLCanvasElement, minimap, travel);
   const resetHandler = vi.fn();
   ui.bind({ onReset: resetHandler });
-  return { stage, menu, canvas, touch, toggle, reset, direction, win, game, controls, ui, resetHandler };
+  return { stage, menu, canvas, touch, toggle, reset, direction, right, accelerate, bicycle, win, doc, game, controls, ui, resetHandler };
 }
 
 function fakePanel() {
@@ -223,5 +229,106 @@ describe('UiController modal integration', () => {
     expect(() => ui.registerPanel(registration)).toThrow('direct child of #menu');
     menu.append(button);
     expect(() => ui.registerPanel(registration)).not.toThrow();
+  });
+});
+
+function pointer(pointerId: number) { return { pointerId, preventDefault: vi.fn() }; }
+
+function ridingSetup(minimap?: Minimap, travel?: () => ModalPanel) {
+  const state = setup(minimap, travel);
+  state.toggle.fire('click');
+  state.bicycle.fire('pointerdown', pointer(10));
+  return state;
+}
+
+describe('bicycle touch acceleration', () => {
+  it('appears only while riding and accelerates while another finger changes direction', () => {
+    const { ui, controls, toggle, bicycle, accelerate, direction, right } = setup();
+    toggle.fire('click');
+    expect(accelerate.hidden).toBe(true);
+    accelerate.fire('pointerdown', pointer(2));
+    expect(controls.state().run).toBe(false);
+    bicycle.fire('pointerdown', pointer(10));
+    expect(accelerate.hidden).toBe(false);
+    expect(accelerate.disabled).toBe(false);
+    direction.fire('pointerdown', pointer(1));
+    accelerate.fire('pointerdown', pointer(2));
+    expect(ui.movementInput()).toEqual({ dir: 'up', run: true });
+    expect(accelerate.attributes.get('aria-pressed')).toBe('true');
+    direction.fire('pointerup', pointer(1));
+    right.fire('pointerdown', pointer(3));
+    expect(ui.movementInput()).toEqual({ dir: 'right', run: true });
+    accelerate.fire('pointerup', pointer(2));
+    expect(ui.movementInput()).toEqual({ dir: 'right', run: false });
+    expect(accelerate.attributes.get('aria-pressed')).toBe('false');
+  });
+
+  it.each(['pointerup', 'pointercancel', 'lostpointercapture'])('releases on %s without clearing a keyboard Shift source', event => {
+    const { ui, controls, accelerate } = ridingSetup();
+    controls.pressRun('ShiftLeft');
+    accelerate.fire('pointerdown', pointer(2));
+    accelerate.fire(event, pointer(2));
+    expect(accelerate.attributes.get('aria-pressed')).toBe('false');
+    expect(ui.movementInput().run).toBe(true);
+    controls.release('ShiftLeft');
+    expect(ui.movementInput().run).toBe(false);
+  });
+
+  it('releases when a pointer ends outside the button or the document loses input', () => {
+    const { ui, accelerate, win, doc, canvas } = ridingSetup();
+    for (const end of [
+      () => win.fire('pointerup', pointer(2)),
+      () => win.fire('pointercancel', pointer(2)),
+      () => win.fire('blur'),
+      () => doc.fire('visibilitychange'),
+      () => doc.fire('focusin', { target: new FakeElement(true) }),
+    ]) {
+      accelerate.fire('pointerdown', pointer(2));
+      expect(ui.movementInput().run).toBe(true);
+      end();
+      doc.fire('focusin', { target: canvas });
+      expect(ui.movementInput().run).toBe(false);
+      expect(accelerate.attributes.get('aria-pressed')).toBe('false');
+    }
+  });
+
+  it('does not resume acceleration after dialog, modal, map or travel closes', () => {
+    const minimap = { isOpen: false, handleKey: vi.fn() }, travel = fakePanel();
+    const { ui, accelerate, game } = ridingSetup(minimap as unknown as Minimap, () => travel.panel);
+    const phone = fakePanel();
+    ui.registerPanel({ id: 'phone', panel: phone.panel, open: phone.open });
+    for (const [open, close] of [
+      [() => { game.dialog = {}; }, () => { game.dialog = null; }],
+      [() => { ui.openPanel('phone'); }, phone.close],
+      [() => { minimap.isOpen = true; }, () => { minimap.isOpen = false; }],
+      [travel.open, travel.close],
+    ]) {
+      accelerate.fire('pointerdown', pointer(2));
+      expect(ui.movementInput().run).toBe(true);
+      open(); ui.update();
+      accelerate.fire('pointerdown', pointer(3));
+      expect(accelerate.disabled).toBe(true);
+      close(); ui.update();
+      expect(ui.movementInput().run).toBe(false);
+      expect(accelerate.attributes.get('aria-pressed')).toBe('false');
+    }
+  });
+
+  it('releases on dismount and when touch controls are hidden, requiring a new press', () => {
+    const { ui, accelerate, game, toggle, bicycle, win, canvas } = ridingSetup();
+    for (const [leave, resume] of [
+      [() => bicycle.fire('pointerdown', pointer(10)), () => bicycle.fire('pointerdown', pointer(10))],
+      [() => win.fire('keydown', key('KeyB', canvas)), () => win.fire('keydown', key('KeyB', canvas))],
+      [() => { game.riding = false; }, () => { game.riding = true; }],
+      [() => toggle.fire('click'), () => toggle.fire('click')],
+    ]) {
+      accelerate.fire('pointerdown', pointer(2));
+      expect(ui.movementInput().run).toBe(true);
+      leave(); ui.update();
+      expect(ui.movementInput().run).toBe(false);
+      resume(); ui.update();
+      expect(ui.movementInput().run).toBe(false);
+      expect(accelerate.attributes.get('aria-pressed')).toBe('false');
+    }
   });
 });

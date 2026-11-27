@@ -23,6 +23,8 @@ export class UiController implements ModalPanelHost {
   private readonly menu = $<HTMLElement>('#menu');
   private readonly panels: ModalPanels;
   private previousPanel?: ModalPanelId;
+  private accelerationButton?: HTMLButtonElement;
+  private readonly accelerationPointers = new Set<number>();
 
   constructor(
     private readonly game: Game,
@@ -72,10 +74,12 @@ export class UiController implements ModalPanelHost {
       this.focusMap();
     }
     this.previousPanel = active?.id;
+    this.updateAcceleration();
   }
 
   /** Movement input for this frame. Held keys survive a dialog; the session itself pauses movement then. */
   movementInput(): InputState {
+    this.updateAcceleration();
     return this.panels.active || this.minimap?.isOpen || this.travel?.()?.isOpen ? NO_INPUT : this.controls.state();
   }
 
@@ -90,8 +94,13 @@ export class UiController implements ModalPanelHost {
   bind(handlers: { onReset: () => void }): void {
     window.addEventListener('keydown', event => this.onKeyDown(event));
     window.addEventListener('keyup', event => this.controls.release(event.code));
-    window.addEventListener('blur', () => this.controls.clear());
-    document.addEventListener('focusin', event => { if (event.target !== this.canvas) this.controls.clear(); });
+    window.addEventListener('blur', () => { this.controls.clear(); this.clearAcceleration(); });
+    window.addEventListener('pointerup', event => this.releasePointer(event.pointerId), true);
+    window.addEventListener('pointercancel', event => this.releasePointer(event.pointerId), true);
+    document.addEventListener('visibilitychange', () => { this.controls.clear(); this.clearAcceleration(); });
+    document.addEventListener('focusin', event => {
+      if (event.target !== this.canvas) { this.controls.clear(); this.clearAcceleration(); }
+    });
     this.canvas.addEventListener('pointerdown', () => this.focusMap());
 
     $<HTMLButtonElement>('#btn-reset').addEventListener('click', () => {
@@ -138,7 +147,7 @@ export class UiController implements ModalPanelHost {
       if (!event.repeat) this.primaryAction();
     } else if (BICYCLE_KEYS.has(event.code)) {
       event.preventDefault();
-      if (!event.repeat) this.game.toggleBicycle();
+      if (!event.repeat) { this.game.toggleBicycle(); this.update(); }
     }
   }
 
@@ -147,6 +156,33 @@ export class UiController implements ModalPanelHost {
     this.touch.classList.toggle('on', enabled);
     this.touch.setAttribute('aria-hidden', String(!enabled));
     this.touchToggle.setAttribute('aria-pressed', String(enabled));
+    this.clearAcceleration();
+  }
+
+  private canAccelerate(): boolean {
+    return this.game.riding && this.mode === 'explore' && this.touch.classList.contains('on') && !document.hidden;
+  }
+
+  private clearAcceleration(): void {
+    for (const id of this.accelerationPointers) this.controls.release(`pointer-${id}`);
+    this.accelerationPointers.clear();
+    this.accelerationButton?.setAttribute('aria-pressed', 'false');
+  }
+
+  private updateAcceleration(): void {
+    const enabled = this.canAccelerate();
+    if (!enabled || !this.controls.state().run) this.clearAcceleration();
+    if (this.accelerationButton) {
+      this.accelerationButton.hidden = !this.game.riding;
+      this.accelerationButton.disabled = !enabled;
+      this.accelerationButton.setAttribute('aria-pressed', String(this.accelerationPointers.size > 0));
+    }
+  }
+
+  private releasePointer(id: number): void {
+    this.controls.release(`pointer-${id}`);
+    this.accelerationPointers.delete(id);
+    this.updateAcceleration();
   }
 
   private bindTouch(): void {
@@ -159,17 +195,26 @@ export class UiController implements ModalPanelHost {
     for (const button of this.touch.querySelectorAll<HTMLButtonElement>('button')) {
       const direction = button.dataset.dir as Facing | undefined;
       const bicycle = button.dataset.bike !== undefined;
-      button.setAttribute('aria-label', direction ? TOUCH_LABELS[direction] : bicycle ? 'じてんしゃに のる・おりる' : 'しらべる・はなす');
+      const accelerate = button.dataset.accelerate !== undefined;
+      if (accelerate) this.accelerationButton = button;
+      button.setAttribute('aria-label', direction ? TOUCH_LABELS[direction] : bicycle ? 'じてんしゃに のる・おりる'
+        : accelerate ? '押している間、自転車を加速' : 'しらべる・はなす');
       button.addEventListener('pointerdown', event => {
-        if (this.panels.active || this.minimap?.isOpen || this.travel?.()?.isOpen) return;
+        if (this.panels.active || this.minimap?.isOpen || this.travel?.()?.isOpen ||
+            (accelerate && !this.canAccelerate())) return;
         event.preventDefault();
         this.focusMap();
         button.setPointerCapture(event.pointerId);
         if (direction) this.controls.press(`pointer-${event.pointerId}`, direction);
+        else if (accelerate) {
+          this.accelerationPointers.add(event.pointerId);
+          this.controls.pressRun(`pointer-${event.pointerId}`);
+        }
         else if (bicycle) this.game.toggleBicycle();
         else this.primaryAction();
+        this.update();
       });
-      const release = (event: PointerEvent) => this.controls.release(`pointer-${event.pointerId}`);
+      const release = (event: PointerEvent) => this.releasePointer(event.pointerId);
       button.addEventListener('pointerup', release);
       button.addEventListener('pointercancel', release);
       button.addEventListener('lostpointercapture', release);
