@@ -14,10 +14,12 @@ const ERRAND_ACTIONS: Readonly<Record<string, string>> = {
   station: '駅員さんと話す',
 };
 
-export function storyTasks(story: Pick<StoryDirector, 'phase' | 'errandsDone'>,
+export function storyTasks(story: Pick<StoryDirector, 'phase' | 'errandsDone'> &
+  Partial<Pick<StoryDirector, 'errandsRevealed'>>,
   errands: readonly StoryErrand[] = STORY_ERRANDS): { id: string; label: string; done: boolean }[] {
   if (story.phase !== 'errands') return [];
-  return errands.map(errand => ({
+  const revealed = story.errandsRevealed;
+  return errands.filter(errand => !revealed || revealed.includes(errand.id)).map(errand => ({
     id: errand.id,
     label: ERRAND_ACTIONS[errand.id] ?? errand.place,
     done: story.errandsDone.includes(errand.id),
@@ -54,6 +56,7 @@ export class StoryHud {
   }
 
   update(): void {
+    this.root.hidden = this.story.phase === 'errands' && this.story.errandsRevealed?.length === 0;
     const status = this.story.status();
     const tasks = storyTasks(this.story);
     const text = JSON.stringify([status, tasks]);

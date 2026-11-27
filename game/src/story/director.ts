@@ -10,6 +10,7 @@
  * - 最後に、選んだ選択肢と所持金から評価（Issue #62、score.ts）を計算して振り返る。結果画面はまだないため会話欄に出す。
  */
 import type { MapEvent, MapEventSink, PortalDef, SpawnPoint } from '../core/types';
+import type { DialogState } from '../events/dialog';
 import { shopCatalog } from '../data/shop-catalogs';
 import type { LifeEventDirector, LifeEventOutcome } from '../events/director';
 import {
@@ -61,6 +62,7 @@ export class StoryDirector implements MapEventSink {
   private host?: StoryHost;
   private readonly queue: Narration[] = [];
   private pendingAfter?: () => void;
+  private errandIntroduction?: { lines: readonly string[]; firstTaskLine: number; shown: number };
   /** A story event whose choices are still open. */
   private inProgress: string | null = null;
   /** Notices already handed to the inbox in this session (the inbox itself also drops duplicates after a reload). */
@@ -94,6 +96,25 @@ export class StoryDirector implements MapEventSink {
   get startPoint(): Readonly<SpawnPoint> { return STORY_BEDROOM; }
   get canRide(): boolean { return bikeOwned(this.state); }
   get errandsDone(): readonly string[] { return this.state.errandsDone; }
+  /** 最初の説明中だけ、すでに台詞に出た用事を返す。通常の再開時は全件を案内する。 */
+  get errandsRevealed(): readonly string[] | undefined {
+    const introduction = this.errandIntroduction;
+    return introduction && STORY_ERRANDS.slice(0, introduction.shown).map(errand => errand.id);
+  }
+
+  /** 実際に表示する台詞に合わせて、お使いの案内を一件ずつ増やす。 */
+  observeDialog(dialog: Readonly<DialogState> | null): void {
+    const introduction = this.errandIntroduction;
+    if (!introduction) return;
+    if (!dialog || dialog.speaker !== STORY_MOTHER_NAME ||
+        dialog.lines.length !== introduction.lines.length ||
+        dialog.lines.some((line, index) => line !== introduction.lines[index])) {
+      this.errandIntroduction = undefined;
+      return;
+    }
+    introduction.shown = Math.max(introduction.shown,
+      Math.min(STORY_ERRANDS.length, Math.max(0, dialog.index - introduction.firstTaskLine + 1)));
+  }
   get stepsDone(): readonly string[] { return this.state.stepsDone; }
   get choices(): Readonly<Record<string, string>> { return this.state.choices; }
 
@@ -197,14 +218,19 @@ export class StoryDirector implements MapEventSink {
       s.phase = 'errands';
       this.host?.setPhoneOwned(true);
       this.host?.changeMoney(STORY_ERRAND_ALLOWANCE_YEN);
-      return { speaker: STORY_MOTHER_NAME, lines: [
+      const greeting = [
         'おはよう。今日から中学生だね。',
         'はい、これ。入学のお祝いにスマホを用意したよ。（スマホをもらった！ P キーで開ける）',
         'さっそくだけど、お使いを頼める？ 町をひと回りすれば、どこに何があるか分かるよ。',
+      ];
+      const lines = [
+        ...greeting,
         ...STORY_ERRANDS.map(e => `・${e.place}`),
         `買い物のお金も渡しておくね。（${STORY_ERRAND_ALLOWANCE_YEN}円もらった）`,
         '順番は自由。全部終わったら帰ってきてね。',
-      ] };
+      ];
+      this.errandIntroduction = { lines, firstTaskLine: greeting.length, shown: 0 };
+      return { speaker: STORY_MOTHER_NAME, lines };
     }
     if (s.phase === 'errands') {
       const left = STORY_ERRANDS.filter(e => !s.errandsDone.includes(e.id)).map(e => e.place);

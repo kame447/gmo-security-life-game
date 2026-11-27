@@ -34,6 +34,37 @@ async function readAll(page, touch) {
   throw new Error('dialog did not finish');
 }
 
+async function readErrandIntroduction(page, touch, label) {
+  const places = ['中学校の先生', 'コンビニでノートを買う', '公園の友達', '駅の駅員さん'];
+  const targets = ['school', 'shop-konbini', 'park', 'station'];
+  let count = 0;
+  for (let step = 0; step < 20; step++) {
+    const current = await page.evaluate(() => {
+      const dialog = window.__slg.game.dialog;
+      return dialog && { speaker: dialog.speaker, line: dialog.lines[dialog.index], index: dialog.index };
+    });
+    if (!current) break;
+    assert.equal(current.speaker, '母');
+    const task = places.findIndex(place => current.line === '・' + place);
+    if (task >= 0) count = task + 1;
+    const expected = targets.slice(0, count);
+    await page.waitForFunction(({ count, expected }) => {
+      const hud = document.querySelector('#story-hud');
+      const points = JSON.parse(document.querySelector('#minimap-button canvas')?.dataset.goalLocations ?? '[]');
+      return hud.hidden === (count === 0) &&
+        hud.querySelectorAll('.story-tasks li').length === count &&
+        JSON.stringify(points.map(point => point.id).sort()) === JSON.stringify([...expected].sort());
+    }, { count, expected });
+    if (task === 0) await shot(page, label + '-first-errand-dialog');
+    if (touch) await click(page, '#dialog', true);
+    else await page.keyboard.press('KeyZ');
+    await page.waitForFunction(index => window.__slg.game.dialog?.index !== index, current.index);
+  }
+  assert.equal(count, 4);
+  assert.equal(await page.evaluate(() => !!window.__slg.game.dialog), false);
+  await page.waitForFunction(() => document.querySelectorAll('#story-hud .story-tasks li').length === 4);
+}
+
 // Only position is a fixture. Interaction and dialog advancement use the actual controls.
 async function face(page, eventKey) {
   const found = await page.evaluate(key => {
@@ -140,7 +171,9 @@ try {
         await face(page, 'home.mother');
         await goalAt(page, 'home-family', { eventKey: 'home.mother' });
         await action(page, touch);
-        await readAll(page, touch);
+      });
+      await check(label + ' reveals each task and map target with the corresponding spoken line', async () => {
+        await readErrandIntroduction(page, touch, label);
         assert.equal(await page.evaluate(() => window.__slgStory.phase), 'errands');
       });
       await check(label + ' checklist and real outdoor goals fit beside the menu and minimap', async () => {

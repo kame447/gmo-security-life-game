@@ -165,6 +165,7 @@ const loop = startLoop({
     avatar.drawPreview(now);
     lifeEventPanel.update();
     dialogLog.observe(game.dialog);
+    story?.observeDialog(game.dialog);
     storyHud?.update();
     hud.update(now);
     ui.update();
