@@ -40,8 +40,8 @@ describe('trusted real-world editor contract', () => {
   it('keeps the trusted context through a real home edit, undo, redo, export and preview', () => {
     const { document, context } = setup();
     const strictIssues = validateDocument(document);
-    // Main's relocated board (object + interaction) and gym-overlapping tree remove three reports.
-    expect(strictIssues).toHaveLength(92);
+    // The two occupied cafe chairs are now intentionally drawn as decals, adding two raw overlap reports.
+    expect(strictIssues).toHaveLength(94);
     expect(strictIssues.every(issue => issue.code === 'overlap')).toBe(true);
     expect(() => new EditorSession(document)).toThrow(EditorValidationError);
     expect(() => new EditorSession(document, { context, historyLimit: 0 })).toThrow(RangeError);

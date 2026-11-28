@@ -62,7 +62,7 @@ function reopen(layout: AreaLayout, world: World, areaId: string): WorldEditorMo
 }
 
 describe('N1.5 店を含む全エリアの人物確認', () => {
-  it('isEditableArea による走査で全12編集可能エリア16人が編集対象になり、7店の接続と一致する', () => {
+  it('isEditableArea による走査で全13編集可能エリア24人が編集対象になり、7店の接続と一致する', () => {
     const world = buildWorld();
     const initial = new WorldEditorModel(world).initial;
     expect(validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
@@ -81,9 +81,10 @@ describe('N1.5 店を含む全エリアの人物確認', () => {
     expect(counts['school-classroom-interior']).toBe(2);
     for (const store of STORE_CONTACTS) {
       expect(editableAreas.some(area => area.id === store.interiorAreaId)).toBe(true);
-      expect(counts[store.interiorAreaId]).toBe(1);
+      // Each shop has a clerk and a visitor; the cafe has two seated visitors.
+      expect(counts[store.interiorAreaId]).toBe(store.catalogId === 'cafe' ? 3 : 2);
     }
-    expect(Object.values(counts).reduce((sum, count) => sum + count, 0)).toBe(16);
+    expect(Object.values(counts).reduce((sum, count) => sum + count, 0)).toBe(24);
   });
 
   it('7店すべての店員で5種類の編集・Undo/Redo・保存往復・保護・store接続検証が通る', () => {

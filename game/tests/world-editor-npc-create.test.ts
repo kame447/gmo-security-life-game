@@ -2,6 +2,7 @@ import {describe,expect,it} from 'vitest';
 import {TRAIN_NETWORK} from '../src/travel/network';
 import {buildWorld,LANDMARKS,validateWorld} from '../src/world';
 import {isSolidGround} from '../src/world/tiles';
+import {toRuntime} from '../src/world/runtime';
 import {WorldEditorModel,HOME_AREA} from '../src/world-editor/model';
 import {EDITABLE_PEOPLE,npcEventKey} from '../src/world-editor/npc';
 import {assertHomeWorldEdit,assertInteriorEdit} from '../src/world-editor/policy';
@@ -16,8 +17,8 @@ function put(model:WorldEditorModel,areaId:string,sprite='friend',x=4,y=7){
   const npc={...model.createNpc(sprite,areaId),x,y};model.commit(model.npcCandidate(npc,true));return npc;
 }
 describe('実ワールドに置く人物と保存の境界',()=>{
-  it('承認した10種を読込時に宣言し、主人公と汎用fallbackを追加/変更/直接保存でも拒否する',()=>{
-    const{world,model}=fixture();expect(EDITABLE_PEOPLE).toHaveLength(10);
+  it('通常10種と着席2種を読込時に宣言し、主人公と汎用fallbackを追加/変更/直接保存でも拒否する',()=>{
+    const{world,model}=fixture();expect(EDITABLE_PEOPLE).toHaveLength(12);
     for(const person of EDITABLE_PEOPLE)expect(model.document.catalogs.sprites).toContain(person.id);
     expect(EDITABLE_PEOPLE.some(person=>person.id==='player')).toBe(false);
     for(const sprite of ['player','unknown-person']){
@@ -187,17 +188,29 @@ describe('実ワールド全エリアのNPC追加・削除・配置拒否回帰�
               point.x >= door.from.x && point.x < door.from.x + (door.from.w ?? 1) && point.y === door.from.y);
           });
         expect(neighbors.length).toBeGreaterThan(0);
-        for (const point of neighbors.slice(0, -1)) {
+        let rejectedCut = false;
+        for (const point of neighbors) {
           const blocker = { ...sealModel.createNpc('friend', area.id), x: point.x, y: point.y };
-          sealModel.commit(sealModel.npcCandidate(blocker, true));
+          const beforeSeal = sealModel.document;
+          const candidate = sealModel.npcCandidate(blocker, true);
+          const issues = sealModel.issues(candidate);
+          // Existing customers can leave only one passable neighbor; the first actual disconnection
+          // must be refused, rather than assuming all but the final neighbor are freely occupiable.
+          if (issues.includes('出入口や調べる場所への通路を保ってください')) {
+            const disconnected = sealModel.runtime(sealModel.document, [area.id]);
+            const room = disconnected.areas.get(area.id)!;
+            disconnected.areas.set(area.id, toRuntime({ ...room.def, interactions: [...room.def.interactions, blocker] }));
+            expect(validateWorld(disconnected, { railLinks: TRAIN_NETWORK.railLinks() }).some(issue => issue.startsWith('Unreachable'))).toBe(true);
+            expect(() => sealModel.commit(candidate)).toThrow('通路');
+            expect(sealModel.document).toEqual(beforeSeal);
+            rejectedCut = true;
+            break;
+          }
+          expect(issues, `${area.id} at ${point.x},${point.y}`).toEqual([]);
+          sealModel.commit(candidate);
+          expect(validateWorld(sealModel.runtime(sealModel.document, [area.id]), { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
         }
-        const finalPoint = neighbors.at(-1)!;
-        const sealing = { ...sealModel.createNpc('friend', area.id), x: finalPoint.x, y: finalPoint.y };
-        const beforeSeal = sealModel.document;
-        const issues = sealModel.issues(sealModel.npcCandidate(sealing, true));
-        expect(issues).toContain('出入口や調べる場所への通路を保ってください');
-        expect(() => sealModel.commit(sealModel.npcCandidate(sealing, true))).toThrow('通路');
-        expect(sealModel.document).toEqual(beforeSeal);
+        expect(rejectedCut, `${area.id} must reject a placement that disconnects the arrival route`).toBe(true);
       }
     }
   }, 15000);
