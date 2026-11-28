@@ -54,6 +54,11 @@ async function withPage(viewport, hasTouch, action) {
       window.__bikeEvents = [];
       const update = game.update.bind(game);
       game.update = (dt, input) => {
+        // Measure each real update from clear ground: 300ms at 176px/s already
+        // travels 52.8px, beyond the fixture's three-tile (48px) clear radius.
+        // Keep the held input and its timer intact, but prevent accumulated travel
+        // (including catch-up updates after a slow frame) from reaching a wall.
+        game.player = { ...window.__bikeStart, facing: game.player.facing };
         const before = game.player;
         const { x, y } = before;
         update(dt, input);
@@ -97,7 +102,7 @@ async function findSample(page, dir, run, expected) {
 
 async function expectAcceleration(page, dir) {
   const normal = await findSample(page, dir, false, 176);
-  // Reset position before running out of space, preserving the original hold.
+  // Discard earlier samples while preserving the original hold.
   await checkpoint(page);
   const boosted = await findSample(page, dir, true, 240);
   assert.ok(boosted.at > normal.at, 'Normal speed precedes acceleration');
