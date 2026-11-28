@@ -91,29 +91,34 @@ export async function assertFits(page) {
       return { id: element.id || element.textContent, width: r.width, height: r.height, row: element.classList.contains('shop-product'),
         onTop: points.every(([x, y]) => { const top = document.elementFromPoint(x, y); return top === element || element.contains(top); }) };
     });
-    return { width: innerWidth, height: innerHeight, phase: root.dataset.phase, panel: box(root), items, regions, hits, room, view: box(canvas), unit,
+    return { width: innerWidth, height: innerHeight, phase: root.dataset.phase, panel: box(root), items, regions, hits, room, unit, playfield: box(canvas),
       stage: box(root.querySelector('.shop-stage')), touch: navigator.maxTouchPoints > 0, fontPx: parseFloat(getComputedStyle(root).fontSize),
       overflow: document.documentElement.scrollWidth > innerWidth };
   });
   assert.equal(result.overflow, false);
   assert.equal(result.regions.length, 3, 'Wallet, product list and bar are three separate boxes');
-  // The boxes belong to the drawn room: they stay inside its rectangle whenever the room is large enough on screen.
-  const { room, stage, view } = result;
-  const roomy = room.width >= 392 && room.height >= 320
-    && room.x >= view.x + 8 && room.y >= view.y + 8
-    && room.x + room.width <= view.right - 8 && room.y + room.height <= view.bottom - 8;
-  assert.ok(stage.x >= view.x + 7 && stage.y >= view.y + 7
-    && stage.right <= view.right - 7 && stage.bottom <= view.bottom - 7, 'The frame respects the visible game canvas');
+  // The indoor canvas reserves space for the hotbar. Only its visible room, inset by 8px, is available to the shop.
+  const { room, stage, playfield } = result;
+  const available = { x: playfield.x + 8, y: playfield.y + 8, right: playfield.right - 8, bottom: playfield.bottom - 8 };
+  const visibleRoom = { x: Math.max(room.x, available.x), y: Math.max(room.y, available.y),
+    right: Math.min(room.x + room.width, available.right), bottom: Math.min(room.y + room.height, available.bottom) };
+  const visibleWidth = visibleRoom.right - visibleRoom.x, visibleHeight = visibleRoom.bottom - visibleRoom.y;
+  const frameWidth = Math.min(playfield.width - 16, Math.max(392, visibleWidth));
+  const minimumHeight = frameWidth < 420 ? 330 : 320;
+  const frameHeight = Math.min(playfield.height - 16, Math.max(minimumHeight, visibleHeight));
+  assert.ok(stage.x >= available.x - 1 && stage.y >= available.y - 1 && stage.right <= available.right + 1 && stage.bottom <= available.bottom + 1,
+    `The layout frame stays inside the playfield: ${JSON.stringify({ stage, playfield })}`);
+  assert.ok(Math.abs(stage.width - frameWidth) <= 1 && Math.abs(stage.height - frameHeight) <= 1,
+    `The visible room grows only to the usable minimum, capped by the playfield: ${JSON.stringify({ stage, frameWidth, frameHeight })}`);
   for (const region of result.regions) {
     assert.ok(region.x >= stage.x - 1 && region.y >= stage.y - 1 && region.right <= stage.right + 1 && region.bottom <= stage.bottom + 1, `Box stays in the layout frame: ${JSON.stringify(region)}`);
   }
-  if (roomy) {
-    assert.ok(Math.abs(stage.x - room.x) <= 1 && Math.abs(stage.y - room.y) <= 1 && Math.abs(stage.width - room.width) <= 1 && Math.abs(stage.height - room.height) <= 1,
-      `The layout frame is the drawn room: ${JSON.stringify({ room, stage })}`);
+  if (visibleWidth >= 392) assert.ok(Math.abs(stage.x - visibleRoom.x) <= 1,
+    `The layout frame follows the visible room horizontally: ${JSON.stringify({ visibleRoom, stage })}`);
+  if (visibleHeight >= minimumHeight) assert.ok(Math.abs(stage.y - visibleRoom.y) <= 1,
+    `The layout frame follows the visible room vertically: ${JSON.stringify({ visibleRoom, stage })}`);
+  if (room.width >= 392 && room.height >= 320) {
     assert.ok(Math.abs(result.fontPx - Math.max(13, result.unit * 7)) < .01, `Type follows the game pixel scale: ${JSON.stringify({ font: result.fontPx, unit: result.unit })}`);
-  } else {
-    assert.ok(stage.width <= Math.max(392, room.width) + 1 && stage.height <= Math.max(330, room.height) + 1,
-      `The visible room only grows to the minimum frame size: ${JSON.stringify(stage)}`);
   }
   for (const item of [...result.regions, ...result.items]) {
     assert.ok(item.x >= 0 && item.y >= 0 && item.right <= result.width + 1 && item.bottom <= result.height + 1,

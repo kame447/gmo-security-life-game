@@ -217,16 +217,33 @@ try {
         if (vp.touch) {
           const hits = await buttonHits(page);
           check(row, row.measurement.buttons.every(b => !b.visible) && hits.every(h => !h.hit), 'flow', 'every touch button is hidden and none can be hit while the dialog is open', hits);
-          // 隠れたボタンの位置を実際にタップしても、会話も足も動かない（そこに会話の欄が重なるボタンは、欄のタップなので試さない）。
-          row.hiddenTap = { tapped: [], underDialog: [] };
+          // elementFromPoint is a point hit test; Chromium can adjust a touch near the dialog's edge onto it.
+          // Inspect the delivered events so a real dialog tap is not mistaken for a hidden-button action.
+          row.hiddenTap = { tapped: [], underDialog: [], adjustedToDialog: [] };
           for (const selector of ['[data-dir="up"]', '[data-dir="down"]', '[data-dir="left"]', '[data-dir="right"]', '[data-act]', '[data-bike]']) {
             const spot = await buttonPoint(page, selector);
             if (spot.underDialog) { row.hiddenTap.underDialog.push(selector); continue; }
             const before = await snapshot(page);
+            await page.evaluate(() => {
+              window.__dialogAuditTapTargets = [];
+              window.__dialogAuditTapAbort = new AbortController();
+              for (const type of ['pointerdown', 'click']) document.addEventListener(type, event => {
+                window.__dialogAuditTapTargets.push({ type, dialog: !!event.target.closest('#dialog'), touch: !!event.target.closest('#touch button') });
+              }, { once: true, capture: true, signal: window.__dialogAuditTapAbort.signal });
+            });
             await page.touchscreen.tap(spot.x, spot.y); await page.clock.runFor(200);
             const after = await snapshot(page);
+            const targets = await page.evaluate(() => { window.__dialogAuditTapAbort.abort(); return window.__dialogAuditTapTargets; });
+            check(row, targets.some(target => target.type === 'pointerdown') && targets.every(target => !target.touch), 'flow', `the hidden ${selector} button never receives the tap`, { spot, targets });
+            check(row, JSON.stringify(after.player) === JSON.stringify(before.player), 'flow', `tapping the hidden ${selector} position never moves the player`);
+            if (targets.some(target => target.type === 'click' && target.dialog)) {
+              row.hiddenTap.adjustedToDialog.push(selector);
+              // This integrated branch guards against Chromium retargeting a touch that started outside the dialog.
+              check(row, after.dialog?.index === before.dialog.index, 'flow', 'a retargeted tap from outside the dialog never advances it', { spot, targets });
+              continue;
+            }
             row.hiddenTap.tapped.push(selector);
-            check(row, after.dialog?.index === before.dialog.index && JSON.stringify(after.player) === JSON.stringify(before.player), 'flow', `tapping where the hidden ${selector} button was does nothing`);
+            check(row, after.dialog?.index === before.dialog.index, 'flow', `tapping where the hidden ${selector} button was does nothing`);
           }
           check(row, row.hiddenTap.tapped.length > 0, 'flow', 'at least one hidden button position could be tapped without hitting the dialog box', row.hiddenTap);
         } else check(row, row.measurement.buttons.every(b => !b.visible), 'flow', 'touch buttons are not shown on the PC screen');
