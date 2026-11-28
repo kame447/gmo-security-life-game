@@ -17,11 +17,13 @@ describe('read-only inventory and fidelity measurements', () => {
       ['town-neighbor', 11, 0, 1],
     ]);
     expect(report.areas.reduce((n, a) => n + a.facilities.sourceId, 0)).toBe(13);
-    expect(report.areas.reduce((n, a) => n + a.decals.sourceId, 0)).toBe(25);
+    // Two cafe chairs occupied by seated visitors are now authored as decals.
+    expect(report.areas.reduce((n, a) => n + a.decals.sourceId, 0)).toBe(27);
     // F5 preserves town-shop-60-59 while changing its kind to apartment.
     expect(report.areas.reduce((n, a) => n + a.coordinatePatternObjectIds, 0)).toBe(321);
     expect(report.areas.reduce((n, a) => n + a.groundSolidCells.auxiliary, 0)).toBe(3078);
-    expect(report.areas.reduce((n, a) => n + a.runtimeSolidCells.auxiliary, 0)).toBe(5636);
+    // Six additional shop visitors occupy previously walkable cells; the seated ones are on already-solid chairs.
+    expect(report.areas.reduce((n, a) => n + a.runtimeSolidCells.auxiliary, 0)).toBe(5642);
     expect(report.duplicateSourceIds).toEqual([]);
     expect(world).toEqual(before);
   });
@@ -51,7 +53,7 @@ describe('read-only inventory and fidelity measurements', () => {
     expect(report.normalizedOrderChanges).toHaveLength(26);
     expect(report.backendAccepted).toBe(false);
     // Shape validation now accepts numeric styles; raw, unlinked data is still rejected for overlaps.
-    expect(report.backendIssues).toHaveLength(239);
+    expect(report.backendIssues).toHaveLength(241);
     expect(report.backendIssues.every(issue => issue.code === 'overlap')).toBe(true);
     expect(world).toEqual(before);
   });

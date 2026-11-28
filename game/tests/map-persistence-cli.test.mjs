@@ -58,7 +58,7 @@ describe('map persistence evaluation CLI', () => {
     const result = run('roundtrip'); assert.equal(result.status, 0, result.stderr);
     const report = JSON.parse(result.stdout);
     assert.equal(report.measurementOnly, true); assert.equal(report.backendAccepted, false);
-    assert.equal(report.backendIssues.length, 239); assert.equal(report.variantEqual, false);
+    assert.equal(report.backendIssues.length, 241); // Two cafe chairs are rendered as seated-person decals. assert.equal(report.variantEqual, false);
     assert.equal(report.areas.find(a => a.areaId === 'town-main').lostDistricts, 4);
   });
   it('refuses actual source incompatibilities with exit 2 and no candidate', () => {

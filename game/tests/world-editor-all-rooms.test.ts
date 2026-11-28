@@ -141,8 +141,25 @@ describe('Issue #24 全屋内エリアの編集・回転・重なり・将来統
     if (linkedKonbiniObj) {
       expect(() => model.remove(linkedKonbiniObj, konbini)).toThrow();
     }
-    const unlinkedKonbiniObj = model.initial.objects.find(o => o.areaId === konbini && !model.initial.interactions.some(i => i.objectId === o.id))!;
-    model.move(unlinkedKonbiniObj.id, unlinkedKonbiniObj.x, unlinkedKonbiniObj.y + 1, konbini);
+    // Choose a currently legal move: a new shopper may occupy the former fixed target tile.
+    const unlinkedKonbiniObjs = model.initial.objects.filter(o =>
+      o.areaId === konbini && !model.initial.interactions.some(i => i.objectId === o.id));
+    const room = model.initial.areas.find(area => area.id === konbini)!;
+    let movedKonbini = false;
+    for (const object of unlinkedKonbiniObjs) {
+      for (let y = 1; y < room.height - object.h - 1 && !movedKonbini; y++) {
+        for (let x = 1; x < room.width - object.w - 1; x++) {
+          if (x === object.x && y === object.y) continue;
+          if (x <= 3 && x + object.w > 3 && y <= 8 && y + object.h > 8) continue;
+          if (model.issues(model.candidate({ ...object, x, y })).length) continue;
+          model.move(object.id, x, y, konbini);
+          movedKonbini = true;
+          break;
+        }
+      }
+      if (movedKonbini) break;
+    }
+    expect(movedKonbini).toBe(true);
     const konbiniChair = { ...model.create('chair-wood', konbini), x: 3, y: 8 };
     model.commit(model.candidate(konbiniChair, true));
     model.updateNpc('konbini-clerk', { lines: ['いらっしゃいませ、棚も動かせます。'] }, konbini);

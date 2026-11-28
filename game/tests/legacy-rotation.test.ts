@@ -71,6 +71,8 @@ function findClearSpot(model: WorldEditorModel, areaId: string, objectId: string
       if (current.solid && others.some(o => x < o.x + o.w && x + spanW > o.x && y < o.y + o.h && y + spanH > o.y)) continue;
       if (current.solid && arrivals.some(p => p.x >= x && p.x < x + spanW && p.y >= y && p.y < y + spanH)) continue;
       if (current.solid && exits.some(p => x < p.x + (p.w ?? 1) && x + spanW > p.x && y <= p.y && y + spanH > p.y)) continue;
+      // The move must be valid in the original orientation before the rotation is tested.
+      if (model.issues(model.candidate({ ...current, x, y })).length) continue;
       if (model.issues(model.candidate({ ...current, x, y, facing: 'left', ...sideways })).length) continue;
       return { x, y };
     }

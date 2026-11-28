@@ -685,15 +685,26 @@ const FALLBACK: Recipe = {
   colors: { h: '#777466', H: '#9a978a', d: '#57554a', c: '#8d9885', C: '#6f7968', p: '#6b766b', P: '#545d54' },
 };
 
-/** 図案を持つ NPC の ID（ねこを含む）。 */
-export const NPC_IDS: readonly string[] = [...Object.keys(RECIPES), 'cat'];
+/** ポーズも既存の sprite ID として扱い、マップや保存の形式は変えない。 */
+export const SEATED_NPC_SPRITES: Readonly<Record<string, { base: string; reading: boolean }>> = {
+  'grandma-reading-seated': { base: 'grandma', reading: true },
+  'friend-seated': { base: 'friend', reading: false },
+};
+
+/** 図案を持つ NPC の ID（ねこと着席ポーズを含む）。 */
+export const NPC_IDS: readonly string[] = [...Object.keys(RECIPES), 'cat', ...Object.keys(SEATED_NPC_SPRITES)];
+
+function recipeFor(name: string): Recipe {
+  const base = Object.hasOwn(SEATED_NPC_SPRITES, name) ? SEATED_NPC_SPRITES[name].base : name;
+  return Object.hasOwn(RECIPES, base) ? RECIPES[base] : FALLBACK;
+}
 
 /** NPC の色と図案。テストで記号の定義漏れや主人公との重なりを確かめるために使う。 */
 export function npcParts(name: string): { colors: Palette; grids: Grid[] } {
   if (name === 'cat') return { colors: CAT_COLORS, grids: [...Object.values(CAT), ...Object.values(CAT_TAIL)] };
-  const recipe = Object.hasOwn(RECIPES, name) ? RECIPES[name] : FALLBACK;
+  const recipe = recipeFor(name);
   const grids = [recipe.head, recipe.body, ...(recipe.hem ? [recipe.hem] : []), ...(recipe.hats ?? []).map(hat => HATS[hat])].flatMap(views => Object.values(views));
-  return { colors: { ...BASE, ...recipe.colors }, grids };
+  return { colors: { ...BASE, ...recipe.colors, p: recipe.colors.p ?? recipe.colors.z, P: recipe.colors.P ?? recipe.colors.Z }, grids };
 }
 
 const CAT_COLORS: Palette = {
@@ -733,12 +744,30 @@ function drawCat(c: C2D, view: View, step: number): void {
   if (view === 'back') paint(c, CAT_TAIL.back, CAT_COLORS, 7, 20);
 }
 
+function drawSeated(c: C2D, recipe: Recipe, view: View, reading: boolean): void {
+  const colors = { ...BASE, ...recipe.colors, p: recipe.colors.p ?? recipe.colors.z, P: recipe.colors.P ?? recipe.colors.Z };
+  // 上体を下げ、伸びた脚ではなく膝を曲げた横向きのシルエットを使う。
+  paint(c, recipe.head[view], colors, recipe.adult ? 3 : 1, 4);
+  paint(c, recipe.body[view].slice(0, recipe.adult ? 6 : 5), colors, 0, recipe.adult ? 16 : 17);
+  for (const hat of recipe.hats ?? []) paint(c, HATS[hat][view], colors, hat === 'cap' ? 2 : 1, 4);
+  if (view === 'side') {
+    paint(c, ['ooooooo', 'oppPPpo', 'ooooopo', '....oso', '....okko', '....oooo'], colors, 7, 20);
+    if (reading) paint(c, ['..o...o.', '.owwowwo', 'owwwowwo', '.owwowwo', '..oSSo..'], colors, 10, 16);
+    else paint(c, ['oSSSo', '.ooo.'], colors, 10, 19);
+  } else {
+    paint(c, ['oooooooooo', 'oppPPPPppo', 'ooppooppoo', '.oxx..xxo.', '.okkookko.', '.oooooooo.'], colors, 4, 20);
+    if (reading) paint(c, ['.ooo.ooo.', 'owwwowwwo', '.owwowwo.', '..oSSSo..'], colors, 5, 17);
+  }
+}
+
 export function drawNpc(c: C2D, name: string, facing: Facing, frame: 0 | 1 | 2): void {
   const view = viewOf(facing);
   const step = frame === 1 ? -1 : frame === 2 ? 1 : 0;
   if (facing === 'left') { c.translate(NPC_W, 0); c.scale(-1, 1); }
   if (name === 'cat') { drawCat(c, view, step); return; }
-  const recipe = Object.hasOwn(RECIPES, name) ? RECIPES[name] : FALLBACK;
+  const recipe = recipeFor(name);
+  const seated = Object.hasOwn(SEATED_NPC_SPRITES, name) ? SEATED_NPC_SPRITES[name] : undefined;
+  if (seated) { drawSeated(c, recipe, view, seated.reading); return; }
   const colors = { ...BASE, ...recipe.colors };
   const headX = recipe.adult ? 3 : 1;
   legs(c, view, step, colors, recipe.legs, recipe.adult ? 5 : 4);

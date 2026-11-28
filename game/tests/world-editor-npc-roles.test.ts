@@ -123,12 +123,12 @@ describe('N2 店員と人生イベントの役割導出とN3.3店員しるしの
   it('unit-only のカタログ fixture で clerkVisit と役割導出が一致して切り替わり、製品カタログは汚さない（N2.5）', () => {
     const model = new WorldEditorModel(buildWorld());
     const konbiniArea = model.document.areas.find(candidate => candidate.id === 'shop-konbini-interior')!;
-    const konbiniClerk = areaNpcs(model.document, konbiniArea.id)[0]!;
+    const konbiniClerk = areaNpcs(model.document, konbiniArea.id).find(person => person.eventKey === 'shopping.konbini.clerk')!;
     expect(npcReferences(konbiniClerk, model.document, { catalogs: [] }).kind).toBe('clerk-no-catalog');
     expect(clerkVisit(konbiniArea, konbiniClerk, STORE_CONTACTS, [])).toBeUndefined();
 
     const bakeryArea = model.document.areas.find(candidate => candidate.id === 'shop-bakery-interior')!;
-    const bakeryClerk = areaNpcs(model.document, bakeryArea.id)[0]!;
+    const bakeryClerk = areaNpcs(model.document, bakeryArea.id).find(person => person.eventKey === 'shopping.bakery.clerk')!;
     const expandedCatalogs: readonly ShopCatalog[] = [
       ...SHOP_CATALOGS,
       { id: 'bakery', name: 'パンや', offers: [{ itemId: 'bottled-water', priceYen: 120 }] },

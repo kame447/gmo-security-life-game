@@ -2,6 +2,7 @@ import type { AreaDef, ObjectDef, PortalDef } from '../core/types';
 import { LANDMARKS, STATION_ACCESS } from './landmarks';
 import { STATION_FLOW_LAYOUT, STATION_FLOW_PLATFORMS } from './station-flow';
 import { T } from './tiles';
+import { shopCustomers } from './shop-customers';
 
 /** 屋外から入ったときの屋内の到着位置。出口マットのすぐ北。 */
 export const INTERIOR_ENTRIES = {
@@ -116,6 +117,7 @@ export function createKonbini(): AreaDef {
     { id: 'konbini-clerk', kind: 'npc', name: 'てんいんさん', x: 10, y: 3, sprite: 'clerk', facing: 'down', solid: true, eventKey: 'shopping.konbini.clerk', lines: ['いらっしゃいませ。おやつも のみものも あるよ。ゆっくり みてね。'] },
     { id: 'konbini-snacks', kind: 'object', name: 'おかしのたな', x: 2, y: 3, w: 2, h: 2, solid: true, eventKey: 'shopping.konbini.snacks', lines: ['あまい おかしと、しょっぱい おかし。どっちも おいしそう！'] },
     { id: 'konbini-drinks', kind: 'object', name: 'のみもののケース', x: 1, y: 1, w: 4, solid: true, eventKey: 'shopping.konbini.drinks', lines: ['おちゃに ジュース、ぎゅうにゅう。つめたく ひえているよ。'] },
+    ...shopCustomers('konbini'),
   ];
   return a;
 }

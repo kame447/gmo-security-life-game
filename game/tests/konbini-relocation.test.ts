@@ -71,6 +71,7 @@ describe('konbini relocation (Candidate E)', () => {
       'shopping.konbini.clerk',
       'shopping.konbini.snacks',
       'shopping.konbini.drinks',
+      'customer.konbini.after-school',
     ]);
     expect(interior.def.portals.find(p => p.id === 'konbini-exit')?.to).toEqual({
       areaId: 'town-main',
