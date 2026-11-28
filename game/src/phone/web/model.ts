@@ -83,6 +83,7 @@ export class WebModel {
   constructor(content: WebContent) { this.pages = cleanPages(structuredClone(content)); }
   get view(): WebView { return structuredClone(this.stack[this.stack.length - 1]); }
   get canGoBack(): boolean { return this.stack.length > 1; }
+  get historyDepth(): number { return this.stack.length; }
 
   search(query: string): boolean {
     const clean = cleanChatText(query, WEB_LIMITS.queryCodePoints).trim();

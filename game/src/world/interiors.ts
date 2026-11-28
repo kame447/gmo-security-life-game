@@ -2,6 +2,7 @@ import type { AreaDef, ObjectDef, PortalDef } from '../core/types';
 import { LANDMARKS, STATION_ACCESS } from './landmarks';
 import { STATION_FLOW_LAYOUT, STATION_FLOW_PLATFORMS } from './station-flow';
 import { T } from './tiles';
+import { shopCustomers } from './shop-customers';
 
 /** 屋外から入ったときの屋内の到着位置。出口マットのすぐ北。 */
 export const INTERIOR_ENTRIES = {
@@ -41,7 +42,7 @@ function furnish(area: AreaDef, kind: string, x: number, y: number, w: number, h
 
 /** 自宅の1階。玄関・リビング・台所と、2階への階段（docs/features/story.md）。 */
 export function createHome(): AreaDef {
-  const a = room('home-family-interior', 'じぶんのいえ 1かい', 16, T.FLOOR_WOOD);
+  const a = room('home-family-interior', '自宅 1階', 16, T.FLOOR_WOOD);
   for (let y = 1; y <= 5; y++) for (let x = 1; x <= 6; x++) a.ground[y * a.width + x] = T.FLOOR_TATAMI;
   // A partial partition leaves an open passage between the tatami room and family spaces.
   for (let y = 1; y <= 3; y++) a.ground[y * a.width + 7] = T.WALL_TOP;
@@ -58,15 +59,15 @@ export function createHome(): AreaDef {
     { id: 'home-stairs-up', from: { x: 1, y: 1 }, to: { ...INTERIOR_ENTRIES.homeUpstairs } },
   ];
   a.interactions = [
-    { id: 'home-mother', kind: 'npc', name: 'おかあさん', x: 13, y: 4, sprite: 'mother', facing: 'left', solid: true, eventKey: 'home.mother', lines: ['おかえり！ てを あらったら、おやつにしよう。'] },
-    { id: 'home-tablet', kind: 'object', name: 'かぞくのタブレット', x: 5, y: 8, w: 2, solid: true, eventKey: 'home.tablet', lines: ['みんなで つかう タブレットだ。つぎは なにを みようかな。'] },
+    { id: 'home-mother', kind: 'npc', name: 'お母さん', x: 13, y: 4, sprite: 'mother', facing: 'left', solid: true, eventKey: 'home.mother', lines: ['おかえり！ 手を洗ったら、おやつにしよう。'] },
+    { id: 'home-tablet', kind: 'object', name: '家族のタブレット', x: 5, y: 8, w: 2, solid: true, eventKey: 'home.tablet', lines: ['家族で使うタブレットだ。次は何を見ようかな。'] },
   ];
   return a;
 }
 
 /** 自宅の2階。主人公の部屋で、新しく始めると、ここのベッドの横で目を覚ます。外への出口はなく、階段で1階へ降りる。 */
 export function createHomeUpstairs(): AreaDef {
-  const a = room('home-family-2f', 'じぶんのへや（2かい）', 10, T.FLOOR_WOOD, 8);
+  const a = room('home-family-2f', '自分の部屋（2階）', 10, T.FLOOR_WOOD, 8);
   // room() makes a door mat on the bottom wall; the upstairs room has no outside door.
   for (let x = 1; x < a.width - 1; x++) a.ground[(a.height - 1) * a.width + x] = T.WALL_TOP;
   for (let y = 4; y <= 6; y++) for (let x = 1; x <= 4; x++) a.ground[y * a.width + x] = T.FLOOR_TATAMI;
@@ -76,22 +77,22 @@ export function createHomeUpstairs(): AreaDef {
   furnish(a, 'stairs', 8, 1, 1, 1, false);
   a.portals = [{ id: 'home-stairs-down', from: { x: 8, y: 1 }, to: { ...INTERIOR_ENTRIES.homeDownstairs } }];
   a.interactions = [
-    { id: 'home-study-desk', kind: 'object', name: 'がくしゅうづくえ', x: 4, y: 1, w: 2, solid: true, eventKey: 'home.desk', lines: ['えんぴつと ノートを そろえた。しゅくだいも がんばろう。'] },
-    { id: 'home-bed', kind: 'object', name: 'ベッド', x: 1, y: 1, w: 2, h: 3, solid: true, eventKey: 'home.bed', lines: ['ふかふかの ベッドだ。けさも ここで めを さました。'] },
+    { id: 'home-study-desk', kind: 'object', name: '学習机', x: 4, y: 1, w: 2, solid: true, eventKey: 'home.desk', lines: ['鉛筆とノートをそろえた。宿題も頑張ろう。'] },
+    { id: 'home-bed', kind: 'object', name: 'ベッド', x: 1, y: 1, w: 2, h: 3, solid: true, eventKey: 'home.bed', lines: ['ふかふかのベッドだ。今朝もここで目を覚ました。'] },
   ];
   return a;
 }
 
 export function createClassroom(): AreaDef {
-  const a = room('school-classroom-interior', 'きょうしつ', 18, T.FLOOR_CLASS);
+  const a = room('school-classroom-interior', '中学校の教室', 18, T.FLOOR_CLASS);
   furnish(a, 'blackboard', 5, 0, 8, 1, false); furnish(a, 'tdesk', 8, 2, 2, 1);
   for (const x of [2, 5, 8, 11, 14]) for (const y of [4, 6, 8]) furnish(a, 'sdesk', x, y, 1, 1);
   furnish(a, 'shelf', 1, 10, 2, 1); furnish(a, 'shelf', 14, 10, 2, 1);
   furnish(a, 'window', 2, 0, 2, 1, false); furnish(a, 'window', 14, 0, 2, 1, false);
   a.portals = [{ id: 'school-exit', from: { x: 8, y: 11, w: 2 }, to: toTown(LANDMARKS.schoolDoorFront), facilityId: 'school' }];
   a.interactions = [
-    { id: 'school-teacher', kind: 'npc', name: 'せんせい', x: 10, y: 2, sprite: 'teacher', facing: 'down', solid: true, eventKey: 'school.teacher', lines: ['おはよう。きょうも いろんなことを みつけようね。'] },
-    { id: 'school-classmate', kind: 'npc', name: 'クラスのともだち', x: 12, y: 6, sprite: 'classmate', facing: 'left', solid: true, eventKey: 'school.classmate', lines: ['ほうかご、こうえんで あそぼうよ！'] },
+    { id: 'school-teacher', kind: 'npc', name: '先生', x: 10, y: 2, sprite: 'teacher', facing: 'down', solid: true, eventKey: 'school.teacher', lines: ['おはよう。今日もいろいろなことを学ぼうね。'] },
+    { id: 'school-classmate', kind: 'npc', name: 'クラスの友達', x: 12, y: 6, sprite: 'classmate', facing: 'left', solid: true, eventKey: 'school.classmate', lines: ['放課後、公園で遊ぼうよ！'] },
   ];
   return a;
 }
@@ -113,9 +114,10 @@ export function createKonbini(): AreaDef {
   furnish(a, 'konbini-counter', 11, 3, 2, 1, true, 'side');
   a.portals = [{ id: 'konbini-exit', from: { x: 6, y: 9, w: 2 }, to: toTown(LANDMARKS.konbiniDoorFront), facilityId: 'shop-konbini' }];
   a.interactions = [
-    { id: 'konbini-clerk', kind: 'npc', name: 'てんいんさん', x: 10, y: 3, sprite: 'clerk', facing: 'down', solid: true, eventKey: 'shopping.konbini.clerk', lines: ['いらっしゃいませ。おやつも のみものも あるよ。ゆっくり みてね。'] },
-    { id: 'konbini-snacks', kind: 'object', name: 'おかしのたな', x: 2, y: 3, w: 2, h: 2, solid: true, eventKey: 'shopping.konbini.snacks', lines: ['あまい おかしと、しょっぱい おかし。どっちも おいしそう！'] },
-    { id: 'konbini-drinks', kind: 'object', name: 'のみもののケース', x: 1, y: 1, w: 4, solid: true, eventKey: 'shopping.konbini.drinks', lines: ['おちゃに ジュース、ぎゅうにゅう。つめたく ひえているよ。'] },
+    { id: 'konbini-clerk', kind: 'npc', name: '店員さん', x: 10, y: 3, sprite: 'clerk', facing: 'down', solid: true, eventKey: 'shopping.konbini.clerk', lines: ['いらっしゃいませ。おやつも飲み物もあるよ。ゆっくり見てね。'] },
+    { id: 'konbini-snacks', kind: 'object', name: 'お菓子の棚', x: 2, y: 3, w: 2, h: 2, solid: true, eventKey: 'shopping.konbini.snacks', lines: ['甘いお菓子と、しょっぱいお菓子。どちらもおいしそう！'] },
+    { id: 'konbini-drinks', kind: 'object', name: '飲み物のケース', x: 1, y: 1, w: 4, solid: true, eventKey: 'shopping.konbini.drinks', lines: ['お茶にジュース、牛乳。冷たく冷えているよ。'] },
+    ...shopCustomers('konbini'),
   ];
   return a;
 }
@@ -126,7 +128,7 @@ export function createKonbini(): AreaDef {
  * 静止した列車は置かない。列車は発車・到着の演出のときだけ描く。
  */
 export function createStation(): AreaDef {
-  const a = room(STATION_ACCESS.areaId, 'まちのえき こうない', 36, T.PLAZA, 18);
+  const a = room(STATION_ACCESS.areaId, '町の駅 構内', 36, T.PLAZA, 18);
   const f = STATION_FLOW_LAYOUT;
   for (let x = 0; x < a.width; x++) {
     // 線路は1本で、部屋の左右の端まで連続する。列車は部屋の端から出入りする。
@@ -144,9 +146,9 @@ export function createStation(): AreaDef {
     to: toTown(LANDMARKS.stationFront), facilityId: STATION_ACCESS.stationId }];
   a.interactions = [
     // 改札（2タイル）。操作の対象が solid なので、行き先を決める操作を通らずにホームへは入れない。
-    { id: 'station-ticket', kind: 'object', name: 'かいさつ', x: f.gateXs[0], y: f.gateY, w: 2, solid: true, eventKey: 'station.ticket',
-      lines: ['きっぷを とおすところだ。きょうは まちを たんけんしよう。'] },
-    ...STATION_FLOW_PLATFORMS.slice(0, 1).map(p => ({ id: p.sign.interactionId, eventKey: p.sign.eventKey, x: p.sign.x, y: p.sign.y, kind: 'sign' as const, name: 'のりば', solid: true, lines: ['ここが でんしゃの のりばだ。'] })),
+    { id: 'station-ticket', kind: 'object', name: '改札', x: f.gateXs[0], y: f.gateY, w: 2, solid: true, eventKey: 'station.ticket',
+      lines: ['切符を通すところだ。今日は町を探検しよう。'] },
+    ...STATION_FLOW_PLATFORMS.slice(0, 1).map(p => ({ id: p.sign.interactionId, eventKey: p.sign.eventKey, x: p.sign.x, y: p.sign.y, kind: 'sign' as const, name: '乗り場', solid: true, lines: ['ここが電車の乗り場だ。'] })),
   ];
   return a;
 }

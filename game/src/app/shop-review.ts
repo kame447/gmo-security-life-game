@@ -6,8 +6,10 @@ import type { Game } from '../session/game';
 import { findPath } from '../world';
 
 /** URL review=1だけの一時fixture。既存の室内/店員を読み取り、配置は変更しない。 */
-export function prepareShopReview(game: Game): boolean {
-  const store = STORE_CONTACTS[0], area = game.world.areas.get(store.interiorAreaId);
+export function prepareShopReview(game: Game, catalogId = 'konbini'): boolean {
+  const store = STORE_CONTACTS.find(item => item.catalogId === catalogId);
+  if (!store) return false;
+  const area = game.world.areas.get(store.interiorAreaId);
   const clerk = area?.interactions.find(item => item.kind === 'npc' && item.eventKey === store.clerkEventKey);
   const entrance = [...game.world.areas.values()].flatMap(a => a.def.portals).find(portal => portal.id === store.entrancePortalId);
   if (!area || !clerk || !entrance) return false;

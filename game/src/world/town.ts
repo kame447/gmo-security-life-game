@@ -8,16 +8,16 @@ import { applyRailSwitches, townRailLayout } from './rail-layout';
 import { applyRailProtection } from './rail-protection';
 
 const shops = [
-  ['greengrocer', 'やおや'], ['bookstore', 'ほんや'], ['candy', 'だがしや'],
-  ['konbini', 'コンビニ'], ['bakery', 'パンや'], ['cafe', 'きっさてん'], ['pharmacy', 'くすりや'],
+  ['greengrocer', '八百屋'], ['bookstore', '本屋'], ['candy', '駄菓子屋'],
+  ['konbini', 'コンビニ'], ['bakery', 'パン屋'], ['cafe', '喫茶店'], ['pharmacy', '薬局'],
 ] as const;
 
 export const FACILITIES: FacilityDef[] = [
-  { id: 'home-family', kind: 'home', name: 'じぶんのいえ', areaId: 'town-main', interior: 'full', state: 'open' },
-  { id: 'school', kind: 'school', name: 'しょうがっこう', areaId: 'town-main', interior: 'full', state: 'open' },
-  { id: 'school-gym', kind: 'gym', name: 'たいいくかん', areaId: 'town-main', interior: 'background', state: 'open' },
-  { id: 'station', kind: 'station', name: 'まちのえき', areaId: 'town-main', interior: 'full', state: 'open' },
-  { id: 'park', kind: 'park', name: 'かわぞいこうえん', areaId: 'town-main', interior: 'interaction', state: 'open' },
+  { id: 'home-family', kind: 'home', name: '自宅', areaId: 'town-main', interior: 'full', state: 'open' },
+  { id: 'school', kind: 'school', name: '中学校', areaId: 'town-main', interior: 'full', state: 'open' },
+  { id: 'school-gym', kind: 'gym', name: '体育館', areaId: 'town-main', interior: 'background', state: 'open' },
+  { id: 'station', kind: 'station', name: '町の駅', areaId: 'town-main', interior: 'full', state: 'open' },
+  { id: 'park', kind: 'park', name: '川沿い公園', areaId: 'town-main', interior: 'interaction', state: 'open' },
   ...shops.map(([id, name]) => ({ id: `shop-${id}`, kind: id, name, areaId: 'town-main', interior: 'full' as const, state: 'open' as const })),
 ];
 
@@ -251,12 +251,12 @@ export function createTown(): AreaDef {
   for (const x of [88, 95, 103, 111]) decorate(x === 103 ? 'lamp' : 'tree', x, 69, 1, 'cherry');
   applyRailProtection(ground, width, height, townRailLayout(MAIN_STATION_LAYOUT));
   return {
-    id: 'town-main', name: 'いつものまち', kind: 'outdoor', width, height, ground, objects,
+    id: 'town-main', name: 'いつもの町', kind: 'outdoor', width, height, ground, objects,
     districts: [
-      { id: 'town-residential-west', name: 'じゅうたくがい', x: 0, y: 0, w: 84, h: 41 },
-      { id: 'town-center', name: 'えきまえ・しょうてんがい', x: 0, y: 41, w: 84, h: height - 41 },
-      { id: 'town-school-north', name: 'がっこうのまわり', x: 84, y: 0, w: 44, h: 42 },
-      { id: 'town-riverside-park', name: 'かわぞいこうえん', x: 84, y: 42, w: 44, h: 38 },
+      { id: 'town-residential-west', name: '住宅街', x: 0, y: 0, w: 84, h: 41 },
+      { id: 'town-center', name: '駅前・商店街', x: 0, y: 41, w: 84, h: height - 41 },
+      { id: 'town-school-north', name: '学校の周り', x: 84, y: 0, w: 44, h: 42 },
+      { id: 'town-riverside-park', name: '川沿い公園', x: 84, y: 42, w: 44, h: 38 },
     ],
     portals: [
       { id: 'home-enter', from: { x: 35, y: 31 }, to: { ...INTERIOR_ENTRIES.home }, facilityId: 'home-family' },
@@ -266,17 +266,17 @@ export function createTown(): AreaDef {
       { id: 'station-enter', from: { ...MAIN_STATION_LAYOUT.entrance }, to: { ...INTERIOR_ENTRIES.station }, facilityId: 'station' },
     ],
     interactions: [
-      { id: 'neighbor-grandma', kind: 'npc', name: 'きんじょのおばあさん', x: 40, y: 33, sprite: 'grandma', facing: 'left', solid: true, eventKey: 'neighborhood.grandma', lines: ['おかえり。きょうも がっこう、たのしかった？'] },
-      { id: 'neighborhood-board', kind: 'sign', name: 'まちのけいじばん', x: 37, y: 36, w: 2, solid: true, eventKey: 'neighborhood.board', lines: ['こんどの にちようびは、こうえんの おそうじだって。'] },
-      { id: 'neighborhood-cat', kind: 'npc', name: 'ねこ', x: 42, y: 36, sprite: 'cat', facing: 'down', solid: true, eventKey: 'neighborhood.cat', lines: ['にゃあ。ひなたで のんびりしている。'] },
-      { id: 'school-guard', kind: 'npc', name: 'みまもりのひと', x: 104, y: 36, sprite: 'guard', facing: 'left', solid: true, eventKey: 'school.guard', lines: ['おはよう！ くるまを よくみて わたろうね。'] },
-      { id: 'park-friend', kind: 'npc', name: 'ともだち', x: 100, y: 61, sprite: 'friend', facing: 'left', solid: true, eventKey: 'park.friend', lines: ['いっしょに あそぼう！ なにして あそぶ？'] },
-      { id: 'park-slide', kind: 'object', name: 'すべりだい', x: 106, y: 64, w: 2, h: 2, solid: true, eventKey: 'park.slide', lines: ['てっぺんから、かわと でんしゃが みえるよ。'] },
-      { id: 'candy-shopkeeper', kind: 'npc', name: 'だがしやさん', x: 48, y: 53, sprite: 'shopkeeper', facing: 'down', solid: true, eventKey: 'shopping.candy', lines: ['いらっしゃい。きょうの おやつは どれにする？'] },
-      { id: 'station-staff', kind: 'npc', name: 'えきいんさん', x: 32, y: 90, sprite: 'staff', facing: 'left', solid: true, eventKey: 'station.staff', lines: ['でんしゃは もうすぐ くるよ。きいろい せんの うちがわで まってね。'] },
-      { id: 'shopping-vending', kind: 'object', name: 'じどうはんばいき', x: 50, y: 53, solid: true, eventKey: 'shopping.vending', lines: ['つめたい のみものが ならんでいる。どれにしようかな。'] },
-      { id: 'neighborhood-postbox', kind: 'object', name: 'ポスト', x: 41, y: 36, solid: true, eventKey: 'neighborhood.postbox', lines: ['おてがみは ここから たびにでるんだね。'] },
-      { id: 'station-busstop', kind: 'sign', name: 'バスてい', x: 50, y: 61, solid: true, eventKey: 'station.busstop', lines: ['つぎの バスは、えきから としょかんまで いくんだって。'] },
+      { id: 'neighbor-grandma', kind: 'npc', name: '近所のおばあさん', x: 40, y: 33, sprite: 'grandma', facing: 'left', solid: true, eventKey: 'neighborhood.grandma', lines: ['おかえり。今日も学校は楽しかった？'] },
+      { id: 'neighborhood-board', kind: 'sign', name: '町の掲示板', x: 37, y: 36, w: 2, solid: true, eventKey: 'neighborhood.board', lines: ['今度の日曜日は、公園の掃除だって。'] },
+      { id: 'neighborhood-cat', kind: 'npc', name: 'ねこ', x: 42, y: 36, sprite: 'cat', facing: 'down', solid: true, eventKey: 'neighborhood.cat', lines: ['にゃあ。日なたでのんびりしている。'] },
+      { id: 'school-guard', kind: 'npc', name: '見守りの人', x: 104, y: 36, sprite: 'guard', facing: 'left', solid: true, eventKey: 'school.guard', lines: ['おはよう！ 車をよく見て渡ろうね。'] },
+      { id: 'park-friend', kind: 'npc', name: '友達', x: 100, y: 61, sprite: 'friend', facing: 'left', solid: true, eventKey: 'park.friend', lines: ['一緒に遊ぼう！ 何をして遊ぶ？'] },
+      { id: 'park-slide', kind: 'object', name: '滑り台', x: 106, y: 64, w: 2, h: 2, solid: true, eventKey: 'park.slide', lines: ['てっぺんから、川と電車が見えるよ。'] },
+      { id: 'candy-shopkeeper', kind: 'npc', name: '駄菓子屋の店主', x: 48, y: 53, sprite: 'shopkeeper', facing: 'down', solid: true, eventKey: 'shopping.candy', lines: ['いらっしゃい。今日のおやつはどれにする？'] },
+      { id: 'station-staff', kind: 'npc', name: '駅員さん', x: 32, y: 90, sprite: 'staff', facing: 'left', solid: true, eventKey: 'station.staff', lines: ['電車はもうすぐ来るよ。黄色い線の内側で待ってね。'] },
+      { id: 'shopping-vending', kind: 'object', name: '自動販売機', x: 50, y: 53, solid: true, eventKey: 'shopping.vending', lines: ['冷たい飲み物が並んでいる。どれにしようかな。'] },
+      { id: 'neighborhood-postbox', kind: 'object', name: 'ポスト', x: 41, y: 36, solid: true, eventKey: 'neighborhood.postbox', lines: ['手紙はここから旅に出るんだね。'] },
+      { id: 'station-busstop', kind: 'sign', name: 'バス停', x: 50, y: 61, solid: true, eventKey: 'station.busstop', lines: ['次のバスは、駅から図書館まで行くんだって。'] },
     ],
   };
 }

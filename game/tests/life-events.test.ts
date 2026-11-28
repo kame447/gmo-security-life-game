@@ -136,7 +136,7 @@ describe('LifeEventDirector', () => {
 
 describe('childhood samples', () => {
   it('tablet ad: what you chose changes what your mother says later', () => {
-    for (const [choice, expected] of [['tap', /いれる まえに おしえてね/], ['ask-parent', /きいてくれて たすかった/]] as const) {
+    for (const [choice, expected] of [['tap', /入れる前に教えてね/], ['ask-parent', /聞いてくれて助かった/]] as const) {
       const director = new LifeEventDirector(CHILDHOOD_SAMPLE_EVENTS);
       expect(director.onMapEvent(talk('home.mother'))).toBeUndefined();
       director.onMapEvent(talk('home.tablet'));

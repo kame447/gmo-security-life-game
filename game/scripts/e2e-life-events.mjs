@@ -67,15 +67,15 @@ try {
   await check('security sample: intro → choices → result, with movement and dialog advance blocked', async () => {
     await standNextTo(page, home, 'home-tablet');
     await page.keyboard.press('Space');
-    assert.match(await dialogText(page), /がめんが きりかわった/);
+    assert.match(await dialogText(page), /画面が切り替わった/);
     assert.equal(await choice(page).isHidden(), true, 'no choices during the intro');
     await page.keyboard.press('Space');
     assert.match(await dialogText(page), /おめでとう/);
     await page.keyboard.press('Space');
     await choice(page).waitFor({ state: 'visible' });
     assert.equal(await dialogText(page), 'どうする？');
-    assert.deepEqual(await choice(page).locator('button').allTextContents(), ['おかあさんに きく', 'タップしてみる', 'とじて どうがを みる']);
-    assert.equal(await choice(page).locator('[aria-current="true"]').textContent(), 'おかあさんに きく');
+    assert.deepEqual(await choice(page).locator('button').allTextContents(), ['お母さんに聞く', 'タップしてみる', '閉じて動画を見る']);
+    assert.equal(await choice(page).locator('[aria-current="true"]').textContent(), 'お母さんに聞く');
     await shot(page, 'tablet-choices');
 
     // Arrow keys move the cursor (once per press) and must not walk.
@@ -87,7 +87,7 @@ try {
     assert.equal(await choice(page).locator('[aria-current="true"]').textContent(), 'タップしてみる');
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('ArrowUp');
-    assert.equal(await choice(page).locator('[aria-current="true"]').textContent(), 'とじて どうがを みる', 'cursor wraps');
+    assert.equal(await choice(page).locator('[aria-current="true"]').textContent(), '閉じて動画を見る', 'cursor wraps');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
 
@@ -100,7 +100,7 @@ try {
 
     await page.keyboard.press('Space');
     await choice(page).waitFor({ state: 'hidden' });
-    assert.match(await dialogText(page), /なまえと じゅうしょ/);
+    assert.match(await dialogText(page), /名前と住所/);
     await shot(page, 'tablet-result');
     await finishDialog(page);
   });
@@ -115,7 +115,7 @@ try {
   await check('an experienced event falls back to the default lines', async () => {
     await standNextTo(page, home, 'home-tablet');
     await page.keyboard.press('Enter');
-    assert.equal(await dialogText(page), 'みんなで つかう タブレットだ。つぎは なにを みようかな。');
+    assert.equal(await dialogText(page), '家族で使うタブレットだ。次は何を見ようかな。');
     await finishDialog(page, 'Enter');
     assert.equal(await choice(page).isHidden(), true);
   });
@@ -123,12 +123,12 @@ try {
   await check('daily sample: choose with the mouse', async () => {
     await standNextTo(page, 'town-main', 'park-friend');
     await page.keyboard.press('Space');
-    assert.match(await dialogText(page), /いっしょに あそぼう/);
+    assert.match(await dialogText(page), /一緒に遊ぼう/);
     await page.keyboard.press('Space');
     await choice(page).waitFor({ state: 'visible' });
-    await choice(page).getByRole('button', { name: 'すなばで おしろづくり' }).click();
+    await choice(page).getByRole('button', { name: '砂場でお城作り' }).click();
     await choice(page).waitFor({ state: 'hidden' });
-    assert.match(await dialogText(page), /おしろ/);
+    assert.match(await dialogText(page), /お城/);
     await finishDialog(page);
     // Back to exploring: walking works again.
     const before = await player(page);
@@ -159,8 +159,8 @@ try {
     await standNextTo(phone, 'home-family-interior', 'home-tablet');
     for (let i = 0; i < 3; i++) await phone.keyboard.press('Space');
     await choice(phone).waitFor({ state: 'visible' });
-    await choice(phone).getByRole('button', { name: 'おかあさんに きく' }).tap();
-    assert.match(await dialogText(phone), /だまそうとする こうこく/);
+    await choice(phone).getByRole('button', { name: 'お母さんに聞く' }).tap();
+    assert.match(await dialogText(phone), /だまそうとする広告/);
     await finishDialog(phone);
   });
 

@@ -1,6 +1,7 @@
 import type { AreaDef, PortalDef } from '../../core/types';
 import { T } from '../tiles';
 import { SHOP_INTERIORS, type ShopInteriorDefinition } from './definitions';
+import { shopCustomers } from '../shop-customers';
 
 export { SHOP_INTERIORS, type ShopInteriorDefinition } from './definitions';
 
@@ -34,6 +35,7 @@ export function createShopInterior(shop: ShopInteriorDefinition): AreaDef {
       { id: `${shop.id}-indoor-clerk`, kind: 'npc', name: shop.clerk.name,
         x: shop.clerk.x, y: shop.clerk.y, sprite: shop.clerk.sprite, facing: shop.clerk.facing ?? 'down', solid: true,
         eventKey: `shopping.${shop.id}.clerk`, lines: [shop.clerk.line] },
+      ...shopCustomers(shop.id),
       ...shop.furnishings.flatMap(item => item.name && item.line ? [{
         id: `${id}-${item.id}-inspect`, kind: 'object' as const, name: item.name,
         x: item.x, y: item.y, w: item.w, h: item.h, solid: item.solid ?? true,

@@ -105,7 +105,7 @@ describe('story flow', () => {
     expect(resumed.game.appearance).toEqual(t.game.appearance);
     expect(resumed.game.phone.isOwned).toBe(t.game.phone.isOwned);
     resumed.talk('home.mother');
-    expect(resumed.game.dialog?.speaker).toBe('おかあさん');
+    expect(resumed.game.dialog?.speaker).toBe('お母さん');
   });
   it('defines valid story events', () => {
     expect(validateLifeEvents([...CHILDHOOD_SAMPLE_EVENTS, ...STORY_EVENTS])).toEqual([]);
@@ -220,7 +220,7 @@ describe('story flow', () => {
   });
 
   it('plays every stage to the end without a timer, following earlier choices', () => {
-    for (const pick of ['first', 'last'] as const) {
+    for (const route of ['risky', 'safe'] as const) {
       const t = setup();
       finishPrologue(t);
       const seen: string[] = [];
@@ -229,7 +229,13 @@ describe('story flow', () => {
         const pending = t.life.pending;
         if (pending) {
           const choices = pending.event.choices!;
-          const choice = pending.event.id === STORY_ADVANCE_EVENT ? 'go' : choices[pick === 'first' ? 0 : choices.length - 1].id;
+          const storyChoices = STORY_EVENTS.find(event => event.id === pending.event.id)?.choices ?? [];
+          const scored = pending.event.category === 'security'
+            ? storyChoices.find(choice => choice.score?.judgment === route) ??
+              storyChoices.find(choice => choice.score?.response === (route === 'safe'))
+            : undefined;
+          const choice = pending.event.id === STORY_ADVANCE_EVENT ? 'go'
+            : scored?.id ?? choices[route === 'risky' ? 0 : choices.length - 1].id;
           seen.push(pending.event.id);
           t.choose(choice);
           continue;
@@ -251,13 +257,13 @@ describe('story flow', () => {
       expect(said.join()).toMatch(/【日常】幸福度 \d+点/);
       expect(said.join()).toMatch(/【セキュリティ】\d+点/);
       expect(t.mails.length).toBeGreaterThan(0);
-      // The career choice in high school decides the next stage's events.
-      // Risky security choices come first, so the first pass meets every later consequence; the safe pass meets none.
+      // The route is selected by its meaning, independent of the displayed choice order.
+      // Earlier security decisions still lead to the same later consequences.
       const consequences = ['story.hs.contact-spam', 'story.hs.phone-hijack', 'story.hs.photo-followup', 'story.univ.secret-question',
         'story.univ.shared-pc-aftermath', 'story.univ.pc-infected', 'story.univ.card-fraud', 'story.univ.footprint', 'story.work.account-frozen',
         'story.work.account-takeover', 'story.work.bank-fraud', 'story.work.invoice-aftermath', 'story.later.training',
         'story.later.home-loan-denied', 'story.later.refund-aftermath'];
-      if (pick === 'first') expect(seen).toEqual(expect.arrayContaining(consequences));
+      if (route === 'risky') expect(seen).toEqual(expect.arrayContaining(consequences));
       else for (const id of consequences) expect(seen, id).not.toContain(id);
     }
   });

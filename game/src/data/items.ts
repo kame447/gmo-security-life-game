@@ -20,6 +20,15 @@ export const ITEM_DEFINITIONS: readonly ItemDefinition[] = [
   { id: 'umbrella', name: 'かさ', description: '持ち手の曲がった、折りたたみのかさ。', category: 'normal', maxQuantity: 10 },
   { id: 'key', name: '鍵', description: '小さな金属の鍵。', category: 'important', maxQuantity: 1 },
   { id: 'card', name: 'カード', description: '番号が印字されたカード。', category: 'important', maxQuantity: 1 },
+  { id: 'apple', name: 'りんご', description: '八百屋に並ぶ、赤くてみずみずしいりんご。', category: 'normal', maxQuantity: 20 },
+  { id: 'carrot', name: 'にんじん', description: '料理に使える、鮮やかな色のにんじん。', category: 'normal', maxQuantity: 20 },
+  { id: 'paperback-book', name: '文庫本', description: '持ち歩きやすい文庫本。休み時間にも読める。', category: 'normal', maxQuantity: 10 },
+  { id: 'juice-drink', name: '果汁ジュース', description: '果物の風味がする、小さなボトルのジュース。', category: 'normal', maxQuantity: 20 },
+  { id: 'sandwich-bread', name: 'サンドイッチ', description: 'パン屋で作った、具の入ったサンドイッチ。', category: 'normal', maxQuantity: 20 },
+  { id: 'coffee-drink', name: 'コーヒー', description: '持ち帰り用のカップに入ったコーヒー。', category: 'normal', maxQuantity: 20 },
+  { id: 'tea-drink', name: '紅茶', description: '香りのよい、持ち帰り用の紅茶。', category: 'normal', maxQuantity: 20 },
+  { id: 'bandage', name: '絆創膏', description: '小さなけがのために持ち歩く絆創膏。', category: 'normal', maxQuantity: 20 },
+  { id: 'mask', name: 'マスク', description: '個包装の使い捨てマスク。', category: 'normal', maxQuantity: 20 },
 ];
 
 export function getItemDefinition(id: string): ItemDefinition | undefined {

@@ -1,0 +1,41 @@
+{
+  "capturedAt": "2026-11-28T03:45:38.020Z",
+  "results": [
+    {
+      "device": "desktop",
+      "shop": "hayate",
+      "firstScreenPrice": true,
+      "overflow": false
+    },
+    {
+      "device": "desktop",
+      "shop": "machikado",
+      "firstScreenPrice": true,
+      "overflow": false
+    },
+    {
+      "device": "desktop",
+      "shop": "select",
+      "firstScreenPrice": true,
+      "overflow": false
+    },
+    {
+      "device": "portrait",
+      "shop": "hayate",
+      "firstScreenPrice": true,
+      "overflow": false
+    },
+    {
+      "device": "portrait",
+      "shop": "machikado",
+      "firstScreenPrice": true,
+      "overflow": false
+    },
+    {
+      "device": "portrait",
+      "shop": "select",
+      "firstScreenPrice": true,
+      "overflow": false
+    }
+  ]
+}

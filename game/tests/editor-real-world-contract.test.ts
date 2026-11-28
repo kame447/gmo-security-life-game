@@ -123,10 +123,10 @@ describe('trusted real-world editor contract', () => {
     expect(validateDocument(document).length).toBeGreaterThan(0);
     expect(validateDocument(document, context)).toEqual([]);
     const loaded = loadDocument(serializeDocument(document, context), context);
-    // F5 reuses apartment style '0' for the background building; town-neighbor adds 2 numbered houses.
+    // Neighboring town: one numbered house and an office use existing building styles.
     expect(loaded.objects.filter(o => /^\d+$/.test(o.style ?? '')).length).toBe(64);
-    // 12 town-main facilities + station-neighbor from PR #59.
-    expect(loaded.facilities.filter(f => f.kind).length).toBe(13);
+    // 12 original facilities, the neighboring station, high school and university.
+    expect(loaded.facilities.filter(f => f.kind).length).toBe(15);
     const rebuilt = assembleEditorWorld(loaded);
     expect(rebuilt.variant).toEqual(world.variant);
     for (const [id, area] of world.areas) {

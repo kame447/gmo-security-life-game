@@ -114,6 +114,7 @@ export class LifeEventPanel {
 
   private onKeyDown(event: KeyboardEvent): void {
     if (!this.active) return;
+    if (event.target instanceof Element && event.target.closest('#local-event-review')) return;
     if (event.code === 'Tab') return; // keep keyboard focus moving between the options
     event.preventDefault();
     event.stopImmediatePropagation();

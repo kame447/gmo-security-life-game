@@ -11,11 +11,16 @@ const SHAPES: Record<string, readonly PixelRect[]> = {
   umbrella: [[7, 2, 2, 2, '#59636b'], [4, 4, 8, 1, '#718da0'], [2, 5, 12, 3, '#8eb5c0'], [1, 8, 14, 1, '#4f7788'], [7, 9, 2, 4, '#59636b'], [8, 13, 3, 1, '#59636b']],
   key: [[3, 3, 6, 6, '#e3b95d'], [5, 5, 2, 2, '#6b513b'], [8, 7, 5, 2, '#e3b95d'], [11, 8, 2, 4, '#e3b95d'], [9, 8, 2, 3, '#e3b95d']],
   card: [[2, 4, 12, 8, '#7ba9a1'], [3, 5, 10, 6, '#c9e1c8'], [3, 7, 10, 2, '#526f74'], [4, 10, 3, 1, '#f4eee0']],
+  apple: [[7, 1, 2, 4, '#75513e'], [9, 2, 3, 2, '#76924f'], [3, 5, 10, 7, '#bf5348'], [4, 12, 8, 2, '#a73c39'], [4, 6, 2, 3, '#e98770']],
+  carrot: [[8, 1, 2, 4, '#689147'], [10, 2, 2, 3, '#8aaa55'], [5, 5, 6, 3, '#e9913c'], [5, 8, 5, 2, '#da7d31'], [4, 10, 4, 2, '#da7d31'], [4, 12, 2, 2, '#c6682c']],
+  bandage: [[2, 5, 12, 6, '#d4a97c'], [5, 5, 6, 6, '#efc59a'], [6, 6, 4, 4, '#f8e5c8'], [3, 7, 1, 1, '#a87a50'], [12, 8, 1, 1, '#a87a50']],
+  mask: [[1, 6, 3, 5, '#90b4bd'], [12, 6, 3, 5, '#90b4bd'], [3, 4, 10, 9, '#d4e8e7'], [4, 7, 8, 1, '#a0c7ca'], [4, 10, 8, 1, '#a0c7ca']],
   item: [[3, 4, 10, 9, '#9d7350'], [4, 5, 8, 7, '#e2bf88'], [7, 4, 2, 9, '#c58a5c'], [4, 7, 8, 2, '#c58a5c']],
 };
 
 export function itemIcon(id: string): SVGSVGElement {
-  const key = /notebook|book/.test(id) ? 'notebook' : /pencil|pen/.test(id) ? 'pencil'
+  const key = id === 'apple' || id === 'carrot' || id === 'bandage' || id === 'mask' ? id
+    : /notebook|book/.test(id) ? 'notebook' : /pencil|pen/.test(id) ? 'pencil'
     : /water|drink/.test(id) ? 'water' : /snack|food/.test(id) ? 'snack'
       : /towel/.test(id) ? 'towel' : /bread/.test(id) ? 'bread'
         : /shirt|cloth|outfit/.test(id) ? 'clothing' : /umbrella/.test(id) ? 'umbrella'

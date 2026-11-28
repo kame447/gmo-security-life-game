@@ -1,0 +1,17 @@
+.local-cloud-review { margin-top: 16px; padding-top: 12px; border-top: 1px solid #b4aa91; color: inherit; }
+.local-cloud-review h3 { margin: 0 0 8px; font-size: 16px; }
+.local-cloud-review p { margin: 8px 0; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.local-cloud-note { padding: 8px 10px; background: #dfd7c4; border: 1px solid #b4aa91; color: #403b31; border-radius: 5px; }
+.local-cloud-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.local-cloud-actions span { flex: 1 1 200px; font-size: 13px; }
+.local-cloud-review button, .local-cloud-review select { min-height: 44px; box-sizing: border-box; max-width: 100%;
+  padding: 8px 10px; font: inherit; font-size: 13px; line-height: 1.4; border: 1px solid #81765e; border-radius: 5px;
+  color: #253e32; background: #f7efd8; touch-action: manipulation; }
+.local-cloud-review button { cursor: pointer; }
+.local-cloud-review button:disabled { opacity: .5; cursor: default; }
+.local-cloud-review :focus-visible { outline: 3px solid #b27624; outline-offset: 2px; }
+.local-cloud-confirm { margin-top: 10px; padding: 10px; border: 2px solid #927044; border-radius: 6px; background: #fff4d6; color: #403b31; }
+.local-cloud-confirm button { margin: 4px 8px 0 0; }
+.local-cloud-status { min-height: 1.65em; }
+.local-cloud-status.is-error { color: #9c361a; }
+@media (max-width: 420px) { .local-cloud-actions > button, .local-cloud-actions > select { flex: 1 1 100%; width: 100%; } }

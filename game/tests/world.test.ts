@@ -178,7 +178,7 @@ describe('childhood world', () => {
       }
       expect(reachable, interaction.id).toBe(true);
     }
-    expect(shop.interactions.map(i => i.eventKey)).toEqual(['shopping.konbini.clerk', 'shopping.konbini.snacks', 'shopping.konbini.drinks']);
+    expect(shop.interactions.map(i => i.eventKey)).toEqual(['shopping.konbini.clerk', 'shopping.konbini.snacks', 'shopping.konbini.drinks', 'customer.konbini.after-school']);
     const portal = buildWorld().areas.get('town-main')!.def.portals.find(p => p.id === 'konbini-enter')!;
     expect(portal.from).toEqual({ x: LANDMARKS.konbiniDoorFront.x, y: LANDMARKS.konbiniDoorFront.y - 1 });
     const closed = buildWorld({ ...CHILDHOOD_VARIANT, facilityStates: { 'shop-konbini': 'closed' } });

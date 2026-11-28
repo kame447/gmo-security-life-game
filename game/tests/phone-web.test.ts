@@ -75,19 +75,19 @@ describe('in-game web search', () => {
     const results = model.view;
     expect(results).toMatchObject({ kind: 'results', query: 'しょうてんがい' });
     expect(model.open('https://ekimae-street.example/')).toBe(true);
-    expect(model.open('https://ekimae-street.example/map')).toBe(true);
-    expect(model.view).toEqual({ kind: 'page', address: 'https://ekimae-street.example/map', page: null });
+    expect(model.open('https://ekimae-street.example/not-published')).toBe(true);
+    expect(model.view).toEqual({ kind: 'page', address: 'https://ekimae-street.example/not-published', page: null });
     expect(model.back()).toBe(true); expect(model.view).toMatchObject({ kind: 'page', page: { title: 'えきまえ商店街' } });
     expect(model.back()).toBe(true); expect(model.view).toEqual(results);
     expect(model.back()).toBe(true); expect(model.view).toEqual({ kind: 'home' });
     expect(model.back()).toBe(false);
   });
 
-  it('keeps every provisional link on a reserved name, and all but the review "not found" link reachable', () => {
+  it('keeps every provisional link on a reserved name and reachable', () => {
     const addresses = new Set(WEB_PROTOTYPE.pages.map(item => item.address));
     const links = WEB_PROTOTYPE.pages.flatMap(item => item.links.map(link => link.href));
     for (const href of [...addresses, ...links]) expect(new URL(href).hostname).toMatch(/\.example$/);
-    expect(links.filter(href => !addresses.has(href))).toEqual(['https://ekimae-street.example/map']);
+    expect(links.filter(href => !addresses.has(href))).toEqual([]);
   });
 });
 

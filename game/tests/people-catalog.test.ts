@@ -11,7 +11,7 @@ describe('existing people catalog (DOM independent)', () => {
   it('offers unique, immutable IDs with short Japanese labels', () => {
     expect(typeof document).toBe('undefined');
     expect(PEOPLE.map(person => person.id)).toEqual([
-      'cat', 'classmate', 'clerk', 'friend', 'grandma', 'guard', 'mother', 'shopkeeper', 'staff', 'teacher', 'player',
+      'cat', 'classmate', 'clerk', 'friend', 'friend-seated', 'grandma', 'grandma-reading-seated', 'guard', 'mother', 'shopkeeper', 'staff', 'teacher', 'player',
     ]);
     expect(new Set(PEOPLE.map(person => person.id)).size).toBe(PEOPLE.length);
     expect(Object.isFrozen(PEOPLE)).toBe(true);

@@ -4,13 +4,13 @@ import { SHOP_AREA_FACTORIES, SHOP_ENTRANCES } from '../../src/world/shops';
 
 /** #33の名前付き7店。施設を持たない背景の住宅は店舗の棚卸しに含めない。 */
 export const STORE_INVENTORY = [
-  { objectId: 'town-shop-30-47', style: 'greengrocer', facilityId: 'shop-greengrocer', name: 'やおや', status: 'connected' },
-  { objectId: 'town-shop-37-47', style: 'bookstore', facilityId: 'shop-bookstore', name: 'ほんや', status: 'connected' },
-  { objectId: 'town-shop-44-47', style: 'candy', facilityId: 'shop-candy', name: 'だがしや', status: 'connected' },
+  { objectId: 'town-shop-30-47', style: 'greengrocer', facilityId: 'shop-greengrocer', name: '八百屋', status: 'connected' },
+  { objectId: 'town-shop-37-47', style: 'bookstore', facilityId: 'shop-bookstore', name: '本屋', status: 'connected' },
+  { objectId: 'town-shop-44-47', style: 'candy', facilityId: 'shop-candy', name: '駄菓子屋', status: 'connected' },
   { objectId: 'town-shop-51-47', style: 'konbini', facilityId: 'shop-konbini', name: 'コンビニ', status: 'connected' },
-  { objectId: 'town-shop-58-47', style: 'bakery', facilityId: 'shop-bakery', name: 'パンや', status: 'connected' },
-  { objectId: 'town-shop-65-47', style: 'cafe', facilityId: 'shop-cafe', name: 'きっさてん', status: 'connected' },
-  { objectId: 'town-shop-72-47', style: 'pharmacy', facilityId: 'shop-pharmacy', name: 'くすりや', status: 'connected' },
+  { objectId: 'town-shop-58-47', style: 'bakery', facilityId: 'shop-bakery', name: 'パン屋', status: 'connected' },
+  { objectId: 'town-shop-65-47', style: 'cafe', facilityId: 'shop-cafe', name: '喫茶店', status: 'connected' },
+  { objectId: 'town-shop-72-47', style: 'pharmacy', facilityId: 'shop-pharmacy', name: '薬局', status: 'connected' },
 ] as const;
 
 /**

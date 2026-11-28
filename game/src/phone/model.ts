@@ -5,13 +5,15 @@ import { parsePhoneSave, type PhoneSave } from './save';
 import { CHAT_PROTOTYPE } from '../data/chat-prototype';
 import { ChatModel } from './chat/model';
 import { CHAT_LIMITS } from './chat/limits';
-import type { ChatMessage, ChatResult, ChatThreadSummary, IncomingMessage } from './chat/types';
+import type { ChatMessage, ChatResult, ChatThreadSummary, Contact, IncomingMessage } from './chat/types';
+import { chatWebLinks } from './chat/links';
 import { MAIL_PROTOTYPE } from '../data/mail-prototype';
 import { MailModel } from './mail/model';
 import type { IncomingMail, MailMessage, MailResult } from './mail/types';
 import { WEB_PROTOTYPE } from '../data/web-prototype';
 import { WebModel } from './web/model';
 import type { WebView } from './web/types';
+import type { WebCommercePort, WebOrderQuote, WebOrderResult } from './web/commerce';
 
 export { parsePhoneSave } from './save';
 export type { PhoneSave } from './save';
@@ -36,6 +38,8 @@ export class PhoneModel {
   private mailOpen: string | null = null;
   private includeMailInSave: boolean;
   private readonly webModel = new WebModel(WEB_PROTOTYPE);
+  private webReturn: { kind: 'mail' | 'chat'; id: string } | null = null;
+  private webCommerce?: WebCommercePort;
   private readonly clock: () => number;
   private readonly epochClock: () => number;
   private environment: PhoneEnvironment;
@@ -81,6 +85,11 @@ export class PhoneModel {
   get mailUnreadCount(): number { return this.mailModel.unreadCount; }
   /** The web app's current search box, results or page. Reset whenever the app is left. */
   get webView(): WebView { return this.webModel.view; }
+  get webOrderQuote(): WebOrderQuote | null {
+    const view = this.webView;
+    return this.app?.id === 'web' && view.kind === 'page' ? this.webCommerce?.quote(view.address) ?? null : null;
+  }
+  setWebCommerce(port: WebCommercePort): void { this.webCommerce = port; }
   save(): PhoneSave {
     this.syncUsage();
     const epoch = this.usage.config.offlineUsage === 'consume-if-active' ? this.epochClock() : undefined;
@@ -137,7 +146,7 @@ export class PhoneModel {
     if (activeId) {
       const next = this.data.apps.find(item => item.id === activeId);
       if (!next || !this.history.every(id => next.screens.some(screen => screen.id === id))) {
-        this.app = null; this.history = []; this.chatThread = null; this.mailOpen = null; this.webModel.reset();
+        this.app = null; this.history = []; this.chatThread = null; this.mailOpen = null; this.webModel.reset(); this.webReturn = null;
       } else this.app = next;
     }
     this.changed();
@@ -147,7 +156,7 @@ export class PhoneModel {
   setOwned(owned: boolean): void {
     if (typeof owned !== 'boolean' || this.owned === owned) return;
     this.owned = owned;
-    if (!owned) { this.opened = false; this.app = null; this.history = []; this.chatThread = null; this.mailOpen = null; this.webModel.reset(); }
+    if (!owned) { this.opened = false; this.app = null; this.history = []; this.chatThread = null; this.mailOpen = null; this.webModel.reset(); this.webReturn = null; }
     this.syncUsage();
     this.changed();
   }
@@ -158,7 +167,7 @@ export class PhoneModel {
     this.mailModel.deliverDue(this.epochClock());
     this.app = null;
     this.history = [];
-    this.chatThread = null; this.mailOpen = null; this.webModel.reset();
+    this.chatThread = null; this.mailOpen = null; this.webModel.reset(); this.webReturn = null;
     this.changed();
     return true;
   }
@@ -168,12 +177,12 @@ export class PhoneModel {
     this.syncUsage();
     this.app = null;
     this.history = [];
-    this.chatThread = null; this.mailOpen = null; this.webModel.reset();
+    this.chatThread = null; this.mailOpen = null; this.webModel.reset(); this.webReturn = null;
     this.changed();
   }
   home(): void {
     if (!this.opened || !this.app) return;
-    this.app = null; this.history = []; this.chatThread = null; this.mailOpen = null; this.webModel.reset(); this.changed();
+    this.app = null; this.history = []; this.chatThread = null; this.mailOpen = null; this.webModel.reset(); this.webReturn = null; this.changed();
   }
   launch(appId: string): boolean {
     const app = this.data.apps.find(item => item.id === appId);
@@ -182,7 +191,7 @@ export class PhoneModel {
         !app.screens.some(screen => screen.id === app.startScreenId)) return false;
     this.app = app;
     this.history = [app.startScreenId];
-    this.chatThread = null; this.mailOpen = null; this.webModel.reset();
+    this.chatThread = null; this.mailOpen = null; this.webModel.reset(); this.webReturn = null;
     this.changed();
     return true;
   }
@@ -204,7 +213,7 @@ export class PhoneModel {
         !app.screens.some(screen => screen.id === app.startScreenId) ||
         !app.screens.some(screen => screen.id === notice.screenId)) return false;
     this.app = app;
-    this.chatThread = null; this.mailOpen = null; this.webModel.reset();
+    this.chatThread = null; this.mailOpen = null; this.webModel.reset(); this.webReturn = null;
     this.history = notice.screenId === app.startScreenId ? [app.startScreenId] : [app.startScreenId, notice.screenId];
     this.changed();
     return true;
@@ -214,7 +223,16 @@ export class PhoneModel {
     if (!this.app) { this.close(); return; }
     if (this.app.id === 'messages' && this.chatThread) { this.chatThread = null; this.changed(); return; }
     if (this.app.id === 'mail' && this.mailOpen) { this.mailOpen = null; this.changed(); return; }
-    if (this.app.id === 'web' && this.webModel.back()) { this.changed(); return; }
+    if (this.app.id === 'web') {
+      if (this.webReturn && this.webModel.historyDepth <= 2) {
+        const target = this.webReturn;
+        if (this.launch(target.kind === 'chat' ? 'messages' : 'mail')) {
+          if (target.kind === 'chat') this.openChatThread(target.id); else this.openMail(target.id);
+        } else this.home();
+        return;
+      }
+      if (this.webModel.back()) { this.changed(); return; }
+    }
     if (this.history.length > 1) this.history.pop();
     else { this.app = null; this.history = []; }
     this.changed();
@@ -239,6 +257,55 @@ export class PhoneModel {
     this.mailOpen = id;
     if (!this.mailModel.markRead(id)) this.changed();
     return true;
+  }
+
+  /** 実際の受信メールにあるリンクだけを、ゲーム内Webで開く。戻ると元のメールへ戻る。 */
+  openMailLink(href: string): boolean {
+    this.syncUsage();
+    const mail = this.currentMail;
+    const web = this.data.apps.find(app => app.id === 'web');
+    if (!this.opened || this.app?.id !== 'mail' || !mail?.links.some(link => link.href === href) ||
+        !web || !this.networkAllowed || !web.screens.some(screen => screen.id === web.startScreenId)) return false;
+    this.webModel.reset(); this.webReturn = null;
+    if (!this.webModel.open(href)) return false;
+    this.webReturn = { kind: 'mail', id: mail.id };
+    this.app = web;
+    this.history = [web.startScreenId];
+    this.mailOpen = null;
+    this.changed();
+    return true;
+  }
+
+  openChatLink(messageId: string, href: string): boolean {
+    this.syncUsage();
+    const threadId = this.chatThread;
+    const message = threadId && this.chatModel.messages(threadId).find(item => item.id === messageId);
+    const web = this.data.apps.find(app => app.id === 'web');
+    if (!this.opened || this.app?.id !== 'messages' || !threadId || !message ||
+        !chatWebLinks(message).some(link => link.href === href) || !web || !this.networkAllowed ||
+        !web.screens.some(screen => screen.id === web.startScreenId)) return false;
+    this.webModel.reset();
+    if (!this.webModel.open(href)) return false;
+    this.webReturn = { kind: 'chat', id: threadId };
+    this.app = web;
+    this.history = [web.startScreenId];
+    this.chatThread = null;
+    this.changed();
+    return true;
+  }
+
+  ensureChatThread(id: string, contact: Contact): boolean {
+    return this.chatModel.ensureThread(id, contact);
+  }
+
+  webPurchase(address: string): WebOrderResult {
+    this.syncUsage();
+    const view = this.webView;
+    if (!this.opened || this.app?.id !== 'web' || view.kind !== 'page' || view.address !== address || !this.webCommerce) {
+      return { ok: false, message: '商品ページから注文してください。' };
+    }
+    if (!this.networkAllowed) return { ok: false, message: '通信残量がありません。' };
+    return this.webCommerce.purchase(address);
   }
 
   /** Search the in-game pages. Refused without data, like opening the web app. */

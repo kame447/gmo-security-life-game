@@ -61,6 +61,18 @@
 .phone-web-link { display: block; min-height: 32px; margin-top: 8px; padding: 0; border: 0; background: none; color: #1a0dab; font: inherit; text-align: left; text-decoration: underline; text-underline-offset: 2px; }
 .phone-web-link.is-selected, .phone-web-link:focus-visible { outline: none; border-radius: 3px; background: #e8f0fe; box-shadow: 0 0 0 3px #e8f0fe; }
 
+.phone-web-order { margin-top: 20px; padding: 14px; border: 1px solid #d8dee6; border-radius: 8px; background: #f8fafc; }
+.phone-web-order-product { font-weight: 600; }
+.phone-web-page .phone-web-order-price { margin-top: 4px; font-size: 24px; font-weight: 700; }
+.phone-web-order-budget, .phone-web-order-message { color: #4b5563; }
+.phone-web-order-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.phone-web-order-actions button { min-height: 44px; flex: 1 1 110px; padding: 10px; border: 1px solid #1a73e8; border-radius: 6px; background: #1a73e8; color: #fff; font: inherit; }
+.phone-web-order-actions .phone-web-order-cancel { color: #1a73e8; background: #fff; }
+.phone-web-order-actions button:disabled { background: #e2e7ee; color: #586575; border-color: #ccd4df; }
+.phone-web-order-actions button:focus-visible, .phone-web-order-actions button.is-selected { outline: 3px solid #a8c7fa; outline-offset: 2px; }
+.phone-web-order-confirmation { flex-basis: 100%; }
+.phone-web-order-complete { color: #137333; font-weight: 700; }
+
 @media (max-height: 600px) {
   .phone-web { padding-top: 6px; }
   .phone-web-home { gap: 12px; padding-bottom: 0; }
@@ -71,4 +83,172 @@
   .phone-web-header .phone-web-box { min-height: 38px; }
   .phone-web-tabs { grid-column: 1 / -1; }
   .phone-web-tab { padding-top: 0; padding-bottom: 6px; }
+}
+
+/* Storefronts use original vector artwork and local navigation only. */
+.phone-web-designed-page { padding: 10px 0 0; background: #fff; }
+.phone-web-designed-page > .phone-web-address { margin: 0 10px 10px; padding: 8px 10px; font-size: 10px; }
+.phone-web-designed-page button { font: inherit; }
+.phone-web-designed-page button:focus-visible, .phone-web-designed-page button.is-selected { outline: 2px solid #477bc3; outline-offset: 2px; }
+.bicycle-store { --shop-accent: #286258; --shop-ink: #223b35; --shop-paper: #f0f5f1; color: var(--shop-ink); background: #fff; }
+.bicycle-store-machikado { --shop-accent: #87583e; --shop-ink: #493b30; --shop-paper: #f7f0e5; }
+.bicycle-store-select { --shop-accent: #243b55; --shop-ink: #1e3145; --shop-paper: #edf1f6; }
+.bicycle-store p { margin: 0; }
+.bicycle-store .bicycle-store-campaign { margin: 0; padding: 7px 10px; background: var(--shop-accent); color: #fff; font-size: 9px; text-align: center; letter-spacing: .02em; }
+.bicycle-store-select .bicycle-store-campaign { background: #de6c48; }
+.bicycle-store-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 16px 15px; }
+.bicycle-store-brand { display: flex; flex-direction: column; padding: 0; border: 0; color: var(--shop-accent); background: none; text-align: left; }
+.bicycle-store-wordmark { font: 800 26px/1 Arial, sans-serif; letter-spacing: .09em; }
+.bicycle-store button:focus-visible, .bicycle-store button.is-selected { outline-color: var(--shop-accent); }
+.bicycle-store-catchline-phrase { display: inline-block; }
+.bicycle-store-brand-caption { margin-top: 6px; font-size: 8px; letter-spacing: .2em; }
+.bicycle-store-machikado .bicycle-store-wordmark { font-family: "Hiragino Mincho ProN", "Yu Mincho", serif; font-weight: 600; font-size: 25px; letter-spacing: .1em; }
+.bicycle-store-select .bicycle-store-wordmark { font-size: 20px; font-weight: 800; letter-spacing: -.045em; }
+.bicycle-store-mark { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid currentColor; border-radius: 50%; font: 600 15px/1 Georgia, serif; }
+.bicycle-store-nav { display: grid; grid-template-columns: .7fr 1.4fr 1fr; border-top: 1px solid #e8ece8; border-bottom: 1px solid #e8ece8; }
+.bicycle-store-nav .phone-web-link { min-width: 0; min-height: 40px; margin: 0; padding: 7px 4px; color: var(--shop-ink); text-align: center; text-decoration: none; font-size: 10px; }
+.bicycle-store-nav .is-current { box-shadow: inset 0 -2px var(--shop-accent); }
+.bicycle-store-hero { padding: 23px 16px 14px; background: var(--shop-paper); }
+.phone-web-page .site-eyebrow { margin: 0 0 8px; color: var(--shop-accent, #47685b); font-size: 9px; font-weight: 700; letter-spacing: .13em; }
+.bicycle-store-hero .bicycle-store-catchline { max-width: 15em; margin: 0; color: var(--shop-ink); font-size: 20px; font-weight: 650; letter-spacing: -.03em; line-height: 1.55; text-wrap: balance; }
+.bicycle-store .bicycle-store-hero-price { display: flex; align-items: baseline; gap: 6px; margin: 10px 0 0; color: var(--shop-accent); }
+.bicycle-store-hero-price > span { font-size: 24px; font-weight: 750; line-height: 1.2; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.bicycle-store-hero-price small { font-size: 9px; }
+.bicycle-store-machikado .bicycle-store-catchline { font-family: "Hiragino Mincho ProN", "Yu Mincho", serif; }
+.bicycle-store-select .bicycle-store-hero { background: linear-gradient(135deg, #edf1f6 65%, #e1e8ef 65%); }
+.bicycle-store-art { margin: 0 -13px; }
+.bicycle-store-art-image { height: 172px; }
+.bicycle-product-art { display: block; width: 100%; height: 100%; }
+.bicycle-store .bicycle-store-art-label { margin: 0 0 8px; color: #5d6c67; text-align: center; font-size: 8px; letter-spacing: .03em; }
+.bicycle-store-gallery { display: flex; justify-content: center; gap: 6px; }
+.bicycle-store-gallery-button { min-height: 34px; padding: 4px 12px; border: 1px solid #bdc9c2; border-radius: 2px; background: #ffffff80; color: var(--shop-ink); font-size: 10px !important; }
+.bicycle-store-gallery-button[aria-pressed="true"] { border-color: var(--shop-accent); background: #fff; box-shadow: inset 0 -2px var(--shop-accent); }
+.bicycle-store-product { padding: 20px 16px 25px; }
+.bicycle-store-product-meta { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 7px; font-size: 9px; }
+.bicycle-store-category { letter-spacing: .08em; color: #6b776f; }
+.bicycle-store-stock { color: #286258; }
+.bicycle-store-stock::before { content: ''; display: inline-block; width: 5px; height: 5px; margin-right: 4px; border-radius: 50%; background: #4c8268; }
+.bicycle-store-product-name { margin: 0; font-size: 19px; line-height: 1.5; letter-spacing: -.02em; }
+.bicycle-store .bicycle-store-price { display: flex; align-items: baseline; flex-wrap: wrap; gap: 7px; margin: 8px 0 0; }
+.bicycle-store-price > span { font-size: 30px; font-weight: 750; line-height: 1.25; letter-spacing: -.055em; font-variant-numeric: tabular-nums; }
+.bicycle-store-price small { color: #66736b; font-size: 9px; }
+.bicycle-store .bicycle-store-offer-note { margin: 5px 0 0; color: #b04a2b; font-size: 9px; }
+.bicycle-store-colors { margin: 18px 0; }
+.bicycle-store .bicycle-store-color-label { font-size: 10px; }
+.bicycle-store-color-buttons { display: flex; gap: 8px; margin-top: 6px; }
+.bicycle-store-color { display: grid; place-items: center; width: 36px; height: 36px; padding: 6px; border: 1px solid #dce2dd; border-radius: 50%; background: #fff; }
+.bicycle-store-color::before { content: ''; display: block; width: 23px; height: 23px; border-radius: 50%; background: var(--swatch); box-shadow: inset 0 0 0 1px #0001; }
+.bicycle-store-color[aria-pressed="true"] { border-color: var(--shop-accent); box-shadow: 0 0 0 1px var(--shop-accent); }
+.bicycle-store-benefits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 10px 0; border-top: 1px solid #e4e9e5; border-bottom: 1px solid #e4e9e5; }
+.bicycle-store-benefits span { color: var(--shop-accent); font-size: 9px; text-align: center; }
+.bicycle-store-benefits span + span { border-left: 1px solid #dbe3dd; }
+.bicycle-store .bicycle-store-description { margin: 16px 0; font-size: 11px; line-height: 1.95; color: #52625a; }
+.bicycle-store-delivery { margin-top: 16px; padding: 13px; background: var(--shop-paper); }
+.bicycle-store-delivery-label { font-size: 10px; font-weight: 700; }
+.bicycle-store-delivery p { margin-top: 5px; font-size: 10px; line-height: 1.8; }
+.bicycle-store .phone-web-link { color: var(--shop-accent); }
+.bicycle-store-delivery .phone-web-link { font-size: 10px; margin-top: 6px; }
+.bicycle-store .phone-web-order { margin-top: 20px; padding: 15px; border: 1px solid #d9e2dc; border-radius: 2px; background: #fff; }
+.bicycle-store .phone-web-order-product { font-size: 10px; }
+.bicycle-store .phone-web-order-price { display: none; }
+.bicycle-store .phone-web-order-budget { margin-top: 4px; font-size: 13px; font-weight: 600; color: var(--shop-ink); }
+.bicycle-store .phone-web-order-message { margin-top: 7px; font-size: 10px; line-height: 1.8; color: #5c6c63; }
+.bicycle-store .phone-web-order-actions button { border-color: var(--shop-accent); border-radius: 2px; background: var(--shop-accent); font-size: 12px; font-weight: 650; }
+.bicycle-store .phone-web-order-actions .phone-web-order-cancel { color: var(--shop-accent); background: #fff; }
+.bicycle-store .phone-web-order-actions button:disabled { background: #e4e8e5; border-color: #ccd5ce; color: #607067; }
+.bicycle-store .phone-web-order-confirmation { margin: 0 0 8px; font-size: 11px; line-height: 1.8; }
+.bicycle-store-specifications { margin-top: 30px; }
+.bicycle-store-specifications h2, .bicycle-store-care h2 { margin: 0 0 14px; font-size: 16px; letter-spacing: -.02em; }
+.site-facts { margin: 14px 0; font-size: 11px; }
+.site-fact { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 9px; padding: 11px 0; border-bottom: 1px solid #dfe5df; }
+.site-fact dt { color: #627067; font-size: 10px; }
+.site-fact dd { margin: 0; color: inherit; overflow-wrap: anywhere; }
+.bicycle-store-care { margin-top: 25px; padding-top: 20px; border-top: 1px solid #e1e7e3; }
+.bicycle-store-care p { font-size: 11px; line-height: 1.9; }
+.bicycle-store-care .phone-web-link { margin-top: 10px; font-size: 10px; }
+.bicycle-store-info { padding: 27px 18px 25px; }
+.bicycle-store-info .phone-web-title { color: var(--shop-ink); font-size: 23px; }
+.bicycle-store-info .site-intro { margin: 14px 0 22px; font-size: 11px; color: #64736a; }
+.bicycle-store-info .site-fact { grid-template-columns: 1fr; gap: 4px; padding: 13px 0; }
+.bicycle-store-info .site-fact dt { font-size: 10px; font-weight: 650; }
+.bicycle-store-info .site-fact dd { font-size: 12px; line-height: 1.85; }
+.bicycle-store-info .bicycle-store-info-note { margin-top: 15px; font-size: 9px; color: #6b776e; }
+.bicycle-store .site-return-link { margin-top: 24px; font-size: 11px; }
+.bicycle-store-footer { display: flex; flex-direction: column; gap: 5px; padding: 24px 18px; background: var(--shop-accent); color: #fff; }
+.bicycle-store-footer span { font-weight: 750; font-size: 16px; letter-spacing: .05em; }
+.bicycle-store-footer small { font-size: 8px; opacity: .85; }
+
+/* Town websites retain their own typography, navigation, illustrations and content rhythm. */
+.town-site { background: #fffdf8; color: #2f443a; }
+.town-site p { margin: 0; }
+.town-site-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 17px 15px; }
+.town-site-header .town-site-brand { display: flex; flex-direction: column; gap: 2px; min-height: 0; margin: 0; color: inherit; text-decoration: none; font-family: "Hiragino Mincho ProN", "Yu Mincho", serif; font-size: 20px; font-weight: 600; line-height: 1.4; }
+.town-site-brand small { font-family: Arial, sans-serif; font-size: 8px; font-weight: 400; letter-spacing: .16em; }
+.town-library-open { color: #58685d; font-size: 9px; white-space: nowrap; }
+.town-site-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid #dfdfcf; border-bottom: 1px solid #dfdfcf; }
+.town-site-nav .phone-web-link { min-width: 0; min-height: 38px; margin: 0; padding: 8px 5px; text-align: center; text-decoration: none; font-size: 10px; color: inherit; }
+.town-site-nav .is-current { background: #e8ecdf; }
+.town-library-hero { position: relative; overflow: hidden; padding: 26px 18px 0; background: #eceedd; }
+.town-library-hero .phone-web-title { margin: 0; color: #344b3c; font-family: "Hiragino Mincho ProN", "Yu Mincho", serif; font-size: 26px; font-weight: 600; line-height: 1.55; white-space: pre-line; }
+.town-library-hero .town-library-tagline { margin-top: 8px; font-size: 11px; }
+.town-library-art { position: relative; width: 230px; max-width: 100%; height: 132px; margin: 0 auto; }
+.town-library-sun { position: absolute; width: 70px; height: 70px; top: 16px; right: 5px; border-radius: 50%; background: #dfb876; opacity: .9; }
+.town-library-books { position: absolute; bottom: 0; left: 31px; display: flex; align-items: flex-end; gap: 4px; }
+.town-library-book { position: relative; display: flex; align-items: center; justify-content: center; width: 40px; height: 100px; border-radius: 3px 5px 0 0; color: #f9f0dc; font: 600 8px/1 Georgia, serif; letter-spacing: .08em; writing-mode: vertical-rl; box-shadow: inset 5px 0 #0001; }
+.town-library-book::before, .town-library-book::after { content: ''; position: absolute; height: 2px; left: 6px; right: 6px; top: 9px; background: #fff5; }
+.town-library-book::after { top: auto; bottom: 8px; }
+.town-library-book-a { background: #ba644b; transform: rotate(-9deg); transform-origin: bottom; }
+.town-library-book-b { height: 118px; width: 34px; background: #315c53; }
+.town-library-book-c { height: 87px; width: 43px; background: #b29557; transform: rotate(6deg); transform-origin: bottom; }
+.town-library-leaf { position: absolute; width: 32px; height: 58px; right: 16px; bottom: 0; background: #7f9871; border-radius: 80% 0 80% 0; transform: rotate(12deg); }
+.town-library-leaf-b { right: 34px; width: 21px; height: 46px; transform: rotate(-25deg); background: #a9b88d; }
+.town-site-content { padding: 24px 18px 27px; }
+.town-site-content h2 { margin: 0 0 12px; font-family: "Hiragino Mincho ProN", "Yu Mincho", serif; font-size: 18px; font-weight: 600; line-height: 1.6; }
+.town-site-content p { font-size: 11px; line-height: 2; }
+.town-site-content p + p { margin-top: 10px; }
+.town-site-content .phone-web-link { min-height: 40px; margin-top: 10px; color: inherit; font-size: 11px; }
+.town-library .town-library-category { margin-bottom: 9px; color: #708069; font-size: 9px; letter-spacing: .03em; }
+.town-library-note { margin: 22px 0; padding: 18px 15px; border-left: 3px solid #87936c; background: #f0f0e4; }
+.town-library-note h2 { font-size: 16px; }
+.town-library-note p { font-size: 11px; }
+.town-site-footer { padding: 22px 15px; border-top: 1px solid #dedfce; font-size: 9px; text-align: center; color: #65715b; }
+.town-street { color: #564337; background: #fffcf5; }
+.town-street .town-site-nav .is-current { background: #f4e3ca; }
+.town-street-hero { padding: 26px 18px 0; background: #faeacd; }
+.town-street .site-eyebrow { color: #926547; }
+.town-street-hero .phone-web-title { margin: 0; color: #654936; white-space: pre-line; font-family: "Hiragino Mincho ProN", "Yu Mincho", serif; font-size: 25px; line-height: 1.6; }
+.town-street-art { display: flex; align-items: flex-end; justify-content: center; gap: 8px; height: 130px; margin-top: 8px; }
+.town-street-shop { position: relative; width: 75px; height: 97px; background: #efe4ce; border: 1px solid #cebd9e; border-bottom: 0; }
+.town-street-shop-produce { height: 106px; background: #e4e5c9; }
+.town-street-shop-books { height: 112px; background: #e6cdb7; }
+.town-street-sign { display: block; padding: 8px 1px; font-size: 8px; text-align: center; color: #70513b; letter-spacing: .1em; }
+.town-street-awning { display: block; position: absolute; top: 30px; left: -3px; right: -3px; height: 15px; border-radius: 0 0 5px 5px; background: repeating-linear-gradient(90deg, #b9724f 0 9px, #fdf0d6 9px 18px); }
+.town-street-shop-produce .town-street-awning { background: repeating-linear-gradient(90deg, #7b8b59 0 9px, #fdf0d6 9px 18px); }
+.town-street-shop-books .town-street-awning { background: #6a897d; }
+.town-street-window { position: absolute; bottom: 20px; left: 6px; width: 27px; height: 30px; border: 2px solid #ad9475; background: #f7ecc8; }
+.town-street-window::after { content: ''; position: absolute; top: 0; bottom: 0; left: 12px; width: 1px; background: #ad9475; }
+.town-street-door { position: absolute; bottom: 0; right: 6px; width: 22px; height: 49px; border: 2px solid #b29a7b; border-bottom: 0; background: #f6ebd0; }
+.town-street-news { margin: 23px 0; padding: 18px 14px; background: #f8f0df; }
+.town-street-directory { margin: 17px 0; }
+.town-street-directory-item { padding: 15px 0; border-top: 1px solid #e0d6c4; }
+.town-street-directory-item h3 { margin: 0 0 4px; font-size: 15px; }
+.town-weather { background: #f7fbfd; color: #294a5d; }
+.town-weather .town-site-header { display: block; }
+.town-weather .town-site-header .phone-web-title { margin: 0 0 3px; font-size: 21px; color: #294a5d; }
+.town-weather .town-site-header small { font-size: 8px; letter-spacing: .16em; }
+.town-weather-today { padding: 24px 20px 28px; background: #e4f0f7; text-align: center; }
+.town-weather-today h2 { margin: 14px 0 5px; font-size: 23px; font-weight: 500; }
+.town-weather-art { position: relative; width: 150px; height: 100px; margin: 18px auto 0; }
+.town-weather-sun { position: absolute; top: 0; left: 13px; width: 76px; height: 76px; border-radius: 50%; background: #efc36b; box-shadow: 0 0 0 10px #efc36b25; }
+.town-weather-cloud { position: absolute; right: 0; bottom: 0; width: 112px; height: 46px; border-radius: 45px; background: #fff; box-shadow: 0 3px 0 #b8d1e233; }
+.town-weather-cloud::before { content: ''; position: absolute; top: -24px; left: 25px; width: 61px; height: 61px; border-radius: 50%; background: #fff; }
+.town-weather-tip { margin-top: 18px; padding: 12px; border-radius: 4px; background: #e6edf1; font-size: 10px; }
+.town-site .site-small-print { margin-top: 20px; color: #74848c; font-size: 9px; line-height: 1.8; }
+@media (max-width: 350px) {
+  .bicycle-store-art-image { height: 150px; }
+  .bicycle-store-product, .bicycle-store-info, .town-site-content { padding-left: 13px; padding-right: 13px; }
+  .bicycle-store-hero, .town-library-hero, .town-street-hero { padding-left: 13px; padding-right: 13px; }
+  .bicycle-store-wordmark { font-size: 23px; }
+  .bicycle-store-select .bicycle-store-wordmark { font-size: 18px; }
+  .bicycle-store-gallery-button { padding-left: 8px; padding-right: 8px; }
 }

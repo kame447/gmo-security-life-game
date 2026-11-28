@@ -1,6 +1,7 @@
 import type { PhoneApp, PhoneScreen } from '../phone/content';
 import type { PhoneModel } from '../phone/model';
 import { CHAT_SELF } from '../phone/chat/types';
+import { chatWebLinks } from '../phone/chat/links';
 import type { MailMessage } from '../phone/mail/types';
 import { renderMailDetail, renderMailList, type MailView } from './phone-mail';
 import { renderWeb } from './phone-web';
@@ -132,7 +133,8 @@ export class Smartphone {
       if (!event.repeat && document.activeElement instanceof HTMLButtonElement && this.device.contains(document.activeElement)) document.activeElement.click();
       return;
     }
-    const buttons = [...this.device.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)')];
+    const buttons = [...this.device.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)')]
+      .filter(button => button.getClientRects().length > 0);
     if (event.code === 'Tab') {
       event.preventDefault();
       const index = buttons.indexOf(document.activeElement as HTMLElement);
@@ -171,7 +173,7 @@ export class Smartphone {
     const scrollTop = oldScroll?.scrollTop ?? 0;
     const nearBottom = !oldScroll || oldScroll.scrollHeight - oldScroll.clientHeight - oldScroll.scrollTop < 24;
     if (oldThread && oldThread === this.model.currentChatThread && this.model.currentApp?.id === 'messages' && oldInput && oldScroll) {
-      renderChatMessages(oldScroll, this.chatMessageViews(oldThread));
+      renderChatMessages(oldScroll, this.chatMessageViews(oldThread), (id, href) => this.model.openChatLink(id, href));
       this.update();
       oldScroll.scrollTop = this.scrollChatToEnd || nearBottom ? oldScroll.scrollHeight : scrollTop;
       this.scrollChatToEnd = false;
@@ -232,7 +234,7 @@ export class Smartphone {
 
   private chatMessageViews(threadId: string): ChatMessageView[] {
     return this.model.chatMessages(threadId).map(message => ({ id: message.id, text: message.text,
-      time: this.chatTime(message.atMs), outgoing: message.from === CHAT_SELF }));
+      time: this.chatTime(message.atMs), outgoing: message.from === CHAT_SELF, links: chatWebLinks(message) }));
   }
 
   private renderChat(): void {
@@ -243,6 +245,7 @@ export class Smartphone {
     if (!selected) { this.body.append(renderChatList(threads, id => { this.model.openChatThread(id); })); return; }
     const messages = this.chatMessageViews(selected.id);
     const chat = renderChatConversation(selected, messages, {
+      onOpenLink: (id, href) => { this.model.openChatLink(id, href); },
       draft: this.chatDrafts.get(selected.id) ?? '', maxLength: this.model.chatTextLimit,
       canSend: () => this.model.networkAllowed,
       onDraft: text => { this.chatDrafts.set(selected.id, text); },
@@ -273,7 +276,9 @@ export class Smartphone {
       ({ id: mail.id, from: mail.from, fromAddress: mail.fromAddress, to: mail.to, subject: mail.subject, body: mail.body,
         links: mail.links, time: this.chatTime(mail.atMs), unread: !mail.read });
     const current = this.model.currentMail;
-    if (current) this.body.append(renderMailDetail(view(current)));
+    if (current) this.body.append(renderMailDetail(view(current), href => {
+      if (!this.model.openMailLink(href)) this.showNetworkError(this.body);
+    }));
     else this.body.append(renderMailList(this.model.mails.map(view), id => { this.model.openMail(id); }));
   }
 
@@ -286,7 +291,7 @@ export class Smartphone {
         if (results.kind === 'results' && results.results[0]) this.model.webOpen(results.results[0].address);
       },
       open: href => { if (!this.model.webOpen(href)) this.showNetworkError(view); },
-    });
+    }, { quote: this.model.webOrderQuote, purchase: address => this.model.webPurchase(address) });
     this.body.append(view);
   }
 

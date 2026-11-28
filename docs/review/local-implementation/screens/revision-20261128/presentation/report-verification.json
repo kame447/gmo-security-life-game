@@ -1,0 +1,18 @@
+[
+  {
+    "viewport": "desktop",
+    "reportImages": 9,
+    "optionalEvents": 12,
+    "securityEvents": 32,
+    "overflow": false,
+    "pageErrors": []
+  },
+  {
+    "viewport": "portrait",
+    "reportImages": 9,
+    "optionalEvents": 12,
+    "securityEvents": 32,
+    "overflow": false,
+    "pageErrors": []
+  }
+]

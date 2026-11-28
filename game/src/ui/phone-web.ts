@@ -1,5 +1,9 @@
 import { matchRanges } from '../phone/web/model';
 import type { WebPage, WebView } from '../phone/web/types';
+import type { WebOrderQuote, WebOrderResult } from '../phone/web/commerce';
+import { renderWebOrder } from './phone-web-order';
+import { renderBicycleStorefront } from './phone-web-storefront';
+import { renderTownWebsite } from './phone-web-town';
 
 export interface WebHandlers {
   search: (query: string) => void;
@@ -125,7 +129,8 @@ function noResults(): HTMLElement {
 }
 
 /** All page and query text is assigned as text, including future event-provided pages. */
-export function renderWeb(view: WebView, handlers: WebHandlers): HTMLElement {
+export function renderWeb(view: WebView, handlers: WebHandlers,
+  commerce?: { quote: WebOrderQuote | null; purchase: (address: string) => WebOrderResult }): HTMLElement {
   const root = make('section', `phone-web phone-web-${view.kind}`); root.dataset.webView = view.kind;
   if (view.kind === 'home') {
     root.append(logo('phone-web-logo-large'), searchForm('', handlers, true));
@@ -146,6 +151,10 @@ export function renderWeb(view: WebView, handlers: WebHandlers): HTMLElement {
   }
   const address = make('p', 'phone-web-address', view.address); address.setAttribute('aria-label', `アドレス ${view.address}`);
   root.append(address);
+  if (view.page) {
+    const site = renderBicycleStorefront(view.page, handlers.open, commerce) ?? renderTownWebsite(view.page, handlers.open);
+    if (site) { root.classList.add('phone-web-designed-page'); root.append(site); return root; }
+  }
   const article = make('article', 'phone-web-page');
   if (!view.page) {
     article.append(make('h1', 'phone-web-title', 'ページが見つかりません'), make('p', '', 'このアドレスのページはありません。'));
@@ -158,6 +167,7 @@ export function renderWeb(view: WebView, handlers: WebHandlers): HTMLElement {
       article.append(button);
     }
     article.querySelector('.phone-web-link')?.setAttribute('data-focus-first', '');
+    if (commerce?.quote) article.append(renderWebOrder(commerce.quote, () => commerce.purchase(view.address)));
   }
   root.append(article);
   return root;

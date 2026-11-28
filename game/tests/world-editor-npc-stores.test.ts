@@ -62,7 +62,7 @@ function reopen(layout: AreaLayout, world: World, areaId: string): WorldEditorMo
 }
 
 describe('N1.5 店を含む全エリアの人物確認', () => {
-  it('isEditableArea による走査で全12編集可能エリア16人が編集対象になり、7店の接続と一致する', () => {
+  it('isEditableArea による走査で全16編集可能エリア32人が編集対象になり、7店の接続と一致する', () => {
     const world = buildWorld();
     const initial = new WorldEditorModel(world).initial;
     expect(validateWorld(world, { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
@@ -73,7 +73,7 @@ describe('N1.5 店を含む全エリアの人物確認', () => {
       area => !isEditableArea(initial, area.id) && areaNpcs(initial, area.id).length > 0,
     );
     expect(readonlyPopulated.map(area => area.id)).toEqual(['town-neighbor']);
-    expect(editableAreas).toHaveLength(13);
+    expect(editableAreas).toHaveLength(16);
 
     const counts = Object.fromEntries(editableAreas.map(area => [area.id, areaNpcs(initial, area.id).length]));
     expect(counts['town-main']).toBe(6);
@@ -81,9 +81,12 @@ describe('N1.5 店を含む全エリアの人物確認', () => {
     expect(counts['school-classroom-interior']).toBe(2);
     for (const store of STORE_CONTACTS) {
       expect(editableAreas.some(area => area.id === store.interiorAreaId)).toBe(true);
-      expect(counts[store.interiorAreaId]).toBe(1);
+      expect(counts[store.interiorAreaId]).toBe(store.catalogId === 'cafe' ? 3 : 2);
     }
-    expect(Object.values(counts).reduce((sum, count) => sum + count, 0)).toBe(16);
+    expect(counts['high-school-interior']).toBe(3);
+    expect(counts['university-interior']).toBe(3);
+    expect(counts['office-interior']).toBe(2);
+    expect(Object.values(counts).reduce((sum, count) => sum + count, 0)).toBe(32);
   });
 
   it('7店すべての店員で5種類の編集・Undo/Redo・保存往復・保護・store接続検証が通る', () => {

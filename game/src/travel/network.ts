@@ -7,7 +7,7 @@ import { NEIGHBOR_STATION_ACCESS } from '../world/towns/neighbor';
 /** 地名と路線名は暫定。駅の座標は #35 の共有データだけを参照する。到着の位置は改札の外（降車後に自動で出る）。 */
 export const TRAVEL_STATIONS: readonly RailwayStation[] = [
   {
-    id: STATION_ACCESS.stationId, name: 'いつものまち',
+    id: STATION_ACCESS.stationId, name: 'いつもの町',
     boarding: { ...STATION_ACCESS.boarding, interactionId: STATION_ACCESS.interaction.id, eventKey: STATION_ACCESS.interaction.eventKey },
     arrival: { ...outsideOf(getStationFlow(STATION_ACCESS.stationId)) },
   },

@@ -64,16 +64,19 @@ try {
   await page.locator('[data-web-view="results"]').waitFor();
   await page.locator('.phone-web-result').first().click();
   await page.locator('.phone-web-link', { hasText: 'お店の地図' }).click();
+  await page.locator('.phone-web-title', { hasText: 'お店の地図' }).waitFor();
+  assert.equal(await page.locator('.phone-web-address').textContent(), 'https://ekimae-street.example/map', 'shop directory is a complete local page');
+  await page.evaluate(() => window.__slg.game.phone.webOpen('https://ekimae-street.example/not-published'));
   await page.locator('.phone-web-title', { hasText: 'ページが見つかりません' }).waitFor();
-  assert.equal(await page.locator('.phone-web-address').textContent(), 'https://ekimae-street.example/map', 'missing page still shows its address');
-  console.log('PASS Enter submits and a missing page shows its real address');
+  assert.equal(await page.locator('.phone-web-address').textContent(), 'https://ekimae-street.example/not-published', 'unknown page still shows its address');
+  console.log('PASS Enter submits, directory loads and an unknown page shows its real address');
 
   // The lucky button skips the result list; back then shows the list it skipped.
   await page.locator('#phone-home').click(); await openWeb(page);
   assert.equal(await page.locator('.phone-web-lucky').isDisabled(), true, 'empty lucky search cannot be sent');
   await page.locator('.phone-web-input').fill('おはなし会');
   await page.locator('.phone-web-lucky').click();
-  await page.locator('.phone-web-title', { hasText: 'おはなし会のくわしい案内' }).waitFor();
+  await page.locator('.phone-web-title', { hasText: 'おはなし会' }).waitFor();
   await page.locator('#phone-back').click(); assert.equal(await view(page), 'results');
   assert.equal(await page.locator('.phone-web-result-summary b').first().textContent(), 'おはなし会', 'query words are bold in snippets');
   await page.locator('.phone-web-clear').click();

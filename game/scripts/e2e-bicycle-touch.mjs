@@ -12,7 +12,7 @@ const sizes = [
   ['landscape', { width: 844, height: 390 }],
   ['narrow', { width: 320, height: 568 }],
 ];
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, args: ['--disable-gpu-vsync', '--disable-frame-rate-limit'] });
 let passed = 0;
 const overlap = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 async function check(name, fn) { await fn(); passed++; console.log(`PASS ${name}`); }
@@ -54,6 +54,18 @@ async function setup(page) {
       if (window.__bikeSamples.length > 240) window.__bikeSamples.shift();
     };
     document.querySelector('[data-accelerate]').addEventListener('pointerdown', event => { window.__bikeBoostPointer = event.pointerId; });
+    window.__bikeActivePointers = new Map();
+    window.__bikePointerEvents = [];
+    for (const type of ['pointerdown', 'pointerup', 'pointercancel', 'lostpointercapture']) {
+      document.addEventListener(type, event => {
+        if (event.pointerType !== 'touch') return;
+        const button = event.target.closest?.('#touch button');
+        const target = button?.dataset.dir ?? (button?.dataset.accelerate ? 'accelerate' : button?.dataset.bike ? 'bicycle' : 'other');
+        if (type === 'pointerdown') window.__bikeActivePointers.set(event.pointerId, target);
+        if (type === 'pointerup' || type === 'pointercancel') window.__bikeActivePointers.delete(event.pointerId);
+        window.__bikePointerEvents.push({ type, pointerId: event.pointerId, target });
+      }, true);
+    }
   });
   await page.locator('[data-bike]').tap();
   await page.waitForFunction(() => window.__slg.game.riding && !document.querySelector('[data-accelerate]').hidden);
@@ -66,7 +78,7 @@ async function center(page, selector, id) {
 }
 async function measuredSpeed(page, dir, run, expected) {
   await page.evaluate(() => { window.__slg.game.player = { ...window.__bikeStart }; window.__bikeSamples = []; });
-  await page.waitForTimeout(120);
+  await page.waitForFunction(() => window.__bikeSamples.length >= 4, undefined, { polling: 'raf', timeout: 5000 });
   const samples = await page.evaluate(() => window.__bikeSamples);
   const matching = samples.filter(sample => sample.dir === dir && sample.run === run);
   assert.ok(matching.length > 0, `Expected ${dir}, run=${run}; received ${JSON.stringify(samples)}`);
@@ -76,6 +88,10 @@ async function measuredSpeed(page, dir, run, expected) {
 async function released(page) {
   await page.waitForFunction(() => document.querySelector('[data-accelerate]').getAttribute('aria-pressed') === 'false'
     && !(window.__bikeSamples.at(-1)?.run ?? false));
+}
+async function heldTouches(page, expected) {
+  const actual = await page.evaluate(() => ({ active: [...window.__bikeActivePointers.values()].sort(), events: window.__bikePointerEvents }));
+  assert.deepEqual(actual.active, [...expected].sort(), `Unexpected physical pointer lifecycle: ${JSON.stringify(actual.events)}`);
 }
 
 try {
@@ -112,10 +128,14 @@ try {
         if (shots) await page.screenshot({ path: `${shots}/${name}-bicycle-accelerating.png` });
       });
       await check(`${name}: changing direction preserves acceleration and releasing boost restores normal speed`, async () => {
-        await touch('touchEnd', [boost]);
+        // Chromium's partial touchEnd releases the listed IDs, not the remaining fingers.
+        await touch('touchEnd', [up]);
+        await heldTouches(page, ['accelerate']);
         await touch('touchStart', [boost, right]);
+        await heldTouches(page, ['accelerate', 'right']);
         await measuredSpeed(page, 'right', true, 240);
-        await touch('touchEnd', [right]);
+        await touch('touchEnd', [boost]);
+        await heldTouches(page, ['right']);
         await measuredSpeed(page, 'right', false, 176);
         assert.equal(await page.locator('[data-accelerate]').getAttribute('aria-pressed'), 'false');
         await touch('touchEnd');

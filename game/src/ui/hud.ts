@@ -20,7 +20,15 @@ export class Hud {
   constructor(private readonly game: Game, onDialogClick: () => void) {
     this.dialog.setAttribute('role', 'button');
     this.dialog.setAttribute('aria-label', 'はなしをすすめる');
-    this.dialog.addEventListener('click', onDialogClick);
+    const dialogPointers = new Set<number>();
+    this.dialog.addEventListener('pointerdown', event => { if (!this.dialog.hidden) dialogPointers.add(event.pointerId); });
+    this.dialog.addEventListener('pointercancel', event => dialogPointers.delete(event.pointerId));
+    this.dialog.addEventListener('click', event => {
+      // A touch on A can hide that button and retarget its click to the newly opened dialog.
+      const startedHere = event instanceof PointerEvent ? dialogPointers.delete(event.pointerId) : dialogPointers.size > 0;
+      dialogPointers.clear();
+      if (event.detail === 0 || startedHere) onDialogClick();
+    });
     this.location.setAttribute('aria-live', 'polite');
     this.toast.setAttribute('role', 'status');
   }
