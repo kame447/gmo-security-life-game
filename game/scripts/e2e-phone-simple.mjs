@@ -38,7 +38,7 @@ try {
   await page.keyboard.press('ArrowRight');
   assert.equal(await page.locator('[data-app="web"]').evaluate(node => node === document.activeElement), true);
   await page.keyboard.press('Enter');
-  assert.equal(await page.locator('.smartphone-view-title').innerText(), 'ウェブ');
+  await page.locator('[data-web-view="home"] .phone-web-input').waitFor({ state: 'visible' });
   await page.keyboard.press('Backspace'); assert.equal(await page.locator('.smartphone-app').count(), 6);
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.querySelector('#phone-overlay').hidden);
