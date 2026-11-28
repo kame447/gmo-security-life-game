@@ -131,8 +131,12 @@ try{
  }
  const roomsSession=await session({width:1280,height:800}),rp=roomsSession.page;await ready(rp);
  const areaValues=await rp.locator('#area-select option').evaluateAll(opts=>opts.map(o=>o.value));
- assert.equal(areaValues.length,14);
- assert.deepEqual(areaValues.filter(v=>v!=='town-main'),['home-family-2f','home-family-interior','school-classroom-interior','shop-bakery-interior','shop-bookstore-interior','shop-cafe-interior','shop-candy-interior','shop-greengrocer-interior','shop-konbini-interior','shop-pharmacy-interior','station-main-interior','station-neighbor-interior','town-neighbor']);
+ const registeredAreas=await rp.evaluate(async()=>{
+  const {buildWorld}=await import('/src/world/index.ts');
+  return [...buildWorld().areas.keys()].sort();
+ });
+ assert.deepEqual(areaValues.slice().sort(),registeredAreas);
+ assert.equal(await rp.locator('#area-select').inputValue(),'home-family-interior');
  // Edit school-classroom-interior: place & 4-dir rotate chair-wood, check wall item lock reason, rotate legacy sdesk & tdesk, paint floor.
  await rp.locator('#area-select').selectOption('school-classroom-interior');
  await rp.waitForFunction(()=>window.__worldEditor.activeArea==='school-classroom-interior');
@@ -179,7 +183,7 @@ try{
  // Edit shop-candy-interior: select Type B candy-hanging-rack, verify restriction reason appears while #rotate stays enabled, and cycle down -> left -> right -> down.
  await rp.locator('#area-select').selectOption('shop-candy-interior');
  await rp.waitForFunction(()=>window.__worldEditor.activeArea==='shop-candy-interior');
- assert.equal(await rp.locator('#location').innerText(),'だがしや');
+ assert.equal(await rp.locator('#location').innerText(),'駄菓子屋');
  const candyRack='shop-candy-interior-hanging-rack';
  await select(rp,candyRack);
  assert.equal(await rp.locator('#rotate').isDisabled(),false);

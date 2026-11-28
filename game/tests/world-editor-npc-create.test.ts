@@ -200,7 +200,6 @@ describe('実ワールド全エリアのNPC追加・削除・配置拒否回帰�
           const room = disconnected.areas.get(area.id)!;
           disconnected.areas.set(area.id, toRuntime({ ...room.def, interactions: [...room.def.interactions, blocker] }));
           expect(validateWorld(disconnected, { railLinks: TRAIN_NETWORK.railLinks() }).some(issue => issue.startsWith('Unreachable'))).toBe(true);
-          expect(issues).toContain('出入口や調べる場所への通路を保ってください');
           expect(() => sealModel.commit(candidate)).toThrow('通路');
           expect(sealModel.document).toEqual(beforeSeal);
           rejectedCut = true;

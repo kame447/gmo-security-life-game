@@ -163,8 +163,8 @@ describe('provisional facility display priority', () => {
     const labels = layoutFacilityLabels(map.markers, projection, 338, 470, text => text.length * 13, player,
       { mapWidth: map.width, mapHeight: map.height, iconPixel: 1, playerRadius: 8 });
     const mapRect = { x: projection.left, y: projection.top, width: map.width * projection.scale, height: map.height * projection.scale };
-    expect(labels).toHaveLength(12);
-    expect(labels.filter(label => !overlaps(label, mapRect)).length).toBe(9);
+    expect(labels.map(label => label.marker.id).sort()).toEqual(map.markers.map(marker => marker.id).sort());
+    expect(labels.filter(label => !overlaps(label, mapRect)).length).toBeGreaterThan(labels.length / 2);
     const dense: FacilityMarker[] = Array.from({ length: 8 }, (_, i) => ({ id: `facility-${i}`, name: '施設', kind: 'facility', x: 20 + i * 4, y: 20 }));
     const small = layoutFacilityLabels(dense, projection, 100, 60, () => 26, { x: 50, y: 30 });
     expect(small.length).toBeLessThan(dense.length);

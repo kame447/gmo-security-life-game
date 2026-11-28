@@ -134,7 +134,7 @@ try{
  const offscreenBefore=await s.page.evaluate(()=>{const npc=window.__worldEditor.model.npc('station-staff',undefined,'town-main');const p=window.__worldEditor.toScreen(npc.x*16+8,npc.y*16+8),r=document.querySelector('#workspace').getBoundingClientRect();return{x:p.x,y:p.y,w:r.width,h:r.height};});
  assert.ok(offscreenBefore.x<0||offscreenBefore.x>offscreenBefore.w||offscreenBefore.y<0||offscreenBefore.y>offscreenBefore.h);
  await s.click('[data-npc-list-id="station-staff"]');
- assert.equal(await s.page.locator('#npc-name').inputValue(),'えきいんさん');
+ assert.equal(await s.page.locator('#npc-name').inputValue(),'駅員さん');
  assert.match(await s.page.locator('#object-id').textContent(),/station-staff/);
  assert.equal(await s.page.locator('[data-npc-list-id="station-staff"]').getAttribute('aria-pressed'),'true');
  const focusedAfter=await s.page.evaluate(()=>{const npc=window.__worldEditor.model.npc('station-staff',undefined,'town-main');const p=window.__worldEditor.toScreen(npc.x*16+8,npc.y*16+8),r=document.querySelector('#workspace').getBoundingClientRect();return{x:p.x,y:p.y,w:r.width,h:r.height};});
@@ -169,7 +169,13 @@ try{
  await edit(s,{name:draftName,lines:draftLines,sprite:'teacher'});const editedMother=await npcOf(s.page,motherId);
  assert.deepEqual(editedMother,{...sourceMother,y:sourceMother.y+2,facing:'up',sprite:'teacher',name:draftName,lines:draftLines});
  await s.click('#undo');assert.equal((await npcOf(s.page,motherId)).name,sourceMother.name);await s.click('#redo');assert.deepEqual(await npcOf(s.page,motherId),editedMother);pass('name conversation and appearance apply as one undoable edit without changing the event key');
- assert.equal(await s.page.locator('[data-npc-sprite]').count(),10);assert.equal(await s.page.locator('[data-npc-sprite="player"]').count(),0);
+ const spriteIds=await s.page.evaluate(async()=>{
+  const {EDITABLE_PEOPLE}=await import('/src/world-editor/npc.ts');
+  return EDITABLE_PEOPLE.map(person=>person.id).sort();
+ });
+ assert.ok(spriteIds.includes('grandma-reading-seated')&&spriteIds.includes('friend-seated'));
+ const spriteChoices=await s.page.locator('[data-npc-sprite]').evaluateAll(entries=>entries.map(entry=>entry.dataset.npcSprite).sort());
+ assert.deepEqual(spriteChoices,spriteIds);assert.equal(await s.page.locator('[data-npc-sprite="player"]').count(),0);
  const beforeDelete=await documentOf(s.page);await s.page.locator('#workspace').focus();await s.page.keyboard.press('Delete');assert.deepEqual(await documentOf(s.page),beforeDelete);pass('player appearance and protected mother deletion are unavailable');
  const expectedMother=await documentOf(s.page),savedMother=await save(s);assert.deepEqual(savedMother.interactions.find(i=>i.id===motherId),(({areaId:_,...npc})=>npc)(editedMother));
  s=await restart(s,expectedMother);pass('saved mother survives server restart with the complete document unchanged');
@@ -180,8 +186,10 @@ try{
  await ready(s.page);const storage=await s.page.evaluate(()=>({...localStorage}));await s.click('#play');await s.page.locator('#workspace').focus();await talk(s,motherId);
  assert.equal(await s.page.locator('#walk-dialog strong').innerText(),draftName);assert.equal(await s.page.locator('#walk-dialog p').innerText(),draftLines[0]);await s.page.screenshot({path:path.join(output,'desktop-mother-talk.png')});
  await s.click('#play');assert.deepEqual(await s.page.evaluate(()=>({...localStorage})),storage);pass('trial walk speaks the edited ordinary line without changing the player save');
- await s.click('#people-tab');assert.equal(await s.page.locator('[data-person-id]').count(),10);assert.equal(await s.page.locator('[data-person-id="player"]').count(),0);
- await s.click('[data-person-id="friend"]');const cancelled=await s.page.evaluate(()=>window.__worldEditor.npcGhost.npc.id);await s.click('#stop-placement');assert.deepEqual(await documentOf(s.page),expectedMother);pass('ten game-art people thumbnails and cancelled placement leave the document unchanged');
+ await s.click('#people-tab');
+ const thumbnails=await s.page.locator('[data-person-id]').evaluateAll(entries=>entries.map(entry=>entry.dataset.personId).sort());
+ assert.deepEqual(thumbnails,spriteIds);assert.equal(await s.page.locator('[data-person-id="player"]').count(),0);
+ await s.click('[data-person-id="friend"]');const cancelled=await s.page.evaluate(()=>window.__worldEditor.npcGhost.npc.id);await s.click('#stop-placement');assert.deepEqual(await documentOf(s.page),expectedMother);pass('game-art people thumbnails and cancelled placement leave the document unchanged');
  const placed=await place(s,'friend',4,7);assert.notEqual(placed.id,cancelled);assert.match(placed.id,/^home-family-interior-npc-[1-9][0-9]*$/);
  assert.equal((await npcOf(s.page,placed.id)).eventKey,`npc.${placed.id}`);await edit(s,{name:'新しく置いた人',lines:['追加した人の会話です。'],sprite:'grandma'});
  assert.deepEqual(await listOrder(s.page),await docNpcOrder(s.page,areaId));assert.deepEqual(await rowBadges(s.page,placed.id),['置いた人']);

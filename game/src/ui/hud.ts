@@ -21,13 +21,25 @@ export class Hud {
     this.dialog.setAttribute('role', 'button');
     this.dialog.setAttribute('aria-label', 'はなしをすすめる');
     const dialogPointers = new Set<number>();
-    this.dialog.addEventListener('pointerdown', event => { if (!this.dialog.hidden) dialogPointers.add(event.pointerId); });
+    const insideDialog = (x: number, y: number) => {
+      const rect = this.dialog.getBoundingClientRect();
+      return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
+    };
+    let touchStartedInside = false;
+    this.dialog.addEventListener('pointerdown', event => {
+      if (!this.dialog.hidden && insideDialog(event.clientX, event.clientY)) dialogPointers.add(event.pointerId);
+    });
     this.dialog.addEventListener('pointercancel', event => dialogPointers.delete(event.pointerId));
+    // Touch targeting can prefer a nearby clickable element even when the finger is outside it.
+    document.addEventListener('touchstart', event => {
+      touchStartedInside = !this.dialog.hidden && [...event.changedTouches].some(touch => insideDialog(touch.clientX, touch.clientY));
+    }, { passive: true, capture: true });
     this.dialog.addEventListener('click', event => {
       // A touch on A can hide that button and retarget its click to the newly opened dialog.
-      const startedHere = event instanceof PointerEvent ? dialogPointers.delete(event.pointerId) : dialogPointers.size > 0;
+      const pointer = event instanceof PointerEvent ? event : undefined;
+      const startedHere = pointer ? dialogPointers.delete(pointer.pointerId) : dialogPointers.size > 0;
       dialogPointers.clear();
-      if (event.detail === 0 || startedHere) onDialogClick();
+      if (event.detail === 0 || (startedHere && (pointer?.pointerType !== 'touch' || touchStartedInside))) onDialogClick();
     });
     this.location.setAttribute('aria-live', 'polite');
     this.toast.setAttribute('role', 'status');

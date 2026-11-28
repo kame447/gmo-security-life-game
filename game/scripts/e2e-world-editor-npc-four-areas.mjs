@@ -63,15 +63,16 @@ async function runPreflight() {
     assert.deepEqual(storeProblems, []);
 
     const model = new WorldEditorModel(world);
-    assert.equal(model.initial.areas.length, 14);
+    assert.deepEqual(model.initial.areas.map(area => area.id).sort(), [...world.areas.keys()].sort());
     const editableAreas = model.initial.areas.filter(a => isEditableArea(model.initial, a.id));
-    assert.equal(editableAreas.length, 13);
     const readonlyAreas = model.initial.areas.filter(a => !isEditableArea(model.initial, a.id));
     assert.deepEqual(readonlyAreas.map(a => [a.id, areaNpcs(model.initial, a.id).length]), [['town-neighbor', 1]]);
     const totalNpcs = editableAreas.reduce((sum, a) => sum + areaNpcs(model.initial, a.id).length, 0);
-    assert.equal(totalNpcs, 16);
     const allNpcs = model.initial.areas.reduce((sum, a) => sum + areaNpcs(model.initial, a.id).length, 0);
-    assert.equal(allNpcs, 17);
+    const countSourceNpcs = areas => areas.reduce((sum, area) =>
+      sum + area.def.interactions.filter(item => item.kind === 'npc').length, 0);
+    assert.equal(totalNpcs, countSourceNpcs([...world.areas.values()].filter(area => area.def.id !== 'town-neighbor')));
+    assert.equal(allNpcs, countSourceNpcs([...world.areas.values()]));
 
     const contacts = [];
     for (const contact of STORE_CONTACTS) {
@@ -434,8 +435,8 @@ try {
   // Verify N2 & N3.3 roles across real examples in UI
   await openArea(s, 'shop-bakery-interior');
   await selectFromList(s, 'bakery-indoor-clerk');
-  assert.equal(await s.page.locator('#npc-role').getAttribute('data-role'), 'clerk-no-catalog');
-  assert.match(await s.page.locator('#npc-event-note').innerText(), /通常の会話枠/);
+  assert.equal(await s.page.locator('#npc-role').getAttribute('data-role'), 'shop-clerk');
+  assert.match(await s.page.locator('#npc-event-note').innerText(), /買い物の画面/);
   await openArea(s, 'town-main');
   const candyBadges = await s.page.evaluate(() =>
     Array.from(document.querySelectorAll('[data-npc-list-id="candy-shopkeeper"] .npc-badge')).map(e => e.textContent),

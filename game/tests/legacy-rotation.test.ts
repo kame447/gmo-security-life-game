@@ -71,6 +71,8 @@ function findClearSpot(model: WorldEditorModel, areaId: string, objectId: string
       if (current.solid && others.some(o => x < o.x + o.w && x + spanW > o.x && y < o.y + o.h && y + spanH > o.y)) continue;
       if (current.solid && arrivals.some(p => p.x >= x && p.x < x + spanW && p.y >= y && p.y < y + spanH)) continue;
       if (current.solid && exits.some(p => x < p.x + (p.w ?? 1) && x + spanW > p.x && y <= p.y && y + spanH > p.y)) continue;
+      // The move must be valid in the original orientation before the rotation is tested.
+      if (model.issues(model.candidate({ ...current, x, y })).length) continue;
       if (model.issues(model.candidate({ ...current, x, y, facing: 'left', ...sideways })).length) continue;
       return { x, y };
     }
@@ -83,20 +85,9 @@ describe('legacy and indoor rotation contract', () => {
     const world = buildWorld();
     const factories = new Map(AREA_FACTORIES.map(create => { const def = create(); return [def.id, def]; }));
     const indoorAreas = [...world.areas.values()].filter(area => area.def.kind === 'indoor');
-    expect(indoorAreas.map(area => area.def.id).sort()).toEqual([
-      'home-family-2f',
-      'home-family-interior',
-      'school-classroom-interior',
-      'shop-bakery-interior',
-      'shop-bookstore-interior',
-      'shop-cafe-interior',
-      'shop-candy-interior',
-      'shop-greengrocer-interior',
-      'shop-konbini-interior',
-      'shop-pharmacy-interior',
-      'station-main-interior',
-      'station-neighbor-interior',
-    ]);
+    expect(indoorAreas.map(area => area.def.id).sort()).toEqual(
+      [...factories.values()].filter(area => area.kind === 'indoor').map(area => area.id).sort(),
+    );
 
     const model = new WorldEditorModel(world);
     // All food-store kinds and `shop-rug` (`fixtures-food.ts`) are now registered in `FOOD_STORE_ROTATION_ENTRIES`.
@@ -107,7 +98,7 @@ describe('legacy and indoor rotation contract', () => {
       const areaId = area.def.id;
       const doc = model.document;
       for (const baseObj of area.def.objects) {
-        const o = model.object(baseObj.id!, undefined, areaId)!;
+        const o = model.object(baseObj.id!, model.initial, areaId)!;
         const rule = objectRotationRule(o);
         if (!rule) {
           expect(PENDING_FOOD_STORE_KINDS, `${areaId}/${o.id} (${o.kind})`).toContain(o.kind);
@@ -179,7 +170,11 @@ describe('legacy and indoor rotation contract', () => {
     }
     expect([...unregisteredKinds].sort()).toEqual([...PENDING_FOOD_STORE_KINDS].sort());
 
-    // Exercise full WorldEditorModel rotation cycles + save/reload roundtrip across classroom, home, and retail stores.
+  });
+
+  it('cycles and saves representative furniture across the classroom, home, and stores', () => {
+    const world = buildWorld(), model = new WorldEditorModel(world);
+    const factories = new Map(AREA_FACTORIES.map(create => { const def = create(); return [def.id, def]; }));
     const cycleTargets: [string, string][] = [
       ['home-family-interior', 'home-family-interior-toybox-1-5'],
       ['home-family-interior', 'home-family-interior-plant-14-9'],
@@ -242,7 +237,7 @@ describe('legacy and indoor rotation contract', () => {
         expect(updated.catalogId).toBe(o.catalogId);
       }
     }
-  }, 15000);
+  }, 90000);
 
   it('keeps home catalog floor furniture 4-directional and window-wall explained', () => {
     for (const entry of FURNITURE) {

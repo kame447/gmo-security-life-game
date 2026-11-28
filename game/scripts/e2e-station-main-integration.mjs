@@ -98,9 +98,10 @@ try {
         game.assets.changeMoney(321);
         game.assets.addItem('notebook', 3);
         game.setAppearance({ ...game.appearance, hairColor: 'gold', outfitColor: 'purple' });
-        localStorage.setItem('slg-map-save-v1', JSON.stringify(game.serialize()));
         return [getStationFlow('station'), getStationFlow('station-neighbor')];
       });
+      // Let the running app save the fixture so its stale-writer guard keeps ownership of the record.
+      await page.clock.runFor(3000);
       const initial = await state(page);
       await page.evaluate(() => { window.__arrivals = []; window.__slg.game.on(event => { if (event.type === 'area-enter') window.__arrivals.push({ ...event }); }); });
 

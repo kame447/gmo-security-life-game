@@ -57,7 +57,7 @@ describe('ワールド全体の編集方針', () => {
     expect(() => assertWorldEdit(before, after, context, testPolicies)).not.toThrow();
     const desynced = structuredClone(after);
     desynced.objects.find(o => o.areaId === 'shop-konbini-interior')!.x++;
-    expect(() => assertWorldEdit(before, desynced, context, testPolicies)).toThrow('のみもののケース');
+    expect(() => assertWorldEdit(before, desynced, context, testPolicies)).toThrow('飲み物のケース');
     const chair = new WorldEditorModel(buildWorld()).create('chair-wood', 'shop-konbini-interior');
     after.objects.push({ ...chair, x: 4, y: 6 });
     expect(() => assertWorldEdit(before, withDerived(after, context), context, testPolicies)).not.toThrow();

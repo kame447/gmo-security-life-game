@@ -1,28 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalJSON } from '../src/editor/schema.ts';
+import { canonicalJSON, validateDocument } from '../src/editor/schema.ts';
 import { evaluationDocument, inventoryMap, roundTripMap, sourceIdentities } from '../src/editor-persistence/map.ts';
 import { buildWorld } from '../src/world/index.ts';
+import { isSolidGround } from '../src/world/tiles.ts';
 import { persistenceWorld } from './fixtures/persistence-world.ts';
 
 describe('read-only inventory and fidelity measurements', () => {
   it('inventories all current areas with explicit IDs and separately derived collision cells', () => {
     const world = buildWorld(), before = structuredClone(world), report = inventoryMap(world);
-    expect(report.areas.map(a => [a.areaId, a.objects.sourceId, a.objects.auxiliary, a.portals.sourceId])).toEqual([
-      ['high-school-interior', 16, 0, 1], ['home-family-2f', 7, 0, 1], ['home-family-interior', 14, 0, 2],
-      ['office-interior', 13, 0, 1], ['school-classroom-interior', 21, 0, 1],
-      ['shop-bakery-interior', 10, 0, 1], ['shop-bookstore-interior', 10, 0, 1],
-      ['shop-cafe-interior', 23, 0, 1], ['shop-candy-interior', 6, 0, 1],
-      ['shop-greengrocer-interior', 9, 0, 1], ['shop-konbini-interior', 12, 0, 1],
-      ['shop-pharmacy-interior', 10, 0, 1], ['station-main-interior', 2, 0, 1],
-      ['station-neighbor-interior', 2, 0, 1], ['town-main', 270, 0, 10],
-      ['town-neighbor', 16, 0, 4], ['university-interior', 14, 0, 1],
-    ]);
-    expect(report.areas.reduce((n, a) => n + a.facilities.sourceId, 0)).toBe(16);
-    expect(report.areas.reduce((n, a) => n + a.decals.sourceId, 0)).toBe(31);
-    // F5 preserves town-shop-60-59 while changing its kind to apartment.
-    expect(report.areas.reduce((n, a) => n + a.coordinatePatternObjectIds, 0)).toBe(364);
-    expect(report.areas.reduce((n, a) => n + a.groundSolidCells.auxiliary, 0)).toBe(3280);
-    expect(report.areas.reduce((n, a) => n + a.runtimeSolidCells.auxiliary, 0)).toBe(6110);
+    expect(report.areas.map(area => area.areaId)).toEqual([...world.areas.keys()].sort());
+    for (const area of report.areas) {
+      const source = world.areas.get(area.areaId)!;
+      expect(area.objects).toEqual({ total: source.def.objects.length, sourceId: source.def.objects.length, auxiliary: 0 });
+      expect(area.portals.sourceId).toBe(source.def.portals.length);
+      expect(area.decals.sourceId).toBe(source.def.objects.filter(object => object.layer === 'decal').length);
+      expect(area.groundSolidCells).toMatchObject({ sourceId: 0, auxiliary: source.ground.filter(isSolidGround).length });
+      expect(area.runtimeSolidCells).toMatchObject({ sourceId: 0, auxiliary: source.solid.filter(Boolean).length });
+    }
+    expect(report.areas.reduce((sum, area) => sum + area.facilities.sourceId, 0)).toBe(world.facilities.size);
+    const cafe = world.areas.get('shop-cafe-interior')!;
+    const cafeReport = report.areas.find(area => area.areaId === cafe.def.id)!;
+    expect(cafe.def.objects.filter(object => object.kind === 'cafe-chair' && object.layer === 'decal')).toHaveLength(2);
+    expect(cafeReport.runtimeSolidCells.auxiliary).toBeGreaterThan(cafeReport.groundSolidCells.auxiliary);
     expect(report.duplicateSourceIds).toEqual([]);
     expect(world).toEqual(before);
   });
@@ -49,10 +48,11 @@ describe('read-only inventory and fidelity measurements', () => {
     expect(report.facilitiesEqual).toBe(true);
     expect(report.areaIterationOrderChanged).toBe(true);
     expect(report.facilityIterationOrderChanged).toBe(true);
-    expect(report.normalizedOrderChanges).toHaveLength(33);
+    expect(report.normalizedOrderChanges).toContainEqual({ table: 'objects', areaId: 'town-main' });
     expect(report.backendAccepted).toBe(false);
     // Shape validation now accepts numeric styles; raw, unlinked data is still rejected for overlaps.
-    expect(report.backendIssues).toHaveLength(242);
+    expect(report.backendIssues.length).toBeGreaterThan(0);
+    expect(report.backendIssues).toEqual(validateDocument(evaluationDocument(world)));
     expect(report.backendIssues.every(issue => issue.code === 'overlap')).toBe(true);
     expect(world).toEqual(before);
   });

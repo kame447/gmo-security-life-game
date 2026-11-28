@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AreaDef } from '../src/core/types';
 import { buildWorld } from '../src/world';
+import { CAMPUS_PLACES } from '../src/world/campus';
+import { TRAIN_NETWORK } from '../src/travel/network';
 import { STATION_ACCESS } from '../src/world/landmarks';
 import { toRuntime } from '../src/world/runtime';
 import { T } from '../src/world/tiles';
@@ -29,8 +31,12 @@ describe('explicit railway reachability', () => {
     // Default validation remains backward compatible when no train-only areas are registered.
     const base = buildWorld();
     base.areas.delete('town-neighbor'); base.areas.delete('station-neighbor-interior');
-    base.facilities.delete('station-neighbor');
+    for (const place of CAMPUS_PLACES) base.areas.delete(place.areaId);
+    for (const facility of base.facilities.values()) {
+      if (!base.areas.has(facility.areaId)) base.facilities.delete(facility.id);
+    }
     expect(validateWorld(base)).toEqual([]);
+    expect(validateWorld(buildWorld(), { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
     expect(STATION_ACCESS.boarding).toEqual({ areaId: 'station-main-interior', x: 21, y: 5, facing: 'up' });
     expect(STATION_ACCESS.arrival.y).not.toBe(STATION_ACCESS.boarding.y);
   });

@@ -180,7 +180,10 @@ try {
     await p.evaluate(() => window.dispatchEvent(new Event('pagehide')));
     saved = await p.evaluate(() => JSON.parse(window.__inventoryStorage.peek()));
     await p.reload(); await p.waitForFunction(() => !!window.__slg?.game?.assets?.inventory);
-    const after = await p.evaluate(() => window.__slg.game.serialize()); assert.deepEqual(after, saved);
+    const { savedAtEpochMs, ...savedGame } = saved;
+    assert.ok(Number.isFinite(savedAtEpochMs), 'The persisted record contains a save timestamp');
+    const after = await p.evaluate(() => window.__slg.game.serialize());
+    assert.deepEqual(after, savedGame);
     assert.deepEqual(after.assets, expectedAssets); assert.deepEqual(after.phone, seed.phone);
     await normal.close();
   });

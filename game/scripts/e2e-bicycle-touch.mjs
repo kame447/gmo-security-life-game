@@ -146,8 +146,14 @@ try {
         await page.waitForTimeout(40);
         await released(page);
         await touch('touchStart', [boost]);
-        await page.evaluate(() => document.querySelector('[data-accelerate]').releasePointerCapture(window.__bikeBoostPointer));
-        await touch('touchMove', [{ ...boost, x: boost.x + 3 }]);
+        // Process pending capture in Chromium before asking it to release an active capture.
+        await touch('touchMove', [{ ...boost, x: boost.x + 8 }]);
+        await page.evaluate(() => {
+          const button = document.querySelector('[data-accelerate]');
+          if (!button.hasPointerCapture(window.__bikeBoostPointer)) throw new Error('Acceleration must capture the active pointer');
+          button.releasePointerCapture(window.__bikeBoostPointer);
+        });
+        await touch('touchMove', [{ ...boost, x: boost.x + 16 }]);
         await page.waitForTimeout(40);
         await released(page);
         await touch('touchEnd');

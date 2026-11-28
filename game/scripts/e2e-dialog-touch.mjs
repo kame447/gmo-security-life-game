@@ -64,7 +64,7 @@ async function measure(page) {
     };
     const buttons = [...document.querySelectorAll('#touch button')].map(el => {
       const rect = box(el.getBoundingClientRect()), show = visible(el), hit = show && document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
-      return { id: el.dataset.dir || (el.dataset.act ? 'A' : 'bicycle'), rect, visible: show, centerHit: !!hit && (hit === el || el.contains(hit)), dialogArea: show ? overlap(rect, dialogRect) : 0 };
+      return { id: el.dataset.dir || (el.hasAttribute('data-act') ? 'A' : el.hasAttribute('data-accelerate') ? 'accelerate' : 'bicycle'), rect, visible: show, centerHit: !!hit && (hit === el || el.contains(hit)), dialogArea: show ? overlap(rect, dialogRect) : 0 };
     });
     const glyphs = [], intersections = [];
     for (const [role, selector] of [['speaker', '.who'], ['body', '.text'], ['next', '.next']]) {
@@ -84,7 +84,7 @@ async function measure(page) {
               if (area > 0) {
                 const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)?.closest('#touch button');
                 intersections.push({ ...entry, button: button.id, intersectionArea: area, glyphCenterHitsButton: !!hit &&
-                  (hit.dataset.dir || (hit.dataset.act ? 'A' : 'bicycle')) === button.id });
+                  (hit.dataset.dir || (hit.hasAttribute('data-act') ? 'A' : hit.hasAttribute('data-accelerate') ? 'accelerate' : 'bicycle')) === button.id });
               }
             }
           }
@@ -115,7 +115,7 @@ async function clickDialog(page, touch) {
 /** 十字・A・自転車のボタンの中心が、いまそのボタンに当たるか（見えない・押せない状態を、実際の当たり判定で見る）。 */
 const buttonHits = page => page.evaluate(() => [...document.querySelectorAll('#touch button')].map(el => {
   const r = el.getBoundingClientRect(), hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-  return { id: el.dataset.dir || (el.dataset.act ? 'A' : 'bicycle'), hit: !!hit && (hit === el || el.contains(hit)) };
+  return { id: el.dataset.dir || (el.hasAttribute('data-act') ? 'A' : el.hasAttribute('data-accelerate') ? 'accelerate' : 'bicycle'), hit: !!hit && (hit === el || el.contains(hit)) };
 }));
 const buttonPoint = (page, selector) => page.evaluate(selector => {
   const r = document.querySelector(`#touch ${selector}`).getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2;
@@ -247,7 +247,8 @@ try {
         check(row, !(await snapshot(page)).shop, 'flow', 'shop control closes normally without purchase');
       }
       row.after = await measure(page);
-      if (vp.touch) check(row, row.after.buttons.every(b => b.visible && b.centerHit), 'flow', 'all touch parts return and can be hit');
+      if (vp.touch) check(row, row.after.buttons.filter(b => b.id !== 'accelerate').every(b => b.visible && b.centerHit)
+        && row.after.buttons.some(b => b.id === 'accelerate' && !b.visible), 'flow', 'walking controls return; boost stays hidden until mounted');
       const beforeWalk = (await snapshot(page)).player;
       if (vp.touch) {
         const point = await page.evaluate(dir => { const r = document.querySelector(`#touch [data-dir="${dir}"]`).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }, scene.walk.dir);
