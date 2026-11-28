@@ -5,8 +5,81 @@ import { PERF_ROUTES } from './fixtures/perf-routes';
 import { T } from '../src/world/tiles';
 import { TRAIN_NETWORK } from '../src/travel/network';
 import { MAIN_STATION_LAYOUT } from '../src/world/landmarks';
+import { feetAtTile } from '../src/core/coords';
+import { Game } from '../src/session/game';
+import { canStand, RUN_SPEED } from '../src/map/explorer';
+import { AREA_FACTORIES } from '../src/world';
+import { staleLayouts } from '../src/world/layouts';
 
 describe('childhood world', () => {
+  it('matches indoor validation connectivity to 1px movement, stopping at portal triggers', () => {
+    const world = buildWorld();
+    for (const area of world.areas.values()) {
+      if (area.def.kind !== 'indoor') continue;
+      const arrival = [...world.areas.values()].flatMap(a => a.def.portals).find(p => p.to.areaId === area.def.id)!.to;
+      const width = area.width * 16 + 1, height = area.height * 16 + 1;
+      const seen = new Uint8Array(width * height), queue = new Int32Array(width * height);
+      const pixelTiles = new Set<number>(), tileNodes = new Set<number>();
+      let count = 0;
+      const visit = (x: number, y: number) => {
+        if (x < 0 || y < 0 || x >= width || y >= height) return;
+        const index = y * width + x;
+        if (seen[index]) return;
+        seen[index] = 1;
+        if (canStand(area, x, y)) queue[count++] = index;
+      };
+      const feet = feetAtTile(arrival.x, arrival.y);
+      visit(feet.x, feet.y);
+      for (let head = 0; head < count; head++) {
+        const index = queue[head], x = index % width, y = Math.floor(index / width);
+        const tile = Math.floor((y - 4) / 16) * area.width + Math.floor(x / 16);
+        pixelTiles.add(tile);
+        if (area.portalAt.has(tile)) continue;
+        visit(x - 1, y); visit(x + 1, y); visit(x, y - 1); visit(x, y + 1);
+      }
+      expect(isSolidTile(area, arrival.x, arrival.y)).toBe(false);
+      const tiles = [arrival.y * area.width + arrival.x];
+      tileNodes.add(tiles[0]);
+      for (let head = 0; head < tiles.length; head++) {
+        const index = tiles[head], x = index % area.width, y = Math.floor(index / area.width);
+        if (area.portalAt.has(index)) continue;
+        for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) {
+          if (isSolidTile(area, nx, ny)) continue;
+          const next = ny * area.width + nx;
+          if (!tileNodes.has(next)) { tileNodes.add(next); tiles.push(next); }
+        }
+      }
+      expect([...tileNodes].sort((a, b) => a - b), area.def.id).toEqual([...pixelTiles].sort((a, b) => a - b));
+    }
+  });
+  it.each([false, true])('walks the original stairs with sideways landings and no held-key bounce (run=%s)', run => {
+    const world = buildWorld(), game = new Game(world, { start: { areaId: 'home-family-interior', x: 1, y: 2, facing: 'up' } });
+    const portals: string[] = [];
+    game.on(e => { if (e.type === 'portal') portals.push(e.portalId); });
+    for (let i = 0; i < 64 && game.player.areaId === 'home-family-interior'; i++) {
+      game.update(1 / RUN_SPEED, { dir: 'up', run });
+      expect(canStand(game.area, game.player.x, game.player.y)).toBe(true);
+    }
+    expect(game.player).toEqual({ areaId: 'home-family-2f', ...feetAtTile(7, 1), facing: 'left' });
+    game.update(1, { dir: 'up', run });
+    expect(game.player.areaId).toBe('home-family-2f');
+    expect(canStand(game.area, game.player.x, game.player.y)).toBe(true);
+    for (let i = 0; i < 64 && game.player.areaId === 'home-family-2f'; i++) {
+      game.update(1 / RUN_SPEED, { dir: 'right', run });
+      expect(canStand(game.area, game.player.x, game.player.y)).toBe(true);
+    }
+    expect(game.player).toEqual({ areaId: 'home-family-interior', ...feetAtTile(2, 1), facing: 'right' });
+    game.update(0.25, { dir: 'right', run });
+    expect(game.player.areaId).toBe('home-family-interior');
+    expect(canStand(game.area, game.player.x, game.player.y)).toBe(true);
+    expect(portals).toEqual(['home-stairs-up', 'home-stairs-down']);
+    expect(staleLayouts(AREA_FACTORIES.map(create => create()))).toEqual([]);
+    for (const [id, x, objectId] of [['home-family-interior', 1, 'home-family-interior-stairs-1-1'],
+      ['home-family-2f', 8, 'home-family-2f-stairs-8-1']] as const) {
+      expect(world.areas.get(id)!.objects.find(o => o.kind === 'stairs')).toMatchObject({ id: objectId, x, y: 1 });
+      expect(world.areas.get(id)!.def.portals.find(p => p.id.includes('stairs'))!.from).toEqual({ x, y: 1 });
+    }
+  });
   it('has valid IDs, bounds, references and reachable portals/interactions', () => {
     expect(validateWorld(buildWorld(), { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
   });

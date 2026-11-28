@@ -204,7 +204,7 @@ describe('3店（ほんや・だがしや・くすりや）の什器回転と共
     expect(canRotateObject(rack)).toBe(true);
     expect(objectRotationReason(rack)).toBe('');
     expect(objectRotationRestrictionReason(rack)).toBe(STORE_WALL_SIDE_REASON);
-    expect(model.protectedReason(rack.id)).toContain('あてくじとキャンディ');
+    expect(model.protectedReason(rack.id)).toContain('当てくじとキャンディ');
 
     const observed: Array<{ facing: string; w: number; h: number; reason: string }> = [
       { facing: rack.facing ?? 'down', w: rack.w, h: rack.h, reason: objectRotationRestrictionReason(rack) },

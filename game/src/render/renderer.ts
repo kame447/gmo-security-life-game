@@ -11,6 +11,7 @@ import { drawCrossingGate, drawCrossingStopLines } from '../town-train/crossing-
 import { makeCanvas, R, type C2D } from './draw';
 import { drawGroundTile } from './ground';
 import { characterSprite, objectSprite, playerSprite, type Sprite } from './sprites';
+import { PLAYER_H } from './player-sprite';
 import { drawSurfaceTile, SURFACES } from './surfaces';
 
 const CACHE_LIMIT = 24;
@@ -192,19 +193,61 @@ export class Renderer {
     });
     let characterClip: Path2D | undefined;
     if (area.def.kind === 'indoor') {
+      // D1's rectangular rooms: the north exterior WALL is background.
+      // Internal WALL/WALL_TOP runs occlude actors behind their south edge,
+      // using the same depth queue as furniture and NPCs. Retain their baked
+      // background too, so an actor in front never reveals an empty cell.
+      const get = (x: number, y: number) => x < 0 || y < 0 || x >= area.width || y >= area.height
+        ? T.VOID : area.ground[y * area.width + x];
+      const isWall = (x: number, y: number) => get(x, y) === T.WALL || get(x, y) === T.WALL_TOP;
+      const wallDecals = area.objects.filter(o => {
+        if (o.layer !== 'decal') return false;
+        for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) {
+          if (!isWall(x, y)) return false;
+        }
+        return true;
+      });
+      for (let x = 1; x < area.width - 1; x++) for (let y = 1; y < area.height - 1;) {
+        if (!isWall(x, y)) { y++; continue; }
+        const start = y;
+        while (y < area.height - 1 && isWall(x, y)) y++;
+        // Keep a vertical partition together: sorting each tile separately
+        // would show the head through its upper tiles while hiding the body.
+        const [canvas, wall] = makeCanvas(TILE, (y - start) * TILE);
+        for (let row = start; row < y; row++) {
+          const tile = get(x, row), py = (row - start) * TILE;
+          drawGroundTile(wall, tile, 0, py, x, row, (dx, dy) => get(x + dx, row + dy));
+          this.surface(wall, area, tile, 0, py, x, row);
+        }
+        // Wall-mounted artwork belongs to its supporting wall, including when
+        // that wall occludes a person. The run canvas clips each overlapping
+        // portion; floor decals (rugs/stairs) retain their existing order.
+        for (const o of wallDecals) {
+          const sprite = objectSprite(o), left = o.x * TILE + sprite.ox, top = o.y * TILE + sprite.oy;
+          if (left >= (x + 1) * TILE || left + sprite.canvas.width <= x * TILE ||
+              top >= y * TILE || top + sprite.canvas.height <= start * TILE) continue;
+          wall.drawImage(sprite.canvas, left - x * TILE, top - start * TILE);
+        }
+        insert({ canvas, ox: 0, oy: 0 }, x * TILE, start * TILE, y * TILE, false);
+      }
       characterClip = new Path2D();
-      const floor = (x: number, y: number) => {
+      const characterVisible = (x: number, y: number) => {
         const t = area.ground[y * area.width + x];
-        return t !== T.WALL && t !== T.WALL_TOP && t !== T.VOID;
+        const exteriorTop = t === T.WALL_TOP && (x === 0 || x === area.width - 1 || y === area.height - 1);
+        return t !== T.VOID && !exteriorTop;
       };
-      // Cache floor runs once: character heads cannot paint over walls or void,
-      // while wall-mounted windows and blackboards keep their own artwork.
+      // Clip only exterior/void, not a head overlapping a background wall.
+      // Both NPCs and the player use this path. At the closest feet position
+      // a 26px actor can extend 2px north of the map; allow its full silhouette.
+      for (let x = 1; x < area.width - 1; x++) {
+        if (get(x, 0) === T.WALL) characterClip.rect(x * TILE, -PLAYER_H, TILE, PLAYER_H);
+      }
       for (let y = 0; y < area.height; y++) {
         let x = 0;
         while (x < area.width) {
-          if (!floor(x, y)) { x++; continue; }
+          if (!characterVisible(x, y)) { x++; continue; }
           const start = x;
-          while (x < area.width && floor(x, y)) x++;
+          while (x < area.width && characterVisible(x, y)) x++;
           characterClip.rect(start * TILE, y * TILE, (x - start) * TILE, TILE);
         }
       }
@@ -239,11 +282,17 @@ export class Renderer {
     const mapW = area.width * TILE, mapH = area.height * TILE;
     // Share the player's rounding before subtracting an integer viewport anchor.
     // Rounding (p - view/2) separately makes odd viewport sizes wobble by 1px.
-    const camera = (p: number, size: number, view: number) => size < view ? Math.round((size - view) / 2) : Math.max(0, Math.min(size - view, Math.round(p) - Math.floor(view / 2)));
+    const camera = (p: number, size: number, view: number, min = 0) => size < view
+      ? Math.min(min, Math.round((size - view) / 2))
+      : Math.max(min, Math.min(size - view, Math.round(p) - Math.floor(view / 2)));
     // 駅の演出中は、実際の主人公の代わりに演出の人物を描き、カメラもその人物に追従する。状態が無ければ従来どおり。
     const scene = stationScene.get(area.def.id), actor = scene?.actor;
     const focus = actor ?? game.player;
-    const camX = camera(focus.x, mapW, this.viewW), camY = camera(focus.y - 8, mapH, this.viewH);
+    // In a short viewport the ordinary y=0 clamp would still crop a head
+    // extending north of the map. Include its actual rounded top, at most
+    // the small D1 overhang for a valid feet position; editor cameras stay explicit.
+    const northLimit = indoor ? Math.min(0, Math.round(focus.y) - PLAYER_H) : 0;
+    const camX = camera(focus.x, mapW, this.viewW), camY = camera(focus.y - 8, mapH, this.viewH, northLimit);
     const frameCamera = overrides.camera ? {
       camX: Math.round(overrides.camera.centerX) - Math.floor(this.viewW / 2),
       camY: Math.round(overrides.camera.centerY) - Math.floor(this.viewH / 2),
@@ -262,7 +311,7 @@ export class Renderer {
     c.setTransform(this.zoom, 0, 0, this.zoom, -camX * this.zoom, -camY * this.zoom);
     c.imageSmoothingEnabled = false;
     c.save();
-    if (indoor) { c.beginPath(); c.rect(0, 0, mapW, mapH); c.clip(); }
+    if (indoor) { c.beginPath(); c.rect(0, -PLAYER_H, mapW, mapH + PLAYER_H); c.clip(); }
     if (profiling) { const now = performance.now(); timing.clearMs = now - mark; mark = now; }
     const minCX = Math.floor(camX / CHUNK_PX), maxCX = Math.floor((right - 1) / CHUNK_PX);
     const minCY = Math.floor(camY / CHUNK_PX), maxCY = Math.floor((bottom - 1) / CHUNK_PX);

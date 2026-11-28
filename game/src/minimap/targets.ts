@@ -1,5 +1,5 @@
-import type { PortalDef } from '../core/types';
 import type { AreaRuntime, World } from '../world';
+import { TRAIN_NETWORK } from '../travel/network';
 import type { GoalLocation, MinimapGoals, MinimapTarget } from './goals';
 import type { MapPoint } from './model';
 
@@ -11,17 +11,22 @@ function interaction(area: AreaRuntime, eventKey: string) {
   return area.interactions.filter(item => item.eventKey === eventKey).sort(byId)[0];
 }
 
-/** 有効な出入口だけをたどり、最少のエリア移動で目的地へ向かう最初の入口・階段を返す。 */
-function firstPortal(world: World, start: AreaRuntime, destinations: ReadonlySet<string>): PortalDef | undefined {
+/** 有効な出入口と電車の接続をたどり、最初の入口・階段・乗り場を案内する。移動そのものは始めない。 */
+function firstRoutePoint(world: World, start: AreaRuntime, destinations: ReadonlySet<string>): MapPoint | undefined {
   const visited = new Set([start.def.id]);
-  const queue: { area: AreaRuntime; first?: PortalDef }[] = [{ area: start }];
+  const queue: { area: AreaRuntime; first?: MapPoint }[] = [{ area: start }];
+  const railLinks = TRAIN_NETWORK.railLinks();
   for (let i = 0; i < queue.length; i++) {
     const { area, first } = queue[i];
     const portals = [...new Set(area.portalAt.values())].sort(byId);
-    for (const portal of portals) {
-      const next = world.areas.get(portal.to.areaId);
+    const routes = [
+      ...portals.map(portal => ({ areaId: portal.to.areaId, from: center(portal.from) })),
+      ...railLinks.filter(link => link.from.areaId === area.def.id).map(link => ({ areaId: link.to.areaId, from: center(link.from) })),
+    ];
+    for (const route of routes) {
+      const next = world.areas.get(route.areaId);
       if (!next || visited.has(next.def.id)) continue;
-      const entry = first ?? portal;
+      const entry = first ?? route.from;
       if (destinations.has(next.def.id)) return entry;
       visited.add(next.def.id);
       queue.push({ area: next, first: entry });
@@ -39,8 +44,7 @@ function targetPoint(world: World, area: AreaRuntime, target: MinimapTarget, rou
   const destinations = new Set('eventKey' in target
     ? [...world.areas.values()].filter(candidate => interaction(candidate, target.eventKey)).map(candidate => candidate.def.id)
     : target.areaIds);
-  const portal = firstPortal(world, area, destinations);
-  return portal && center(portal.from);
+  return firstRoutePoint(world, area, destinations);
 }
 
 /** 施設の図柄・名称は動かさず、目的地の印だけを実際の相手か次の出入口へ置き換える。 */

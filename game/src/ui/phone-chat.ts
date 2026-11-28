@@ -1,3 +1,4 @@
+import type { ChatWebLink } from '../phone/chat/links';
 /** View-only chat data. The phone model owns history, validation and persistence. */
 export interface ChatThreadView {
   id: string;
@@ -12,6 +13,7 @@ export interface ChatMessageView {
   text: string;
   time: string;
   outgoing: boolean;
+  links?: readonly ChatWebLink[];
 }
 
 const make = <K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] => {
@@ -57,10 +59,11 @@ export interface ChatComposerOptions {
   canSend: () => boolean;
   onDraft: (value: string) => void;
   onSend: (value: string) => void;
+  onOpenLink?: (messageId: string, href: string) => void;
 }
 
 /** Update only the transcript, leaving the composer and any active IME intact. */
-export function renderChatMessages(scroll: HTMLElement, messages: readonly ChatMessageView[]): void {
+export function renderChatMessages(scroll: HTMLElement, messages: readonly ChatMessageView[], onOpenLink?: (messageId: string, href: string) => void): void {
   const items = document.createDocumentFragment();
   // A reply in the local conversation acknowledges the outgoing messages before it.
   let lastIncoming = -1;
@@ -68,7 +71,17 @@ export function renderChatMessages(scroll: HTMLElement, messages: readonly ChatM
   for (const [index, message] of messages.entries()) {
     const item = make('div', `phone-chat-message ${message.outgoing ? 'is-outgoing' : 'is-incoming'}`);
     item.dataset.chatMessage = message.id; item.dataset.direction = message.outgoing ? 'outgoing' : 'incoming';
-    const bubble = make('span', 'phone-chat-bubble', message.text);
+    const links = message.links ?? [];
+    const bubble = make('span', 'phone-chat-bubble', links.reduce((text, link) => text.replace(link.href, ''), message.text).trim());
+    for (const link of links) {
+      const button = make('button', 'phone-chat-web-link'); button.type = 'button';
+      button.dataset.chatHref = link.href;
+      button.setAttribute('aria-label', `${link.label}のページを開く`);
+      button.append(make('span', 'phone-chat-web-site', link.label), make('span', 'phone-chat-web-address', link.href),
+        make('span', 'phone-chat-web-open', 'ページを開く ↗'));
+      button.addEventListener('click', () => onOpenLink?.(message.id, link.href));
+      bubble.append(button);
+    }
     const meta = make('span', 'phone-chat-message-meta');
     if (message.outgoing && index < lastIncoming) meta.append(make('span', 'phone-chat-read-receipt', '既読'));
     meta.append(make('time', 'phone-chat-message-time', message.time));
@@ -84,7 +97,7 @@ export function renderChatConversation(thread: ChatThreadView, messages: readonl
   const header = make('header', 'phone-chat-header');
   header.append(avatar(thread.name, thread.id), make('h1', 'phone-chat-conversation-name', thread.name));
   const scroll = make('div', 'phone-chat-messages'); scroll.setAttribute('aria-label', '会話'); scroll.setAttribute('aria-live', 'polite');
-  renderChatMessages(scroll, messages);
+  renderChatMessages(scroll, messages, options.onOpenLink);
   const form = make('form', 'phone-chat-composer');
   const input = make('input', 'phone-chat-input'); input.type = 'text'; input.autocomplete = 'off';
   input.setAttribute('aria-label', 'メッセージ'); input.placeholder = 'メッセージ'; input.maxLength = options.maxLength * 2;

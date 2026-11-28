@@ -176,6 +176,8 @@ async function renderInvariants() {
   const result = await page.evaluate(async () => {
     const { Game } = await import('/src/session/game.ts');
     const { Renderer } = await import('/src/render/renderer.ts');
+    const { playerSprite } = await import('/src/render/sprites.ts');
+    const { canStand, RUN_SPEED } = await import('/src/map/explorer.ts');
     const game = new Game(window.__slg.game.world);
     const canvas = document.createElement('canvas'), renderer = new Renderer(canvas);
     renderer.resize(1280, 800, 1);
@@ -192,32 +194,105 @@ async function renderInvariants() {
       renderer.draw(game, time + 0.21);
       areas.push({ areaId, startsFading, startsBlack, middleFading, endsFading: !renderer.stats.fading, indoor: renderer.stats.indoor });
     }
-    game.player = { areaId: 'home-family-interior', x: 120, y: 174, facing: 'up' };
-    game.dialog = { speaker: '', lines: [''], index: 0 };
-    renderer.draw(game, 5); renderer.draw(game, 5.21);
-    const x = (80 - renderer.stats.camX) * renderer.stats.zoom;
-    const y = -renderer.stats.camY * renderer.stats.zoom, size = 16 * renderer.stats.zoom;
-    const before = c.getImageData(x, y, size, size).data;
-    game.player.x = 88; game.player.y = 30;
-    renderer.draw(game, 6);
-    const after = c.getImageData(x, y, size, size).data;
-    let wallPixelDifferences = 0;
-    for (let i = 0; i < before.length; i++) wallPixelDifferences += Number(before[i] !== after[i]);
+    const home = game.world.areas.get('home-family-interior');
+    // Fixed views use the actual room and player painter. Hide only the player
+    // for background comparisons, keeping camera, wall art and other actors fixed.
+    const view = (x, y, hidePlayer = false) => ({ area: home, player: { x, y, facing: 'up' },
+      appearance: game.appearance, moving: false, walkTime: 0, dialog: {}, instant: true, hidePlayer });
+    const imageAt = (x, y, w, h) => c.getImageData((x - renderer.stats.camX) * renderer.stats.zoom,
+      (y - renderer.stats.camY) * renderer.stats.zoom, w * renderer.stats.zoom, h * renderer.stats.zoom);
+    const sprite = playerSprite(game.appearance, 'up', 0);
+    const ink = sprite.canvas.getContext('2d').getImageData(0, 0, sprite.canvas.width, sprite.canvas.height);
+    const inPartition = (x, y) => x >= 7 * 16 && x < 8 * 16 && y >= 16 && y < 5 * 16;
+    const checkInk = (x, y, include = () => true, background) => {
+      const actual = imageAt(x + sprite.ox, y + sprite.oy, ink.width, ink.height), zoom = renderer.stats.zoom;
+      const result = { checked: 0, wrong: 0, contrastsBackground: 0 };
+      for (let sy = 0; sy < ink.height; sy++) for (let sx = 0; sx < ink.width; sx++) {
+        const source = (sy * ink.width + sx) * 4;
+        if (ink.data[source + 3] !== 255 || !include(x + sprite.ox + sx, y + sprite.oy + sy)) continue;
+        result.checked++;
+        const pixel = (sy * zoom * actual.width + sx * zoom) * 4;
+        const expected = background ? background.data : ink.data, offset = background ? pixel : source;
+        if ([0, 1, 2, 3].some(channel => actual.data[pixel + channel] !== expected[offset + channel])) result.wrong++;
+        if (background && [0, 1, 2, 3].some(channel => ink.data[source + channel] !== background.data[pixel + channel])) result.contrastsBackground++;
+      }
+      return result;
+    };
+    renderer.draw(view(56, 24), 6);
+    const north = { feetSafe: canStand(home, 56, 24), full: checkInk(56, 24),
+      headOnWall: checkInk(56, 24, (_x, y) => y >= 0 && y < 11),
+      aboveMap: checkInk(56, 24, (_x, y) => y < 0) };
+
+    renderer.draw(view(107, 62, true), 6);
+    const behindBackground = imageAt(107 + sprite.ox, 62 + sprite.oy, ink.width, ink.height);
+    const wallBefore = imageAt(7 * 16, 16, 16, 4 * 16);
+    renderer.draw(view(107, 62), 6);
+    const wallAfter = imageAt(7 * 16, 16, 16, 4 * 16);
+    const behind = { feetSafe: canStand(home, 107, 62),
+      hiddenInk: checkInk(107, 62, inPartition, behindBackground),
+      visibleInk: checkInk(107, 62, (x, y) => !inPartition(x, y)), wallChanges: 0 };
+    for (let i = 0; i < wallBefore.data.length; i++) behind.wallChanges += Number(wallBefore.data[i] !== wallAfter.data[i]);
+
+    renderer.draw(view(120, 88), 6);
+    const front = { feetSafe: canStand(home, 120, 88), full: checkInk(120, 88),
+      headOnWall: checkInk(120, 88, (_x, y) => y < 75), body: checkInk(120, 88, (_x, y) => y >= 75) };
+
+    const collisions = [[56, 62, 24, 'north wall'], [120, 110, 88, 'partition'], [104, 62, 40, 'bookshelf']]
+      .map(([x, y, expectedY, target]) => {
+        const probe = new Game(game.world);
+        probe.player = { areaId: home.def.id, x, y, facing: 'up' };
+        let feetSafe = canStand(home, x, y);
+        for (let i = 0; i < 100; i++) {
+          probe.update(1 / RUN_SPEED, { dir: 'up', run: true });
+          feetSafe &&= canStand(home, probe.player.x, probe.player.y);
+        }
+        const stopped = { ...probe.player };
+        probe.update(1, { dir: 'up', run: true });
+        return { target, expectedY, x: stopped.x, y: stopped.y, feetSafe,
+          nextPixelBlocked: !canStand(home, stopped.x, stopped.y - 1),
+          heldInputStable: probe.player.x === stopped.x && probe.player.y === stopped.y };
+      });
     const sizes = [];
-    for (const [w, h, dpr] of [[1280, 800, 1], [1280, 800, 1.25], [390, 844, 2]]) {
-      renderer.resize(w, h, dpr); renderer.draw(game, 7);
+    for (const [w, h, dpr] of [[1280, 800, 1], [1280, 800, 1.25], [390, 844, 2], [844, 390, 2], [600, 192, 1]]) {
+      renderer.resize(w, h, dpr); renderer.draw(view(56, 24), 7);
       const s = renderer.stats;
-      sizes.push({ zoom: s.zoom, viewW: s.viewW, viewH: s.viewH, camX: s.camX, camY: s.camY, smoothing: c.imageSmoothingEnabled });
+      sizes.push({ w, h, dpr, zoom: s.zoom, viewW: s.viewW, viewH: s.viewH, camX: s.camX, camY: s.camY,
+        smoothing: c.imageSmoothingEnabled, full: checkInk(56, 24), aboveMap: checkInk(56, 24, (_x, y) => y < 0) });
     }
-    return { areas, wallPixelDifferences, sizes };
+    return { areas, north, behind, front, collisions, sizes };
   });
   for (const area of result.areas) for (const [key, value] of Object.entries(area)) if (key !== 'areaId') assert.equal(value, true, `${area.areaId}: ${key}`);
-  assert.equal(result.wallPixelDifferences, 0, 'Wall hides character');
+  const visible = (pixels, label) => {
+    assert.ok(pixels.checked > 0, `${label}: nonempty opaque reference`);
+    assert.equal(pixels.wrong, 0, `${label}: every opaque reference pixel is visible`);
+  };
+  assert.equal(result.north.feetSafe, true);
+  for (const [part, pixels] of Object.entries(result.north)) if (part !== 'feetSafe') visible(pixels, `North wall ${part}`);
+  console.log('PASS north wall displays the full player, wall-overlapping head and above-map ink', JSON.stringify(result.north));
+  assert.equal(result.behind.feetSafe, true);
+  assert.ok(result.behind.hiddenInk.checked > 0, 'Partition overlaps opaque player pixels');
+  assert.ok(result.behind.hiddenInk.contrastsBackground > 0, 'Occlusion comparison cannot pass on matching colors alone');
+  assert.equal(result.behind.hiddenInk.wrong, 0, 'Partition replaces covered player pixels with the background');
+  assert.equal(result.behind.wallChanges, 0, 'Player behind the partition cannot change its artwork');
+  visible(result.behind.visibleInk, 'Player beside the partition');
+  console.log('PASS partition hides covered ink while displaying the rest of the player', JSON.stringify(result.behind));
+  assert.equal(result.front.feetSafe, true);
+  for (const [part, pixels] of Object.entries(result.front)) if (part !== 'feetSafe') visible(pixels, `Partition front ${part}`);
+  console.log('PASS player in front of partition keeps the full head and body', JSON.stringify(result.front));
+  for (const collision of result.collisions) {
+    assert.equal(collision.feetSafe, true, `${collision.target}: feet never enter a solid tile`);
+    assert.equal(collision.y, collision.expectedY, `${collision.target}: stops at the feet boundary`);
+    assert.equal(collision.nextPixelBlocked, true, `${collision.target}: the next pixel is solid`);
+    assert.equal(collision.heldInputStable, true, `${collision.target}: held input stays blocked`);
+  }
+  console.log('PASS feet collision with north wall, partition and furniture', JSON.stringify(result.collisions));
   for (const size of result.sizes) {
     assert.equal(size.smoothing, false);
     for (const key of ['zoom', 'viewW', 'viewH', 'camX', 'camY']) assert.equal(Number.isInteger(size[key]), true, `Integer ${key}`);
+    visible(size.full, `${size.w}x${size.h}@${size.dpr} full player`);
+    visible(size.aboveMap, `${size.w}x${size.h}@${size.dpr} above-map ink`);
   }
-  console.log('PASS render fade, wall occlusion, integer camera, interpolation off', JSON.stringify(result));
+  console.log('PASS render fade, five screen/DPR sizes, integer camera, interpolation off', JSON.stringify({ areas: result.areas, sizes: result.sizes }));
 }
 async function collisionFixture(kind) {
   return page.evaluate(async kind => {
@@ -360,7 +435,7 @@ try {
   assert.deepEqual(errors, [], 'No page or console errors');
   await renderInvariants();
   console.log('PASS console and page errors: 0');
-  for (const item of ['load and real keyboard movement', 'appearance UI and movement lock', 'player pixels change; NPC unchanged', 'appearance save/reset/cancel', 'home entry/conversation/exit', 'classroom entry/conversation/exit', 'konbini entry/conversation/exit', 'indoor black exterior and transition fade', 'wall occlusion and integer camera', 'building/river/edge/interior collisions', 'town/school/shopping/station/park screenshots', 'position reload and blur input clear', 'console and page errors: 0']) console.log(`SUMMARY PASS ${item}`);
+  for (const item of ['load and real keyboard movement', 'appearance UI and movement lock', 'player pixels change; NPC unchanged', 'appearance save/reset/cancel', 'home entry/conversation/exit', 'classroom entry/conversation/exit', 'konbini entry/conversation/exit', 'indoor black exterior and transition fade', 'back-wall visibility, partition occlusion and integer camera', 'building/river/edge/interior collisions', 'town/school/shopping/station/park screenshots', 'position reload and blur input clear', 'console and page errors: 0']) console.log(`SUMMARY PASS ${item}`);
 } catch (error) {
   console.error('FAIL', error.message, JSON.stringify({ player: await state().catch(() => null), errors }));
   console.error('SUMMARY FAIL', error.message, JSON.stringify({ player: await state().catch(() => null), errors }));

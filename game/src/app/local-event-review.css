@@ -1,0 +1,15 @@
+#local-event-review { position: fixed; inset: 0 0 auto; z-index: 100; min-height: 66px; box-sizing: border-box; padding: 9px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: #f3f3e9; background: #173a34; border-bottom: 1px solid #79958a; font-family: system-ui, sans-serif; touch-action: manipulation; }
+#local-event-review .review-event-heading { display: flex; flex-direction: column; min-width: 0; }
+#local-event-review .review-event-heading span { color: #c5dacd; font-size: 11px; }
+#local-event-review strong { font-size: 15px; font-weight: 650; line-height: 1.5; }
+#local-event-review nav { display: flex; gap: 7px; }
+#local-event-review a, #local-event-review button { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; box-sizing: border-box; padding: 7px 10px; background: #254c42; border: 1px solid #91b0a2; border-radius: 5px; color: #fff; font: inherit; font-size: 12px; text-decoration: none; cursor: pointer; }
+#local-event-review a:focus-visible, #local-event-review button:focus-visible { outline: 3px solid #f0d592; outline-offset: 2px; }
+#local-event-review .review-event-status { flex-basis: 100%; font-size: 12px; margin: 0; color: #ffe3b3; }
+body.review-event-mode #stage { top: var(--local-event-review-height, 67px); }
+@media (max-width: 640px) {
+  #local-event-review { padding: 7px 10px; gap: 5px; min-height: 102px; }
+  #local-event-review .review-event-heading { flex-basis: 100%; }
+  #local-event-review nav { width: 100%; }
+  #local-event-review a, #local-event-review button { min-height: 36px; flex: 1; font-size: 11px; padding: 5px 6px; white-space: nowrap; }
+}

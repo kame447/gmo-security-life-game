@@ -1,0 +1,26 @@
+.save-panel {
+  position: absolute; z-index: 50; inset: 50% auto auto 50%; transform: translate(-50%, -50%);
+  width: min(620px, calc(100% - 24px)); max-height: calc(100% - 32px); overflow: auto;
+  box-sizing: border-box; padding: 20px; color: #f1eadb; background: #172326;
+  border: 2px solid #ab956c; box-shadow: 0 12px 40px #000b; touch-action: pan-y;
+}
+.save-panel header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.save-panel h1 { font-size: 22px; margin: 0; }
+.save-panel h2 { font-size: 16px; margin: 24px 0 8px; }
+.save-panel p { font-size: 14px; line-height: 1.6; }
+.save-panel button { font: inherit; font-size: 14px; min-height: 40px; padding: 8px 12px; border: 1px solid #899a88; background: #283c3b; color: #fff7df; border-radius: 4px; cursor: pointer; }
+.save-panel button:focus-visible { outline: 3px solid #ffe08a; outline-offset: 2px; }
+.save-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.save-actions button:first-child { background: #42654c; }
+.save-close { flex: 0 0 auto; }
+.save-last, .save-help { color: #bdc9c0; }
+.save-status { min-height: 1.6em; color: #bae7bf; }
+.save-status[data-failed="true"] { color: #ffc4a6; }
+.save-history { font-size: 13px; }
+.save-history-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #3e5050; }
+@media (max-width: 430px) {
+  .save-panel { padding: 14px; }
+  .save-panel h1 { font-size: 20px; }
+  .save-actions { flex-direction: column; }
+  .save-history-row { align-items: stretch; flex-direction: column; gap: 6px; }
+}

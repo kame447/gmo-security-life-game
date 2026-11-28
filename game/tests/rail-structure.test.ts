@@ -29,8 +29,8 @@ describe('station, crossings and railway bridge', () => {
     expect(world.facilities.get('station')?.interior).toBe('full');
     expect(world.areas.get(STATION_ACCESS.areaId)?.width).toBe(36);
     expect(town.interactions.find(i => i.id === 'station-staff')).toMatchObject({
-      name: 'えきいんさん', x: 32, y: 90, sprite: 'staff',
-      lines: ['でんしゃは もうすぐ くるよ。きいろい せんの うちがわで まってね。'],
+      name: '駅員さん', x: 32, y: 90, sprite: 'staff',
+      lines: ['電車はもうすぐ来るよ。黄色い線の内側で待ってね。'],
     });
   });
   it('walks from home through the station entrance, ticket gate and platform and returns through the original door', () => {

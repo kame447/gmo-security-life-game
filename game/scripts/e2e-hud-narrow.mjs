@@ -192,7 +192,9 @@ try {
           }
           const otherOverlapArea = otherOverlaps.reduce((sum, item) => sum + item.area, 0);
 
-          const allButtonsVisible = measured.buttons.length === 6 && measured.buttons.every(b => b.visible);
+          const expectedButtons = ['btn-avatar', 'btn-inventory', 'btn-phone', 'btn-log', 'btn-touch', 'btn-reset', 'btn-save'];
+          const allButtonsVisible = expectedButtons.every(id => measured.buttons.filter(b => b.id === id && b.visible).length === 1)
+            && measured.buttons.every(b => b.visible);
           const allButtonsInViewport = measured.buttons.every(b => insideViewport(b.rect, profile) && b.scrollWidth <= b.clientWidth + 1);
           const minimapInViewport = measured.minimap.visible && insideViewport(measured.minimap.rect, profile);
           const minFontPx = Math.min(...measured.buttons.map(b => b.fontSize));
@@ -292,6 +294,7 @@ try {
 
           const label = `${profile.name} touch=${touchOn ? 'on' : 'off'} ${point.name}`;
           const scenarioOk = allButtonsVisible &&
+            menuRows === 1 &&
             minimapMenuOverlapArea === 0 &&
             buttonSelfOverlapArea === 0 &&
             otherOverlapArea === 0 &&
@@ -352,7 +355,7 @@ try {
     }
   }
 
-  // Check the current five buttons and the planned sixth "セーブ" button without changing production game state.
+  // Check both menu compositions using the real save button and its current label.
   for (const dpr of [1, 2]) {
     for (const touchOn of [false, true]) {
       const context = await browser.newContext({ viewport: { width: 320, height: 640 }, deviceScaleFactor: dpr, hasTouch: touchOn });
@@ -367,14 +370,7 @@ try {
         if (isTouchOn !== touchOn) await page.locator('#btn-touch').click();
 
         for (const withSave of [false, true]) {
-          if (withSave) await page.evaluate(() => {
-            const save = document.createElement('button');
-            save.id = 'btn-save';
-            save.className = 'panel';
-            save.type = 'button';
-            save.textContent = 'セーブ';
-            document.querySelector('#menu').insertBefore(save, document.querySelector('#btn-touch'));
-          });
+          await page.locator('#btn-save').evaluate((button, visible) => { button.hidden = !visible; }, withSave);
           for (const wide of [false, true]) {
             const wideStyle = wide ? await page.addStyleTag({ content: '#menu button { letter-spacing: 0.5px; }' }) : null;
             const bad = [];
@@ -383,7 +379,7 @@ try {
               await page.waitForFunction(w => window.innerWidth === w, width);
               await frames(page);
               const m = await page.evaluate(() => {
-                const buttons = [...document.querySelectorAll('#menu button')];
+                const buttons = [...document.querySelectorAll('#menu button:not([hidden])')];
                 const rects = buttons.map(el => el.getBoundingClientRect());
                 const map = document.querySelector('#minimap-button').getBoundingClientRect();
                 return {
@@ -393,17 +389,18 @@ try {
                     Math.max(0, Math.min(b.right, map.right) - Math.max(b.x, map.x)) *
                     Math.max(0, Math.min(b.bottom, map.bottom) - Math.max(b.y, map.y)), 0),
                   inside: rects.every(b => b.x >= 0 && b.right <= window.innerWidth),
+                  textFits: buttons.every(button => button.scrollWidth <= button.clientWidth + 1),
                   hit: buttons.every((button, i) => {
                     const r = rects[i];
                     return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === button;
                   }),
                 };
               });
-              if (m.count !== (withSave ? 7 : 6) || m.rows !== 1 || m.overlap > 0 || !m.inside || !m.hit) {
-                bad.push(`${width}:rows=${m.rows},overlap=${m.overlap.toFixed(0)},inside=${m.inside},hit=${m.hit}`);
+              if (m.count !== (withSave ? 7 : 6) || m.rows !== 1 || m.overlap > 0 || !m.inside || !m.textFits || !m.hit) {
+                bad.push(`${width}:rows=${m.rows},overlap=${m.overlap.toFixed(0)},inside=${m.inside},textFits=${m.textFits},hit=${m.hit}`);
               }
             }
-            recordCheck(`width 320-420 d${dpr} touch=${touchOn ? 'on' : 'off'} menu=${withSave ? 7 : 6}${wide ? ' wide-text' : ''}: one row, clear of minimap, all buttons hittable`,
+            recordCheck(`width 320-420 d${dpr} touch=${touchOn ? 'on' : 'off'} menu=${withSave ? 7 : 6}${wide ? ' wide-text' : ''}: one row, full labels, clear of minimap, all buttons hittable`,
               bad.length === 0, bad.length ? `${bad.length} widths: ${bad.slice(0, 6).join(' ')}` : '101 widths');
             if (wideStyle) await wideStyle.evaluate(node => node.remove());
           }

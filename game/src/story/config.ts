@@ -86,14 +86,13 @@ export interface StoryPlace {
   provisional?: string;
 }
 
-/** ストーリーで使う場所。仮置きのものは、専用のマップができたら areaIds を差し替える。 */
-/** ストーリーで使う場所。仮置きのものは、専用のマップができたら areaIds を差し替える（Issue #86）。 */
+/** ストーリーで使う場所。高校・大学・会社は、隣町の専用屋内に入ってから出来事が始まる（Issue #86）。 */
 export const STORY_PLACES = {
   home: { name: '自宅', areaIds: ['home-family-interior', 'home-family-2f'], facilityId: 'home-family' },
   juniorHigh: { name: '中学校の教室', areaIds: ['school-classroom-interior'], facilityId: 'school' },
-  highSchool: { name: '隣町の高校', areaIds: ['town-neighbor'], facilityId: 'station', provisional: '高校の校舎がないため、隣町に着いたら始める' },
-  university: { name: '隣町の大学', areaIds: ['town-neighbor'], facilityId: 'station', provisional: '大学がないため、隣町に着いたら始める' },
-  office: { name: '隣町の会社', areaIds: ['town-neighbor'], facilityId: 'station', provisional: '会社がないため、隣町に着いたら始める' },
+  highSchool: { name: '隣町の高校', areaIds: ['high-school-interior'], facilityId: 'high-school' },
+  university: { name: '隣町の大学', areaIds: ['university-interior'], facilityId: 'university' },
+  office: { name: '隣町の会社', areaIds: ['office-interior'], facilityId: 'office' },
   station: { name: '駅', areaIds: ['station-main-interior'], facilityId: 'station' },
   bookstore: { name: '本屋', areaIds: ['shop-bookstore-interior'], facilityId: 'shop-bookstore' },
   konbini: { name: 'コンビニ', areaIds: ['shop-konbini-interior'], facilityId: 'shop-konbini' },
@@ -165,7 +164,7 @@ const UNLOCKED = ['この時期にやるべきことは、ひととおり終わ�
 export const STORY_STAGES: readonly StoryStage[] = [
   {
     id: 'junior-high', name: '中学生',
-    intro: ['中学生の毎日が始まった。', '画面の上の案内に、次に起きることが出る。合間は自由に町で過ごしていい。'],
+    intro: ['中学生の毎日が始まった。', '画面の上の案内に、次に起きることが出る。合間は自由に町で過ごしていい。', '先生や友達に話しかけると、勉強や昼休みの出来事を楽しめる。参加しなくても次の時期へ進めるよ。'],
     steps: [
       { eventId: 'story.jh.entrance', trigger: place(STORY_PLACES.juniorHigh),
         notice: school('中学校', '入学式のお知らせ', '新入生のみなさん、入学おめでとうございます。\n入学式を行いますので、中学校の教室に来てください。') },

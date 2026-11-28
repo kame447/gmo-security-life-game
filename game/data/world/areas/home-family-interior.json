@@ -196,7 +196,7 @@
     ],
     "height": 12,
     "kind": "indoor",
-    "name": "じぶんのいえ 1かい",
+    "name": "自宅 1階",
     "width": 16
   },
   "areaId": "home-family-interior",
@@ -207,9 +207,9 @@
       "id": "home-mother",
       "kind": "npc",
       "lines": [
-        "おかえり！ てを あらったら、おやつにしよう。"
+        "おかえり！ 手を洗ったら、おやつにしよう。"
       ],
-      "name": "おかあさん",
+      "name": "お母さん",
       "solid": true,
       "sprite": "mother",
       "x": 13,
@@ -220,9 +220,9 @@
       "id": "home-tablet",
       "kind": "object",
       "lines": [
-        "みんなで つかう タブレットだ。つぎは なにを みようかな。"
+        "家族で使うタブレットだ。次は何を見ようかな。"
       ],
-      "name": "かぞくのタブレット",
+      "name": "家族のタブレット",
       "objectId": "home-family-interior-lowtable-5-8",
       "solid": true,
       "w": 2,
@@ -430,7 +430,7 @@
   ],
   "schemaVersion": 1,
   "source": {
-    "fingerprint": "sha256:9a7a1f3fc8cb08db8a1b799974c8016710cdc3cf4b51b338a5da2f400c224c31",
+    "fingerprint": "sha256:19afb16cf2f7493445edac730c0620ec8f9ca31cb58698f777966879ed8d6dfb",
     "generator": "createHome"
   }
 }

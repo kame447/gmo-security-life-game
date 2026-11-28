@@ -3,6 +3,7 @@ import { isRoad, T } from '../tiles';
 import { applyRailSwitches, townRailLayout } from '../rail-layout';
 import { applyRailProtection } from '../rail-protection';
 import { getStationFlow, NEIGHBOR_FLOW_LAYOUT, NEIGHBOR_FLOW_PLATFORMS } from '../station-flow';
+import { CAMPUS_BUILDINGS, CAMPUS_ENTRANCES, CAMPUS_SIGNS } from '../campus';
 
 /** Provisional geometry, shared by the outdoor station, entrance and tests. */
 export const NEIGHBOR_STATION_LAYOUT = {
@@ -17,7 +18,7 @@ export const NEIGHBOR_STATION_LAYOUT = {
 /** 名前・配置は比較用の暫定案。線路へ歩いて入らず、看板に向かって乗車する。 */
 export const NEIGHBOR_STATION_ACCESS = {
   stationId: 'station-neighbor',
-  name: 'となりまち',
+  name: '隣町',
   boarding: { areaId: 'station-neighbor-interior', x: NEIGHBOR_FLOW_PLATFORMS[0].sign.x, y: NEIGHBOR_FLOW_PLATFORMS[0].sign.y + 1, facing: 'up', interactionId: NEIGHBOR_FLOW_PLATFORMS[0].sign.interactionId,
     eventKey: NEIGHBOR_FLOW_PLATFORMS[0].sign.eventKey },
   // 到着後に操作を戻す位置 = 改札の外。
@@ -28,7 +29,7 @@ export const NEIGHBOR_STATION_ACCESS = {
 
 /** 既存の施設一覧とは別に追加する、隣町駅の暫定メタデータ。 */
 export const NEIGHBOR_FACILITIES: readonly FacilityDef[] = [
-  { id: NEIGHBOR_STATION_ACCESS.stationId, name: 'となりまちのえき', areaId: NEIGHBOR_STATION_ACCESS.townFront.areaId,
+  { id: NEIGHBOR_STATION_ACCESS.stationId, name: '隣町の駅', areaId: NEIGHBOR_STATION_ACCESS.townFront.areaId,
     kind: 'station', interior: 'full', state: 'open' },
 ];
 
@@ -61,30 +62,35 @@ export function createNeighborTown(): AreaDef {
   applyRailSwitches(ground, width, townRailLayout(NEIGHBOR_STATION_LAYOUT));
   rect(12, 40, 25, height - 40, T.PLAZA);
   rect(7, 20, 10, 7, T.GARDEN); rect(27, 18, 8, 11, T.PARKPATH);
+  rect(3, 25, 21, 3, T.SIDEWALK); rect(3, 9, 20, 1, T.SIDEWALK);
+  rect(26, 29, 10, 2, T.SIDEWALK);
   const station = NEIGHBOR_STATION_LAYOUT.building;
   object('neighbor-station-building', 'station', station.x, station.y, station.w, station.h, true, undefined, NEIGHBOR_STATION_ACCESS.stationId);
-  object('neighbor-west-house', 'house', 5, 18, 7, 5, true, '2');
+  objects.push(...CAMPUS_BUILDINGS.map(building => ({ ...building })));
+  for (const sign of CAMPUS_SIGNS) object(`${sign.id}-board`, 'board', sign.x, sign.y, 1, 1);
   object('neighbor-house', 'house', 14, 22, 7, 5, true, '1');
   object('neighbor-board-object', 'board', 10, 15, 1, 1);
   object('neighbor-bench', 'bench', 31, 20, 2, 1);
-  for (const [x, y] of [[3, 4], [8, 5], [33, 5], [34, 27], [43, 18], [44, 28]]) {
+  for (const [x, y] of [[1, 4], [16, 5], [33, 5], [36, 30], [43, 18], [44, 28]]) {
     object(`neighbor-tree-${x}-${y}`, 'tree', x, y, 1, 1, true, 'green');
   }
 
   applyRailProtection(ground, width, height, townRailLayout(NEIGHBOR_STATION_LAYOUT));
   return {
-    id: 'town-neighbor', name: 'となりまち', kind: 'outdoor', width, height, ground, objects,
+    id: 'town-neighbor', name: '隣町', kind: 'outdoor', width, height, ground, objects,
     districts: [
-      { id: 'neighbor-station-district', name: 'えきまえ', x: 0, y: NEIGHBOR_STATION_LAYOUT.trackY, w: 37, h: height - NEIGHBOR_STATION_LAYOUT.trackY },
-      { id: 'neighbor-river-district', name: 'かわべ', x: 0, y: 0, w: 48, h: NEIGHBOR_STATION_LAYOUT.trackY },
-      { id: 'neighbor-east-district', name: 'はしのむこう', x: 37, y: NEIGHBOR_STATION_LAYOUT.trackY, w: 11, h: height - NEIGHBOR_STATION_LAYOUT.trackY },
+      { id: 'neighbor-station-district', name: '駅前', x: 0, y: NEIGHBOR_STATION_LAYOUT.trackY, w: 37, h: height - NEIGHBOR_STATION_LAYOUT.trackY },
+      { id: 'neighbor-river-district', name: '川辺', x: 0, y: 0, w: 48, h: NEIGHBOR_STATION_LAYOUT.trackY },
+      { id: 'neighbor-east-district', name: '橋の向こう', x: 37, y: NEIGHBOR_STATION_LAYOUT.trackY, w: 11, h: height - NEIGHBOR_STATION_LAYOUT.trackY },
     ],
-    portals: [{ id: 'neighbor-station-enter', from: { ...NEIGHBOR_STATION_LAYOUT.entrance }, to: { ...NEIGHBOR_STATION_ACCESS.entrance }, facilityId: NEIGHBOR_STATION_ACCESS.stationId }],
+    portals: [{ id: 'neighbor-station-enter', from: { ...NEIGHBOR_STATION_LAYOUT.entrance }, to: { ...NEIGHBOR_STATION_ACCESS.entrance }, facilityId: NEIGHBOR_STATION_ACCESS.stationId },
+      ...CAMPUS_ENTRANCES.map(entrance => ({ ...entrance, from: { ...entrance.from }, to: { ...entrance.to } }))],
     interactions: [
-      { id: 'neighbor-town-board', kind: 'sign', name: 'まちのけいじばん', x: 10, y: 15, solid: true,
-        eventKey: 'neighbor.board', lines: ['かわの むこうにも みちが つづいているよ。'] },
-      { id: 'neighbor-town-friend', kind: 'npc', name: 'まちのひと', x: 31, y: 24, sprite: 'friend', facing: 'down', solid: true,
-        eventKey: 'neighbor.friend', lines: ['こんにちは。ここからも でんしゃに のれるよ。'] },
+      ...CAMPUS_SIGNS.map(sign => ({ ...sign, lines: [...sign.lines] })),
+      { id: 'neighbor-town-board', kind: 'sign', name: '町の掲示板', x: 10, y: 15, solid: true,
+        eventKey: 'neighbor.board', lines: ['駅を出て北へ進むと学校や会社がある。高校は西側、大学は北西、会社は川の手前だ。'] },
+      { id: 'neighbor-town-friend', kind: 'npc', name: '町の人', x: 27, y: 20, sprite: 'friend', facing: 'down', solid: true,
+        eventKey: 'neighbor.friend', lines: ['こんにちは。この町には高校、大学、会社があるよ。駅から電車で元の町にも帰れる。'] },
     ],
   };
 }
@@ -105,14 +111,14 @@ export function createNeighborStation(): AreaDef {
   ground[(height - 1) * width + f.gateXs[0]] = T.MAT;
   const gate = getStationFlow('station-neighbor').gate;
   return {
-    id: f.areaId, name: 'となりまちのえき', kind: 'indoor', width, height, ground,
+    id: f.areaId, name: '隣町の駅', kind: 'indoor', width, height, ground,
     objects: [{ id: 'neighbor-station-bench', kind: 'bench', x: 2, y: 5, w: 2, h: 1, solid: true }, { id: 'neighbor-station-bench-2', kind: 'bench', x: 24, y: 5, w: 2, h: 1, solid: true }],
     portals: [{ id: 'neighbor-station-exit', from: { x: f.gateXs[0], y: height - 1 }, to: { ...NEIGHBOR_STATION_ACCESS.townFront }, facilityId: NEIGHBOR_STATION_ACCESS.stationId }],
     interactions: [
-      { id: gate.interactionId, kind: 'object', name: 'かいさつ', x: gate.tile.x, y: gate.tile.y, w: 2, solid: true, eventKey: gate.eventKey,
-        lines: ['きっぷを とおすところだ。'] },
-      ...NEIGHBOR_FLOW_PLATFORMS.slice(0, 1).map(p => ({ id: p.sign.interactionId, kind: 'sign' as const, name: 'でんしゃのあんない', x: p.sign.x, y: p.sign.y,
-        solid: true, eventKey: p.sign.eventKey, lines: ['ここから でんしゃに のれるよ。'] })),
+      { id: gate.interactionId, kind: 'object', name: '改札', x: gate.tile.x, y: gate.tile.y, w: 2, solid: true, eventKey: gate.eventKey,
+        lines: ['切符を通すところだ。'] },
+      ...NEIGHBOR_FLOW_PLATFORMS.slice(0, 1).map(p => ({ id: p.sign.interactionId, kind: 'sign' as const, name: '電車の案内', x: p.sign.x, y: p.sign.y,
+        solid: true, eventKey: p.sign.eventKey, lines: ['ここから電車に乗れるよ。'] })),
     ],
   };
 }

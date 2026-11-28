@@ -4,8 +4,12 @@ import { startLoop } from './app/loop';
 import { bagReviewOptions } from './app/bag-review';
 import { clerkEvents } from './app/clerk-events';
 import { prepareShopReview } from './app/shop-review';
+import { bicycleCommerce, bicycleReviewState } from './app/bicycle-commerce';
+import { BICYCLE_CHAT_THREAD, deliverBicycleCandidates } from './app/bicycle-messages';
 import type { MapEventSink } from './core/types';
-import { loadSave, writeSave } from './app/save-store';
+import { LocalSaveStore, saveFailureMessage, type SaveFailure, type SaveResult } from './app/local-save';
+import { activeSaveKey } from './app/save-slot';
+import { installLocalEventReview } from './app/local-event-review';
 import { newGameRequested } from './app/start-mode';
 import { installBgm } from './audio/bgm';
 import { LifeEventDirector } from './events/director';
@@ -29,7 +33,10 @@ import { Smartphone } from './ui/smartphone';
 import { ShopPanel } from './ui/shop-panel';
 import { StoryHud } from './ui/story-hud';
 import { PlayfieldViewport } from './ui/playfield-viewport';
+import { StoryResultPanel } from './ui/story-result-panel';
 import { DialogLogPanel } from './ui/dialog-log-panel';
+import { SavePanel } from './ui/save-panel';
+import { LocalCloudReviewPanel } from './ui/local-cloud-review-panel';
 import { DialogLog } from './events/dialog-log';
 import { StoryDirector } from './story/director';
 import { storyMapGoals } from './story/map-goals';
@@ -42,13 +49,16 @@ let train: TrainTravelPanel | undefined;
 // 人生イベントは試作段階。まだ永続保存には対応していない。
 const lifeEvents = new LifeEventDirector([...CHILDHOOD_SAMPLE_EVENTS, ...STORY_EVENTS]);
 const review = bagReviewOptions(window.location.search);
-const shopReview = review.temporary && new URLSearchParams(window.location.search).get('shopReview') === '1';
+const shopReview = review.temporary && new URLSearchParams(window.location.search).get('shopReview');
+const bicycleReview = review.temporary && new URLSearchParams(window.location.search).get('bicycleReview') === '1';
 let shopEvents: MapEventSink | undefined;
 const phoneOptions = { initialPhoneOwned: PHONE_INITIAL_OWNED, phoneDataConfig: PHONE_BUDGET_PROTOTYPE };
-const saved = review.temporary ? undefined : loadSave(world, phoneOptions);
+const saveStore = new LocalSaveStore(activeSaveKey());
+const initialSave = review.temporary ? undefined : saveStore.inspect(world, phoneOptions);
+const saved = initialSave?.kind === 'valid' ? initialSave.data : undefined;
 // Story (docs/features/story.md): resumes from a story save. Otherwise the title screen's 「はじめから」 (which clears the save
 // first) or `?story=1` starts a new one in place of a free-play save.
-const storySaved = parseStorySave(saved?.story);
+const storySaved = bicycleReview ? bicycleReviewState() : parseStorySave(saved?.story);
 const startNewStory = !review.temporary && (newGameRequested() || new URLSearchParams(window.location.search).get('story') === '1');
 const story = storySaved ? StoryDirector.resume(storySaved, lifeEvents)
   : startNewStory ? StoryDirector.newGame(lifeEvents) : undefined;
@@ -60,21 +70,30 @@ const game = new Game(world, { ...phoneOptions, save: story && !storySaved ? und
     ?? (typeof train !== 'undefined' && train.tryOpen(event) ? { lines: [] } : undefined),
 } });
 if (review.temporary) applyBagReviewFixture(game.assets);
-if (shopReview) prepareShopReview(game);
+if (shopReview) prepareShopReview(game, shopReview === '1' ? 'konbini' : shopReview);
 game.phone.setVisible(!document.hidden);
 const canvas = $<HTMLCanvasElement>('#view');
 const renderer = new Renderer(canvas);
 const controls = new Controls();
 const frames = new FrameRecorder();
 
-function save() {
-  if (review.temporary) return;
+let savingSuspended = false;
+let lastSaveFailure: SaveFailure | undefined;
+function currentSave() {
   const data = game.serialize();
   if (story) data.story = story.save();
   // A draft is visible immediately, but autosave must preserve the last confirmed appearance.
   const confirmed = avatar.confirmedAppearance;
   if (confirmed) data.appearance = confirmed;
-  writeSave(data);
+  return data;
+}
+
+function save(checkpoint = false): SaveResult {
+  if (review.temporary || savingSuspended) return { ok: true };
+  const result = saveStore.save(currentSave(), checkpoint);
+  if (!result.ok && result.reason !== lastSaveFailure) hud.showToast(saveFailureMessage(result.reason));
+  lastSaveFailure = result.ok ? undefined : result.reason;
+  return result;
 }
 
 const avatar = new AvatarPanel(game, commit => {
@@ -110,11 +129,39 @@ installBgm(muted => hud.showToast(muted ? 'おんがく：オフ（M）' : 'お�
 const dialogLog = new DialogLog();
 const dialogLogPanel = new DialogLogPanel(dialogLog, $<HTMLElement>('#stage'), () => { controls.clear(); ui.update(); ui.focusMap(); });
 ui.registerPanel({ id: 'log', panel: dialogLogPanel, open: () => dialogLogPanel.open(), button: dialogLogPanel.button, shortcut: 'KeyL' });
+const savePanel = new SavePanel(saveStore, world, {
+  save,
+  leave: () => {
+    savingSuspended = true;
+    const url = new URL(location.href);
+    for (const key of ['skipOpening', 'story', 'review', 'shopReview', 'bicycleReview']) url.searchParams.delete(key);
+    location.assign(url.href);
+  },
+  restored: () => { savingSuspended = true; location.reload(); },
+}, () => { controls.clear(); ui.update(); ui.focusMap(); });
+const cloudReview = new URLSearchParams(location.search).get('localReview') === 'save'
+  ? new LocalCloudReviewPanel({ getCurrentSave: currentSave, onRestore: async data => {
+    const result = saveStore.replace(data, world, phoneOptions);
+    if (!result.ok) { hud.showToast(saveFailureMessage(result.reason)); return false; }
+    savingSuspended = true; location.reload(); return true;
+  } }) : undefined;
+if (cloudReview) savePanel.cloudHost.append(cloudReview.root);
+ui.registerPanel({ id: 'save', panel: savePanel, open: () => { savePanel.open(); cloudReview?.refresh(); }, button: savePanel.button,
+  shortcut: 'KeyO', canOpen: () => !review.temporary });
 const lifeEventPanel = new LifeEventPanel(game, lifeEvents, outcome => {
   dialogLog.choice(outcome.choice.label);
   controls.clear(); story?.onLifeOutcome(outcome); save();
 });
+const storyResult = story ? new StoryResultPanel($<HTMLElement>('#stage'), () => {
+  controls.clear(); ui.update(); ui.focusMap();
+}) : undefined;
+if (storyResult && story) {
+  ui.registerPanel({ id: 'result', panel: storyResult, open: () => storyResult.open(story.evaluate()),
+    shortcut: 'KeyR', canOpen: () => story.phase === 'finished' });
+}
 story?.attach({
+  useWebShopping: true,
+  deliverBicycleCandidates: () => deliverBicycleCandidates(game.phone),
   say: (speaker, lines) => game.say(speaker, lines),
   warp: spawn => game.warp(spawn),
   areaId: () => game.player.areaId,
@@ -125,14 +172,28 @@ story?.attach({
   itemCount: id => game.assets.quantity(id),
   notice: text => hud.showToast(text),
   deliverMail: (id, mail) => { game.phone.deliverMail({ ...mail, links: mail.links?.map(link => ({ ...link })), id, atMs: Date.now() }); },
+  showResult: evaluation => {
+    save();
+    if (storyResult) ui.openPanel('result', () => storyResult.open(evaluation));
+  },
 });
+const localEventReview = installLocalEventReview(game, story);
+game.phone.setWebCommerce(bicycleCommerce(story, label => { dialogLog.choice(label); save(); }));
 const storyHud = story && new StoryHud(story, !storySaved);
+if (storyResult) {
+  $<HTMLElement>('#story-hud').append(storyResult.button);
+  storyResult.button.addEventListener('click', () => { ui.openPanel('result'); });
+}
 ui.bind({ onReset: () => { game.reset(); save(); } });
 window.addEventListener('keydown', event => bag.handleHudKey(event, ui.mode === 'explore'));
 exposeDebug(game, renderer, frames);
 // Verification hook for scripts/e2e-story.mjs (read-only use; does not change the game).
 if (story) (window as unknown as { __slgStory?: StoryDirector }).__slgStory = story;
-if (shopReview) game.action();
+if (shopReview && new URLSearchParams(location.search).get('shopScene') !== '1') game.action();
+if (bicycleReview) { game.phone.open(); game.phone.launch('messages'); game.phone.openChatThread(BICYCLE_CHAT_THREAD); }
+if (new URLSearchParams(location.search).get('localReview') === 'mail') {
+  game.phone.open(); game.phone.launch('mail'); game.phone.openMail('local-review-library');
+}
 
 game.on(event => {
   if (event.type === 'edge' && world.variant.edgeMessage) hud.showToast(world.variant.edgeMessage);
@@ -154,7 +215,7 @@ const loop = startLoop({
   input: () => ui.movementInput(),
   update: (dt, input) => {
     if (!minimap.isOpen) game.update(dt, input);
-    story?.tick(dt, ui.mode === 'explore' && !game.dialog && !lifeEventPanel.isOpen && !lifeEvents.pending && !document.hidden);
+    if (!localEventReview?.freezeProgress) story?.tick(dt, ui.mode === 'explore' && !game.dialog && !lifeEventPanel.isOpen && !lifeEvents.pending && !document.hidden);
   },
   draw: now => renderer.draw(game, now / 1000),
   measuring: () => frames.recording,
@@ -167,6 +228,10 @@ const loop = startLoop({
     dialogLog.observe(game.dialog);
     story?.observeDialog(game.dialog);
     storyHud?.update();
+    if (storyResult) {
+      storyResult.button.hidden = story?.phase !== 'finished';
+      storyResult.button.disabled = ui.mode !== 'explore';
+    }
     hud.update(now);
     ui.update();
     bag.update(ui.mode === 'explore');

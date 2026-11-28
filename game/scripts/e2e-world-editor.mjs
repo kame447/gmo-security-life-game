@@ -92,7 +92,7 @@ try{
  await page.locator('[data-catalog-id="chair-wood"]').click();const invalid=await page.evaluate(()=>window.__worldEditor.ghost.object.id);p=await tilePoint(page,7,10);await page.mouse.click(p.x,p.y);assert.ok(!(await documentOf(page)).objects.some(o=>o.id===invalid));pass('arrival obstruction is refused');
  await page.locator('#surface-tab').click();assert.equal(await page.locator('[data-catalog-id]').count(),10);await page.locator('[data-catalog-id="floor-wood-dark"]').click();p=await tilePoint(page,8,4);await page.mouse.click(p.x,p.y);await page.locator('#stop-placement').click();const painted=await documentOf(page);assert.ok(painted.areas.find(a=>a.id==='home-family-interior').surfaces.cells[4*16+8]>0);pass('floor and wall surface catalog and painting');
  await page.locator('#layers summary').click();for(const layer of ['collision','portals','reachable','grid','ids'])await page.locator(`[data-layer="${layer}"]`).check();await page.locator('#layers summary').click();await page.screenshot({path:path.join(output,'desktop-overlays.png')});await page.locator('#layers summary').click();for(const layer of ['collision','portals','reachable','grid','ids'])await page.locator(`[data-layer="${layer}"]`).uncheck();await page.locator('#layers summary').click();pass('all overlays are optional layers over the real scene');
- const storage=await page.evaluate(()=>({...localStorage}));await page.locator('#play').click();await page.locator('#workspace').focus();await actOn(page,'home-mother');await page.locator('#walk-dialog').waitFor({state:'visible'});assert.match(await page.locator('#walk-dialog').innerText(),/おかあさん/);await page.keyboard.press('KeyZ');
+ const storage=await page.evaluate(()=>({...localStorage}));await page.locator('#play').click();await page.locator('#workspace').focus();await actOn(page,'home-mother');await page.locator('#walk-dialog').waitFor({state:'visible'});assert.match(await page.locator('#walk-dialog').innerText(),/お母さん/);await page.keyboard.press('KeyZ');
  const exit=await page.evaluate(()=>window.__worldEditor.game.area.def.portals.find(p=>p.id==='home-exit'));await walk(page,{...exit.from,areaId:'home-family-interior'});assert.equal(await page.evaluate(()=>window.__worldEditor.game.player.areaId),'town-main');await page.keyboard.press('Escape');assert.deepEqual(await page.evaluate(()=>({...localStorage})),storage);pass('walk mother conversation and exit without player save writes');
  const target=path.join(root,layoutFile),before=await readFile(target,'utf8'),pendingDocument=await documentOf(page),pendingDirty=await page.evaluate(()=>window.__worldEditor.model.dirty);
  assert.ok(pendingDirty>0);const pendingPreview=await holdRequest(s.context,'**/__world-editor/preview');
@@ -131,12 +131,16 @@ try{
  }
  const roomsSession=await session({width:1280,height:800}),rp=roomsSession.page;await ready(rp);
  const areaValues=await rp.locator('#area-select option').evaluateAll(opts=>opts.map(o=>o.value));
- assert.equal(areaValues.length,14);
- assert.deepEqual(areaValues.filter(v=>v!=='town-main'),['home-family-2f','home-family-interior','school-classroom-interior','shop-bakery-interior','shop-bookstore-interior','shop-cafe-interior','shop-candy-interior','shop-greengrocer-interior','shop-konbini-interior','shop-pharmacy-interior','station-main-interior','station-neighbor-interior','town-neighbor']);
+ const registeredAreas=await rp.evaluate(async()=>{
+  const {buildWorld}=await import('/src/world/index.ts');
+  return [...buildWorld().areas.keys()].sort();
+ });
+ assert.deepEqual(areaValues.slice().sort(),registeredAreas);
+ assert.equal(await rp.locator('#area-select').inputValue(),'home-family-interior');
  // Edit school-classroom-interior: place & 4-dir rotate chair-wood, check wall item lock reason, rotate legacy sdesk & tdesk, paint floor.
  await rp.locator('#area-select').selectOption('school-classroom-interior');
  await rp.waitForFunction(()=>window.__worldEditor.activeArea==='school-classroom-interior');
- assert.equal(await rp.locator('#location').innerText(),'きょうしつ');
+ assert.equal(await rp.locator('#location').innerText(),'中学校の教室');
  const classDesk='school-classroom-interior-sdesk-2-8',classTdesk='school-classroom-interior-tdesk-8-2';
  await select(rp,'school-classroom-interior-blackboard-5-0');
  assert.equal(await rp.locator('#rotate').isDisabled(),true);
@@ -167,7 +171,7 @@ try{
  // Edit shop-bookstore-interior: rotate retail fixtures + linked interactions + style preservation.
  await rp.locator('#area-select').selectOption('shop-bookstore-interior');
  await rp.waitForFunction(()=>window.__worldEditor.activeArea==='shop-bookstore-interior');
- assert.equal(await rp.locator('#location').innerText(),'ほんや');
+ assert.equal(await rp.locator('#location').innerText(),'本屋');
  const bookMag='shop-bookstore-interior-magazines',bookPicture='shop-bookstore-interior-picture-books',bookEast='shop-bookstore-interior-back-books-east';
  await select(rp,bookMag);assert.equal(await rp.locator('#rotate').isDisabled(),false);
  await rp.locator('#rotate').click();
@@ -179,7 +183,7 @@ try{
  // Edit shop-candy-interior: select Type B candy-hanging-rack, verify restriction reason appears while #rotate stays enabled, and cycle down -> left -> right -> down.
  await rp.locator('#area-select').selectOption('shop-candy-interior');
  await rp.waitForFunction(()=>window.__worldEditor.activeArea==='shop-candy-interior');
- assert.equal(await rp.locator('#location').innerText(),'だがしや');
+ assert.equal(await rp.locator('#location').innerText(),'駄菓子屋');
  const candyRack='shop-candy-interior-hanging-rack';
  await select(rp,candyRack);
  assert.equal(await rp.locator('#rotate').isDisabled(),false);

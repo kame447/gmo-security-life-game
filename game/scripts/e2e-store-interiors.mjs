@@ -42,7 +42,9 @@ try {
     try { await page.waitForTimeout(200); } finally { await page.keyboard.up('ArrowDown'); }
     assert.deepEqual(await state(page), before, 'Greeting blocks movement');
     assert.equal(await page.locator('#btn-avatar').isDisabled(), true);
-    assert.equal(await page.locator('#shop-panel').isVisible(), store.storeId === 'shop-konbini');
+    const hasCatalog = await page.evaluate(async id => (await import('/src/data/shop-catalogs.ts')).shopCatalog(id) !== undefined,
+      store.catalogId);
+    assert.equal(await page.locator('#shop-panel').isVisible(), hasCatalog);
     assert.equal(await page.locator('#clerk-panel').count(), 0, 'No legacy clerk panel is introduced');
     await closeTalk(page);
     pass(`${store.catalogId}: clerk greeting stops and restores input`, before);

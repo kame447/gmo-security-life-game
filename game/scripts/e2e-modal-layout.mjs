@@ -38,7 +38,10 @@ try {
     // Reuse real launch buttons when installed; add test-only buttons for missing features.
     await page.evaluate(ensureLaunchButtons);
     await page.evaluate(ensureLaunchButtons); // A second call must not duplicate real or test buttons.
-    assert.equal(await page.locator('#menu button').count(), 6); // みため・もちもの・スマホ・かいわ・タッチそうさ・さいしょから
+    const menuButtons = await page.locator('#menu button').evaluateAll(buttons => buttons.map(button => button.id));
+    for (const id of ['btn-avatar', 'btn-inventory', 'btn-phone', 'btn-log', 'btn-touch', 'btn-reset', 'btn-save']) {
+      assert.equal(menuButtons.filter(buttonId => buttonId === id).length, 1, id);
+    }
     if (await page.locator('#touch').getAttribute('aria-hidden') === 'true') await page.locator('#btn-touch').click();
     assert.equal(await page.locator('#touch').getAttribute('aria-hidden'), 'false');
 
@@ -80,7 +83,7 @@ try {
     await context.close();
   }
   assert.deepEqual(errors, [], 'no browser or console errors');
-  console.log('SUMMARY 2/2 PASS: five menu buttons avoid HUD, hint and touch controls');
+  console.log('SUMMARY 2/2 PASS: menu buttons avoid HUD, hint and touch controls');
 } finally {
   await browser.close();
 }

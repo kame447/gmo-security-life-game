@@ -104,114 +104,112 @@ function freeNpcCell(model: WorldEditorModel, npc: EditorInteraction): EditorInt
 }
 
 describe('実ワールド全エリアのNPC追加・削除・配置拒否回帰（N1）', () => {
-  it('全編集可能エリアでarea別ID・自己キー追加、削除、Undo/Redo、ID非再利用が通る', () => {
-    const world = buildWorld(), initial = new WorldEditorModel(world).initial;
-    const editableAreas = initial.areas.filter(area => isEditableArea(initial, area.id));
+  const world = buildWorld(), initial = new WorldEditorModel(world).initial;
+  const editableAreas = initial.areas.filter(area => isEditableArea(initial, area.id));
+
+  it('編集可能エリアをすべて列挙する', () => {
     expect(editableAreas.length).toBeGreaterThanOrEqual(4);
-    for (const area of editableAreas) {
-      const model = new WorldEditorModel(world);
-      const cancelled = model.createNpc('friend', area.id);
-      const npc = freeNpcCell(model, model.createNpc('friend', area.id));
-      expect(npc.id).not.toBe(cancelled.id);
-      expect(npc.id).toMatch(new RegExp(`^${area.id}-npc-[1-9][0-9]*$`));
-      expect(npc.eventKey).toBe(npcEventKey(npc.id));
+  });
 
-      model.commit(model.npcCandidate(npc, true));
-      expect(model.document.catalogs.eventKeys).toContain(npc.eventKey);
-      expect(validateWorld(model.runtime(model.document, [area.id]),{railLinks:TRAIN_NETWORK.railLinks()})).toEqual([]);
+  it.each(editableAreas)('$id でarea別ID・自己キー追加、削除、Undo/Redo、ID非再利用が通る', area => {
+    const model = new WorldEditorModel(world);
+    const cancelled = model.createNpc('friend', area.id);
+    const npc = freeNpcCell(model, model.createNpc('friend', area.id));
+    expect(npc.id).not.toBe(cancelled.id);
+    expect(npc.id).toMatch(new RegExp(`^${area.id}-npc-[1-9][0-9]*$`));
+    expect(npc.eventKey).toBe(npcEventKey(npc.id));
 
-      model.removeNpc(npc.id, area.id);
-      expect(model.npc(npc.id, undefined, area.id)).toBeUndefined();
-      expect(model.document.catalogs.eventKeys).not.toContain(npc.eventKey);
+    model.commit(model.npcCandidate(npc, true));
+    expect(model.document.catalogs.eventKeys).toContain(npc.eventKey);
+    expect(validateWorld(model.runtime(model.document, [area.id]),{railLinks:TRAIN_NETWORK.railLinks()})).toEqual([]);
 
-      model.session.undo();
-      expect(model.npc(npc.id, undefined, area.id)).toEqual(npc);
-      expect(model.document.catalogs.eventKeys).toContain(npc.eventKey);
+    model.removeNpc(npc.id, area.id);
+    expect(model.npc(npc.id, undefined, area.id)).toBeUndefined();
+    expect(model.document.catalogs.eventKeys).not.toContain(npc.eventKey);
 
-      model.session.redo();
-      expect(model.npc(npc.id, undefined, area.id)).toBeUndefined();
-      expect(model.document.catalogs.eventKeys).not.toContain(npc.eventKey);
+    model.session.undo();
+    expect(model.npc(npc.id, undefined, area.id)).toEqual(npc);
+    expect(model.document.catalogs.eventKeys).toContain(npc.eventKey);
 
-      const next = model.createNpc('friend', area.id);
-      expect(next.id).not.toBe(npc.id);
-      expect(next.id).not.toBe(cancelled.id);
-    }
+    model.session.redo();
+    expect(model.npc(npc.id, undefined, area.id)).toBeUndefined();
+    expect(model.document.catalogs.eventKeys).not.toContain(npc.eventKey);
+
+    const next = model.createNpc('friend', area.id);
+    expect(next.id).not.toBe(npc.id);
+    expect(next.id).not.toBe(cancelled.id);
   }, 15000);
 
-  it('全編集可能エリアで壁・固い物・他NPC・調べる場所・入口・到着・目印・到達不能を拒否する', () => {
-    const world = buildWorld(), initial = new WorldEditorModel(world).initial;
-    for (const area of initial.areas.filter(candidate => isEditableArea(initial, candidate.id))) {
-      const model = new WorldEditorModel(world), before = model.document;
-      const candidateBase = model.createNpc('friend', area.id);
-      const wallIndex = area.ground.findIndex(isSolidGround);
-      const wall = wallIndex >= 0 ? { x: wallIndex % area.width, y: Math.floor(wallIndex / area.width) } : undefined;
-      const solidObject = initial.objects.find(object => object.areaId === area.id && object.solid);
-      const otherNpc = initial.interactions.find(item => item.areaId === area.id && item.kind === 'npc');
-      const otherInteraction = initial.interactions.find(item => item.areaId === area.id && item.kind !== 'npc');
-      const portal = initial.portals.find(door => door.areaId === area.id)?.from;
-      const arrival = initial.portals.find(door => door.to.areaId === area.id)?.to;
+  it.each(editableAreas)('$id で壁・固い物・他NPC・調べる場所・入口・到着・目印・到達不能を拒否する', area => {
+    const model = new WorldEditorModel(world), before = model.document;
+    const candidateBase = model.createNpc('friend', area.id);
+    const wallIndex = area.ground.findIndex(isSolidGround);
+    const wall = wallIndex >= 0 ? { x: wallIndex % area.width, y: Math.floor(wallIndex / area.width) } : undefined;
+    const solidObject = initial.objects.find(object => object.areaId === area.id && object.solid);
+    const otherNpc = initial.interactions.find(item => item.areaId === area.id && item.kind === 'npc');
+    const otherInteraction = initial.interactions.find(item => item.areaId === area.id && item.kind !== 'npc');
+    const portal = initial.portals.find(door => door.areaId === area.id)?.from;
+    const arrival = initial.portals.find(door => door.to.areaId === area.id)?.to;
 
-      const targets: [string, { x: number; y: number } | undefined][] = [
-        ['wall', wall],
-        ['solid-object', solidObject],
-        ['portal', portal],
-        ['arrival', arrival],
-      ];
-      if (otherNpc) targets.push(['other-npc', otherNpc]);
-      if (otherInteraction) targets.push(['other-interaction', otherInteraction]);
-      if (area.kind === 'outdoor') {
-        for (const [name, point] of Object.entries({
-          schoolGate: LANDMARKS.schoolGate,
-          stationFront: LANDMARKS.stationFront,
-          parkPlaza: LANDMARKS.parkPlaza,
-          shoppingStreet: LANDMARKS.shoppingStreet,
-        })) targets.push([`landmark:${name}`, point]);
-      }
+    const targets: [string, { x: number; y: number } | undefined][] = [
+      ['wall', wall],
+      ['solid-object', solidObject],
+      ['portal', portal],
+      ['arrival', arrival],
+    ];
+    if (otherNpc) targets.push(['other-npc', otherNpc]);
+    if (otherInteraction) targets.push(['other-interaction', otherInteraction]);
+    if (area.kind === 'outdoor') {
+      for (const [name, point] of Object.entries({
+        schoolGate: LANDMARKS.schoolGate,
+        stationFront: LANDMARKS.stationFront,
+        parkPlaza: LANDMARKS.parkPlaza,
+        shoppingStreet: LANDMARKS.shoppingStreet,
+      })) targets.push([`landmark:${name}`, point]);
+    }
 
-      for (const [kind, tile] of targets) {
-        expect(tile, `Missing ${kind} fixture in ${area.id}`).toBeDefined();
-        const candidate = { ...candidateBase, x: tile!.x, y: tile!.y };
-        const issues = model.issues(model.npcCandidate(candidate, true));
-        expect(issues.length, `${kind} should be rejected in ${area.id}`).toBeGreaterThan(0);
-        expect(() => model.commit(model.npcCandidate(candidate, true)), `${kind} commit in ${area.id}`).toThrow();
-        expect(model.document).toEqual(before);
-      }
+    for (const [kind, tile] of targets) {
+      expect(tile, `Missing ${kind} fixture in ${area.id}`).toBeDefined();
+      const candidate = { ...candidateBase, x: tile!.x, y: tile!.y };
+      const issues = model.issues(model.npcCandidate(candidate, true));
+      expect(issues.length, `${kind} should be rejected in ${area.id}`).toBeGreaterThan(0);
+      expect(() => model.commit(model.npcCandidate(candidate, true)), `${kind} commit in ${area.id}`).toThrow();
+      expect(model.document).toEqual(before);
+    }
 
-      if (area.kind === 'indoor' && arrival) {
-        const sealModel = new WorldEditorModel(world);
-        const neighbors = [[0, -1], [1, 0], [0, 1], [-1, 0]]
-          .map(([dx, dy]) => ({ x: arrival.x + dx, y: arrival.y + dy }))
-          .filter(point => {
-            const tile = area.ground[point.y * area.width + point.x];
-            if (point.x < 0 || point.y < 0 || point.x >= area.width || point.y >= area.height || isSolidGround(tile)) return false;
-            return !initial.portals.some(door => door.areaId === area.id &&
-              point.x >= door.from.x && point.x < door.from.x + (door.from.w ?? 1) && point.y === door.from.y);
-          });
-        expect(neighbors.length).toBeGreaterThan(0);
-        let rejectedCut = false;
-        for (const point of neighbors) {
-          const blocker = { ...sealModel.createNpc('friend', area.id), x: point.x, y: point.y };
-          const beforeSeal = sealModel.document;
-          const candidate = sealModel.npcCandidate(blocker, true);
-          const issues = sealModel.issues(candidate);
-          // Existing customers can leave only one passable neighbor; the first actual disconnection
-          // must be refused, rather than assuming all but the final neighbor are freely occupiable.
-          if (issues.includes('出入口や調べる場所への通路を保ってください')) {
-            const disconnected = sealModel.runtime(sealModel.document, [area.id]);
-            const room = disconnected.areas.get(area.id)!;
-            disconnected.areas.set(area.id, toRuntime({ ...room.def, interactions: [...room.def.interactions, blocker] }));
-            expect(validateWorld(disconnected, { railLinks: TRAIN_NETWORK.railLinks() }).some(issue => issue.startsWith('Unreachable'))).toBe(true);
-            expect(() => sealModel.commit(candidate)).toThrow('通路');
-            expect(sealModel.document).toEqual(beforeSeal);
-            rejectedCut = true;
-            break;
-          }
-          expect(issues, `${area.id} at ${point.x},${point.y}`).toEqual([]);
-          sealModel.commit(candidate);
-          expect(validateWorld(sealModel.runtime(sealModel.document, [area.id]), { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
+    if (area.kind === 'indoor' && arrival) {
+      const sealModel = new WorldEditorModel(world);
+      const neighbors = [[0, -1], [1, 0], [0, 1], [-1, 0]]
+        .map(([dx, dy]) => ({ x: arrival.x + dx, y: arrival.y + dy }))
+        .filter(point => {
+          const tile = area.ground[point.y * area.width + point.x];
+          if (point.x < 0 || point.y < 0 || point.x >= area.width || point.y >= area.height || isSolidGround(tile)) return false;
+          return !initial.portals.some(door => door.areaId === area.id &&
+            point.x >= door.from.x && point.x < door.from.x + (door.from.w ?? 1) && point.y === door.from.y);
+        });
+      expect(neighbors.length).toBeGreaterThan(0);
+      let rejectedCut = false;
+      for (const point of neighbors) {
+        const blocker = { ...sealModel.createNpc('friend', area.id), x: point.x, y: point.y };
+        const beforeSeal = sealModel.document;
+        const candidate = sealModel.npcCandidate(blocker, true);
+        const issues = sealModel.issues(candidate);
+        // 棚や元の客がいるため、隣接マスを全部塞ぐ前に最後の迂回路を失う部屋もある。
+        if (issues.includes('出入口や調べる場所への通路を保ってください')) {
+          const disconnected = sealModel.runtime(sealModel.document, [area.id]);
+          const room = disconnected.areas.get(area.id)!;
+          disconnected.areas.set(area.id, toRuntime({ ...room.def, interactions: [...room.def.interactions, blocker] }));
+          expect(validateWorld(disconnected, { railLinks: TRAIN_NETWORK.railLinks() }).some(issue => issue.startsWith('Unreachable'))).toBe(true);
+          expect(() => sealModel.commit(candidate)).toThrow('通路');
+          expect(sealModel.document).toEqual(beforeSeal);
+          rejectedCut = true;
+          break;
         }
-        expect(rejectedCut, `${area.id} must reject a placement that disconnects the arrival route`).toBe(true);
+        expect(issues, `${area.id} at ${point.x},${point.y}`).toEqual([]);
+        sealModel.commit(candidate);
+        expect(validateWorld(sealModel.runtime(sealModel.document, [area.id]), { railLinks: TRAIN_NETWORK.railLinks() })).toEqual([]);
       }
+      expect(rejectedCut, `${area.id} must reject a placement that disconnects the arrival route`).toBe(true);
     }
   }, 15000);
 });

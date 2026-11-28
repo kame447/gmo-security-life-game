@@ -13,7 +13,7 @@ const url = new URL(process.env.SLG_URL || 'http://127.0.0.1:5173');
 assert.equal(url.hostname, '127.0.0.1');
 const output = path.resolve(process.env.SLG_SHOTS || process.env.SLG_DIALOG_OUT || path.join(os.tmpdir(), 'slg-e2e-dialog-touch'));
 await mkdir(output, { recursive: true });
-const SCENES = [{"id": "mother", "areaId": "home-family-interior", "kind": "dialog", "player": {"areaId": "home-family-interior", "x": 216, "y": 62, "facing": "down"}, "walk": {"dir": "left", "key": "ArrowLeft"}, "target": {"id": "home-mother", "name": "おかあさん", "eventKey": "home.mother", "lines": ["おかえり！ てを あらったら、おやつにしよう。"]}}, {"id": "grandma", "areaId": "town-main", "kind": "dialog", "player": {"areaId": "town-main", "x": 648, "y": 526, "facing": "down"}, "walk": {"dir": "right", "key": "ArrowRight"}, "target": {"id": "neighbor-grandma", "name": "きんじょのおばあさん", "eventKey": "neighborhood.grandma", "lines": ["おかえり。きょうも がっこう、たのしかった？"]}}, {"id": "teacher", "areaId": "school-classroom-interior", "kind": "dialog", "player": {"areaId": "school-classroom-interior", "x": 168, "y": 30, "facing": "down"}, "walk": {"dir": "left", "key": "ArrowLeft"}, "target": {"id": "school-teacher", "name": "せんせい", "eventKey": "school.teacher", "lines": ["おはよう。きょうも いろんなことを みつけようね。"]}}, {"id": "clerk", "areaId": "shop-konbini-interior", "kind": "shop", "player": {"areaId": "shop-konbini-interior", "x": 168, "y": 46, "facing": "down"}, "walk": {"dir": "left", "key": "ArrowLeft"}, "target": {"id": "konbini-clerk", "name": "てんいんさん", "eventKey": "shopping.konbini.clerk", "lines": ["いらっしゃいませ。おやつも のみものも あるよ。ゆっくり みてね。"]}}];
+const SCENES = [{"id": "mother", "areaId": "home-family-interior", "kind": "dialog", "player": {"areaId": "home-family-interior", "x": 216, "y": 62, "facing": "down"}, "walk": {"dir": "left", "key": "ArrowLeft"}, "target": {"id": "home-mother", "name": "お母さん", "eventKey": "home.mother", "lines": ["おかえり！ 手を洗ったら、おやつにしよう。"]}}, {"id": "grandma", "areaId": "town-main", "kind": "dialog", "player": {"areaId": "town-main", "x": 648, "y": 526, "facing": "down"}, "walk": {"dir": "right", "key": "ArrowRight"}, "target": {"id": "neighbor-grandma", "name": "近所のおばあさん", "eventKey": "neighborhood.grandma", "lines": ["おかえり。今日も学校は楽しかった？"]}}, {"id": "teacher", "areaId": "school-classroom-interior", "kind": "dialog", "player": {"areaId": "school-classroom-interior", "x": 168, "y": 30, "facing": "down"}, "walk": {"dir": "left", "key": "ArrowLeft"}, "target": {"id": "school-teacher", "name": "先生", "eventKey": "school.teacher", "lines": ["おはよう。今日もいろいろなことを学ぼうね。"]}}, {"id": "clerk", "areaId": "shop-konbini-interior", "kind": "shop", "player": {"areaId": "shop-konbini-interior", "x": 168, "y": 46, "facing": "down"}, "walk": {"dir": "left", "key": "ArrowLeft"}, "target": {"id": "konbini-clerk", "name": "店員さん", "eventKey": "shopping.konbini.clerk", "lines": ["いらっしゃいませ。おやつも飲み物もあるよ。ゆっくり見てね。"]}}];
 const VIEWPORTS = [{ id: 'portrait', width: 390, height: 844, touch: true },
   { id: 'landscape', width: 844, height: 390, touch: true }, { id: 'pc', width: 1280, height: 800, touch: false }];
 const records = [], errors = [], blocked = [], downloads = [], loads = [];
@@ -64,7 +64,7 @@ async function measure(page) {
     };
     const buttons = [...document.querySelectorAll('#touch button')].map(el => {
       const rect = box(el.getBoundingClientRect()), show = visible(el), hit = show && document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
-      return { id: el.dataset.dir || (el.dataset.act ? 'A' : 'bicycle'), rect, visible: show, centerHit: !!hit && (hit === el || el.contains(hit)), dialogArea: show ? overlap(rect, dialogRect) : 0 };
+      return { id: el.dataset.dir || (el.hasAttribute('data-act') ? 'A' : el.hasAttribute('data-accelerate') ? 'accelerate' : 'bicycle'), rect, visible: show, centerHit: !!hit && (hit === el || el.contains(hit)), dialogArea: show ? overlap(rect, dialogRect) : 0 };
     });
     const glyphs = [], intersections = [];
     for (const [role, selector] of [['speaker', '.who'], ['body', '.text'], ['next', '.next']]) {
@@ -84,7 +84,7 @@ async function measure(page) {
               if (area > 0) {
                 const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)?.closest('#touch button');
                 intersections.push({ ...entry, button: button.id, intersectionArea: area, glyphCenterHitsButton: !!hit &&
-                  (hit.dataset.dir || (hit.dataset.act ? 'A' : 'bicycle')) === button.id });
+                  (hit.dataset.dir || (hit.hasAttribute('data-act') ? 'A' : hit.hasAttribute('data-accelerate') ? 'accelerate' : 'bicycle')) === button.id });
               }
             }
           }
@@ -115,7 +115,7 @@ async function clickDialog(page, touch) {
 /** 十字・A・自転車のボタンの中心が、いまそのボタンに当たるか（見えない・押せない状態を、実際の当たり判定で見る）。 */
 const buttonHits = page => page.evaluate(() => [...document.querySelectorAll('#touch button')].map(el => {
   const r = el.getBoundingClientRect(), hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-  return { id: el.dataset.dir || (el.dataset.act ? 'A' : 'bicycle'), hit: !!hit && (hit === el || el.contains(hit)) };
+  return { id: el.dataset.dir || (el.hasAttribute('data-act') ? 'A' : el.hasAttribute('data-accelerate') ? 'accelerate' : 'bicycle'), hit: !!hit && (hit === el || el.contains(hit)) };
 }));
 const buttonPoint = (page, selector) => page.evaluate(selector => {
   const r = document.querySelector(`#touch ${selector}`).getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2;
@@ -238,8 +238,8 @@ try {
             check(row, JSON.stringify(after.player) === JSON.stringify(before.player), 'flow', `tapping the hidden ${selector} position never moves the player`);
             if (targets.some(target => target.type === 'click' && target.dialog)) {
               row.hiddenTap.adjustedToDialog.push(selector);
-              check(row, !after.dialog || after.dialog.index === before.dialog.index + 1, 'flow', 'a touch delivered to the dialog advances or closes it');
-              if (!after.dialog) await startTalk(page, scene, vp.touch);
+              // This integrated branch guards against Chromium retargeting a touch that started outside the dialog.
+              check(row, after.dialog?.index === before.dialog.index, 'flow', 'a retargeted tap from outside the dialog never advances it', { spot, targets });
               continue;
             }
             row.hiddenTap.tapped.push(selector);
@@ -264,7 +264,8 @@ try {
         check(row, !(await snapshot(page)).shop, 'flow', 'shop control closes normally without purchase');
       }
       row.after = await measure(page);
-      if (vp.touch) check(row, row.after.buttons.every(b => b.visible && b.centerHit), 'flow', 'all touch parts return and can be hit');
+      if (vp.touch) check(row, row.after.buttons.filter(b => b.id !== 'accelerate').every(b => b.visible && b.centerHit)
+        && row.after.buttons.some(b => b.id === 'accelerate' && !b.visible), 'flow', 'walking controls return; boost stays hidden until mounted');
       const beforeWalk = (await snapshot(page)).player;
       if (vp.touch) {
         const point = await page.evaluate(dir => { const r = document.querySelector(`#touch [data-dir="${dir}"]`).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }, scene.walk.dir);

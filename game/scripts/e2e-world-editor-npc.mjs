@@ -134,7 +134,7 @@ try{
  const offscreenBefore=await s.page.evaluate(()=>{const npc=window.__worldEditor.model.npc('station-staff',undefined,'town-main');const p=window.__worldEditor.toScreen(npc.x*16+8,npc.y*16+8),r=document.querySelector('#workspace').getBoundingClientRect();return{x:p.x,y:p.y,w:r.width,h:r.height};});
  assert.ok(offscreenBefore.x<0||offscreenBefore.x>offscreenBefore.w||offscreenBefore.y<0||offscreenBefore.y>offscreenBefore.h);
  await s.click('[data-npc-list-id="station-staff"]');
- assert.equal(await s.page.locator('#npc-name').inputValue(),'えきいんさん');
+ assert.equal(await s.page.locator('#npc-name').inputValue(),'駅員さん');
  assert.match(await s.page.locator('#object-id').textContent(),/station-staff/);
  assert.equal(await s.page.locator('[data-npc-list-id="station-staff"]').getAttribute('aria-pressed'),'true');
  const focusedAfter=await s.page.evaluate(()=>{const npc=window.__worldEditor.model.npc('station-staff',undefined,'town-main');const p=window.__worldEditor.toScreen(npc.x*16+8,npc.y*16+8),r=document.querySelector('#workspace').getBoundingClientRect();return{x:p.x,y:p.y,w:r.width,h:r.height};});
@@ -212,13 +212,13 @@ try{
  for(const[name,viewport]of[['portrait',{width:390,height:844}],['landscape',{width:844,height:390}]]){
   const mobile=await session(viewport,true);await ready(mobile.page);assert.deepEqual(await documentOf(mobile.page),finalDocument);
   if(name==='portrait'){
-   await mobile.click('#npc-list-toggle');
-   const overflow=await mobile.page.evaluate(()=>{const props=document.querySelector('#properties'),list=document.querySelector('#npc-list'),items=Array.from(list.querySelectorAll('.npc-row')).map(b=>b.getBoundingClientRect());const pr=props.getBoundingClientRect(),lr=list.getBoundingClientRect();return{propsScrollW:props.scrollWidth,propsClientW:props.clientWidth,propsLeft:pr.left,propsRight:pr.right,listScrollW:list.scrollWidth,listClientW:list.clientWidth,listRight:lr.right,itemCount:items.length,maxItemRight:Math.max(...items.map(r=>r.right))};});
+   await mobile.click('#entity-list-toggle');
+   const overflow=await mobile.page.evaluate(()=>{const props=document.querySelector('#properties'),list=document.querySelector('#entity-list'),items=Array.from(list.querySelectorAll('.npc-row')).map(b=>b.getBoundingClientRect());const pr=props.getBoundingClientRect(),lr=list.getBoundingClientRect();return{propsScrollW:props.scrollWidth,propsClientW:props.clientWidth,propsLeft:pr.left,propsRight:pr.right,listScrollW:list.scrollWidth,listClientW:list.clientWidth,listRight:lr.right,itemCount:items.length,maxItemRight:Math.max(...items.map(r=>r.right))};});
    assert.equal(overflow.itemCount,(await docNpcOrder(mobile.page,areaId)).length);
    assert.ok(overflow.propsScrollW<=overflow.propsClientW,`portrait #properties horizontal overflow: ${JSON.stringify(overflow)}`);
-   assert.ok(overflow.listScrollW<=overflow.listClientW,`portrait #npc-list horizontal overflow: ${JSON.stringify(overflow)}`);
+   assert.ok(overflow.listScrollW<=overflow.listClientW,`portrait #entity-list horizontal overflow: ${JSON.stringify(overflow)}`);
    assert.ok(overflow.propsLeft>=0&&overflow.propsRight<=390&&overflow.maxItemRight<=390,`portrait list outside 390px: ${JSON.stringify(overflow)}`);
-   await mobile.click('#npc-list-toggle');
+   await mobile.click('#entity-list-toggle');
    pass('portrait: NPC list fits within 390px without horizontal overflow');
   }
   await mobile.click('#zoom-out');await mobile.click('#zoom-out');

@@ -1,8 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { feetAtTile, TILE, type Facing } from '../src/core/coords';
 import { DEFAULT_APPEARANCE, type PlayerAppearance } from '../src/core/appearance';
 import type { AreaDef, InteractionDef, MapEvent, PortalDef } from '../src/core/types';
-import { HITBOX, RUN_SPEED, WALK_SPEED } from '../src/map/explorer';
+import { canStand, HITBOX, positionAt, RUN_SPEED, WALK_SPEED } from '../src/map/explorer';
+import { PLAYER_H } from '../src/render/player-sprite';
+import { toRuntime } from '../src/world/runtime';
+import { T } from '../src/world/tiles';
 import { Game } from '../src/session/game';
 import { parseSave, type SaveData } from '../src/state/save';
 import type { AreaRuntime, World } from '../src/world';
@@ -26,6 +29,268 @@ function smallWorld(): World {
 function move(game: Game, dir: Facing, pixels: number): void {
   for (let i = 0; i < pixels; i++) game.update(1 / RUN_SPEED, { dir, run: true });
 }
+
+function indoorWorld(): World {
+  const world = smallWorld(), width = 8, height = 8;
+  const ground = new Uint8Array(width * height).fill(T.FLOOR_WOOD);
+  for (let x = 0; x < width; x++) {
+    ground[x] = T.WALL;
+    ground[(height - 1) * width + x] = T.WALL_TOP;
+  }
+  for (let y = 1; y < height - 1; y++) {
+    ground[y * width] = ground[y * width + width - 1] = T.WALL_TOP;
+  }
+  const def: AreaDef = { id: 'test', name: '屋内テスト', kind: 'indoor', width, height,
+    ground, objects: [], interactions: [], portals: [] };
+  world.areas.set('test', toRuntime(def));
+  world.start = { areaId: 'test', x: 3, y: 4, facing: 'up' };
+  return world;
+}
+
+describe('Phase 4-D1 feet-only indoor prototype', () => {
+  it.each([false, true])('reaches the north wall at the feet boundary and can turn/move along it (run=%s)', run => {
+    const game = new Game(indoorWorld());
+    game.update(2, { dir: 'up', run });
+    expect(game.player.y).toBe(16 + HITBOX.h);
+    expect(canStand(game.area, game.player.x, game.player.y)).toBe(true);
+    expect(canStand(game.area, game.player.x, game.player.y - 1)).toBe(false);
+    const stopped = { ...game.player };
+    game.update(10, { dir: 'up', run });
+    expect(game.player).toEqual(stopped);
+    const x = game.player.x;
+    game.update(1 / (run ? RUN_SPEED : WALK_SPEED), { dir: 'left', run });
+    expect(game.player).toMatchObject({ x: x - 1, y: 24, facing: 'left' });
+    game.update(1 / (run ? RUN_SPEED : WALK_SPEED), { dir: 'right', run });
+    expect(game.player).toMatchObject({ x, y: 24, facing: 'right' });
+    game.update(1 / (run ? RUN_SPEED : WALK_SPEED), { dir: 'down', run });
+    expect(game.player).toMatchObject({ x, y: 25, facing: 'down' });
+    game.update(1 / (run ? RUN_SPEED : WALK_SPEED), { dir: 'up', run });
+    expect(game.player).toMatchObject({ x, y: 24, facing: 'up' });
+  });
+
+  it('keeps a valid wall-side save and repairs a save whose feet enter solid terrain', () => {
+    const world = indoorWorld(), position = { areaId: 'test', x: 56.25, y: 24, facing: 'up' as const };
+    const save = { ...new Game(world).serialize(), ...position };
+    expect(new Game(world, { save }).player).toEqual(position);
+    const invalid = { ...save, y: 23 };
+    expect(canStand(world.areas.get('test')!, invalid.x, invalid.y)).toBe(false);
+    expect(new Game(world, { save: invalid }).player).toEqual(positionAt(world.start));
+    expect(invalid.y).toBe(23);
+  });
+
+  it.each([T.WALL, T.WALL_TOP, T.VOID])('retains feet collision with internal terrain %s', tile => {
+    const world = indoorWorld(), area = world.areas.get('test')!;
+    area.ground[3 * area.width + 3] = tile;
+    area.solid[3 * area.width + 3] = 1;
+    const game = new Game(world);
+    game.update(2, { dir: 'up', run: true });
+    expect(game.player.y).toBe(4 * TILE + HITBOX.h);
+    expect(canStand(area, game.player.x, game.player.y)).toBe(true);
+  });
+
+  it('preserves furniture collision while allowing the head to overlap its artwork', () => {
+    const world = indoorWorld(), area = world.areas.get('test')!;
+    area.objects.push({ kind: 'desk', x: 3, y: 3, w: 1, h: 1, solid: true });
+    area.solid[3 * area.width + 3] = 1;
+    const game = new Game(world);
+    game.update(2, { dir: 'up', run: true });
+    expect(game.player.y).toBe(4 * TILE + HITBOX.h);
+    expect(canStand(area, game.player.x, game.player.y)).toBe(true);
+  });
+});
+
+describe('Phase 4-D2 indoor rendering', () => {
+  // Record the actual wall composition and final draw order. Pixel-level
+  // silhouette/occlusion checks also run in Chrome (temporary D2 audit).
+  class Canvas {
+    width = 844; height = 390; clientWidth = 844; clientHeight = 390;
+    style: Record<string, string> = {};
+    images: Canvas[] = [];
+    context = {
+      fillStyle: '', imageSmoothingEnabled: false,
+      save() {}, restore() {}, translate() {}, scale() {}, setTransform() {},
+      beginPath() {}, rect() {}, clip() {}, fillRect() {},
+      drawImage: (image: Canvas) => { this.images.push(image); },
+    };
+    getContext() { return this.context; }
+  }
+  async function fixture() {
+    vi.stubGlobal('document', { createElement: () => new Canvas() });
+    vi.stubGlobal('Path2D', class { rect() {} });
+    const { Renderer } = await import('../src/render/renderer');
+    const { objectSprite, playerSprite, characterSprite } = await import('../src/render/sprites');
+    const width = 10, height = 16, ground = new Uint8Array(width * height).fill(T.FLOOR_WOOD);
+    for (let x = 0; x < width; x++) ground[x] = T.WALL;
+    for (let y = 1; y < height; y++) ground[y * width] = ground[y * width + width - 1] = T.WALL_TOP;
+    for (let y = 1; y <= 3; y++) ground[y * width + 5] = T.WALL_TOP;
+    ground[4 * width + 5] = ground[4 * width + 6] = T.WALL;
+    const window = { id: 'partition-window', kind: 'window', catalogId: 'window-wall',
+      x: 5, y: 4, w: 2, h: 1, solid: false, layer: 'decal' as const };
+    const area = toRuntime({ id: 'd2-room', name: 'D2', kind: 'indoor', width, height, ground,
+      objects: [window], portals: [], interactions: [{ id: 'd2-npc', kind: 'npc', name: 'D2',
+        x: 4, y: 3, sprite: 'friend', facing: 'up', solid: true, eventKey: 'd2.npc', lines: [] }] });
+    const canvas = new Canvas(), renderer = new Renderer(canvas as unknown as HTMLCanvasElement);
+    const view = { area, player: { x: 75, y: 62, facing: 'up' as const }, appearance: DEFAULT_APPEARANCE,
+      moving: false, walkTime: 0, dialog: {}, instant: true };
+    return { canvas, renderer, view, windowSprite: objectSprite(window).canvas as unknown as Canvas,
+      playerCanvas: playerSprite(DEFAULT_APPEARANCE, 'up', 0).canvas as unknown as Canvas,
+      npcCanvas: characterSprite('friend', 'up', 0).canvas as unknown as Canvas };
+  }
+
+  it('keeps the partition window on its wall and orders player/NPC behind or in front of it', async () => {
+    try {
+      const f = await fixture();
+      f.renderer.draw(f.view, 1);
+      const walls = f.canvas.images.filter(image => image.images.includes(f.windowSprite));
+      expect(walls).toHaveLength(2); // Window spans both supporting wall columns.
+      for (const wall of walls) {
+        expect(f.canvas.images.indexOf(wall)).toBeGreaterThan(f.canvas.images.indexOf(f.playerCanvas));
+        expect(f.canvas.images.indexOf(wall)).toBeGreaterThan(f.canvas.images.indexOf(f.npcCanvas));
+      }
+      f.canvas.images.length = 0;
+      f.renderer.draw({ ...f.view, player: { ...f.view.player, x: 88, y: 88 } }, 1);
+      for (const wall of walls) expect(f.canvas.images.indexOf(wall)).toBeLessThan(f.canvas.images.indexOf(f.playerCanvas));
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it('keeps the rounded head top inside a short viewport without changing outdoor or explicit cameras', async () => {
+    try {
+      const f = await fixture();
+      f.renderer.resize(844, 390, 2);
+      const view = { ...f.view, player: { ...f.view.player, x: 40, y: 24 } };
+      f.renderer.draw(view, 1);
+      expect(f.renderer.stats.camY).toBe(-2);
+      expect(view.player.y - PLAYER_H - f.renderer.stats.camY).toBe(0);
+      f.renderer.draw({ ...view, camera: { centerX: 80, centerY: 100, zoom: 2 } }, 1);
+      expect(f.renderer.stats.camY).toBe(-95); // 780 physical pixels / zoom 2, centered at 100.
+      f.renderer.draw({ ...view, area: { ...view.area, def: { ...view.area.def, kind: 'outdoor' } } }, 1);
+      expect(f.renderer.stats.camY).toBe(0);
+    } finally { vi.unstubAllGlobals(); }
+  });
+});
+
+describe('indoor feet collision and placement regressions', () => {
+  it('checks corner correction with the feet hitbox at every movement step', () => {
+    const world = indoorWorld(), area = world.areas.get('test')!;
+    area.ground[2 * area.width + 3] = T.WALL;
+    area.solid[2 * area.width + 3] = 1;
+    const game = new Game(world);
+    game.player = { areaId: 'test', x: 46, y: 74, facing: 'up' };
+    for (let i = 0; i < 30; i++) {
+      move(game, 'up', 1);
+      expect(canStand(area, game.player.x, game.player.y)).toBe(true);
+    }
+    expect(game.player.x).toBeLessThan(46);
+    expect(game.player.y).toBeLessThan(56);
+  });
+
+  it.each(['left', 'right', 'down'] as const)('keeps the %s feet boundary', dir => {
+    const game = new Game(indoorWorld());
+    for (let i = 0; i < 200; i++) {
+      move(game, dir, 1);
+      expect(canStand(game.area, game.player.x, game.player.y)).toBe(true);
+    }
+    if (dir === 'left') expect(game.player.x).toBe(TILE + HITBOX.halfW);
+    if (dir === 'right') expect(game.player.x).toBe(7 * TILE - HITBOX.halfW);
+    if (dir === 'down') expect(game.player.y).toBe(7 * TILE);
+    const stopped = { ...game.player };
+    move(game, dir, 10);
+    expect(game.player).toEqual(stopped);
+  });
+
+  it('allows continuous horizontal travel along the nearest north-wall boundary', () => {
+    const game = new Game(indoorWorld());
+    game.player = { areaId: 'test', x: 40, y: 24, facing: 'right' };
+    move(game, 'right', 40);
+    expect(game.player).toMatchObject({ x: 80, y: 24 });
+    expect(canStand(game.area, 80, 24)).toBe(true);
+    expect(canStand(game.area, 80, 23)).toBe(false);
+  });
+
+  it('keeps outdoor movement on the same feet collision contract', () => {
+    const world = indoorWorld(), area = world.areas.get('test')!;
+    area.def.kind = 'outdoor';
+    const game = new Game(world);
+    move(game, 'up', 100);
+    expect(game.player.y).toBe(TILE + HITBOX.h);
+    expect(canStand(area, game.player.x, game.player.y)).toBe(true);
+    expect(canStand(area, game.player.x, game.player.y - 1)).toBe(false);
+  });
+
+  it.each([
+    ['home-family-interior', 40, 30, 'right'],
+    ['home-family-interior', 56, 24, 'down'],
+    ['home-family-2f', 120, 30, 'left'],
+    ['school-classroom-interior', 136, 30, 'up'],
+  ] as const)('resumes an old wall-side save in %s without moving or losing saved state', async (areaId, x, y, facing) => {
+    const { buildWorld } = await import('../src/world');
+    const world = buildWorld(), baseline = new Game(world);
+    baseline.assets.changeMoney(123);
+    const save = { ...baseline.serialize(), areaId, x, y, facing, story: { phase: 'errands' } };
+    const original = structuredClone(save), game = new Game(world, { save });
+    expect(game.player).toEqual({ areaId, x, y, facing });
+    expect(canStand(game.area, x, y)).toBe(true);
+    expect(parseSave(save, world)?.story).toEqual(save.story);
+    expect(game.serialize().assets).toEqual(save.assets);
+    expect(game.serialize().appearance).toEqual(save.appearance);
+    expect(game.serialize().phone).toEqual(save.phone);
+    expect(save).toEqual(original);
+    move(game, 'down', 1);
+    expect(canStand(game.area, game.player.x, game.player.y)).toBe(true);
+    expect(game.player.y).toBe(y + 1);
+  });
+
+  it('keeps a valid fractional save at exactly the same position', () => {
+    const world = indoorWorld(), save = { ...new Game(world).serialize(), x: 56.25, y: 24.75, facing: 'left' as const };
+    expect(new Game(world, { save }).player).toEqual({ areaId: 'test', x: save.x, y: save.y, facing: save.facing });
+  });
+
+  it.each(['constructor', 'assignment', 'reset', 'warp', 'train'] as const)('preserves the feet-valid wall-side position for %s placement', route => {
+    const world = indoorWorld(), start = { ...world.start, y: 1, facing: 'left' as const };
+    const game = new Game(world, { start }), events: MapEvent[] = [];
+    game.on(e => events.push(e));
+    if (route !== 'constructor') game.player = { areaId: 'test', x: 56, y: 78, facing: 'down' };
+    if (route === 'assignment') game.player = { areaId: 'test', x: 56, y: 30, facing: 'left' };
+    if (route === 'reset') game.reset();
+    if (route === 'warp') expect(game.warp(start)).toBe(true);
+    if (route === 'train') expect(game.arriveByTrain(start)).toBe(true);
+    expect(game.player).toEqual({ areaId: 'test', x: 56, y: 30, facing: 'left' });
+    expect(canStand(game.area, game.player.x, game.player.y)).toBe(true);
+    expect(events).toEqual(['reset', 'warp', 'train'].includes(route) ? [{ type: 'area-enter', areaId: 'test' }] : []);
+  });
+
+  it.each(['warp', 'train'] as const)('rejects a solid-footprint %s arrival without changing position or saved state', route => {
+    const game = new Game(indoorWorld()), before = game.serialize(), events: MapEvent[] = [];
+    game.on(e => events.push(e));
+    const blocked = { areaId: 'test', x: 0, y: 0, facing: 'up' as const };
+    expect(route === 'warp' ? game.warp(blocked) : game.arriveByTrain(blocked)).toBe(false);
+    expect(game.serialize()).toEqual(before);
+    expect(events).toEqual([]);
+  });
+
+  it('enters a tight but feet-valid portal arrival before notifying listeners, preserving event order', () => {
+    const world = smallWorld(), room = indoorWorld().areas.get('test')!;
+    room.def.id = 'room'; world.areas.set('room', room);
+    // A furniture barrier below the arrival no longer forces a visual-overlap detour.
+    for (let x = 1; x <= 6; x++) room.solid[2 * room.width + x] = 1;
+    world.areas.get('test')!.portalAt.set(3 * 8 + 3, { id: 'door', from: { x: 3, y: 3 },
+      to: { areaId: 'room', x: 3, y: 1, facing: 'left' } });
+    const game = new Game(world), events: MapEvent[] = [];
+    game.on(e => {
+      expect(game.player).toEqual({ areaId: 'room', x: 56, y: 30, facing: 'left' });
+      expect(canStand(game.area, game.player.x, game.player.y)).toBe(true);
+      events.push(e);
+    });
+    for (let i = 0; i < 20 && game.player.areaId === 'test'; i++) move(game, 'right', 1);
+    expect(events.map(e => e.type)).toEqual(['portal', 'area-enter']);
+    const blocked = new Game(world, { portalGuard: () => false }), blockedEvents: MapEvent[] = [];
+    blocked.on(e => blockedEvents.push(e));
+    move(blocked, 'right', 20);
+    expect(blocked.player.areaId).toBe('test');
+    expect(canStand(blocked.area, blocked.player.x, blocked.player.y)).toBe(true);
+    expect(blockedEvents.map(e => e.type)).toEqual(['portal-blocked']);
+  });
+});
 
 describe('DOM-independent game engine', () => {
   it('walks and runs at the contracted speeds, with fractional pixels', () => {

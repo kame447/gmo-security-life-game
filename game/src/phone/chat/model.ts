@@ -1,7 +1,7 @@
 import { cleanChatText, isChatId, isChatTime, parseChatSave } from './codec';
 import { CHAT_LIMITS } from './limits';
 import { CHAT_SELF, type ChatApi, type ChatContent, type ChatMessage, type ChatResult,
-  type ChatSave, type ChatThreadSave, type ChatThreadSummary, type IncomingMessage } from './types';
+  type ChatSave, type ChatThreadSave, type ChatThreadSummary, type Contact, type IncomingMessage } from './types';
 
 /** Pure local model: no network, global clock, timers, UI selection or input draft. */
 export class ChatModel implements ChatApi {
@@ -29,6 +29,20 @@ export class ChatModel implements ChatApi {
   private changed(): void { for (const listener of this.listeners) listener(); }
   private thread(id: string): ChatThreadSave | undefined { return this.state.threads.find(thread => thread.id === id); }
   private bounded(): void { this.state = parseChatSave(this.state, this.content); }
+
+  /** Story contacts are added without replacing the player's existing conversations. */
+  ensureThread(id: string, contact: Contact): boolean {
+    if (!isChatId(id) || !isChatId(contact.id) || contact.id === CHAT_SELF || !cleanChatText(contact.name).trim()) return false;
+    const existing = this.thread(id);
+    if (existing) return existing.contactId === contact.id;
+    const known = this.state.contacts.find(item => item.id === contact.id);
+    if (this.state.threads.length >= CHAT_LIMITS.threads || (!known && this.state.contacts.length >= CHAT_LIMITS.contacts)) return false;
+    if (!known) this.state.contacts.push({ ...contact });
+    this.state.threads.push({ id, contactId: contact.id, messages: [], pending: [], nextSequence: 1, replyCursor: 0 });
+    this.bounded();
+    this.changed();
+    return !!this.thread(id);
+  }
 
   sendMessage(threadId: string, text: string, atMs: number): ChatResult {
     const thread = this.thread(threadId);

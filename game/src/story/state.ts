@@ -27,6 +27,8 @@ export interface StorySave {
   errandsDone: string[];
   /** 自転車の購入で選んだ選択肢（未購入なら null）。 */
   bikeChoice: string | null;
+  /** 母親に報告し、スマホの通販で注文できるようになった。旧セーブでは未設定。 */
+  bikeOrderReady?: true;
   stageIndex: number;
   /** 現在のステージで経験した必須イベントの id。 */
   stepsDone: string[];
@@ -71,6 +73,7 @@ export function parseStorySave(raw: unknown): StorySave | null {
     phase: phase as StoryPhase,
     errandsDone: strings(s.errandsDone, STORY_ERRANDS.map(e => e.id)),
     bikeChoice: typeof s.bikeChoice === 'string' ? s.bikeChoice : null,
+    ...(s.bikeOrderReady === true ? { bikeOrderReady: true as const } : {}),
     stageIndex,
     stepsDone: s.v === 1 ? [] : strings(s.stepsDone, stage.steps.map(f => f.eventId)),
     stepElapsed: s.v === 1 ? 0 : stepElapsed,

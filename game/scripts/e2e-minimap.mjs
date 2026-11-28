@@ -129,7 +129,7 @@ try {
         assert.equal(await page.locator('#full-map-canvas').getAttribute('data-area-id'), 'home-family-interior');
         assert.equal(await page.locator('#full-map-canvas').getAttribute('data-marker-count'), '0');
         assert.equal(await page.locator('#full-map-canvas').getAttribute('data-label-count'), '0');
-        assert.ok(!(await page.locator('#full-map-canvas').getAttribute('aria-label')).includes('しょうがっこう'));
+        assert.ok(!(await page.locator('#full-map-canvas').getAttribute('aria-label')).includes('中学校'));
         await page.locator('#full-map-close').click();
         await page.keyboard.down('ArrowDown');
         try { await page.waitForFunction(() => window.__slg.game.player.areaId === 'town-main', null, { timeout: 10000 }); }

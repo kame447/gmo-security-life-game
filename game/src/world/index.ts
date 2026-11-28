@@ -11,6 +11,7 @@ import { toRuntime, type AreaRuntime, type World } from './runtime';
 import { createTown, FACILITIES } from './town';
 import { SHOP_AREA_FACTORIES } from './shops';
 import { createNeighborStation, createNeighborTown, NEIGHBOR_FACILITIES } from './towns/neighbor';
+import { CAMPUS_AREA_FACTORIES, CAMPUS_FACILITIES } from './campus';
 
 export { STATION_ACCESS } from './landmarks';
 export { districtAt, isSolidTile, type AreaRuntime, type World } from './runtime';
@@ -22,7 +23,7 @@ export { validateWorld, stationGateLinks, type RailPoint, type RailLink, type Wo
 export const CHILDHOOD_VARIANT: VariantDef = {
   id: 'childhood',
   stage: 'childhood',
-  edgeMessage: 'きょうは このあたりを たんけんしよう。',
+  edgeMessage: '今日はこの辺りを探検しよう。',
 };
 
 /** 読み込むエリアの一覧。新しいエリアはここに定義関数を追加する。 */
@@ -30,6 +31,7 @@ export const AREA_FACTORIES: readonly (() => AreaDef)[] = [
   createTown, createHome, createHomeUpstairs, createClassroom, createKonbini,
   ...SHOP_AREA_FACTORIES,
   createStation, createNeighborTown, createNeighborStation,
+  ...CAMPUS_AREA_FACTORIES,
 ];
 
 /** 生成用の定数とは分け、配置を適用した出口から公開用の目印と開始位置を導く。 */
@@ -47,7 +49,7 @@ function applyVariant(base: AreaDef, variant: VariantDef, isClosed: (facilityId:
 }
 
 export function buildWorld(variant: VariantDef = CHILDHOOD_VARIANT): World {
-  const facilities = new Map([...FACILITIES, ...NEIGHBOR_FACILITIES].map(f => [f.id, { ...f, state: variant.facilityStates?.[f.id] ?? f.state }]));
+  const facilities = new Map([...FACILITIES, ...NEIGHBOR_FACILITIES, ...CAMPUS_FACILITIES].map(f => [f.id, { ...f, state: variant.facilityStates?.[f.id] ?? f.state }]));
   const isClosed = (id: string) => facilities.get(id)?.state === 'closed';
   const areas = new Map<string, AreaRuntime>();
   for (const create of AREA_FACTORIES) {

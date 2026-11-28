@@ -15,14 +15,12 @@
                                  margin-top: 8px; font-size: 12px; opacity: 0.9; }
 #dialog-log .dialog-log-footer button { font: inherit; cursor: pointer; background: #e8e0cc; color: #242a31;
                                         border: 0; border-radius: 4px; padding: 4px 12px; }
-/* 「かいわ」ボタンでメニューが 6 つになっても、狭い画面で 1 段に保ちミニマップと重ねない
-   （fix/hud-narrow-one-row の #btn-save と同じ詰め方）。 */
-/* 狭い画面でも上のボタンを 1 段に保つ（e2e-hud-narrow）。「かいわ」で 6 個、セーブも入ると 7 個になる。 */
+/* 狭い画面でも、保存と会話のボタンを含むメニューを1行に保つ。 */
 @media (max-width: 420px) {
   #menu:has(#btn-log) { gap: 2px; }
   #menu:has(#btn-log) button { padding: 5px 3px; font-size: 10px; }
-  #menu:has(#btn-log):has(#btn-save) { gap: 1px; }
-  #menu:has(#btn-log):has(#btn-save) button { padding: 5px 1px; }
+  #menu:has(#btn-log):has(#btn-save:not([hidden])) { gap: 1px; }
+  #menu:has(#btn-log):has(#btn-save:not([hidden])) button { padding: 5px 1px; }
 }
 @media (max-width: 354px) {
   #menu:has(#btn-log) { gap: 1px; }
@@ -32,10 +30,12 @@
   #menu:has(#btn-log) button { padding-left: 0; padding-right: 0; }
 }
 @media (max-width: 389px) {
-  #menu:has(#btn-log):has(#btn-save) button { padding-left: 0; padding-right: 0; font-size: 9.5px; }
-}
-@media (max-width: 349px) {
-  #menu:has(#btn-log):has(#btn-save) button { font-size: 9px; }
+  #menu:has(#btn-log):has(#btn-save:not([hidden])) button {
+    border-width: 1px;
+    padding-inline: 0;
+    font-size: 10px;
+    white-space: nowrap;
+  }
 }
 @media (max-width: 640px) {
   #dialog-log .dialog-log-list { font-size: 13px; }

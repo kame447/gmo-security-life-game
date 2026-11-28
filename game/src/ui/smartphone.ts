@@ -1,12 +1,15 @@
 import type { PhoneApp, PhoneScreen } from '../phone/content';
 import type { PhoneModel } from '../phone/model';
 import { CHAT_SELF } from '../phone/chat/types';
+import { chatWebLinks } from '../phone/chat/links';
 import type { MailMessage } from '../phone/mail/types';
 import { renderMailDetail, renderMailList, type MailView } from './phone-mail';
+import { renderWeb } from './phone-web';
 import { renderChatConversation, renderChatList, renderChatMessages, type ChatMessageView, type ChatThreadView } from './phone-chat';
 import './smartphone.css';
 import './phone-chat.css';
 import './phone-mail.css';
+import './phone-web.css';
 
 const make = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text?: string): HTMLElementTagNameMap[K] => {
   const node = document.createElement(tag);
@@ -113,7 +116,8 @@ export class Smartphone {
 
   handleKey(event: KeyboardEvent): void {
     const target = event.target;
-    if (target instanceof HTMLInputElement && target.classList.contains('phone-chat-input') && this.device.contains(target)) {
+    // Text boxes keep typed letters, Backspace and arrows; only Escape, Enter and Tab are handled here.
+    if (target instanceof HTMLInputElement && target.matches('.phone-chat-input, .phone-web-input') && this.device.contains(target)) {
       if (event.code === 'Escape') { event.preventDefault(); return; }
       if (event.key === 'Enter') {
         if (!event.isComposing && !event.repeat) { event.preventDefault(); target.form?.requestSubmit(); }
@@ -129,7 +133,8 @@ export class Smartphone {
       if (!event.repeat && document.activeElement instanceof HTMLButtonElement && this.device.contains(document.activeElement)) document.activeElement.click();
       return;
     }
-    const buttons = [...this.device.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)')];
+    const buttons = [...this.device.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)')]
+      .filter(button => button.getClientRects().length > 0);
     if (event.code === 'Tab') {
       event.preventDefault();
       const index = buttons.indexOf(document.activeElement as HTMLElement);
@@ -168,7 +173,7 @@ export class Smartphone {
     const scrollTop = oldScroll?.scrollTop ?? 0;
     const nearBottom = !oldScroll || oldScroll.scrollHeight - oldScroll.clientHeight - oldScroll.scrollTop < 24;
     if (oldThread && oldThread === this.model.currentChatThread && this.model.currentApp?.id === 'messages' && oldInput && oldScroll) {
-      renderChatMessages(oldScroll, this.chatMessageViews(oldThread));
+      renderChatMessages(oldScroll, this.chatMessageViews(oldThread), (id, href) => this.model.openChatLink(id, href));
       this.update();
       oldScroll.scrollTop = this.scrollChatToEnd || nearBottom ? oldScroll.scrollHeight : scrollTop;
       this.scrollChatToEnd = false;
@@ -184,7 +189,7 @@ export class Smartphone {
       nextInput.focus({ preventScroll: true });
       if (selection && selection[0] !== null && selection[1] !== null) nextInput.setSelectionRange(selection[0], selection[1]);
     } else if (nextInput) this.back.focus({ preventScroll: true });
-    else (this.body.querySelector<HTMLButtonElement>('button') ?? this.home).focus({ preventScroll: true });
+    else (this.body.querySelector<HTMLButtonElement>('button[data-focus-first]') ?? this.body.querySelector<HTMLButtonElement>('button:not(:disabled)') ?? this.home).focus({ preventScroll: true });
   }
 
   private render(): void {
@@ -196,6 +201,7 @@ export class Smartphone {
     if (!app || !screen) { this.renderHome(); return; }
     if (app.id === 'messages') { this.renderChat(); return; }
     if (app.id === 'mail') { this.renderMail(); return; }
+    if (app.id === 'web') { this.renderWeb(); return; }
     this.renderApp(app, screen);
   }
 
@@ -228,7 +234,7 @@ export class Smartphone {
 
   private chatMessageViews(threadId: string): ChatMessageView[] {
     return this.model.chatMessages(threadId).map(message => ({ id: message.id, text: message.text,
-      time: this.chatTime(message.atMs), outgoing: message.from === CHAT_SELF }));
+      time: this.chatTime(message.atMs), outgoing: message.from === CHAT_SELF, links: chatWebLinks(message) }));
   }
 
   private renderChat(): void {
@@ -239,6 +245,7 @@ export class Smartphone {
     if (!selected) { this.body.append(renderChatList(threads, id => { this.model.openChatThread(id); })); return; }
     const messages = this.chatMessageViews(selected.id);
     const chat = renderChatConversation(selected, messages, {
+      onOpenLink: (id, href) => { this.model.openChatLink(id, href); },
       draft: this.chatDrafts.get(selected.id) ?? '', maxLength: this.model.chatTextLimit,
       canSend: () => this.model.networkAllowed,
       onDraft: text => { this.chatDrafts.set(selected.id, text); },
@@ -269,8 +276,30 @@ export class Smartphone {
       ({ id: mail.id, from: mail.from, fromAddress: mail.fromAddress, to: mail.to, subject: mail.subject, body: mail.body,
         links: mail.links, time: this.chatTime(mail.atMs), unread: !mail.read });
     const current = this.model.currentMail;
-    if (current) this.body.append(renderMailDetail(view(current)));
+    if (current) this.body.append(renderMailDetail(view(current), href => {
+      if (!this.model.openMailLink(href)) this.showNetworkError(this.body);
+    }));
     else this.body.append(renderMailList(this.model.mails.map(view), id => { this.model.openMail(id); }));
+  }
+
+  private renderWeb(): void {
+    const view = renderWeb(this.model.webView, {
+      search: query => { if (!this.model.webSearch(query)) this.showNetworkError(view); },
+      lucky: query => {
+        if (!this.model.webSearch(query)) { this.showNetworkError(view); return; }
+        const results = this.model.webView;
+        if (results.kind === 'results' && results.results[0]) this.model.webOpen(results.results[0].address);
+      },
+      open: href => { if (!this.model.webOpen(href)) this.showNetworkError(view); },
+    }, { quote: this.model.webOrderQuote, purchase: address => this.model.webPurchase(address) });
+    this.body.append(view);
+  }
+
+  private showNetworkError(view: HTMLElement): void {
+    if (this.model.networkAllowed) return;
+    let notice = view.querySelector<HTMLElement>('.smartphone-network-error');
+    if (!notice) { notice = make('p', 'smartphone-network-error'); notice.setAttribute('role', 'status'); view.append(notice); }
+    notice.textContent = '通信残量がありません';
   }
 
   private renderApp(app: PhoneApp, screen: PhoneScreen): void {

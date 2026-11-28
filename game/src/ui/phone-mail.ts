@@ -47,12 +47,18 @@ export function renderMailList(mails: readonly MailView[], open: (id: string) =>
   return view;
 }
 
-/** Links never navigate: activating one reveals where it really points, apart from the text shown. */
-function renderLink(link: MailLink): HTMLElement {
+/** Show the real address first; the optional action opens it inside the game. */
+function renderLink(link: MailLink, open?: (href: string) => void): HTMLElement {
   const item = make('div', 'phone-mail-link-item');
   const button = make('button', 'phone-mail-link', link.label); button.type = 'button';
   const target = make('p', 'phone-mail-link-href');
   target.append(make('span', 'phone-mail-link-href-label', '実際のリンク先'), make('span', 'phone-mail-link-href-url', link.href));
+  if (open) {
+    const navigate = make('button', 'phone-mail-open-web', 'Webで開く');
+    navigate.type = 'button';
+    navigate.addEventListener('click', () => open(link.href));
+    target.append(navigate);
+  }
   target.hidden = true;
   button.setAttribute('aria-expanded', 'false');
   button.addEventListener('click', () => {
@@ -63,7 +69,7 @@ function renderLink(link: MailLink): HTMLElement {
   return item;
 }
 
-export function renderMailDetail(mail: MailView): HTMLElement {
+export function renderMailDetail(mail: MailView, open?: (href: string) => void): HTMLElement {
   const view = make('article', 'phone-mail-detail'); view.dataset.mailDetail = mail.id;
   const header = make('header', 'phone-mail-detail-header');
   header.append(make('h1', 'phone-mail-detail-subject', subjectText(mail)));
@@ -79,7 +85,7 @@ export function renderMailDetail(mail: MailView): HTMLElement {
   header.append(sender);
   const body = make('div', 'phone-mail-body');
   for (const paragraph of mail.body.split('\n')) body.append(make('p', '', paragraph));
-  for (const link of mail.links) body.append(renderLink(link));
+  for (const link of mail.links) body.append(renderLink(link, open));
   view.append(header, body);
   return view;
 }

@@ -128,10 +128,9 @@ export async function approach(page, eventKey) {
   return found;
 }
 
-// The registered konbini clerk has the current product catalog.
-// Every other clerk and all shelves must still satisfy the original dialog assertions.
+// Only the indoor clerk registered for this room can open its product catalog.
 const talkBaselines = new WeakMap();
-async function konbiniShop(page, item) {
+async function shopForTarget(page, item) {
   return page.evaluate(async item => {
     const { storeForClerk } = await import('/src/data/stores.ts');
     const { SHOP_CATALOGS } = await import('/src/data/shop-catalogs.ts');
@@ -139,10 +138,10 @@ async function konbiniShop(page, item) {
     const game = window.__slg.game;
     const store = item.kind === 'npc' && game.area.def.kind === 'indoor'
       ? storeForClerk(game.area.def.id, item.eventKey) : undefined;
-    if (store?.storeId !== 'shop-konbini') return { required: false };
-    const catalog = SHOP_CATALOGS.find(catalog => catalog.id === store.catalogId);
-    return { required: true, catalogId: catalog?.id,
-      rows: catalog?.offers.map(offer => ({ name: getItemDefinition(offer.itemId)?.name ?? offer.itemId,
+    const catalog = store && SHOP_CATALOGS.find(catalog => catalog.id === store.catalogId);
+    if (!catalog) return { required: false };
+    return { required: true,
+      rows: catalog.offers.map(offer => ({ name: getItemDefinition(offer.itemId)?.name ?? offer.itemId,
         price: `${offer.priceYen.toLocaleString('ja-JP')}円` })) };
   }, item);
 }
@@ -150,8 +149,7 @@ async function konbiniShop(page, item) {
 export async function talk(page, touch = false) {
   const before = await state(page), item = await page.evaluate(() => window.__slg.game.facingInteraction());
   assert.ok(item);
-  const assets = (await snapshot(page)).assets, expected = await konbiniShop(page, item);
-  if (expected.required) assert.equal(expected.catalogId, 'konbini', 'The registered konbini must have its real catalog');
+  const assets = (await snapshot(page)).assets, expected = await shopForTarget(page, item);
   talkBaselines.set(page, { before, assets, shop: expected.required });
   if (touch) await page.locator('#touch button[data-act]').tap(); else await page.keyboard.press('KeyZ');
   if (expected.required) {

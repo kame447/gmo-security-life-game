@@ -41,14 +41,18 @@
       }
       /* セーブを追加して 6 つになっても、ボタンやミニマップを重ねず 1 段に保つ。 */
       @media (max-width: 420px) {
-        #menu:has(#btn-save) { gap: 2px; }
-        #menu:has(#btn-save) button { padding: 5px 3px; font-size: 10px; }
+        /* Seven actions share spare space after each full label has its required width. */
+        #menu:has(#btn-save) { width: calc(100% - 20px); gap: 2px; flex-wrap: nowrap; }
+        #menu:has(#btn-save) button { flex: 1 0 auto; min-width: min-content; padding: 5px 3px; font-size: 10px;
+                                    white-space: nowrap; }
       }
       @media (max-width: 354px) {
         #menu:has(#btn-save) { gap: 1px; }
         #menu:has(#btn-save) button { padding: 5px 1px; font-size: 9.8px; }
       }
       @media (max-width: 339px) {
+        /* Leave room for full labels with wider font spacing at 320px. */
+        #menu:has(#btn-save) { width: calc(100% - 16px); max-width: calc(100% - 16px); margin-inline: 8px; }
         #menu:has(#btn-save) button { padding-left: 0; padding-right: 0; font-size: 9.5px; }
       }
       #hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 4px 12px; font-size: 13px;
@@ -68,7 +72,10 @@
       #touch [data-dir="left"] { left: 14px; bottom: 80px; }
       #touch [data-dir="right"] { left: 126px; bottom: 80px; }
       #touch [data-act] { right: 22px; bottom: 70px; width: 68px; height: 68px; }
-      #touch [data-bike] { right: 28px; bottom: 152px; font-size: 11px; }
+      #touch [data-bike] { right: 28px; bottom: 146px; font-size: 11px; }
+      #touch [data-accelerate] { right: 96px; bottom: 146px; font-size: 15px; line-height: 1.2; }
+      #touch [data-accelerate] small { font-size: 10px; }
+      #touch [data-accelerate][aria-pressed="true"] { background: #94601e; border-color: #ffe08a; color: #fff5ce; }
       #opening { position: fixed; inset: 0; z-index: 20; overflow: hidden; background: #0d0a0e;
                  touch-action: manipulation; --px: 2; }
       #opening-view { position: absolute; image-rendering: pixelated; image-rendering: crisp-edges; }
@@ -119,6 +126,7 @@
         <button type="button" data-dir="right">▶</button>
         <button type="button" data-act="1">A</button>
         <button type="button" data-bike="1">じてん<br>しゃ</button>
+        <button type="button" data-accelerate="1" aria-pressed="false" hidden>加速<br><small>長押し</small></button>
       </div>
       <section id="avatar-panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="avatar-title" tabindex="-1" hidden>
         <h1 id="avatar-title">みためを えらぼう</h1>

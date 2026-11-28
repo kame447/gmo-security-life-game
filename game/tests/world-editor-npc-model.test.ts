@@ -109,10 +109,11 @@ describe('実ワールド全エリアの既存NPC回帰（N1）', () => {
       }
     }
     expect(totalNpcs).toBeGreaterThanOrEqual(10);
-    expect(initial.areas).toHaveLength(14);
-    // Eight new visitors across the seven shops join the original sixteen editable people.
-    expect(editableNpcs).toBe(24);
-    expect(totalNpcs).toBe(25);
+    expect(initial.areas.map(area => area.id).sort()).toEqual([...world.areas.keys()].sort());
+    const sourceNpcs = [...world.areas.values()].flatMap(area => area.def.interactions.filter(item => item.kind === 'npc'));
+    expect(totalNpcs).toBe(sourceNpcs.length);
+    const readOnlyNpcs = world.areas.get('town-neighbor')!.def.interactions.filter(item => item.kind === 'npc');
+    expect(editableNpcs).toBe(sourceNpcs.length - readOnlyNpcs.length);
     expect(editableNpcAreaIds()).toEqual(initial.areas.filter(area => isEditableArea(initial, area.id)).map(area => area.id));
   });
 

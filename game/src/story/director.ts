@@ -7,11 +7,12 @@
  * - マップの通知（MapEventSink）は人生イベント・買い物より先に受け取り、序章の相手とベッドだけを横取りする。
  * - 会話・選択肢・画面が開いている間は、進行も時間も止める（tick の exploring が false）。
  * - 個別の行き先・ステージ・イベントの中身は config.ts / events.ts のデータに置く。
- * - 最後に、選んだ選択肢と所持金から評価（Issue #62、score.ts）を計算して振り返る。結果画面はまだないため会話欄に出す。
+ * - 最後に、選んだ選択肢と所持金から評価（Issue #62、score.ts）を計算して振り返る。専用画面を使える場合はそこで振り返る。
  */
 import type { MapEvent, MapEventSink, PortalDef, SpawnPoint } from '../core/types';
 import type { DialogState } from '../events/dialog';
 import { shopCatalog } from '../data/shop-catalogs';
+import { BICYCLE_WEB_OFFERS } from '../data/bicycle-web';
 import type { LifeEventDirector, LifeEventOutcome } from '../events/director';
 import {
   STORY_ADVANCE_EVENT, STORY_ADVANCE_GO, STORY_BED_KEY, STORY_BEDROOM, STORY_BIKE, STORY_ERRAND_ALLOWANCE_YEN, STORY_ERRANDS,
@@ -21,9 +22,13 @@ import {
 import { STORY_EVENTS } from './events';
 import { evaluateLife, resultLines, type LifeEvaluation, type StoryChoiceDef } from './score';
 import { bikeOwned, newStoryState, phoneGiven, type StorySave } from './state';
+import { availableOptionalEvent, isOptionalEvent } from './optional';
 
 /** ストーリーが操作するゲーム側の窓口。 */
 export interface StoryHost {
+  /** 実際のスマホWebから自転車を注文する接続。旧ホストは従来の選択画面を使える。 */
+  useWebShopping?: boolean;
+  deliverBicycleCandidates?(): void;
   say(speaker: string, lines: readonly string[]): boolean;
   warp(spawn: Readonly<SpawnPoint>): boolean;
   areaId(): string;
@@ -38,6 +43,8 @@ export interface StoryHost {
   notice(text: string): void;
   /** スマホの受信トレイに知らせを届ける。同じ id は二度届かない（受信トレイ側で弾く）。 */
   deliverMail(id: string, mail: StoryNotice): void;
+  /** 最後の節目の会話を閉じた後、専用の振り返り画面を開く。 */
+  showResult?(evaluation: LifeEvaluation): void;
 }
 
 /** ミニマップの目的地の印（施設 id）。 */
@@ -88,6 +95,7 @@ export class StoryDirector implements MapEventSink {
   attach(host: StoryHost): void {
     this.host = host;
     host.setPhoneOwned(phoneGiven(this.state));
+    if (this.canOrderBicycle) host.deliverBicycleCandidates?.();
   }
 
   get phase(): StorySave['phase'] { return this.state.phase; }
@@ -95,6 +103,7 @@ export class StoryDirector implements MapEventSink {
   /** 新しく始めたとき・「さいしょから」の位置。 */
   get startPoint(): Readonly<SpawnPoint> { return STORY_BEDROOM; }
   get canRide(): boolean { return bikeOwned(this.state); }
+  get canOrderBicycle(): boolean { return this.state.phase === 'return-home' && this.state.bikeOrderReady === true && !this.state.bikeChoice; }
   get errandsDone(): readonly string[] { return this.state.errandsDone; }
   /** 最初の説明中だけ、すでに台詞に出た用事を返す。通常の再開時は全件を案内する。 */
   get errandsRevealed(): readonly string[] | undefined {
@@ -160,7 +169,8 @@ export class StoryDirector implements MapEventSink {
         const left = STORY_ERRANDS.filter(e => !s.errandsDone.includes(e.id));
         return { title: `お使い ${s.errandsDone.length}/${STORY_ERRANDS.length}`, detail: `次：${left.map(e => e.place).join('・')}` };
       }
-      case 'return-home': return { title: 'お使い完了', detail: '家に帰ってお母さんに話しかけよう' };
+      case 'return-home': return { title: 'お使い完了', detail: s.bikeOrderReady
+        ? 'お母さんのメッセージに届いた3つの候補を見てみよう' : '家に帰ってお母さんに話しかけよう' };
       case 'stage': {
         const step = this.currentStep;
         const detail = step?.trigger.kind === 'place' ? `次の出来事：${step.trigger.place.name}へ行こう` : '自由に過ごそう（そのうち連絡が来る）';
@@ -183,6 +193,13 @@ export class StoryDirector implements MapEventSink {
       return;
     }
     if (e.eventKey === STORY_MOTHER_KEY) return this.talkToMother(e.areaId);
+    if ((s.phase === 'stage' || s.phase === 'milestone') && !this.inProgress) {
+      const optional = availableOptionalEvent(this.stage.id, e.areaId, e.eventKey, s.choices);
+      if (optional) {
+        const begun = this.lifeEvents.begin(optional.event.id, { areaId: e.areaId, interactionId: e.interactionId });
+        if (begun) { this.inProgress = optional.event.id; return begun; }
+      }
+    }
     if (s.phase !== 'errands') return;
     const errand = STORY_ERRANDS.find(item => item.eventKey === e.eventKey && !s.errandsDone.includes(item.id));
     if (!errand) return;
@@ -237,9 +254,32 @@ export class StoryDirector implements MapEventSink {
       return { speaker: STORY_MOTHER_NAME, lines: [`あとは ${left.join('、')} だよ。いってらっしゃい！`] };
     }
     if (s.phase === 'return-home' && !s.bikeChoice) {
+      if (this.host?.useWebShopping) {
+        s.bikeOrderReady = true;
+        this.host.deliverBicycleCandidates?.();
+        return { speaker: STORY_MOTHER_NAME, lines: [
+          'お使いありがとう！ 通学用の自転車も、スマホで選んでみよう。',
+          `購入予算は${STORY_BIKE.budgetYen.toLocaleString('ja-JP')}円。スマホのメッセージに候補のURLを3つ送っておくね。`,
+          'メッセージのリンクからお店を見て、通学に使いやすそうなものを選んでみて。',
+        ] };
+      }
       const begun = this.lifeEvents.begin(STORY_BIKE.eventId, { areaId });
       if (begun) return { speaker: begun.speaker, lines: begun.lines };
     }
+  }
+
+  /** 注文確定から既存の出来事・評価・入手処理へつなぐ。未解放・予算超過・二重注文は受け付けない。 */
+  purchaseBicycle(choiceId: string): boolean {
+    const offer = BICYCLE_WEB_OFFERS.find(item => item.choiceId === choiceId);
+    if (!this.host || !this.canOrderBicycle || !offer || offer.priceYen > STORY_BIKE.budgetYen || this.lifeEvents.pending) return false;
+    const change = choiceId === STORY_BIKE.fakeChoiceId ? 0 : STORY_BIKE.budgetYen - offer.priceYen;
+    if (!Number.isSafeInteger(this.host.money() + change)) return false;
+    if (!this.lifeEvents.begin(STORY_BIKE.eventId, { areaId: this.host.areaId() })) return false;
+    const outcome = this.lifeEvents.choose(choiceId);
+    if (!outcome) { this.lifeEvents.cancel(); return false; }
+    this.onLifeOutcome(outcome);
+    this.queue.unshift({ speaker: STORY_SELF_NAME, lines: outcome.lines });
+    return true;
   }
 
   /** 人生イベントの選択が確定したとき（LifeEventPanel の onResolved から呼ぶ）。 */
@@ -254,9 +294,9 @@ export class StoryDirector implements MapEventSink {
       this.host?.changeMoney(fake ? 0 : STORY_BIKE.budgetYen - STORY_BIKE.fairPriceYen);
       if (fake) this.queue.push({ speaker: STORY_MOTHER_NAME, lines: [
         'えっ、自転車が届かない？ そのサイト、見せて。',
-        '……会社の住所も電話番号も載っていないね。値段も不自然に安い。',
-        'これは偽の通販サイトかもしれない。払ったお金は取り戻せないことが多いの。',
-        '買う前に、会社の情報・連絡先・口コミを確かめようね。困ったらすぐ大人に相談して。',
+        '会社案内を読むと、所在地は掲載調整中、電話窓口もなくて、振込先は個人名義だったんだね。',
+        '安いことだけで決まるわけじゃないけど、連絡先や支払い先を確かめられないまま振り込むのは心配だね。',
+        '偽の通販サイトによる被害かもしれない。振込の記録を残して相談しよう。次は所在地や連絡先、支払い・返品の条件も一緒に比べよう。',
         '自転車は、残りのお金で一緒に町の自転車屋さんで買おう。',
       ] });
       this.queue.push(this.bikeArrival());
@@ -271,6 +311,7 @@ export class StoryDirector implements MapEventSink {
     s.choices[id] = outcome.choice.id;
     const money = (outcome.choice as StoryChoiceDef).score?.moneyYen;
     if (money) this.addMoney(money);
+    if (isOptionalEvent(id)) { this.inProgress = null; return; }
     this.finishStep(id);
   }
 
@@ -310,6 +351,13 @@ export class StoryDirector implements MapEventSink {
     const next = s.stageIndex + 1;
     if (next < STORY_STAGES.length) {
       this.queue.push({ speaker: STORY_SELF_NAME, lines: this.stage.milestone, after: () => this.startStage(next) });
+      return;
+    }
+    if (this.host?.showResult) {
+      this.queue.push({ speaker: STORY_SELF_NAME, lines: this.stage.milestone, after: () => {
+        s.phase = 'finished';
+        this.host?.showResult?.(this.evaluate());
+      } });
       return;
     }
     this.queue.push({ speaker: STORY_SELF_NAME, lines: this.stage.milestone });

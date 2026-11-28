@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyChangeSet, buildEditorWorld } from '../src/editor/index.ts';
+import { applyChangeSet, buildEditorWorld, validateDocument } from '../src/editor/index.ts';
 import type { EditOperation } from '../src/editor/types.ts';
 import { sourceFingerprint, type DryRunRequest, type DryRunScope } from '../src/editor-persistence/common.ts';
 import { dryRunDocument } from '../src/editor-persistence/dry-run.ts';
@@ -121,6 +121,10 @@ describe('evaluation-only persistence gates', () => {
       schemaVersion: 1, sourceFingerprint: await sourceFingerprint(world), operations: [],
     }, { areaIds: ['town-main'], targets: [] }, 'map');
     expect(result.status).toBe('rejected'); expect(result.checks.backend).toBe('failed');
-    expect(result.issues).toHaveLength(241); expect(result.candidate).toBeUndefined(); expect(world).toEqual(before);
+    const sourceIssues = validateDocument(document);
+    expect(sourceIssues.length).toBeGreaterThan(0);
+    expect(result.issues).toEqual(sourceIssues.map(issue => ({ ...issue, path: `base.${issue.path}`, stage: 'backend' })));
+    expect(result.candidate).toBeUndefined();
+    expect(world).toEqual(before);
   });
 });

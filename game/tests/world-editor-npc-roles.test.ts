@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { feetAtTile } from '../src/core/coords';
-import { SHOP_CATALOGS, shopCatalog, type ShopCatalog } from '../src/data/shop-catalogs';
+import { SHOP_CATALOGS, type ShopCatalog } from '../src/data/shop-catalogs';
 import { STORE_CONTACTS, storeForClerk } from '../src/data/stores';
 import { CHILDHOOD_SAMPLE_EVENTS } from '../src/events/samples/childhood';
 import { Game } from '../src/session/game';
@@ -64,26 +64,25 @@ describe('N2 店員と人生イベントの役割導出とN3.3店員しるしの
     expect(edited.lines).toEqual(['ようこそ、編集した挨拶です！ ゆっくり見ていってね。', '2行目のメモです。']);
   });
 
-  it('カタログなし6店の店員は店員役割と通常会話枠への表示を示し、編集した台詞がそのままゲームに出る', () => {
+  it('カタログありの店員は買い物を開き、カタログなしのテスト条件では通常の会話を使う', () => {
     const model = new WorldEditorModel(buildWorld());
-    const cataloglessStores = STORE_CONTACTS.filter(store => !shopCatalog(store.catalogId));
-    expect(cataloglessStores).toHaveLength(6);
-
-    for (const store of cataloglessStores) {
+    for (const store of STORE_CONTACTS) {
       const area = model.document.areas.find(candidate => candidate.id === store.interiorAreaId)!;
       const clerk = areaNpcs(model.document, store.interiorAreaId).find(npc => npc.eventKey === store.clerkEventKey)!;
-      expect(storeForClerk(store.interiorAreaId, clerk.eventKey)).toEqual(store);
-      expect(clerkVisit(area, clerk)).toBeUndefined();
-
-      const refs = npcReferences(clerk, model.document);
+      expect(storeForClerk(area.id, clerk.eventKey)).toEqual(store);
+      expect(clerkVisit(area, clerk)?.catalog.id).toBe(store.catalogId);
+      expect(npcReferences(clerk, model.document)).toMatchObject({ kind: 'shop-clerk', store });
+      const options = { catalogs: [] };
+      expect(clerkVisit(area, clerk, STORE_CONTACTS, options.catalogs)).toBeUndefined();
+      const refs = npcReferences(clerk, model.document, options);
       expect(refs.kind).toBe('clerk-no-catalog');
       expect(refs.store).toEqual(store);
       expect(refs.catalog).toBeUndefined();
       expect(refs.note).toContain('通常の会話枠');
-      expect(npcBadges(clerk, model.document)).toEqual(['もとからいる人', '店員']);
+      expect(npcBadges(clerk, model.document, options)).toEqual(['もとからいる人', '店員']);
     }
 
-    const targetStore = cataloglessStores.find(store => store.storeId === 'shop-bakery')!;
+    const targetStore = STORE_CONTACTS.find(store => store.storeId === 'shop-bakery')!;
     const targetAreaId = targetStore.interiorAreaId;
     const bakeryClerk = areaNpcs(model.document, targetAreaId).find(npc => npc.eventKey === targetStore.clerkEventKey)!;
     model.updateNpc(bakeryClerk.id, { lines: ['パンが焼きたてだよ。', '2行目も出ます。'] }, targetAreaId);
@@ -127,20 +126,13 @@ describe('N2 店員と人生イベントの役割導出とN3.3店員しるしの
     expect(npcReferences(konbiniClerk, model.document, { catalogs: [] }).kind).toBe('clerk-no-catalog');
     expect(clerkVisit(konbiniArea, konbiniClerk, STORE_CONTACTS, [])).toBeUndefined();
 
-    const bakeryArea = model.document.areas.find(candidate => candidate.id === 'shop-bakery-interior')!;
-    const bakeryClerk = areaNpcs(model.document, bakeryArea.id).find(person => person.eventKey === 'shopping.bakery.clerk')!;
-    const expandedCatalogs: readonly ShopCatalog[] = [
-      ...SHOP_CATALOGS,
-      { id: 'bakery', name: 'パンや', offers: [{ itemId: 'bottled-water', priceYen: 120 }] },
-    ];
-    const bakeryWithCatalog = npcReferences(bakeryClerk, model.document, { catalogs: expandedCatalogs });
-    const bakeryVisit = clerkVisit(bakeryArea, bakeryClerk, STORE_CONTACTS, expandedCatalogs);
-    expect(bakeryWithCatalog.kind).toBe('shop-clerk');
-    expect(bakeryWithCatalog.catalog?.id).toBe('bakery');
-    expect(bakeryVisit?.catalog.id).toBe('bakery');
-
-    // 製品カタログは変わらない
-    expect(SHOP_CATALOGS.map(catalog => catalog.id)).toEqual(['konbini']);
+    const fixtureCatalog: ShopCatalog = { id: 'konbini', name: 'テスト店', offers: [{ itemId: 'bottled-water', priceYen: 120 }] };
+    const konbiniWithCatalog = npcReferences(konbiniClerk, model.document, { catalogs: [fixtureCatalog] });
+    const visit = clerkVisit(konbiniArea, konbiniClerk, STORE_CONTACTS, [fixtureCatalog]);
+    expect(konbiniWithCatalog.kind).toBe('shop-clerk');
+    expect(konbiniWithCatalog.catalog).toBe(fixtureCatalog);
+    expect(visit?.catalog).toBe(fixtureCatalog);
+    expect(SHOP_CATALOGS).not.toContain(fixtureCatalog);
   });
 
   it('役割導出のため保存JSONに欄を増やさず、全キー集合が変わらない（N2.6）', () => {

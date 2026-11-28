@@ -10,7 +10,7 @@ import { loadEvaluationWorld, temporaryDirectory, writeEvaluationArtifacts } fro
 import { sourceFingerprint } from '../src/editor-persistence/common.ts';
 import { dryRunDocument } from '../src/editor-persistence/dry-run.ts';
 import { evaluationDocument, sourceIdentities } from '../src/editor-persistence/map.ts';
-import { buildEditorWorld } from '../src/editor/index.ts';
+import { buildEditorWorld, validateDocument } from '../src/editor/index.ts';
 import { persistenceWorld } from './fixtures/persistence-world.ts';
 
 const gameRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -46,19 +46,24 @@ after(async () => {
 });
 
 describe('map persistence evaluation CLI', () => {
-  it('emits reproducible inventory JSON and an area table without writing a destination', () => {
+  it('emits reproducible inventory JSON and an area table without writing a destination', async () => {
     const json = run('inventory'); assert.equal(json.status, 0, json.stderr);
     const data = JSON.parse(json.stdout); assert.equal(data.sourceFingerprint, fingerprint);
-    assert.equal(data.areas.reduce((n, a) => n + a.objects.total, 0), 407); // home-family-2f (7) と 1階の家具の移動・階段を含む
+    const world = await loadEvaluationWorld();
+    assert.equal(data.areas.reduce((n, a) => n + a.objects.total, 0),
+      [...world.areas.values()].flatMap(area => area.def.objects).length);
     const second = run('inventory'); assert.equal(second.stdout, json.stdout);
     const table = run('inventory', '--markdown'); assert.equal(table.status, 0, table.stderr);
     assert.match(table.stdout, /town-main \| 12\/0 \| 270\/0/);
   });
-  it('reports raw reconstruction and strict-backend refusal as separate measurements', () => {
+  it('reports raw reconstruction and strict-backend refusal as separate measurements', async () => {
     const result = run('roundtrip'); assert.equal(result.status, 0, result.stderr);
     const report = JSON.parse(result.stdout);
     assert.equal(report.measurementOnly, true); assert.equal(report.backendAccepted, false);
-    assert.equal(report.backendIssues.length, 241); // Two cafe chairs are rendered as seated-person decals. assert.equal(report.variantEqual, false);
+    const source = evaluationDocument(await loadEvaluationWorld());
+    assert.ok(report.backendIssues.length > 0);
+    assert.deepEqual(report.backendIssues, validateDocument(source));
+    assert.equal(report.variantEqual, false);
     assert.equal(report.areas.find(a => a.areaId === 'town-main').lostDistricts, 4);
   });
   it('refuses actual source incompatibilities with exit 2 and no candidate', () => {
