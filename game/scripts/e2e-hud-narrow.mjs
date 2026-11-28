@@ -294,6 +294,7 @@ try {
 
           const label = `${profile.name} touch=${touchOn ? 'on' : 'off'} ${point.name}`;
           const scenarioOk = allButtonsVisible &&
+            menuRows === 1 &&
             minimapMenuOverlapArea === 0 &&
             buttonSelfOverlapArea === 0 &&
             otherOverlapArea === 0 &&
@@ -388,17 +389,18 @@ try {
                     Math.max(0, Math.min(b.right, map.right) - Math.max(b.x, map.x)) *
                     Math.max(0, Math.min(b.bottom, map.bottom) - Math.max(b.y, map.y)), 0),
                   inside: rects.every(b => b.x >= 0 && b.right <= window.innerWidth),
+                  textFits: buttons.every(button => button.scrollWidth <= button.clientWidth + 1),
                   hit: buttons.every((button, i) => {
                     const r = rects[i];
                     return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === button;
                   }),
                 };
               });
-              if (m.count !== (withSave ? 7 : 6) || m.rows !== 1 || m.overlap > 0 || !m.inside || !m.hit) {
-                bad.push(`${width}:rows=${m.rows},overlap=${m.overlap.toFixed(0)},inside=${m.inside},hit=${m.hit}`);
+              if (m.count !== (withSave ? 7 : 6) || m.rows !== 1 || m.overlap > 0 || !m.inside || !m.textFits || !m.hit) {
+                bad.push(`${width}:rows=${m.rows},overlap=${m.overlap.toFixed(0)},inside=${m.inside},textFits=${m.textFits},hit=${m.hit}`);
               }
             }
-            recordCheck(`width 320-420 d${dpr} touch=${touchOn ? 'on' : 'off'} menu=${withSave ? 7 : 6}${wide ? ' wide-text' : ''}: one row, clear of minimap, all buttons hittable`,
+            recordCheck(`width 320-420 d${dpr} touch=${touchOn ? 'on' : 'off'} menu=${withSave ? 7 : 6}${wide ? ' wide-text' : ''}: one row, full labels, clear of minimap, all buttons hittable`,
               bad.length === 0, bad.length ? `${bad.length} widths: ${bad.slice(0, 6).join(' ')}` : '101 widths');
             if (wideStyle) await wideStyle.evaluate(node => node.remove());
           }

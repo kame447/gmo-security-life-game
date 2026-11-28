@@ -41,16 +41,18 @@
       }
       /* セーブを追加して 6 つになっても、ボタンやミニマップを重ねず 1 段に保つ。 */
       @media (max-width: 420px) {
-        /* The optional result button can make seven actions; keep them on one row even with long labels. */
+        /* Seven actions share spare space after each full label has its required width. */
         #menu:has(#btn-save) { width: calc(100% - 20px); gap: 2px; flex-wrap: nowrap; }
-        #menu:has(#btn-save) button { flex: 1 1 0; min-width: 0; padding: 5px 3px; font-size: 10px;
-                                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #menu:has(#btn-save) button { flex: 1 0 auto; min-width: min-content; padding: 5px 3px; font-size: 10px;
+                                    white-space: nowrap; }
       }
       @media (max-width: 354px) {
         #menu:has(#btn-save) { gap: 1px; }
         #menu:has(#btn-save) button { padding: 5px 1px; font-size: 9.8px; }
       }
       @media (max-width: 339px) {
+        /* Leave room for full labels with wider font spacing at 320px. */
+        #menu:has(#btn-save) { width: calc(100% - 16px); max-width: calc(100% - 16px); margin-inline: 8px; }
         #menu:has(#btn-save) button { padding-left: 0; padding-right: 0; font-size: 9.5px; }
       }
       #hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 4px 12px; font-size: 13px;

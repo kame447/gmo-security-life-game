@@ -139,12 +139,13 @@ try {
     const paid = await assets(page), afterPurchase = await readStored();
     assert.equal(paid.moneyYen, 2360); assert.deepEqual(afterPurchase.assets, paid); checkFields(afterPurchase);
     await closeShop(page);
-    await page.evaluate(() => { window.__slg.game.assets.changeMoney(1); localStorage.removeItem('slg-map-save-v1'); });
+    // Keep the observed record: deleting it simulates an external edit, which correctly blocks saving.
+    await page.evaluate(() => { window.__slg.game.assets.changeMoney(1); });
     await page.waitForFunction(() => {
       const raw = localStorage.getItem('slg-map-save-v1'); return raw && JSON.parse(raw).assets.moneyYen === 2361;
     });
     const afterTimer = await readStored(); checkFields(afterTimer); assert.equal(afterTimer.assets.moneyYen, 2361);
-    await page.evaluate(() => { window.__slg.game.assets.changeMoney(1); localStorage.removeItem('slg-map-save-v1'); });
+    await page.evaluate(() => { window.__slg.game.assets.changeMoney(1); });
     await page.goto('about:blank'); await page.goto(shopUrl()); await ready(page);
     const afterPagehide = await readStored(); checkFields(afterPagehide); assert.equal(afterPagehide.assets.moneyYen, 2362);
     assert.deepEqual(await assets(page), afterPagehide.assets); clean(errors, network);
@@ -205,6 +206,8 @@ try {
     const network = await restrictNetwork(timedContext), page = await timedContext.newPage(), errors = observe(page);
     await page.clock.install();
     await page.goto(shopUrl()); await ready(page); await seed(page);
+    // Freeze real elapsed time before opening the shop; only explicit advances exercise its timer.
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
     const bar = () => page.evaluate(() => {
       const text = selector => { const element = document.querySelector(selector); return element.getClientRects().length > 0 ? element.textContent : ''; };
       return { phase: document.querySelector('#shop-panel').dataset.phase, speaker: text('#shop-conversation .shop-speaker'), line: text('#shop-line'),
@@ -273,7 +276,7 @@ try {
       await page.waitForFunction(() => window.__slg.game.facingInteraction()?.id === 'konbini-clerk', undefined, { polling: 'raf', timeout: 5000 });
     } finally { await page.keyboard.up('ArrowUp'); }
     await afterPointer(page);
-    await page.waitForFunction(() => document.querySelector('#hint').textContent.includes('てんいんさん'));
+    await page.waitForFunction(() => { const hint = document.querySelector("#hint"); const target = window.__slg.game.facingInteraction(); return target?.id === "konbini-clerk" && !hint.hidden && hint.textContent === `${target.name}　Z / Space / Enter：しらべる・はなす`; });
     const counterPos = await position(page);
     assert.equal(counterPos.facing, 'up');
     await openClerk(page);
