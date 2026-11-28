@@ -63,15 +63,16 @@ async function runPreflight() {
     assert.deepEqual(storeProblems, []);
 
     const model = new WorldEditorModel(world);
-    assert.equal(model.initial.areas.length, 14);
+    assert.deepEqual(model.initial.areas.map(area => area.id).sort(), [...world.areas.keys()].sort());
     const editableAreas = model.initial.areas.filter(a => isEditableArea(model.initial, a.id));
-    assert.equal(editableAreas.length, 13);
     const readonlyAreas = model.initial.areas.filter(a => !isEditableArea(model.initial, a.id));
     assert.deepEqual(readonlyAreas.map(a => [a.id, areaNpcs(model.initial, a.id).length]), [['town-neighbor', 1]]);
     const totalNpcs = editableAreas.reduce((sum, a) => sum + areaNpcs(model.initial, a.id).length, 0);
-    assert.equal(totalNpcs, 16);
     const allNpcs = model.initial.areas.reduce((sum, a) => sum + areaNpcs(model.initial, a.id).length, 0);
-    assert.equal(allNpcs, 17);
+    const countSourceNpcs = areas => areas.reduce((sum, area) =>
+      sum + area.def.interactions.filter(item => item.kind === 'npc').length, 0);
+    assert.equal(totalNpcs, countSourceNpcs([...world.areas.values()].filter(area => area.def.id !== 'town-neighbor')));
+    assert.equal(allNpcs, countSourceNpcs([...world.areas.values()]));
 
     const contacts = [];
     for (const contact of STORE_CONTACTS) {
