@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { APPEARANCE_OPTIONS } from '../src/core/appearance';
-import { ADULT_BODIES, ADULT_HEADS, CAT, NPC_H, NPC_IDS, npcParts } from '../src/render/npc-sprite';
+import { ADULT_BODIES, ADULT_HEADS, CAT, NPC_H, NPC_W, NPC_IDS, SEATED_NPC_SPRITES, drawNpc, npcParts } from '../src/render/npc-sprite';
+import type { C2D } from '../src/render/draw';
 import { palette, type Grid } from '../src/render/player-sprite';
 import { buildWorld } from '../src/world';
 
@@ -11,6 +12,25 @@ function tokens(grid: Grid): Set<string> {
 }
 
 describe('NPC sprite grids', () => {
+  it('keeps seated visitors still, lower than standing figures and inside the same sprite bounds', () => {
+    const draw = (id: string, frame: 0 | 1 | 2) => {
+      const pixels: { x: number; y: number; color: string }[] = [];
+      const context = { fillStyle: '', translate() {}, scale() {},
+        fillRect(x: number, y: number) { pixels.push({ x, y, color: this.fillStyle }); } };
+      drawNpc(context as unknown as C2D, id, 'right', frame);
+      return pixels;
+    };
+    for (const [id, seated] of Object.entries(SEATED_NPC_SPRITES)) {
+      const pixels = draw(id, 0);
+      expect(pixels.length).toBeGreaterThan(100);
+      expect(draw(id, 1)).toEqual(pixels);
+      expect(draw(id, 2)).toEqual(pixels);
+      expect(Math.min(...pixels.map(pixel => pixel.y))).toBeGreaterThan(Math.min(...draw(seated.base, 0).map(pixel => pixel.y)));
+      expect(pixels.every(pixel => pixel.x >= 0 && pixel.x < NPC_W && pixel.y >= 0 && pixel.y < NPC_H)).toBe(true);
+      expect(pixels.every(pixel => /^#[0-9a-f]{6}$/.test(pixel.color))).toBe(true);
+    }
+  });
+
   it('has adult heads 12 wide and 12 tall for every view', () => {
     for (const [id, set] of Object.entries(ADULT_HEADS)) for (const view of views) {
       expect(set[view], `${id}/${view}`).toHaveLength(12);
