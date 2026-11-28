@@ -28,7 +28,10 @@ class FakeElement {
     const listeners = this.listeners.get(name) ?? [];
     listeners.push(listener); this.listeners.set(name, listeners);
   }
-  fire(name: string, event: object = {}): void { for (const listener of this.listeners.get(name) ?? []) listener(event); }
+  fire(name: string, event: object = {}): void {
+    const input = /pointer/.test(name) ? { type: name, ...event } : event;
+    for (const listener of this.listeners.get(name) ?? []) listener(input);
+  }
   setAttribute(): void {}
   setPointerCapture(): void {}
   append(child: FakeElement): void { child.parentElement = this; this.children.push(child); }
@@ -40,6 +43,8 @@ function setup(minimap?: Minimap, travel?: () => ModalPanel | undefined) {
   const stage = new FakeElement(), menu = new FakeElement(), canvas = new FakeElement(), touch = new FakeElement();
   const toggle = new FakeElement(true), reset = new FakeElement(true);
   const direction = new FakeElement(true); direction.dataset.dir = 'up'; touch.children.push(direction);
+  const right = new FakeElement(true); right.dataset.dir = 'right'; touch.children.push(right);
+  const bicycle = new FakeElement(true); bicycle.dataset.bike = '1'; touch.children.push(bicycle);
   const elements: Record<string, FakeElement> = { '#stage': stage, '#menu': menu, '#touch': touch, '#btn-touch': toggle, '#btn-reset': reset };
   const win = new FakeElement();
   const doc = new FakeElement() as FakeElement & { querySelector(selector: string): FakeElement | null };
@@ -48,12 +53,17 @@ function setup(minimap?: Minimap, travel?: () => ModalPanel | undefined) {
   vi.stubGlobal('document', doc);
   vi.stubGlobal('HTMLElement', FakeElement);
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
-  const game = { dialog: null as object | null, action: vi.fn() };
+  const game = {
+    dialog: null as object | null,
+    riding: false,
+    action: vi.fn(),
+    toggleBicycle() { this.riding = !this.riding; },
+  };
   const controls = new Controls();
   const ui = new UiController(game as unknown as Game, controls, canvas as unknown as HTMLCanvasElement, minimap, travel);
   const resetHandler = vi.fn();
   ui.bind({ onReset: resetHandler });
-  return { stage, menu, canvas, touch, toggle, reset, direction, win, game, controls, ui, resetHandler };
+  return { stage, menu, canvas, touch, toggle, reset, direction, right, bicycle, win, game, controls, ui, resetHandler };
 }
 
 function fakePanel() {
@@ -64,7 +74,7 @@ function fakePanel() {
 function key(code: string, target: FakeElement, repeat = false) {
   return { code, target, repeat, preventDefault: vi.fn() };
 }
-afterEach(() => { vi.unstubAllGlobals(); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('UiController modal integration', () => {
   it('keeps travel exclusive with phone, appearance, movement, reset and touch', () => {
@@ -223,5 +233,111 @@ describe('UiController modal integration', () => {
     expect(() => ui.registerPanel(registration)).toThrow('direct child of #menu');
     menu.append(button);
     expect(() => ui.registerPanel(registration)).not.toThrow();
+  });
+});
+
+function pointer(pointerId = 1) { return { pointerId, preventDefault: vi.fn() }; }
+
+function touchSetup(minimap?: Minimap, travel?: () => ModalPanel) {
+  const clock = vi.spyOn(performance, 'now').mockReturnValue(0);
+  const state = setup(minimap, travel);
+  state.toggle.fire('click');
+  return { ...state, at: (ms: number) => clock.mockReturnValue(ms) };
+}
+
+describe('bicycle touch acceleration', () => {
+  it('starts at 300 ms and restarts after all fingers leave', () => {
+    const { ui, direction, bicycle, at } = touchSetup();
+    bicycle.fire('pointerdown', pointer(10));
+    direction.fire('pointerdown', pointer());
+    at(299);
+    expect(ui.movementInput()).toEqual({ dir: 'up', run: false });
+    at(300);
+    expect(ui.movementInput()).toEqual({ dir: 'up', run: true });
+    direction.fire('pointerup', pointer());
+    expect(ui.movementInput()).toEqual({ dir: null, run: false });
+    direction.fire('pointerdown', pointer());
+    at(599);
+    expect(ui.movementInput()).toEqual({ dir: 'up', run: false });
+    at(600);
+    expect(ui.movementInput()).toEqual({ dir: 'up', run: true });
+  });
+
+  it('starts the hold over when a second finger changes direction', () => {
+    const { ui, direction, right, bicycle, at } = touchSetup();
+    bicycle.fire('pointerdown', pointer(10));
+    direction.fire('pointerdown', pointer(1));
+    at(300);
+    expect(ui.movementInput()).toEqual({ dir: 'up', run: true });
+    right.fire('pointerdown', pointer(2));
+    expect(ui.movementInput()).toEqual({ dir: 'right', run: false });
+    direction.fire('pointerup', pointer(1));
+    at(600);
+    expect(ui.movementInput()).toEqual({ dir: 'right', run: true });
+    direction.fire('pointerdown', pointer(3));
+    direction.fire('pointerup', pointer(3));
+    at(899);
+    expect(ui.movementInput()).toEqual({ dir: 'right', run: false });
+    at(900);
+    expect(ui.movementInput()).toEqual({ dir: 'right', run: true });
+  });
+
+  it.each(['pointercancel', 'lostpointercapture'])('ends the hold on %s while preserving Shift', event => {
+    const { ui, direction, bicycle, win, canvas, at } = touchSetup();
+    bicycle.fire('pointerdown', pointer(10));
+    direction.fire('pointerdown', pointer());
+    at(300);
+    expect(ui.movementInput()).toEqual({ dir: 'up', run: true });
+    win.fire('keydown', key('ShiftLeft', canvas));
+    direction.fire(event, pointer());
+    expect(ui.movementInput()).toEqual({ dir: null, run: true });
+    win.fire('keyup', key('ShiftLeft', canvas));
+    expect(ui.movementInput()).toEqual({ dir: null, run: false });
+  });
+
+  it('requires a new hold after conversation, menu, map or travel', () => {
+    const minimap = { isOpen: false, handleKey: vi.fn() };
+    const travel = fakePanel(), avatar = fakePanel();
+    const { ui, game, direction, bicycle, at } = touchSetup(minimap as unknown as Minimap, () => travel.panel);
+    ui.registerPanel({ id: 'avatar', panel: avatar.panel, open: avatar.open });
+    bicycle.fire('pointerdown', pointer(10));
+    let now = 0;
+    for (const [open, close] of [
+      [() => { game.dialog = {}; }, () => { game.dialog = null; }],
+      [() => { ui.openPanel('avatar'); }, avatar.close],
+      [() => { minimap.isOpen = true; }, () => { minimap.isOpen = false; }],
+      [travel.open, travel.close],
+    ]) {
+      direction.fire('pointerdown', pointer());
+      at(now += 300);
+      expect(ui.movementInput().run).toBe(true);
+      open(); ui.update();
+      expect(ui.movementInput().run).toBe(false);
+      close(); ui.update();
+      at(now += 600);
+      expect(ui.movementInput().run).toBe(false);
+      direction.fire('pointerup', pointer());
+    }
+  });
+
+  it('keeps walking at normal speed and clears on either dismount control', () => {
+    const { ui, direction, bicycle, win, canvas, at } = touchSetup();
+    direction.fire('pointerdown', pointer());
+    at(600);
+    expect(ui.movementInput()).toEqual({ dir: 'up', run: false });
+    direction.fire('pointerup', pointer());
+    let now = 600;
+    for (const toggleBicycle of [
+      () => bicycle.fire('pointerdown', pointer(10)),
+      () => win.fire('keydown', key('KeyB', canvas)),
+    ]) {
+      toggleBicycle();
+      direction.fire('pointerdown', pointer());
+      at(now += 300);
+      expect(ui.movementInput()).toEqual({ dir: 'up', run: true });
+      toggleBicycle();
+      expect(ui.movementInput()).toEqual({ dir: 'up', run: false });
+      direction.fire('pointerup', pointer());
+    }
   });
 });

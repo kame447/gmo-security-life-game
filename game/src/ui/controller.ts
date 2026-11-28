@@ -15,6 +15,7 @@ export type UiMode = PanelUiMode | 'map' | 'travel';
 
 const TOUCH_LABELS: Record<Facing, string> = { up: 'うえ', down: 'した', left: 'ひだり', right: 'みぎ' };
 const NO_INPUT: InputState = { dir: null, run: false };
+const BICYCLE_TOUCH_HOLD_MS = 300;
 
 export class UiController implements ModalPanelHost {
   private readonly touch = $<HTMLElement>('#touch');
@@ -23,6 +24,8 @@ export class UiController implements ModalPanelHost {
   private readonly menu = $<HTMLElement>('#menu');
   private readonly panels: ModalPanels;
   private previousPanel?: ModalPanelId;
+  private readonly bicyclePointers = new Map<number, Facing>();
+  private bicycleHold?: { direction: Facing; since: number };
 
   constructor(
     private readonly game: Game,
@@ -31,7 +34,7 @@ export class UiController implements ModalPanelHost {
     private readonly minimap?: Minimap,
     private readonly travel?: () => Pick<TrainTravelPanel, 'isOpen' | 'handleKey'> | undefined,
   ) {
-    this.panels = new ModalPanels(() => !!this.game.dialog, () => this.controls.clear());
+    this.panels = new ModalPanels(() => !!this.game.dialog, () => this.clearInput());
   }
 
   get mode(): UiMode { return this.minimap?.isOpen ? 'map' : this.travel?.()?.isOpen ? 'travel' : this.panels.mode; }
@@ -72,11 +75,18 @@ export class UiController implements ModalPanelHost {
       this.focusMap();
     }
     this.previousPanel = active?.id;
+    if (this.bicyclePointers.size && !this.canHoldBicycleDirection()) this.clearBicycleHold();
   }
 
   /** Movement input for this frame. Held keys survive a dialog; the session itself pauses movement then. */
   movementInput(): InputState {
-    return this.panels.active || this.minimap?.isOpen || this.travel?.()?.isOpen ? NO_INPUT : this.controls.state();
+    const blocked = this.panels.active || this.minimap?.isOpen || this.travel?.()?.isOpen;
+    const input = blocked ? NO_INPUT : this.controls.state();
+    if (!this.bicyclePointers.size) return input;
+    const now = performance.now();
+    this.syncBicycleHold(input.dir, now);
+    return this.bicycleHold && now - this.bicycleHold.since >= BICYCLE_TOUCH_HOLD_MS
+      ? { ...input, run: true } : input;
   }
 
   /** Decide / talk / advance: shared by keys, the dialog box and the touch A button. */
@@ -89,14 +99,19 @@ export class UiController implements ModalPanelHost {
 
   bind(handlers: { onReset: () => void }): void {
     window.addEventListener('keydown', event => this.onKeyDown(event));
-    window.addEventListener('keyup', event => this.controls.release(event.code));
-    window.addEventListener('blur', () => this.controls.clear());
-    document.addEventListener('focusin', event => { if (event.target !== this.canvas) this.controls.clear(); });
+    window.addEventListener('keyup', event => {
+      this.controls.release(event.code);
+      if (DIRECTION_KEYS[event.code]) this.syncBicycleHold();
+    });
+    window.addEventListener('blur', () => this.clearInput());
+    window.addEventListener('pagehide', () => this.clearBicycleHold());
+    document.addEventListener('visibilitychange', () => this.clearBicycleHold());
+    document.addEventListener('focusin', event => { if (event.target !== this.canvas) this.clearInput(); });
     this.canvas.addEventListener('pointerdown', () => this.focusMap());
 
     $<HTMLButtonElement>('#btn-reset').addEventListener('click', () => {
       if (this.panels.active || this.minimap?.isOpen || this.travel?.()?.isOpen) return;
-      this.controls.clear();
+      this.clearInput();
       handlers.onReset();
       this.focusMap();
     });
@@ -130,7 +145,10 @@ export class UiController implements ModalPanelHost {
     const dir = DIRECTION_KEYS[event.code];
     if (dir) {
       event.preventDefault();
-      if (!event.repeat) this.controls.press(event.code, dir);
+      if (!event.repeat) {
+        this.controls.press(event.code, dir);
+        this.syncBicycleHold();
+      }
     } else if (RUN_KEYS.has(event.code)) {
       this.controls.pressRun(event.code);
     } else if (ACTION_KEYS.has(event.code)) {
@@ -138,15 +156,43 @@ export class UiController implements ModalPanelHost {
       if (!event.repeat) this.primaryAction();
     } else if (BICYCLE_KEYS.has(event.code)) {
       event.preventDefault();
-      if (!event.repeat) this.game.toggleBicycle();
+      if (!event.repeat) {
+        this.game.toggleBicycle();
+        this.update();
+      }
     }
   }
 
   private setTouch(enabled: boolean): void {
-    this.controls.clear();
+    this.clearInput();
     this.touch.classList.toggle('on', enabled);
     this.touch.setAttribute('aria-hidden', String(!enabled));
     this.touchToggle.setAttribute('aria-pressed', String(enabled));
+  }
+
+  private clearInput(): void {
+    this.controls.clear();
+    this.clearBicycleHold();
+  }
+
+  private clearBicycleHold(): void {
+    this.bicyclePointers.clear();
+    this.bicycleHold = undefined;
+  }
+
+  private canHoldBicycleDirection(): boolean {
+    return this.game.riding && this.touch.classList.contains('on') && !document.hidden && this.mode === 'explore';
+  }
+
+  private syncBicycleHold(direction = this.controls.state().dir, now = performance.now()): void {
+    if (!this.canHoldBicycleDirection() || !direction) {
+      this.clearBicycleHold();
+      return;
+    }
+    // Controls picks the most recent direction across keyboard and touch. Only a held arrow can start the touch boost.
+    const touchDirection = [...this.bicyclePointers.values()].at(-1);
+    if (direction !== touchDirection) this.bicycleHold = undefined;
+    else if (this.bicycleHold?.direction !== direction) this.bicycleHold = { direction, since: now };
   }
 
   private bindTouch(): void {
@@ -165,11 +211,21 @@ export class UiController implements ModalPanelHost {
         event.preventDefault();
         this.focusMap();
         button.setPointerCapture(event.pointerId);
-        if (direction) this.controls.press(`pointer-${event.pointerId}`, direction);
-        else if (bicycle) this.game.toggleBicycle();
-        else this.primaryAction();
+        if (direction) {
+          this.controls.press(`pointer-${event.pointerId}`, direction);
+          if (this.canHoldBicycleDirection()) this.bicyclePointers.set(event.pointerId, direction);
+          this.syncBicycleHold();
+        } else if (bicycle) {
+          this.game.toggleBicycle();
+          this.update();
+        } else this.primaryAction();
       });
-      const release = (event: PointerEvent) => this.controls.release(`pointer-${event.pointerId}`);
+      const release = (event: PointerEvent) => {
+        this.controls.release(`pointer-${event.pointerId}`);
+        if (!this.bicyclePointers.delete(event.pointerId)) return;
+        if (event.type !== 'pointerup') this.bicycleHold = undefined;
+        this.syncBicycleHold();
+      };
       button.addEventListener('pointerup', release);
       button.addEventListener('pointercancel', release);
       button.addEventListener('lostpointercapture', release);

@@ -53,6 +53,10 @@
       }
       #hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 4px 12px; font-size: 13px;
               pointer-events: none; white-space: nowrap; }
+      @media (max-width: 640px) {
+        #hint { width: max-content; max-width: calc(100% - 24px); box-sizing: border-box; text-align: center; white-space: normal; }
+        #stage:has(#touch.on) #hint { left: 136px; bottom: 5px; transform: none; max-width: calc(100% - 148px); line-height: 16px; }
+      }
       #toast { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); padding: 6px 14px; font-size: 14px;
                pointer-events: none; transition: opacity 0.25s; }
       #dialog { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(640px, calc(100% - 28px));
@@ -68,7 +72,7 @@
       #touch [data-dir="left"] { left: 14px; bottom: 80px; }
       #touch [data-dir="right"] { left: 126px; bottom: 80px; }
       #touch [data-act] { right: 22px; bottom: 70px; width: 68px; height: 68px; }
-      #touch [data-bike] { right: 28px; bottom: 152px; font-size: 11px; }
+      #touch [data-bike] { right: 28px; bottom: 146px; font-size: 11px; }
       #opening { position: fixed; inset: 0; z-index: 20; overflow: hidden; background: #0d0a0e;
                  touch-action: manipulation; --px: 2; }
       #opening-view { position: absolute; image-rendering: pixelated; image-rendering: crisp-edges; }
