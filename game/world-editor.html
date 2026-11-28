@@ -16,7 +16,7 @@
         <label><input type="checkbox" data-layer="ids">ID</label>
         <label id="landmarks-layer" hidden><input type="checkbox" data-layer="landmarks">目印</label>
       </div></details>
-      <button id="npc-list-toggle" type="button" aria-expanded="false">人物一覧 (0)</button>
+      <button id="entity-list-toggle" type="button" aria-expanded="false" aria-controls="entity-list-section">配置一覧 (0)</button>
       <button id="play">▶ 歩いて確かめる</button><button id="save" disabled>保存する</button>
       <output id="dirty">未保存 0</output>
     </nav>
@@ -39,10 +39,22 @@
         <label>イベントキー<input id="npc-event-key" type="text" readonly></label>
       </section>
       <p id="protection"></p><details id="object-details"><summary>くわしく</summary><p id="object-id"></p><pre id="object-json"></pre></details>
-      <section id="npc-list-section" aria-labelledby="npc-list-title" hidden>
-        <h3 id="npc-list-title">このエリアの人（0）</h3>
-        <p id="npc-list-empty" hidden></p>
-        <ul id="npc-list"></ul>
+      <section id="reference-properties" hidden>
+        <strong id="reference-name"></strong><p id="reference-position"></p>
+        <p id="reference-info"></p><p>この項目は参照のみです。</p>
+        <button id="reference-object" hidden>関連する配置物を選ぶ</button>
+        <details><summary>くわしく</summary><p id="reference-id"></p><pre id="reference-json"></pre></details>
+      </section>
+      <section id="entity-list-section" aria-labelledby="entity-list-title" hidden>
+        <h3 id="entity-list-title">このエリアの配置</h3>
+        <label class="entity-search-label" for="entity-search">名前・IDで検索</label>
+        <input id="entity-search" type="search" placeholder="名前・ID" autocomplete="off" spellcheck="false" aria-controls="entity-list">
+        <select id="entity-filter" aria-label="配置の種類" aria-controls="entity-list">
+          <option value="all">すべて</option><option value="npc">人物</option><option value="object">配置物</option>
+          <option value="facility">施設</option><option value="interaction">調べる場所</option><option value="portal">出入口</option>
+        </select>
+        <output id="entity-count" aria-live="polite"></output><p id="entity-list-empty" hidden></p>
+        <ul id="entity-list"></ul>
       </section>
     </aside>
     <section id="walk-dialog" hidden aria-live="polite"><strong></strong><p></p></section>
