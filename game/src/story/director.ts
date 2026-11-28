@@ -7,7 +7,7 @@
  * - マップの通知（MapEventSink）は人生イベント・買い物より先に受け取り、序章の相手とベッドだけを横取りする。
  * - 会話・選択肢・画面が開いている間は、進行も時間も止める（tick の exploring が false）。
  * - 個別の行き先・ステージ・イベントの中身は config.ts / events.ts のデータに置く。
- * - 最後に、選んだ選択肢と所持金から評価（Issue #62、score.ts）を計算して振り返る。結果画面はまだないため会話欄に出す。
+ * - 最後に、選んだ選択肢と所持金から評価（Issue #62、score.ts）を計算して振り返る。専用画面を使える場合はそこで振り返る。
  */
 import type { MapEvent, MapEventSink, PortalDef, SpawnPoint } from '../core/types';
 import type { DialogState } from '../events/dialog';
@@ -38,6 +38,8 @@ export interface StoryHost {
   notice(text: string): void;
   /** スマホの受信トレイに知らせを届ける。同じ id は二度届かない（受信トレイ側で弾く）。 */
   deliverMail(id: string, mail: StoryNotice): void;
+  /** 最後の節目の会話を閉じた後、専用の振り返り画面を開く。 */
+  showResult?(evaluation: LifeEvaluation): void;
 }
 
 /** ミニマップの目的地の印（施設 id）。 */
@@ -310,6 +312,13 @@ export class StoryDirector implements MapEventSink {
     const next = s.stageIndex + 1;
     if (next < STORY_STAGES.length) {
       this.queue.push({ speaker: STORY_SELF_NAME, lines: this.stage.milestone, after: () => this.startStage(next) });
+      return;
+    }
+    if (this.host?.showResult) {
+      this.queue.push({ speaker: STORY_SELF_NAME, lines: this.stage.milestone, after: () => {
+        s.phase = 'finished';
+        this.host?.showResult?.(this.evaluate());
+      } });
       return;
     }
     this.queue.push({ speaker: STORY_SELF_NAME, lines: this.stage.milestone });
